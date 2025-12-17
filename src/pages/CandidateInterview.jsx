@@ -131,6 +131,27 @@ const resetMountTracker = (sid) => {
     return false;
   };
 
+  // V3 UI CONTRACT: Strict render filter during active probing (FAIL-CLOSED)
+  function isAllowedDuringV3Probing(entry) {
+    if (!entry) return false;
+    
+    // ALLOW: User answers (always visible during probing)
+    if (entry.role === "user") return true;
+    
+    // ALLOW: Explicit completion messages
+    if (entry.isCompletion === true) return true;
+    
+    // ALLOW: Explicit error messages
+    if (entry.isError === true) return true;
+    
+    // ALLOW: Known completion messageTypes
+    const t = entry.messageType || entry.type || entry.kind;
+    if (t === "COMPLETION" || t === "V3_COMPLETION" || t === "PROBING_COMPLETE" || t === "v3_probe_complete") return true;
+    
+    // BLOCK: Everything else during active probing (fail-closed)
+    return false;
+  }
+
   // Helper: Filter renderable transcript entries (no flicker)
   const isRenderableTranscriptEntry = (t, isProbingActive = false) => {
     if (!t) return false;
@@ -1270,7 +1291,24 @@ export default function CandidateInterview() {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
     const deduped = dedupeByStableKey(base);
     const v3Active = !!v3ProbingActive;
-    const filtered = deduped.filter(entry => isRenderableTranscriptEntry(entry, v3Active));
+    
+    // V3 UI CONTRACT: Apply strict probing filter FIRST (fail-closed)
+    const filtered = deduped.filter(entry => {
+      // PRIORITY 1: During V3 probing, ONLY allow user answers + completion + errors
+      if (v3Active && !isAllowedDuringV3Probing(entry)) {
+        console.log('[V3_UI_CONTRACT]', {
+          action: 'BLOCKED_TRANSCRIPT_RENDER_DURING_PROBING',
+          messageType: entry.messageType || entry.type,
+          role: entry.role,
+          textPreview: entry.text?.substring(0, 50) || null,
+          reason: 'V3 probing active - only user answers and completion allowed'
+        });
+        return false;
+      }
+      
+      // PRIORITY 2: Standard filters (apply to all modes)
+      return isRenderableTranscriptEntry(entry, v3Active);
+    });
     
     // FALLBACK: If filter hides all messages but we have canonical data, use last 10
     if (base.length > 0 && filtered.length === 0) {
@@ -1339,7 +1377,19 @@ export default function CandidateInterview() {
     const v3Active = !!v3ProbingActive;
     
     for (const entry of dbTranscript) {
-      // V3 UI CONTRACT: Block V3 probe prompts from rendering
+      // V3 UI CONTRACT PRIORITY 1: During probing, only allow user/completion/error
+      if (v3Active && !isAllowedDuringV3Probing(entry)) {
+        console.log('[V3_UI_CONTRACT]', {
+          action: 'BLOCKED_APPEND_ONLY_DURING_PROBING',
+          messageType: entry.messageType || entry.type,
+          role: entry.role,
+          textPreview: entry.text?.substring(0, 50) || null,
+          reason: 'V3 probing active - blocking non-user/completion messages'
+        });
+        continue; // Skip this entry
+      }
+      
+      // V3 UI CONTRACT PRIORITY 2: Block V3 probe prompt types
       if (isV3PromptTranscriptItem(entry, v3Active)) {
         console.log('[V3_UI_CONTRACT]', {
           action: 'BLOCKED_V3_PROBE_FROM_APPEND_ONLY',
