@@ -686,7 +686,7 @@ export default function V3ProbingLoop({
   return (
     <div className="w-full h-full flex flex-col">
       {/* SCROLLABLE CONTENT: History (user answers, completion, errors) */}
-      <div className="flex-1 overflow-y-auto pb-40 space-y-2">
+      <div className="flex-1 overflow-y-auto pb-24 space-y-2">
         {/* V3 Messages - user answers and completion only (NEVER active prompts) */}
         {messages.map((msg) => {
           // DEFENSIVE GUARD: Block any AI message that looks like an active prompt
