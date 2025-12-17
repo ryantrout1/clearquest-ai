@@ -1201,6 +1201,25 @@ export default function CandidateInterview() {
   const exitV3HandledRef = useRef(false);
   const exitV3InProgressRef = useRef(false);
 
+  // V3 PROBING PURGE: Remove non-allowed entries when probing starts
+  useEffect(() => {
+    const v3Active = !!v3ProbingActive;
+    if (!v3Active) return;
+
+    // Purge any previously rendered non-allowed entries
+    setRenderedCandidateMessages(prev => {
+      const cleaned = (prev || []).filter(entry => isAllowedDuringV3Probing(entry));
+      if (cleaned.length !== (prev || []).length) {
+        console.warn("[V3_UI_CONTRACT] PURGED_RENDERED_TRANSCRIPT_ON_PROBING_ENTER", {
+          before: (prev || []).length,
+          after: cleaned.length,
+          purged: (prev || []).length - cleaned.length
+        });
+      }
+      return cleaned;
+    });
+  }, [v3ProbingActive]);
+
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
     if (!v3Gate.active && v3Gate.promptText) {
