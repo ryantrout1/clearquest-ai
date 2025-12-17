@@ -196,6 +196,21 @@ function canon(s) {
 }
 
 /**
+ * Detect if text contains month/year pattern.
+ * Matches: "March 2022", "Mar 2022", "3/2022", "03/2022", "2022-03"
+ */
+function isMonthYearLike(text) {
+  if (!text || typeof text !== 'string') return false;
+  const patterns = [
+    /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/i,
+    /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+\d{4}\b/i,
+    /\b\d{1,2}\/\d{4}\b/,
+    /\b\d{4}[-\/]\d{1,2}\b/
+  ];
+  return patterns.some(p => p.test(text));
+}
+
+/**
  * Resolve exact field_id from FactModel by semantic name.
  * Uses canonical matching: agency_name → agencyName, approx_month_year → approxMonthYear
  * Fallback: match by label if field_id match fails
@@ -811,6 +826,46 @@ async function decisionEngineV3Probe(base44, {
     isOpenerNarrative,
     categoryId
   );
+  
+  // PRIOR_LE_APPS BRIDGE: Map extracted date values to required date field
+  if (categoryId === 'PRIOR_LE_APPS' && isInitialCall) {
+    // Find the actual required date field by canonical matching
+    const dateAliases = ['date', 'occurred', 'occurreddate', 'when', 'whendidapply', 'applicationdate', 'approxmonthyear', 'monthyear'];
+    let dateRequiredField = null;
+    
+    for (const field of (factModel.required_fields || [])) {
+      const fieldCanon = canon(field.field_id || '');
+      if (dateAliases.some(alias => fieldCanon.includes(alias))) {
+        dateRequiredField = field;
+        break;
+      }
+    }
+    
+    // Check if we extracted a month/year value
+    const extractedKeys = Object.keys(extractedFacts);
+    const dateSemanticKeys = ['approx_month_year', 'month_year', 'occurrence_date', 'approxMonthYear', 'monthYear'];
+    const extractedDateKey = extractedKeys.find(k => dateSemanticKeys.some(dk => canon(k) === canon(dk)));
+    
+    if (dateRequiredField && extractedDateKey && extractedFacts[extractedDateKey]) {
+      const dateValue = extractedFacts[extractedDateKey];
+      
+      // Bridge: write extracted value to required field_id
+      extractedFacts[dateRequiredField.field_id] = dateValue;
+      
+      console.log('[V3_FACT_BRIDGE][PRIOR_LE_APPS]', {
+        traceId: effectiveTraceId,
+        extractedKeys: extractedKeys.join(','),
+        dateRequiredFieldId: dateRequiredField.field_id,
+        bridgedValuePreview: dateValue?.substring?.(0, 20) || dateValue,
+        missingAfter: '(will compute)'
+      });
+      
+      console.log('[V3_FACT_BRIDGE_VALUE]', {
+        fieldId: dateRequiredField.field_id,
+        valuePreview: dateValue?.substring?.(0, 20) || dateValue
+      });
+    }
+  }
   
   // Update incident.facts
   incident.facts = {
