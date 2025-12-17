@@ -13,11 +13,16 @@ import {
   logProbingStopped 
 } from "../utils/v3TranscriptLogger";
 
+// GLOBAL V3 LOOP REGISTRY: Prevent duplicate mounts
+const __v3LoopRegistry = globalThis.__cqV3LoopRegistry || (globalThis.__cqV3LoopRegistry = new Map());
+
 /**
  * V3 Probing Loop Component
  * 
  * A conversational micro-interview panel for V3-enabled categories.
  * Calls decisionEngineV3 to drive the probing loop until STOP/RECAP.
+ * 
+ * MOUNT GUARD: Only one instance per (sessionId, categoryId, instanceNumber) allowed.
  */
 export default function V3ProbingLoop({
   sessionId,
@@ -38,15 +43,53 @@ export default function V3ProbingLoop({
 }) {
   const effectiveTraceId = parentTraceId || `${sessionId}-${Date.now()}`;
   console.log('[V3_PROBING_LOOP][INIT]', { traceId: effectiveTraceId, categoryId, instanceNumber });
+  
   // FORENSIC: Component instance tracking
   const componentInstanceId = useRef(`V3ProbingLoop-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   
+  // MOUNT GUARD: Prevent duplicate instances
+  const loopKey = `${sessionId}:${categoryId}:${instanceNumber || 1}`;
+  const [isBlocked, setIsBlocked] = useState(false);
+  
   useEffect(() => {
-    console.log('[FORENSIC][MOUNT]', { component: 'V3ProbingLoop', instanceId: componentInstanceId.current, categoryId, instanceNumber });
+    // Check if another instance is already mounted for this key
+    if (__v3LoopRegistry.has(loopKey)) {
+      console.error('[V3_UI_CONTRACT][ERROR] DUPLICATE_LOOP_MOUNT_BLOCKED', {
+        loopKey,
+        existing: __v3LoopRegistry.get(loopKey),
+        incoming: componentInstanceId.current,
+        reason: 'Another V3ProbingLoop instance is already active for this session/category/instance'
+      });
+      setIsBlocked(true);
+      return; // Do not register or proceed
+    }
+    
+    // Register this instance
+    __v3LoopRegistry.set(loopKey, componentInstanceId.current);
+    console.log('[FORENSIC][MOUNT]', { 
+      component: 'V3ProbingLoop', 
+      instanceId: componentInstanceId.current, 
+      loopKey,
+      categoryId, 
+      instanceNumber,
+      registrySize: __v3LoopRegistry.size
+    });
+    
     return () => {
-      console.log('[FORENSIC][UNMOUNT]', { component: 'V3ProbingLoop', instanceId: componentInstanceId.current, categoryId, instanceNumber });
+      // Only delete if we're still the registered instance
+      if (__v3LoopRegistry.get(loopKey) === componentInstanceId.current) {
+        __v3LoopRegistry.delete(loopKey);
+        console.log('[FORENSIC][UNMOUNT]', { 
+          component: 'V3ProbingLoop', 
+          instanceId: componentInstanceId.current, 
+          loopKey,
+          categoryId, 
+          instanceNumber,
+          registrySize: __v3LoopRegistry.size
+        });
+      }
     };
-  }, []);
+  }, []); // Only run on mount/unmount
   // Idempotent incidentId creation using ref (prevents duplicate on remount)
   const incidentIdRef = useRef(null);
   if (!incidentIdRef.current) {
@@ -81,8 +124,23 @@ export default function V3ProbingLoop({
   // DUPLICATE PROMPT GUARD: Track last prompt hash to prevent duplicates
   const lastPromptHashRef = useRef(null);
 
+  // Render logging
+  useEffect(() => {
+    console.log('[V3_UI_RENDER][LOOP_INSTANCE]', {
+      loopKey,
+      instanceId: componentInstanceId.current,
+      isBlocked,
+      activePromptPreview: activePromptText?.substring(0, 60) || null,
+      isComplete
+    });
+  }, [loopKey, isBlocked, activePromptText, isComplete]);
+  
   // Initialize V3 probing with opener answer
   useEffect(() => {
+    if (isBlocked) {
+      console.log('[V3_PROBING_LOOP][INIT_SKIP] Instance blocked - will not initialize');
+      return;
+    }
     if (hasInitialized.current) {
       console.log('[V3_PROBING_LOOP][INIT_SKIP] Already initialized - preventing duplicate decide() call');
       return;
@@ -544,6 +602,15 @@ export default function V3ProbingLoop({
     }
   }, [exitRequested, exitPayload, onComplete, onMultiInstancePrompt]);
 
+  // MOUNT GUARD: Render nothing if blocked
+  if (isBlocked) {
+    return (
+      <div style={{ display: 'none' }} data-blocked="true" data-loop-key={loopKey}>
+        {/* Blocked duplicate V3ProbingLoop instance */}
+      </div>
+    );
+  }
+  
   return (
     <div className="w-full space-y-2">
       {/* V3 Messages - user answers only (prompts rendered separately) */}
