@@ -181,29 +181,117 @@ function isNonSubstantiveAnswer(answerText) {
   return patterns.some(p => normalized.includes(p));
 }
 
-// ========== SIMPLE FACT EXTRACTION (STUB) ==========
+// ========== OPENER NARRATIVE EXTRACTION ==========
+
+/**
+ * Extract facts from opener narrative using deterministic heuristics.
+ * Prioritizes high-confidence extraction for obvious patterns.
+ */
+function extractOpenerFacts(openerText, categoryId, factModel) {
+  if (!openerText || openerText.length < 20) return {};
+  
+  const extracted = {};
+  const normalized = openerText.trim();
+  const lower = normalized.toLowerCase();
+  
+  // PRIOR_LE_APPS specific extraction
+  if (categoryId === 'PRIOR_LE_APPS') {
+    // Extract agency_name - patterns like "applied to [AGENCY]" or "[AGENCY] for a"
+    const agencyPatterns = [
+      /applied\s+to\s+([A-Z][A-Za-z\s]+(?:Police|Sheriff|Department|Agency|Office))/i,
+      /to\s+([A-Z][A-Za-z\s]+(?:Police|Sheriff|Department|Agency|Office))\s+for/i,
+      /([A-Z][A-Za-z\s]+(?:Police|Sheriff|Department|Agency|Office))\s+application/i,
+      /with\s+([A-Z][A-Za-z\s]+(?:Police|Sheriff|Department|Agency|Office))/i
+    ];
+    
+    for (const pattern of agencyPatterns) {
+      const match = normalized.match(pattern);
+      if (match && match[1]) {
+        extracted.agency_name = match[1].trim();
+        break;
+      }
+    }
+    
+    // Extract position_applied_for - patterns like "for a [POSITION]" or "as a [POSITION]"
+    const positionPatterns = [
+      /for\s+a?\s?([A-Za-z\s]+(?:Officer|Recruit|Deputy|Agent|Position))/i,
+      /as\s+a?\s?([A-Za-z\s]+(?:Officer|Recruit|Deputy|Agent|Position))/i,
+      /position\s+of\s+([A-Za-z\s]+)/i
+    ];
+    
+    for (const pattern of positionPatterns) {
+      const match = normalized.match(pattern);
+      if (match && match[1]) {
+        extracted.position_applied_for = match[1].trim();
+        break;
+      }
+    }
+    
+    // Extract approx_month_year - patterns like "In March 2022" or "March of 2022"
+    const monthYearPatterns = [
+      /in\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i,
+      /(January|February|March|April|May|June|July|August|September|October|November|December)\s+of?\s+(\d{4})/i,
+      /(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i
+    ];
+    
+    for (const pattern of monthYearPatterns) {
+      const match = normalized.match(pattern);
+      if (match) {
+        const month = match[1];
+        const year = match[2] || match[3];
+        if (month && year) {
+          extracted.approx_month_year = `${month} ${year}`;
+          break;
+        }
+      }
+    }
+    
+    // Extract outcome hints - look for outcome-related keywords
+    if (lower.includes('rejected') || lower.includes('denied') || lower.includes('not selected')) {
+      extracted.outcome = 'Not selected/rejected';
+    } else if (lower.includes('withdrew') || lower.includes('pulled out')) {
+      extracted.outcome = 'Withdrew application';
+    } else if (lower.includes('hired') || lower.includes('accepted') || lower.includes('offered')) {
+      extracted.outcome = 'Hired/accepted';
+    }
+    
+    // Extract how_far_got hints
+    if (lower.includes('background') && lower.includes('failed')) {
+      extracted.how_far_got = 'Background investigation';
+    } else if (lower.includes('polygraph')) {
+      extracted.how_far_got = 'Polygraph stage';
+    } else if (lower.includes('interview')) {
+      extracted.how_far_got = 'Interview stage';
+    } else if (lower.includes('written test') || lower.includes('written exam')) {
+      extracted.how_far_got = 'Written test';
+    }
+  }
+  
+  return extracted;
+}
 
 /**
  * Attempt to extract facts from answer text based on missing fields.
- * This is a stub that will be enhanced with AI extraction later.
- * For now, it marks fields as "collected" if the answer seems relevant.
+ * Uses deterministic extraction for openers, then falls back to single-field logic.
  */
-function extractFactsFromAnswer(answerText, missingFields, factModel) {
+function extractFactsFromAnswer(answerText, missingFields, factModel, isOpenerNarrative = false, categoryId = null) {
   if (!answerText || !missingFields?.length) return {};
   
-  const extracted = {};
   const normalized = answerText.trim();
   
-  // For now, if we have exactly one missing field and the answer is substantive,
-  // assume the answer corresponds to that field
+  // OPENER NARRATIVE: Use deterministic extraction
+  if (isOpenerNarrative && categoryId && normalized.length >= 20) {
+    return extractOpenerFacts(normalized, categoryId, factModel);
+  }
+  
+  // SINGLE FIELD ANSWER: Assume answer maps to the one missing field
+  const extracted = {};
   if (missingFields.length === 1 && normalized.length >= 3) {
     const field = missingFields[0];
     if (!isNonSubstantiveAnswer(normalized)) {
       extracted[field.field_id] = normalized;
     }
   }
-  
-  // Future: AI extraction will parse the answer and map to multiple fields
   
   return extracted;
 }
