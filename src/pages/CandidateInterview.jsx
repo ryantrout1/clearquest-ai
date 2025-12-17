@@ -108,6 +108,8 @@ const resetMountTracker = (sid) => {
     'SECTION_STARTED',          // Section lifecycle
     'AI_PROBING_CALLED',        // AI probing events
     'AI_PROBING_RESPONSE',
+    'v3_probe_question',        // V3 probe prompts (active prompt only, not transcript)
+    'V3_PROBE_ASKED',           // V3 probe system events
   ]);
 
   // Helper: Filter renderable transcript entries (no flicker)
@@ -5411,14 +5413,7 @@ export default function CandidateInterview() {
                 </ContentContainer>
               )}
 
-              {entry.role === 'assistant' && entry.messageType === 'v3_probe_question' && (
-                <ContentContainer>
-                <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                  <p className="text-white text-sm leading-relaxed">{entry.text}</p>
-                </div>
-                </ContentContainer>
-              )}
-
+              {/* V3 probe answers (user responses during probing) */}
               {entry.role === 'user' && entry.messageType === 'v3_probe_answer' && (
                 <ContentContainer>
                 <div className="flex justify-end">
