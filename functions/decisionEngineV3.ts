@@ -185,10 +185,24 @@ function isNonSubstantiveAnswer(answerText) {
 // ========== FIELD ID RESOLVER ==========
 
 /**
- * Resolve exact field_id from FactModel by semantic name (case-insensitive)
+ * Canonicalize a string for field ID matching.
+ * Removes all non-alphanumeric characters and lowercases.
+ * Maps snake_case, camelCase, PascalCase, kebab-case to same form.
  */
-function resolveFieldId(factModel, wantedLowerId) {
-  if (!factModel) return null;
+function canon(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Resolve exact field_id from FactModel by semantic name.
+ * Uses canonical matching: agency_name → agencyName, approx_month_year → approxMonthYear
+ */
+function resolveFieldId(factModel, semanticKey) {
+  if (!factModel || !semanticKey) return null;
+  
+  const wanted = canon(semanticKey);
   
   const allFields = [
     ...(factModel.required_fields || []),
@@ -196,7 +210,7 @@ function resolveFieldId(factModel, wantedLowerId) {
   ];
   
   for (const field of allFields) {
-    if (field.field_id && field.field_id.toLowerCase() === wantedLowerId.toLowerCase()) {
+    if (field?.field_id && canon(field.field_id) === wanted) {
       return field.field_id;
     }
   }
@@ -695,14 +709,11 @@ async function decisionEngineV3Probe(base44, {
   // Get current missing fields
   const missingFieldsBefore = getMissingRequiredFields(factState, incidentId, factModel);
   
-  // Detect opener narrative: no facts collected yet + substantive answer
-  const collectedFactsCount = Object.keys(incident?.facts || {}).filter(k => {
-    const v = incident.facts[k];
-    return v !== null && v !== undefined && v !== '';
-  }).length;
-  const isOpenerNarrative = collectedFactsCount === 0 && latestAnswerText && latestAnswerText.length >= 20;
+  // Detect opener narrative: use isInitialCall flag (passed from caller) OR fall back to facts count
+  // On initial call, incident doesn't exist yet or has no facts, so use the flag for reliable detection
+  const isOpenerNarrative = Boolean(isNewIncident) && latestAnswerText && latestAnswerText.length >= 20;
   
-  // Extract facts from answer
+  // Extract facts from answer (BEFORE selecting next missing field)
   const extractedFacts = extractFactsFromAnswer(
     latestAnswerText, 
     missingFieldsBefore, 
@@ -722,6 +733,11 @@ async function decisionEngineV3Probe(base44, {
   
   // Get updated missing fields AFTER extraction merge
   const missingFieldsAfter = getMissingRequiredFields(factState, incidentId, factModel);
+  
+  // Diagnostic log on initial call ONLY (definitive)
+  if (isNewIncident) {
+    console.log(`[V3_INITIAL_EXTRACT][${categoryId}] isInitialCall=${isNewIncident} extractedKeys=${Object.keys(extractedFacts).join(",")} missingAfter=${missingFieldsAfter.map(f=>f.field_id).join(",")}`);
+  }
   
   // Diagnostic log with key alignment check
   const allModelFields = [
