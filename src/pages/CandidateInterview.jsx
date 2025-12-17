@@ -138,6 +138,11 @@ const resetMountTracker = (sid) => {
     // Never show SYSTEM_EVENT or internal markers
     if (mt === 'SYSTEM_EVENT') return false;
     
+    // UI CONTRACT: Hide legacy "Got it — Let's Begin" transcript entries
+    if (mt === 'WELCOME_ACKNOWLEDGED' || (t.role === 'user' && t.text === "Got it — Let's Begin")) {
+      return false;
+    }
+    
     // V3 UI CONTRACT: Block V3 probe prompts from transcript (narrow type-based filter)
     if (isV3PromptTranscriptItem(t)) {
       return false;
@@ -5583,16 +5588,7 @@ export default function CandidateInterview() {
                 </ContentContainer>
               )}
 
-              {/* Welcome acknowledged (user click) */}
-              {entry.messageType === 'WELCOME_ACKNOWLEDGED' && entry.role === 'user' && (
-                <ContentContainer>
-                <div className="flex justify-end">
-                  <div className="bg-blue-600 rounded-xl px-5 py-3">
-                    <p className="text-white text-sm">{entry.text}</p>
-                  </div>
-                </div>
-                </ContentContainer>
-              )}
+              {/* REMOVED: Welcome acknowledged (never rendered per UI contract) */}
 
               {/* Session resumed marker (collapsed system note) */}
               {entry.messageType === 'RESUME' && entry.visibleToCandidate && (
@@ -6032,14 +6028,8 @@ export default function CandidateInterview() {
                     hasSections: sections.length > 0
                   });
                   
-                  // Append user click to transcript ("Got it — Let's Begin")
-                  await appendAndRefresh('user', {
-                    text: "Got it — Let's Begin",
-                    metadata: {
-                      messageType: 'WELCOME_ACKNOWLEDGED',
-                      visibleToCandidate: true
-                    }
-                  }, 'welcome_acknowledged');
+                  // UI CONTRACT: Do NOT append "Got it — Let's Begin" to transcript
+                  // Welcome acknowledgment is implicit in interview progression, not a data answer
                   
                   // Get first question from section-first order
                   const firstQuestionId = sections.length > 0 && sections[0]?.questionIds?.length > 0
