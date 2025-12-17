@@ -751,53 +751,38 @@ export default function V3ProbingLoop({
         )}
       </div>
 
-      {/* FIXED BOTTOM COMPOSER: Prompt label + Input (pinned to viewport bottom) */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-t from-slate-900 via-slate-900 to-slate-900/95 border-t border-slate-700/50">
-        <div className="max-w-4xl mx-auto px-4 py-4">
+      {/* FIXED BOTTOM COMPOSER: Input only (pinned to viewport bottom) */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950/80 backdrop-blur border-t border-slate-700/40">
+        <div className="max-w-4xl mx-auto px-4 py-3">
           {!isComplete && (
-            <div className="space-y-2">
-              {/* Active prompt - simple label text, NO card/bubble */}
-              {activePromptText && (
-                <div>
-                  {isDeciding && (
-                    <div className="flex items-center gap-2 mb-1">
-                      <Loader2 className="w-3 h-3 text-purple-400 animate-spin" />
-                      <span className="text-xs text-slate-400">Processing...</span>
-                    </div>
-                  )}
-                  <p className="text-sm text-slate-200 mb-2">{activePromptText}</p>
-                </div>
-              )}
-
-              {/* Processing indicator - only if no prompt yet */}
-              {!activePromptText && isDeciding && (
+            <div>
+              {/* Processing indicator - inline minimal */}
+              {isDeciding && (
                 <div className="flex items-center gap-2 mb-2">
-                  <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-                  <p className="text-slate-300 text-sm">Reviewing your answer...</p>
+                  <Loader2 className="w-3 h-3 text-purple-400 animate-spin" />
+                  <span className="text-xs text-slate-400">Processing...</span>
                 </div>
               )}
 
-              {/* Input form - disabled while deciding */}
+              {/* Input form - prompt in placeholder only */}
               {!isDeciding && (
-                <form onSubmit={handleSubmit}>
-                  <div className="flex gap-3">
-                    <Input
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      placeholder="Type your answer..."
-                      className="flex-1 bg-[#0d1829] border-2 border-purple-500 focus:border-purple-400 text-white placeholder:text-slate-400"
-                      disabled={isLoading}
-                      autoFocus
-                    />
-                    <Button
-                      type="submit"
-                      disabled={!input.trim() || isLoading}
-                      className="bg-indigo-600 hover:bg-indigo-700 px-5"
-                    >
-                      <Send className="w-4 h-4 mr-2" />
-                      Send
-                    </Button>
-                  </div>
+                <form onSubmit={handleSubmit} className="flex gap-3">
+                  <Input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder={activePromptText || "Type your answer..."}
+                    aria-label={activePromptText || "Type your answer"}
+                    className="flex-1 bg-slate-900/60 border border-slate-600/50 rounded-lg text-slate-100 placeholder:text-slate-400"
+                    disabled={isLoading}
+                    autoFocus
+                  />
+                  <Button
+                    type="submit"
+                    disabled={!input.trim() || isLoading}
+                    className="bg-indigo-600 hover:bg-indigo-700 px-4"
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
                 </form>
               )}
             </div>
