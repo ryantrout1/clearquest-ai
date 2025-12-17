@@ -1317,7 +1317,38 @@ export default function CandidateInterview() {
   const renderedTranscript = useMemo(() => {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
     const deduped = dedupeByStableKey(base);
-    const filtered = deduped.filter(entry => isRenderableTranscriptEntry(entry));
+    let filtered = deduped.filter(entry => isRenderableTranscriptEntry(entry));
+    
+    // V3 UI CONTRACT: Suppress opener transcript entry when opener is actively displayed
+    const isActiveV3Opener =
+      (currentItem?.type === 'v3_pack_opener' || uiCurrentItem?.type === 'v3_pack_opener') &&
+      !!currentItem?.packId &&
+      typeof currentItem?.instanceNumber !== "undefined";
+    
+    const isDuplicateOpenerTranscriptEntry = (entry) => {
+      if (!isActiveV3Opener) return false;
+      if (!entry) return false;
+      
+      const isOpenerShown =
+        entry.messageType === "FOLLOWUP_CARD_SHOWN" &&
+        (entry.meta?.variant === "opener" || entry.variant === "opener" || entry.followupVariant === "opener");
+      
+      const samePack = entry.packId === currentItem?.packId || entry.meta?.packId === currentItem?.packId;
+      const sameInstance = Number(entry.instanceNumber || entry.meta?.instanceNumber) === Number(currentItem?.instanceNumber);
+      
+      return isOpenerShown && samePack && sameInstance;
+    };
+    
+    // Filter out duplicate opener entries while active
+    filtered = filtered.filter(entry => !isDuplicateOpenerTranscriptEntry(entry));
+    
+    if (isActiveV3Opener) {
+      console.log("[V3_UI_CONTRACT] OPENER_DEDUP_ACTIVE", { 
+        packId: currentItem?.packId, 
+        instanceNumber: currentItem?.instanceNumber,
+        filteredOutCount: deduped.filter(isDuplicateOpenerTranscriptEntry).length
+      });
+    }
     
     console.log('[TRANSCRIPT_RENDER]', {
       canonicalLen: base.length,
@@ -1328,7 +1359,7 @@ export default function CandidateInterview() {
     });
     
     return filtered;
-  }, [dbTranscript, currentItem, screenMode]);
+  }, [dbTranscript, currentItem, uiCurrentItem, screenMode]);
 
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
