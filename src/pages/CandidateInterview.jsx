@@ -114,6 +114,23 @@ const resetMountTracker = (sid) => {
     'AI_THINKING',              // V3 UI CONTRACT: No thinking bubbles during V3
   ]);
 
+  // V3 UI CONTRACT: Hard filter for V3 prompt items
+  const isV3PromptTranscriptItem = (msg) => {
+    const t = msg?.messageType || msg?.type || msg?.kind;
+    
+    // Block known V3 prompt/system events
+    if (t === "V3_PROBE_ASKED") return true;
+    if (t === "V3_PROBE_PROMPT") return true;
+    if (t === "v3_probe_question") return true;
+    if (t === "V3_PROMPT") return true;
+    if (t === "V3_PROBE") return true;
+    
+    // FAIL-CLOSED: Block any assistant message that looks like V3 probe while probing
+    if (v3ProbingActive && msg?.role === "assistant" && msg?.isV3 === true) return true;
+    
+    return false;
+  };
+
   // Helper: Filter renderable transcript entries (no flicker)
   const isRenderableTranscriptEntry = (t) => {
     if (!t) return false;
@@ -123,8 +140,8 @@ const resetMountTracker = (sid) => {
     // Never show SYSTEM_EVENT or internal markers
     if (mt === 'SYSTEM_EVENT') return false;
     
-    // V3 UI CONTRACT: Block V3 probe prompts from transcript (should never exist, but defensive guard)
-    if (mt === 'v3_probe_question' || mt === 'V3_PROBE_ASKED' || mt === 'V3_PROBE') {
+    // V3 UI CONTRACT: Block V3 probe prompts from transcript (hard filter)
+    if (isV3PromptTranscriptItem(t)) {
       console.log('[V3_UI_CONTRACT]', {
         action: 'FILTER_BLOCKED_V3_PROBE',
         messageType: mt,
@@ -1320,6 +1337,16 @@ export default function CandidateInterview() {
     const newMessages = [];
     
     for (const entry of dbTranscript) {
+      // V3 UI CONTRACT: Block V3 probe prompts from rendering
+      if (isV3PromptTranscriptItem(entry)) {
+        console.log('[V3_UI_CONTRACT]', {
+          action: 'BLOCKED_V3_PROBE_FROM_APPEND_ONLY',
+          messageType: entry.messageType || entry.type,
+          reason: 'V3 probes filtered from rendered messages'
+        });
+        continue; // Skip this entry
+      }
+      
       // Only add if visibleToCandidate and not already seen
       if (entry.visibleToCandidate !== true) continue;
       
@@ -1343,7 +1370,20 @@ export default function CandidateInterview() {
         return updated;
       });
     }
-  }, [dbTranscript]);
+    
+    // REGRESSION GUARD: Check if V3 prompts leaked into transcript during probing
+    if (v3ProbingActive) {
+      const badEntries = dbTranscript.filter(isV3PromptTranscriptItem);
+      if (badEntries.length > 0) {
+        console.error('[V3_UI_CONTRACT][ERROR] V3_PROMPT_FOUND_IN_TRANSCRIPT', {
+          count: badEntries.length,
+          sample: badEntries[0]?.text?.slice?.(0, 80) || badEntries[0],
+          v3ProbingActive,
+          sessionId
+        });
+      }
+    }
+  }, [dbTranscript, v3ProbingActive, sessionId]);
   
   // UNIFIED STREAM: No filtering - all messages render in single transcript
   const transcriptWithoutCurrentPrompt = useMemo(() => {
@@ -4453,8 +4493,19 @@ export default function CandidateInterview() {
     exitV3Once('PROBING_COMPLETE', result);
   }, [exitV3Once]);
 
-  // V3 transcript update handler - NO REFRESH (batched at completion)
+  // V3 transcript update handler - BLOCK V3 probe prompts from appending
   const handleV3TranscriptUpdate = useCallback(async (entry) => {
+    // V3 UI CONTRACT: Block v3_probe_question from appending to transcript
+    if (entry?.type === 'v3_probe_question' || entry?.messageType === 'V3_PROBE_ASKED') {
+      console.log('[V3_UI_CONTRACT]', {
+        action: 'BLOCKED_V3_PROMPT_TRANSCRIPT_APPEND',
+        type: entry.type,
+        messageType: entry.messageType,
+        reason: 'V3 probes must NOT be appended to transcript - prompt lives only in V3ProbingLoop placeholder'
+      });
+      return; // DO NOT append to transcript
+    }
+    
     // V3 messages written to DB by V3ProbingLoop
     // We refresh ONCE when V3 completes, not per message (prevents refresh storm)
     console.log('[V3_TRANSCRIPT_UPDATE]', { type: entry?.type, deferred: true });
