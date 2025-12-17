@@ -223,6 +223,9 @@ export default function V3ProbingLoop({
       });
     }
 
+    // Start timing for backend call
+    const engineCallStart = Date.now();
+    
     try {
       console.log('[ENGINE][DECIDE_START]', { traceId, categoryId, incidentId: incidentId || '(will create)' });
       console.log('[V3_PROBE][LOOP_START]', {
@@ -233,7 +236,6 @@ export default function V3ProbingLoop({
       });
       
       // FAIL-CLOSED WATCHDOG: 12s timeout for backend call
-      const engineCallStart = Date.now();
       const BACKEND_TIMEOUT_MS = 12000;
       
       const enginePromise = base44.functions.invoke('decisionEngineV3', {
@@ -488,6 +490,13 @@ export default function V3ProbingLoop({
       }
     } catch (err) {
       const engineCallMs = Date.now() - engineCallStart;
+      
+      console.error("[V3_PROBING][ENGINE_CALL_ERROR]", { 
+        error: String(err), 
+        stack: err?.stack,
+        traceId,
+        elapsedMs: engineCallMs
+      });
       
       // UI CONTRACT: Clear deciding state on error
       setIsDeciding(false);
