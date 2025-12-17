@@ -115,16 +115,19 @@ const resetMountTracker = (sid) => {
   ]);
 
   // V3 UI CONTRACT: Hard filter for V3 prompt items (module-scope safe)
-  // NARROW FILTER: Only blocks specific V3 probe prompt types
+  // NARROW FILTER: Only blocks V3 PROBE prompts (NOT opener prompts)
   const isV3PromptTranscriptItem = (msg) => {
     const t = msg?.messageType || msg?.type || msg?.kind;
     
-    // Block known V3 prompt/system events ONLY
+    // Block V3 PROBE prompts only (NOT opener prompts)
     if (t === "V3_PROBE_ASKED") return true;
     if (t === "V3_PROBE_PROMPT") return true;
     if (t === "v3_probe_question") return true;
     if (t === "V3_PROMPT") return true;
     if (t === "V3_PROBE") return true;
+    
+    // DO NOT block opener prompts (v3_opener_question, FOLLOWUP_CARD_SHOWN)
+    // Openers are deterministic and must remain in transcript history
     
     return false;
   };
@@ -138,8 +141,9 @@ const resetMountTracker = (sid) => {
     // Never show SYSTEM_EVENT or internal markers
     if (mt === 'SYSTEM_EVENT') return false;
     
-    // UI CONTRACT: Hide legacy "Got it — Let's Begin" transcript entries
-    if (mt === 'WELCOME_ACKNOWLEDGED' || (t.role === 'user' && t.text === "Got it — Let's Begin")) {
+    // UI CONTRACT: DO NOT hide "Got it — Let's Begin" - it's a normal user answer
+    // Only hide if it's marked as WELCOME_ACKNOWLEDGED system type
+    if (mt === 'WELCOME_ACKNOWLEDGED' && t.visibleToCandidate === false) {
       return false;
     }
     
@@ -5006,28 +5010,33 @@ export default function CandidateInterview() {
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
       const packLabel = packConfig?.instancesLabel || categoryId || 'Follow-up';
 
-      // V3 UI CONTRACT: Do NOT append V3 opener to transcript (deterministic render only)
-      // Audit logging via system event is OK, but no visible assistant message
+      // UI CONTRACT: V3 opener MUST append to transcript (visible to candidate)
       const openerCardId = `followup-card-${sessionId}-${packId}-opener-${instanceNumber}`;
       if (lastLoggedFollowupCardIdRef.current !== openerCardId) {
         lastLoggedFollowupCardIdRef.current = openerCardId;
 
-        console.log('[V3_UI_CONTRACT]', {
-          action: 'BLOCKED_TRANSCRIPT_APPEND',
-          reason: 'v3_opener_deterministic_only',
+        console.log('[V3_OPENER_TRANSCRIPT]', {
+          action: 'APPEND_TO_TRANSCRIPT',
           packId,
           instanceNumber,
           categoryId,
-          note: 'V3 opener renders from currentItem state, NOT transcript'
+          note: 'V3 opener is deterministic and MUST remain visible in history'
         });
 
-        // Audit-only system event (NOT visible to candidate)
-        logSystemEventHelper(sessionId, 'FOLLOWUP_CARD_SHOWN', {
+        // Append opener to transcript as visible message
+        logFollowupCardShown(sessionId, {
           packId,
           variant: 'opener',
+          stableKey: `${packId}-opener-${instanceNumber}`,
+          promptText: openerText,
+          exampleText: exampleNarrative,
+          packLabel,
           instanceNumber,
-          baseQuestionId: effectiveCurrentItem.baseQuestionId
-        }).catch(err => console.warn('[LOG_SYSTEM_EVENT] Failed:', err));
+          baseQuestionId: effectiveCurrentItem.baseQuestionId,
+          categoryLabel // CRITICAL: Pass categoryLabel for V3 opener rendering
+        }).then(() => {
+          return refreshTranscriptFromDB('v3_opener_shown');
+        }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
       }
 
       return {
@@ -5588,7 +5597,16 @@ export default function CandidateInterview() {
                 </ContentContainer>
               )}
 
-              {/* REMOVED: Welcome acknowledged (never rendered per UI contract) */}
+              {/* User message - "Got it — Let's Begin" or any other user text */}
+              {entry.role === 'user' && !entry.messageType?.includes('ANSWER') && !entry.messageType?.includes('v3_') && !entry.messageType?.includes('GATE') && (
+                <ContentContainer>
+                <div className="flex justify-end">
+                  <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
+                    <p className="text-white text-sm">{entry.text}</p>
+                  </div>
+                </div>
+                </ContentContainer>
+              )}
 
               {/* Session resumed marker (collapsed system note) */}
               {entry.messageType === 'RESUME' && entry.visibleToCandidate && (
@@ -6028,8 +6046,14 @@ export default function CandidateInterview() {
                     hasSections: sections.length > 0
                   });
                   
-                  // UI CONTRACT: Do NOT append "Got it — Let's Begin" to transcript
-                  // Welcome acknowledgment is implicit in interview progression, not a data answer
+                  // UI CONTRACT: Append "Got it — Let's Begin" as normal user message
+                  await appendAndRefresh('user', {
+                    text: "Got it — Let's Begin",
+                    metadata: {
+                      messageType: 'USER_MESSAGE',
+                      visibleToCandidate: true
+                    }
+                  }, 'welcome_acknowledged');
                   
                   // Get first question from section-first order
                   const firstQuestionId = sections.length > 0 && sections[0]?.questionIds?.length > 0
@@ -6345,6 +6369,13 @@ export default function CandidateInterview() {
             </div>
           ) : bottomBarMode === "TEXT_INPUT" ? (
           <div className="space-y-2">
+           {/* V3 Probe Prompt - shown ABOVE input during probing */}
+           {v3ProbingActive && v3ActivePromptText && (
+             <div className="bg-purple-900/30 border border-purple-700/50 rounded-lg px-4 py-3">
+               <p className="text-purple-200 text-sm leading-relaxed">{v3ActivePromptText}</p>
+             </div>
+           )}
+           
            {/* LLM Suggestion - show if available for this field (hide during V3 probing) */}
            {!v3ProbingActive && (() => {
              const suggestionKey = currentItem?.packId && currentItem?.fieldKey
@@ -6386,7 +6417,7 @@ export default function CandidateInterview() {
                  setInput(value);
                }}
                onKeyDown={handleInputKeyDown}
-               placeholder={v3ProbingActive && v3ActivePromptText ? v3ActivePromptText : "Type your answer..."}
+               placeholder="Type your answer..."
                aria-label={v3ProbingActive && v3ActivePromptText ? v3ActivePromptText : "Type your answer"}
                className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
                disabled={isCommitting}
