@@ -277,15 +277,16 @@ export default function V3ProbingLoop({
 
       // Handle next action
       if (data.nextAction === "ASK" && data.nextPrompt) {
-        // DUPLICATE PROMPT GUARD: Hash prompt to detect duplicates
-        const promptHash = `${data.nextPrompt}-${currentIncidentId}-${newProbeCount}`;
+        // DUPLICATE PROMPT GUARD: Hash prompt with canonical text
+        const canon = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const promptHash = `${currentIncidentId}:${newProbeCount}:${canon(data.nextPrompt)}`;
         
         if (lastPromptHashRef.current === promptHash) {
           console.log('[V3_UI_CONTRACT][DUPLICATE_PROMPT_BLOCKED]', {
-            promptPreview: data.nextPrompt.substring(0, 60),
+            promptHash,
             incidentId: currentIncidentId,
             probeCount: newProbeCount,
-            reason: 'Same prompt hash as previous - skipping duplicate render'
+            reason: 'same_hash'
           });
           setIsDeciding(false);
           setIsLoading(false);
@@ -294,18 +295,23 @@ export default function V3ProbingLoop({
         
         lastPromptHashRef.current = promptHash;
         
-        const aiMessage = {
-          id: `v3-ai-${Date.now()}`,
-          role: "ai",
-          content: data.nextPrompt,
-          timestamp: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, aiMessage]);
-        
-        // UI CONTRACT: Set active prompt state (renders in UI)
+        // UI CONTRACT: SINGLE SOURCE OF TRUTH - only set activePromptText
+        // Do NOT add to messages array (prevents duplicate rendering)
         setActivePromptText(data.nextPrompt);
-        setActivePromptId(aiMessage.id);
+        setActivePromptId(`v3-prompt-${currentIncidentId}-${newProbeCount}`);
         setIsDeciding(false);
+        
+        // UI SELF-CHECK: Verify no duplicate prompts in messages
+        const activePromptsInMessages = messages.filter(m => 
+          m.role === 'ai' && !m.isCompletion && m.content === data.nextPrompt
+        );
+        if (activePromptsInMessages.length > 0) {
+          console.error('[V3_UI_CONTRACT][ERROR] DUPLICATE_PROMPT_RENDERED', {
+            promptHash,
+            foundInMessages: activePromptsInMessages.length,
+            reason: 'Prompt exists in messages array AND activePromptText'
+          });
+        }
         
         // Log V3 probe as system event only (NOT visible transcript message)
         const { logSystemEvent } = await import("../utils/chatTranscriptHelpers");
@@ -540,18 +546,22 @@ export default function V3ProbingLoop({
 
   return (
     <div className="w-full space-y-2">
-      {/* V3 Messages - using existing ClearQuest bubble style */}
+      {/* V3 Messages - user answers only (prompts rendered separately) */}
       {messages.map((msg) => (
         <div key={msg.id}>
-          {msg.role === "ai" && !msg.isCompletion && (
-            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-              <p className="text-white text-sm leading-relaxed">{msg.content}</p>
-            </div>
-          )}
           {msg.role === "user" && (
             <div className="flex justify-end">
               <div className="bg-purple-600 rounded-xl px-5 py-3">
                 <p className="text-white text-sm">{msg.answer || msg.content}</p>
+              </div>
+            </div>
+          )}
+          {/* AI completion messages only (not active prompts) */}
+          {msg.role === "ai" && msg.isCompletion && (
+            <div className="w-full bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <p className="text-white text-sm leading-relaxed">{msg.content}</p>
               </div>
             </div>
           )}
@@ -573,7 +583,7 @@ export default function V3ProbingLoop({
             </div>
           )}
           
-          {/* PRIORITY 2: Active prompt card (visible to user) */}
+          {/* PRIORITY 2: Active prompt card (SINGLE SOURCE OF TRUTH) */}
           {!isDeciding && activePromptText && (
             <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
               <p className="text-white text-sm leading-relaxed">{activePromptText}</p>
