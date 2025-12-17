@@ -47,13 +47,20 @@ export default function V3ProbingLoop({
       console.log('[FORENSIC][UNMOUNT]', { component: 'V3ProbingLoop', instanceId: componentInstanceId.current, categoryId, instanceNumber });
     };
   }, []);
-  // Create local incidentId if not provided to ensure summary generation always has a target
-  const [incidentId, setIncidentId] = useState(() => {
-    if (initialIncidentId) return initialIncidentId;
-    const localId = `v3-incident-${sessionId}-${categoryId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    console.log("[V3_PROBING_LOOP][INIT] Created local incidentId:", localId);
-    return localId;
-  });
+  // Idempotent incidentId creation using ref (prevents duplicate on remount)
+  const incidentIdRef = useRef(null);
+  if (!incidentIdRef.current) {
+    if (initialIncidentId) {
+      incidentIdRef.current = initialIncidentId;
+    } else {
+      incidentIdRef.current = `v3-incident-${sessionId}-${categoryId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      console.log("[V3_PROBING_LOOP][INIT] Created local incidentId:", incidentIdRef.current);
+    }
+  }
+  const incidentId = incidentIdRef.current;
+  const setIncidentId = (newId) => {
+    incidentIdRef.current = newId;
+  };
   const [probeCount, setProbeCount] = useState(0);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -65,6 +72,11 @@ export default function V3ProbingLoop({
   const [exitPayload, setExitPayload] = useState(null);
   const messagesEndRef = useRef(null);
   const hasInitialized = useRef(false);
+  
+  // UI CONTRACT: Explicit state for what user sees during probing
+  const [isDeciding, setIsDeciding] = useState(false);
+  const [activePromptText, setActivePromptText] = useState(null);
+  const [activePromptId, setActivePromptId] = useState(null);
 
   // Initialize V3 probing with opener answer
   useEffect(() => {
@@ -454,6 +466,7 @@ export default function V3ProbingLoop({
       setCompletionReason("ERROR");
     } finally {
       setIsLoading(false);
+      setIsDeciding(false);
     }
   };
 
