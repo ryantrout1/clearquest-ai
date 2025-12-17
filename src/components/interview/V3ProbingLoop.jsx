@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Loader2, Bot, User, CheckCircle2 } from "lucide-react";
+import { Send, Loader2, Bot, User, CheckCircle2, AlertCircle } from "lucide-react";
 import { getCompletionMessage } from "../utils/v3ProbingPrompts";
 import { 
   logAIOpening, 
