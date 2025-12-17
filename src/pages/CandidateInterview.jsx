@@ -5424,14 +5424,26 @@ export default function CandidateInterview() {
               );
             }
 
-            // SUPPRESS: v3_probe_complete and all AI thinking/system messages
+            // V3 UI CONTRACT: Suppress all processing/reviewing/thinking bubbles
             if (entry.role === 'assistant' && (
               entry.messageType === 'v3_probe_complete' ||
               entry.messageType === 'AI_THINKING' ||
+              entry.messageType === 'PROCESSING' ||
+              entry.messageType === 'REVIEWING' ||
               entry.messageType === 'SYSTEM_MESSAGE' ||
               entry.messageType?.includes('THINKING') ||
-              entry.messageType?.includes('PROBE_THINKING')
+              entry.messageType?.includes('PROBE_THINKING') ||
+              entry.messageType?.includes('PROCESSING') ||
+              entry.messageType?.includes('REVIEWING')
             )) {
+              // V3 UI CONTRACT ENFORCEMENT: Log suppression for regression tracking
+              console.log('[V3_UI_CONTRACT]', {
+                action: 'SUPPRESS_PROCESSING_BUBBLE',
+                reason: 'V3 owns UI - no processing indicators in parent transcript',
+                messageType: entry.messageType,
+                currentItemType: currentItem?.type,
+                v3ProbingActive
+              });
               return null;
             }
 
