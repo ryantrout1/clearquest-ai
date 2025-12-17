@@ -5006,9 +5006,9 @@ export default function CandidateInterview() {
 
     // V3 Pack opener question (ONLY if not in v3_probing mode)
     if (effectiveCurrentItem.type === 'v3_pack_opener' && !v3ProbingActive) {
-      const { packId, openerText, exampleNarrative, categoryId, instanceNumber } = effectiveCurrentItem;
+      const { packId, openerText, exampleNarrative, categoryId, categoryLabel, instanceNumber } = effectiveCurrentItem;
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-      const packLabel = packConfig?.instancesLabel || categoryId || 'Follow-up';
+      const packLabel = packConfig?.instancesLabel || categoryLabel || categoryId || 'Follow-up';
 
       // UI CONTRACT: V3 opener MUST append to transcript (visible to candidate)
       const openerCardId = `followup-card-${sessionId}-${packId}-opener-${instanceNumber}`;
