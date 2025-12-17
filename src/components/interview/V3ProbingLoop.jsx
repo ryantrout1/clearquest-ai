@@ -397,7 +397,7 @@ export default function V3ProbingLoop({
             content: data.nextPrompt,
             categoryId,
             incidentId: currentIncidentId,
-            timestamp: aiMessage.timestamp
+            timestamp: new Date().toISOString()
           });
         }
       } else if (data.nextAction === "RECAP" || data.nextAction === "STOP") {
