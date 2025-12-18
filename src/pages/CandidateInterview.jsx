@@ -5287,7 +5287,7 @@ export default function CandidateInterview() {
   // ============================================================================
   // CENTRALIZED BOTTOM BAR MODE SELECTION (Single Decision Point)
   // ============================================================================
-  const currentItemType = uiCurrentItem?.type || null;
+  const currentItemType = (v3GateActive ? 'v3_gate' : (v3ProbingActive ? 'v3_probing' : (pendingSectionTransition ? 'section_transition' : currentItem?.type || null)));
   
   // UI TRUTH: When V3 probing is active, force effective type to v3_probing
   // This ensures opener UI never renders during probing (strict contract enforcement)
