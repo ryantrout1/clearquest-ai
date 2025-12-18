@@ -49,7 +49,8 @@ import {
   logPackEntered,
   logPackExited,
   logSectionStarted,
-  logFollowupCardShown
+  logFollowupCardShown,
+  mergeTranscript
 } from "../components/utils/chatTranscriptHelpers";
 
 // ============================================================================
@@ -243,6 +244,11 @@ const ENABLE_CHAT_VIRTUALIZATION = false;
 // Removed anchor-based gating diagnostic helpers - V2 now uses field-based gating only
 
 // File revision: 2025-12-02 - Cleaned and validated
+
+// ============================================================================
+// FOOTER SAFE AREA - Ensures transcript content never hidden behind footer
+// ============================================================================
+const FOOTER_SAFE_AREA_PX = 180; // Footer height (~112px) + cushion for Yes/No bar
 
 // ============================================================================
 // CONTENT CONTAINER - Enforce max-width for all cards
@@ -940,11 +946,16 @@ export default function CandidateInterview() {
       
       // CRITICAL: Only allow transcript growth after initialization
       if (transcriptInitializedRef.current && next.length < prev.length) {
-        console.error('[TRANSCRIPT_BUG] BLOCKED shrink attempt!', { 
+        // Detect if this is from a derived list (filtered/deduped) vs canonical source
+        const isDerivedList = !Array.isArray(updater) || updater === next;
+        
+        console.warn('[TRANSCRIPT_GUARD][SHRINK_BLOCKED]', { 
           prevLen: prev.length, 
           nextLen: next.length,
           diff: prev.length - next.length,
-          action: 'BLOCKED'
+          isDerivedList,
+          action: 'BLOCKED',
+          stack: new Error().stack?.split('\n').slice(1, 4).join(' | ')
         });
         return prev; // BLOCK the shrink
       }
@@ -967,21 +978,24 @@ export default function CandidateInterview() {
       const freshSession = await base44.entities.InterviewSession.get(sessionId);
       const freshTranscript = freshSession.transcript_snapshot || [];
       
-      // SHRINK GUARD: Never allow transcript to shrink
-      if (transcriptInitializedRef.current && freshTranscript.length < oldLen) {
-        console.error('[TRANSCRIPT_GUARD] prevented shrink in refreshTranscriptFromDB', {
+      // MERGE STRATEGY: Use monotonic merge instead of naive replacement
+      const mergedTranscript = mergeTranscript(dbTranscript, freshTranscript, sessionId);
+      
+      // Diagnostic: Detect if merge prevented shrinkage
+      if (mergedTranscript.length > freshTranscript.length) {
+        console.warn('[TRANSCRIPT_MERGE][PROTECTED]', {
           oldLen,
-          newLen: freshTranscript.length,
+          freshLen: freshTranscript.length,
+          mergedLen: mergedTranscript.length,
           reason,
-          action: 'BLOCKED'
+          source: 'server_regression_protected'
         });
-        return dbTranscript; // Keep old transcript
       }
       
       setSession(freshSession); // Sync session state to prevent stale reads
-      setDbTranscriptSafe(freshTranscript);
-      console.log('[TRANSCRIPT_REFRESH]', { reason, freshLen: freshTranscript.length });
-      return freshTranscript;
+      setDbTranscriptSafe(mergedTranscript);
+      console.log('[TRANSCRIPT_REFRESH]', { reason, freshLen: freshTranscript.length, mergedLen: mergedTranscript.length });
+      return mergedTranscript;
     } catch (err) {
       console.error('[TRANSCRIPT_REFRESH][ERROR]', { reason, error: err.message });
       return dbTranscript; // Fallback to current state on error
@@ -1678,24 +1692,13 @@ export default function CandidateInterview() {
       
       const freshTranscript = loadedSession.transcript_snapshot || [];
       
-      // SHRINK GUARD: Never replace transcript with shorter version
-      if (transcriptInitializedRef.current && freshTranscript.length < oldTranscriptLen) {
-        console.error('[TRANSCRIPT_GUARD] prevented shrink in resumeFromDB', {
-          oldLen: oldTranscriptLen,
-          newLen: freshTranscript.length,
-          reason: 'resume',
-          action: 'USING_OLD'
-        });
-        // Keep existing transcript, but still update other session data
-        setSession(loadedSession);
-        setQueue(loadedSession.queue_snapshot || []);
-        setCurrentItem(loadedSession.current_item_snapshot || null);
-      } else {
-        setSession(loadedSession);
-        setDbTranscriptSafe(freshTranscript);
-        setQueue(loadedSession.queue_snapshot || []);
-        setCurrentItem(loadedSession.current_item_snapshot || null);
-      }
+      // MERGE STRATEGY: Use monotonic merge
+      const mergedTranscript = mergeTranscript(dbTranscript, freshTranscript, sessionId);
+      
+      setSession(loadedSession);
+      setDbTranscriptSafe(mergedTranscript);
+      setQueue(loadedSession.queue_snapshot || []);
+      setCurrentItem(loadedSession.current_item_snapshot || null);
       
       // Restore UI state WITHOUT resetting transcript
       const hasAnyResponses = freshTranscript.length > 0;
@@ -1963,22 +1966,12 @@ export default function CandidateInterview() {
       return false;
     }
 
-    // SHRINK GUARD: Never restore shorter transcript
-    if (transcriptInitializedRef.current && restoredTranscript.length < oldTranscriptLen) {
-      console.error('[TRANSCRIPT_GUARD] prevented shrink in restoreFromSnapshots', {
-        oldLen: oldTranscriptLen,
-        newLen: restoredTranscript.length,
-        reason: 'restore',
-        action: 'KEEPING_OLD'
-      });
-      // Keep old transcript, restore other state
-      setQueue(restoredQueue);
-      setCurrentItem(restoredCurrentItem);
-    } else {
-      setDbTranscriptSafe(restoredTranscript);
-      setQueue(restoredQueue);
-      setCurrentItem(restoredCurrentItem);
-    }
+    // MERGE STRATEGY: Use monotonic merge
+    const mergedTranscript = mergeTranscript(dbTranscript, restoredTranscript, sessionId);
+    
+    setDbTranscriptSafe(mergedTranscript);
+    setQueue(restoredQueue);
+    setCurrentItem(restoredCurrentItem);
 
     if (!restoredCurrentItem && restoredQueue.length > 0) {
       const nextItem = restoredQueue[0];
@@ -6119,8 +6112,12 @@ export default function CandidateInterview() {
                </ContentContainer>
               )}
 
-              {/* Bottom anchor - MUST be last element in scroll container */}
-              <div ref={bottomAnchorRef} />
+              {/* Bottom anchor with safe area - prevents footer overlap */}
+              <div 
+                ref={bottomAnchorRef} 
+                style={{ height: `${FOOTER_SAFE_AREA_PX}px` }}
+                aria-hidden="true"
+              />
               </div>
               </div>
               </div>
