@@ -6012,23 +6012,9 @@ export default function CandidateInterview() {
             const instanceNumber = currentItem.instanceNumber;
             const categoryLabel = currentItem.categoryLabel;
             
-            // DUPLICATE GUARD: Block active card if opener already exists in transcript
-            const openerExistsInTranscript = renderedTranscript.some(entry => {
-              const isOpenerCard = entry.messageType === 'FOLLOWUP_CARD_SHOWN' &&
-                                   (entry.meta?.variant === 'opener' || entry.variant === 'opener');
-              const matchesContext = (entry.meta?.packId || entry.packId) === packId &&
-                                     (entry.meta?.instanceNumber || entry.instanceNumber) === instanceNumber;
-              return isOpenerCard && matchesContext;
-            });
-            
-            if (openerExistsInTranscript) {
-              console.log('[V3_OPENER][DUPLICATE_BLOCKED]', {
-                packId,
-                instanceNumber,
-                reason: 'Opener already visible in transcript - blocking duplicate active card'
-              });
-              return null;
-            }
+            // ACTIVE CARD RENDERER DISABLED: Opener must be transcript-driven only
+            console.log('[V3_UI_CONTRACT] Skipping deterministic opener renderer (transcript is source of truth)');
+            return null;
             
             // REGRESSION GUARD: Fail-loud if missing prompt text
             if (!openerText || openerText.trim() === '') {
