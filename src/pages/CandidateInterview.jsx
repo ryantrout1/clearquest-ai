@@ -1140,6 +1140,8 @@ export default function CandidateInterview() {
   const footerRef = useRef(null);
   const autoScrollEnabledRef = useRef(true);
   const didInitialSnapRef = useRef(false);
+  const isProgrammaticScrollRef = useRef(false);
+  const pendingScrollRafRef = useRef(null);
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
   const displayOrderRef = useRef(0);
   const inputRef = useRef(null);
@@ -1439,23 +1441,42 @@ export default function CandidateInterview() {
     }
   }, [AUTO_SCROLL_BOTTOM_THRESHOLD_PX, isUserTyping]);
 
-  const autoScrollToBottom = useCallback(() => {
-    if (isUserTyping) return;
+  const scrollToBottomSafely = useCallback((reason = 'default') => {
     if (!autoScrollEnabledRef.current) return;
     if (!bottomAnchorRef.current || !historyRef.current) return;
     
-    requestAnimationFrame(() => {
-      // Scroll to bottom anchor first
+    // RAF coalescing: prevent multiple scrolls in same frame
+    if (pendingScrollRafRef.current) {
+      cancelAnimationFrame(pendingScrollRafRef.current);
+    }
+    
+    pendingScrollRafRef.current = requestAnimationFrame(() => {
+      pendingScrollRafRef.current = null;
+      
+      // Mark scroll as programmatic to prevent detection loop
+      isProgrammaticScrollRef.current = true;
+      
+      // Scroll to bottom anchor
       bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
       
       // Apply footer offset to prevent overlap
       requestAnimationFrame(() => {
         if (historyRef.current && footerHeightPx > 0) {
-          historyRef.current.scrollTop -= footerHeightPx;
+          historyRef.current.scrollTop -= (footerHeightPx + 8);
         }
+        
+        // Clear programmatic flag after scroll completes
+        requestAnimationFrame(() => {
+          isProgrammaticScrollRef.current = false;
+        });
       });
     });
-  }, [isUserTyping, footerHeightPx]);
+  }, [footerHeightPx]);
+
+  const autoScrollToBottom = useCallback(() => {
+    if (isUserTyping) return;
+    scrollToBottomSafely('autoScroll');
+  }, [isUserTyping, scrollToBottomSafely]);
 
   // UX: Mark user as typing and set timeout to unlock after idle period
   const markUserTyping = useCallback(() => {
@@ -4724,12 +4745,16 @@ export default function CandidateInterview() {
     
     // Initial hard snap exactly once
     if (!didInitialSnapRef.current && renderedTranscript.length > 0) {
+      isProgrammaticScrollRef.current = true;
       bottomAnchorRef.current.scrollIntoView({ block: 'end', behavior: 'auto' });
       // Apply footer offset after initial snap
       requestAnimationFrame(() => {
         if (historyRef.current && footerHeightPx > 0) {
-          historyRef.current.scrollTop -= footerHeightPx;
+          historyRef.current.scrollTop -= (footerHeightPx + 8);
         }
+        requestAnimationFrame(() => {
+          isProgrammaticScrollRef.current = false;
+        });
       });
       didInitialSnapRef.current = true;
       return;
@@ -4737,17 +4762,9 @@ export default function CandidateInterview() {
     
     // Smooth follow only when user is near bottom
     if (autoScrollEnabledRef.current) {
-      requestAnimationFrame(() => {
-        bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
-        // Apply footer offset after scroll
-        requestAnimationFrame(() => {
-          if (historyRef.current && footerHeightPx > 0) {
-            historyRef.current.scrollTop -= footerHeightPx;
-          }
-        });
-      });
+      scrollToBottomSafely('transcriptChange');
     }
-  }, [renderedTranscript.length, screenMode, currentItem?.type, isUserTyping, footerHeightPx]);
+  }, [renderedTranscript.length, screenMode, currentItem?.type, isUserTyping, scrollToBottomSafely]);
 
   // UX: Auto-resize textarea based on content (max 3 lines)
   useEffect(() => {
