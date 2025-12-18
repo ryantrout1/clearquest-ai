@@ -1331,55 +1331,46 @@ export default function CandidateInterview() {
     const deduped = dedupeByStableKey(base);
     const filtered = deduped.filter(entry => isRenderableTranscriptEntry(entry));
     
-    // V3 UI CONTRACT: Deterministic opener dedup (prefer visible, preserve insertion order)
-    const seenOpenerKeys = new Map(); // Map: dedupeKey -> entry
+    // STABLE KEY DEDUPE: Preserve insertion order, prefer visible entries
+    const stableKeyMap = new Map(); // Map: stableKey -> output index
     const finalFiltered = [];
     
     for (const entry of filtered) {
-      const isOpenerEntry = 
-        entry.messageType === "FOLLOWUP_CARD_SHOWN" &&
-        (entry.meta?.variant === "opener" || entry.variant === "opener" || entry.followupVariant === "opener");
+      const sk = entry.stableKey;
       
-      if (isOpenerEntry) {
-        const entryPackId = entry.packId || entry.meta?.packId || 'unknown';
-        const entryInstance = Number(entry.instanceNumber || entry.meta?.instanceNumber || 1);
-        const dedupeKey = `opener:${entryPackId}:${entryInstance}`;
-        
-        const existing = seenOpenerKeys.get(dedupeKey);
-        
-        // Keep entry if:
-        // - No duplicate seen yet, OR
-        // - Current entry is visible (role=assistant/visibleToCandidate=true) AND existing is not
-        const isVisible = entry.role === 'assistant' || entry.visibleToCandidate !== false;
-        const existingIsVisible = existing?.role === 'assistant' || existing?.visibleToCandidate !== false;
-        
-        if (!existing || (isVisible && !existingIsVisible)) {
-          seenOpenerKeys.set(dedupeKey, entry);
-        }
-      } else {
-        // Non-opener: always keep
+      if (!sk) {
+        // No stableKey: always add (can't dedupe)
         finalFiltered.push(entry);
+        continue;
       }
-    }
-    
-    // Build final list: add all non-opener entries + kept opener entries in order
-    for (const entry of filtered) {
-      const isOpenerEntry = 
-        entry.messageType === "FOLLOWUP_CARD_SHOWN" &&
-        (entry.meta?.variant === "opener" || entry.variant === "opener" || entry.followupVariant === "opener");
       
-      if (isOpenerEntry) {
-        const entryPackId = entry.packId || entry.meta?.packId || 'unknown';
-        const entryInstance = Number(entry.instanceNumber || entry.meta?.instanceNumber || 1);
-        const dedupeKey = `opener:${entryPackId}:${entryInstance}`;
-        const kept = seenOpenerKeys.get(dedupeKey);
+      const existingIndex = stableKeyMap.get(sk);
+      
+      if (existingIndex === undefined) {
+        // First occurrence: add and record position
+        const newIndex = finalFiltered.length;
+        finalFiltered.push(entry);
+        stableKeyMap.set(sk, newIndex);
+      } else {
+        // Duplicate detected: decide if we should upgrade the kept entry
+        const keptEntry = finalFiltered[existingIndex];
         
-        // Only add if this is the kept entry
-        if (kept === entry) {
-          finalFiltered.push(entry);
+        // Prefer visible entries over system/non-renderable entries
+        const currentIsVisible = entry.role === 'assistant' || entry.visibleToCandidate !== false;
+        const keptIsVisible = keptEntry.role === 'assistant' || keptEntry.visibleToCandidate !== false;
+        
+        if (currentIsVisible && !keptIsVisible) {
+          // Upgrade: replace kept entry IN PLACE (preserves first occurrence position)
+          console.log('[DEDUPE_UPGRADE]', {
+            stableKey: sk,
+            keptRole: keptEntry.role,
+            currentRole: entry.role,
+            action: 'replacing system entry with visible entry at same index'
+          });
+          finalFiltered[existingIndex] = entry;
         }
+        // Otherwise: keep first occurrence, skip duplicate
       }
-      // Non-openers already added above
     }
     
     console.log('[TRANSCRIPT_RENDER]', {
