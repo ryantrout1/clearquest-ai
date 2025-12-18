@@ -6499,7 +6499,7 @@ export default function CandidateInterview() {
           {/* V3 UI Contract Enforcement - Self-Check */}
           {v3ProbingActive && (() => {
             const shouldRenderPromptInBody = false; // ✓ ALWAYS FALSE per contract
-            
+
             if (shouldRenderPromptInBody) {
               console.error('[V3_UI_CONTRACT] VIOLATION', {
                 reason: 'Prompt attempted to render in main body during V3 probing',
@@ -6510,8 +6510,9 @@ export default function CandidateInterview() {
               console.log('[V3_UI_CONTRACT] ENFORCED', {
                 v3ProbingActive,
                 hasPrompt: !!v3ActivePromptText,
-                promptLocation: v3ActivePromptText ? 'BOTTOM_BAR_ONLY' : 'NONE',
-                mainBodyPromptCards: 0
+                promptLocation: v3ActivePromptText ? 'BOTTOM_BAR_FLOATING_BANNER (above input)' : 'NONE',
+                mainBodyPromptCards: 0,
+                transcriptPromptCards: 0
               });
             }
             return null;
