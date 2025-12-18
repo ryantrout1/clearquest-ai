@@ -246,11 +246,6 @@ const ENABLE_CHAT_VIRTUALIZATION = false;
 // File revision: 2025-12-02 - Cleaned and validated
 
 // ============================================================================
-// FOOTER SAFE AREA - Ensures transcript content never hidden behind footer
-// ============================================================================
-const FOOTER_SAFE_AREA_PX = 180; // Footer height (~112px) + cushion for Yes/No bar
-
-// ============================================================================
 // CONTENT CONTAINER - Enforce max-width for all cards
 // ============================================================================
 const ContentContainer = ({ children, className = "" }) => (
@@ -1142,6 +1137,7 @@ export default function CandidateInterview() {
 
   const historyRef = useRef(null);
   const bottomAnchorRef = useRef(null);
+  const footerRef = useRef(null);
   const autoScrollEnabledRef = useRef(true);
   const didInitialSnapRef = useRef(false);
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
@@ -1155,6 +1151,7 @@ export default function CandidateInterview() {
   const unsubscribeRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const aiResponseTimeoutRef = useRef(null);
+  const [footerHeightPx, setFooterHeightPx] = useState(12); // Cushion for footer overlap
   
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
 
@@ -1445,12 +1442,20 @@ export default function CandidateInterview() {
   const autoScrollToBottom = useCallback(() => {
     if (isUserTyping) return;
     if (!autoScrollEnabledRef.current) return;
-    if (!bottomAnchorRef.current) return;
+    if (!bottomAnchorRef.current || !historyRef.current) return;
     
     requestAnimationFrame(() => {
+      // Scroll to bottom anchor first
       bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+      
+      // Apply footer offset to prevent overlap
+      requestAnimationFrame(() => {
+        if (historyRef.current && footerHeightPx > 0) {
+          historyRef.current.scrollTop -= footerHeightPx;
+        }
+      });
     });
-  }, [isUserTyping]);
+  }, [isUserTyping, footerHeightPx]);
 
   // UX: Mark user as typing and set timeout to unlock after idle period
   const markUserTyping = useCallback(() => {
@@ -4668,9 +4673,51 @@ export default function CandidateInterview() {
     }
   }, [currentItem, validationHint]);
 
+  // Measure footer height for scroll offset
+  useEffect(() => {
+    if (footerRef.current) {
+      const updateFooterHeight = () => {
+        const measured = footerRef.current?.offsetHeight || 0;
+        setFooterHeightPx(measured + 12); // Add 12px cushion
+      };
+      
+      // Initial measurement
+      updateFooterHeight();
+      
+      // Re-measure on resize
+      const resizeObserver = new ResizeObserver(updateFooterHeight);
+      resizeObserver.observe(footerRef.current);
+      
+      // UI CONTRACT GUARD: Verify bottomAnchor has no fixed height
+      if (bottomAnchorRef.current) {
+        const anchorHeight = bottomAnchorRef.current.offsetHeight;
+        const anchorStyle = window.getComputedStyle(bottomAnchorRef.current);
+        const hasFixedHeight = anchorStyle.height !== 'auto' && anchorStyle.height !== '0px';
+        
+        if (hasFixedHeight || anchorHeight > 10) {
+          console.warn('[UI_CONTRACT][VIOLATION]', {
+            element: 'bottomAnchor',
+            reason: 'bottomAnchor must be zero-height sentinel',
+            actualHeight: anchorHeight,
+            computedHeight: anchorStyle.height,
+            action: 'Remove fixed height to restore bottom gravity'
+          });
+        }
+      }
+      
+      console.log('[FOOTER_MEASUREMENT]', { 
+        measuredHeight: measured,
+        withCushion: measured + 12,
+        bottomAnchorValid: bottomAnchorRef.current?.offsetHeight <= 10
+      });
+      
+      return () => resizeObserver.disconnect();
+    }
+  }, []);
+
   // Deterministic scroll: initial snap once, then smooth follow when enabled
   React.useLayoutEffect(() => {
-    if (!bottomAnchorRef.current) return;
+    if (!bottomAnchorRef.current || !historyRef.current) return;
     
     // Never yank the view while the user is typing
     if (isUserTyping) return;
@@ -4678,6 +4725,12 @@ export default function CandidateInterview() {
     // Initial hard snap exactly once
     if (!didInitialSnapRef.current && renderedTranscript.length > 0) {
       bottomAnchorRef.current.scrollIntoView({ block: 'end', behavior: 'auto' });
+      // Apply footer offset after initial snap
+      requestAnimationFrame(() => {
+        if (historyRef.current && footerHeightPx > 0) {
+          historyRef.current.scrollTop -= footerHeightPx;
+        }
+      });
       didInitialSnapRef.current = true;
       return;
     }
@@ -4686,9 +4739,15 @@ export default function CandidateInterview() {
     if (autoScrollEnabledRef.current) {
       requestAnimationFrame(() => {
         bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+        // Apply footer offset after scroll
+        requestAnimationFrame(() => {
+          if (historyRef.current && footerHeightPx > 0) {
+            historyRef.current.scrollTop -= footerHeightPx;
+          }
+        });
       });
     }
-  }, [renderedTranscript.length, screenMode, currentItem?.type, isUserTyping]);
+  }, [renderedTranscript.length, screenMode, currentItem?.type, isUserTyping, footerHeightPx]);
 
   // UX: Auto-resize textarea based on content (max 3 lines)
   useEffect(() => {
@@ -6058,18 +6117,14 @@ export default function CandidateInterview() {
                </ContentContainer>
               )}
 
-              {/* Bottom anchor with safe area - prevents footer overlap */}
-              <div 
-                ref={bottomAnchorRef} 
-                style={{ height: `${FOOTER_SAFE_AREA_PX}px` }}
-                aria-hidden="true"
-              />
+              {/* Bottom anchor - zero-height sentinel for scroll positioning */}
+              <div ref={bottomAnchorRef} aria-hidden="true" />
               </div>
               </div>
               </div>
               </main>
 
-              <footer className="fixed bottom-0 left-0 right-0 z-50 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
+              <footer ref={footerRef} className="fixed bottom-0 left-0 right-0 z-50 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
         <div className="max-w-5xl mx-auto">
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
           {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarMode guard above */}
