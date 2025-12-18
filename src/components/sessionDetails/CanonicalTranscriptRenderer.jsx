@@ -101,15 +101,9 @@ export default function CanonicalTranscriptRenderer({ session, questions = [], s
     );
   }
   
-  // Sort chronologically
-  const sortedEntries = [...filteredEntries].sort((a, b) => {
-    const timeA = a.timestamp || a.createdAt || a.index || 0;
-    const timeB = b.timestamp || b.createdAt || b.index || 0;
-    return timeA - timeB;
-  });
-  
   // Group entries into renderable blocks that match the candidate UI
-  const blocks = buildTranscriptBlocks(sortedEntries, questions, responses);
+  // CRITICAL: Render in exact array order from session.transcript_snapshot (no sorting)
+  const blocks = buildTranscriptBlocks(filteredEntries, questions, responses);
   
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
