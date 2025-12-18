@@ -1140,6 +1140,8 @@ export default function CandidateInterview() {
   const isProgrammaticScrollRef = useRef(false);
   const pendingScrollRafRef = useRef(null);
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
+  const lastAutoScrollLenRef = useRef(0);
+  const lastAutoScrollAtRef = useRef(0);
   const displayOrderRef = useRef(0);
   const inputRef = useRef(null);
   const yesButtonRef = useRef(null);
@@ -1458,6 +1460,22 @@ export default function CandidateInterview() {
     if (!autoScrollEnabledRef.current) return;
     if (!bottomAnchorRef.current || !historyRef.current) return;
     
+    // Gate on transcript growth: only scroll when canonical transcript grows
+    const currentLen = Array.isArray(dbTranscript) ? dbTranscript.length : 0;
+    if (currentLen <= lastAutoScrollLenRef.current) {
+      return; // No growth, no scroll (prevents snap on rerenders)
+    }
+    
+    // Cooldown: prevent rapid double-scroll
+    const now = Date.now();
+    if (now - lastAutoScrollAtRef.current < 120) {
+      return;
+    }
+    
+    // Update tracking refs
+    lastAutoScrollLenRef.current = currentLen;
+    lastAutoScrollAtRef.current = now;
+    
     // RAF coalescing: prevent multiple scrolls in same frame
     if (pendingScrollRafRef.current) {
       cancelAnimationFrame(pendingScrollRafRef.current);
@@ -1469,8 +1487,12 @@ export default function CandidateInterview() {
       // Mark scroll as programmatic to prevent detection loop
       isProgrammaticScrollRef.current = true;
       
+      // Determine scroll behavior: auto for first scroll, smooth afterwards
+      const isFirstScroll = lastAutoScrollLenRef.current === currentLen && !didInitialSnapRef.current;
+      const behavior = isFirstScroll ? 'auto' : 'smooth';
+      
       // Scroll to bottom anchor
-      bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+      bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior });
       
       // Apply footer offset to prevent overlap
       requestAnimationFrame(() => {
@@ -1484,7 +1506,7 @@ export default function CandidateInterview() {
         });
       });
     });
-  }, [footerHeightPx]);
+  }, [footerHeightPx, dbTranscript]);
 
   const autoScrollToBottom = useCallback(() => {
     if (isUserTyping) return;
@@ -4761,15 +4783,19 @@ export default function CandidateInterview() {
     }
   }, []);
 
-  // Deterministic scroll: initial snap once, then smooth follow when enabled
+  // Deterministic scroll: initial snap once, then smooth follow when transcript grows
   React.useLayoutEffect(() => {
     if (!bottomAnchorRef.current || !historyRef.current) return;
     
     // Never yank the view while the user is typing
     if (isUserTyping) return;
     
+    // Gate on transcript growth ONLY (no scroll on mode/currentItem changes)
+    const currentLen = Array.isArray(dbTranscript) ? dbTranscript.length : 0;
+    
     // Initial hard snap exactly once
-    if (!didInitialSnapRef.current && renderedTranscript.length > 0) {
+    if (!didInitialSnapRef.current && currentLen > 0) {
+      lastAutoScrollLenRef.current = currentLen;
       isProgrammaticScrollRef.current = true;
       bottomAnchorRef.current.scrollIntoView({ block: 'end', behavior: 'auto' });
       // Apply footer offset after initial snap
@@ -4785,11 +4811,11 @@ export default function CandidateInterview() {
       return;
     }
     
-    // Smooth follow only when user is near bottom
+    // Smooth follow ONLY when transcript grows (gated by scrollToBottomSafely)
     if (autoScrollEnabledRef.current) {
-      scrollToBottomSafely('transcriptChange');
+      scrollToBottomSafely('transcriptGrowth');
     }
-  }, [renderedTranscript.length, screenMode, currentItem?.type, isUserTyping, scrollToBottomSafely]);
+  }, [dbTranscript.length, isUserTyping, scrollToBottomSafely]);
 
   // UX: Auto-resize textarea based on content (max 3 lines)
   useEffect(() => {
