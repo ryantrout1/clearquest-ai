@@ -5557,10 +5557,24 @@ export default function CandidateInterview() {
           )}
         </div>
       </header>
+      <style>
+        {`
+          .cq-scroll {
+            scrollbar-color: #232a33 #0f1216;
+          }
+          .cq-scroll::-webkit-scrollbar-track {
+            background: #0f1216;
+          }
+          .cq-scroll::-webkit-scrollbar-thumb {
+            background: #232a33;
+            border-radius: 6px;
+          }
+        `}
+      </style>
 
       <main className="flex-1 relative overflow-hidden isolate">
         <div 
-          className="absolute inset-0 overflow-y-auto scrollbar-thin" 
+          className="absolute inset-0 overflow-y-auto cq-scroll scrollbar-thin" 
           ref={historyRef}
           onScroll={handleTranscriptScroll}
           style={{ bottom: Math.max(0, (footerHeightPx || 0) + 8) }}
