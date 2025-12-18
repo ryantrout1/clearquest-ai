@@ -1427,6 +1427,11 @@ export default function CandidateInterview() {
     const qId = entry.questionDbId || entry.questionId || entry.meta?.questionDbId || '';
     const pId = entry.packId || entry.meta?.packId || '';
     const inst = entry.instanceNumber || entry.meta?.instanceNumber || '';
+    // SINGLE-SOURCE: Normalize opener key shape to prevent duplicates
+    const isOpener = type === 'FOLLOWUP_CARD_SHOWN' && (entry.meta?.variant === 'opener' || entry.variant === 'opener');
+    if (isOpener && pId) {
+      return `followup-card:${pId}:opener:${inst || 1}`;
+    }
     const idx = entry.index || 0;
     
     return `${role}-${type}-${qId}-${pId}-${inst}-${idx}`;
