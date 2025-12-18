@@ -1152,11 +1152,6 @@ export default function CandidateInterview() {
   const aiResponseTimeoutRef = useRef(null);
   const [footerHeightPx, setFooterHeightPx] = useState(12); // Cushion for footer overlap
   
-  // APPEND-ONLY RENDER: Track rendered keys and order for stable UI (no shrink/flicker)
-  const renderedKeysRef = useRef(new Set());
-  const renderedOrderRef = useRef([]);
-  const lastKnownEntryRef = useRef(new Map());
-  
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
 
   const [interviewMode, setInterviewMode] = useState("DETERMINISTIC");
@@ -1328,75 +1323,54 @@ export default function CandidateInterview() {
   // Loading watchdog state
   const [showLoadingRetry, setShowLoadingRetry] = useState(false);
   
-  // STABLE RENDER LIST: Append-only (no shrink/flicker even when filters change)
+  // STABLE RENDER LIST: Pure deterministic filtering (no UI-state-dependent shrink/grow)
   const renderedTranscript = useMemo(() => {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
     const deduped = dedupeByStableKey(base);
-    let filtered = deduped.filter(entry => isRenderableTranscriptEntry(entry));
+    const filtered = deduped.filter(entry => isRenderableTranscriptEntry(entry));
     
-    // V3 UI CONTRACT: Suppress opener transcript entry when opener is actively displayed
-    const isActiveV3Opener =
-      currentItem?.type === 'v3_pack_opener' &&
-      !!currentItem?.packId &&
-      typeof currentItem?.instanceNumber !== "undefined";
+    // V3 UI CONTRACT: Deterministic opener dedup (always keep latest, never conditionally hide)
+    // Build map of opener entries by (packId, instanceNumber)
+    const openersByPackInstance = new Map();
+    const nonOpeners = [];
     
-    const packId = currentItem?.packId;
-    const instanceNumber = currentItem?.instanceNumber;
-    
-    const isDuplicateOpenerTranscriptEntry = (entry) => {
-      if (!isActiveV3Opener) return false;
-      if (!entry) return false;
-      
-      const isOpenerShown =
+    for (const entry of filtered) {
+      const isOpenerEntry = 
         entry.messageType === "FOLLOWUP_CARD_SHOWN" &&
         (entry.meta?.variant === "opener" || entry.variant === "opener" || entry.followupVariant === "opener");
       
-      const samePack = entry.packId === packId || entry.meta?.packId === packId;
-      const sameInstance = Number(entry.instanceNumber || entry.meta?.instanceNumber) === Number(instanceNumber);
-      
-      return isOpenerShown && samePack && sameInstance;
-    };
-    
-    // Filter out duplicate opener entries while active
-    filtered = filtered.filter(entry => !isDuplicateOpenerTranscriptEntry(entry));
-    
-    // APPEND-ONLY STABILIZATION: Build stable render list
-    const currentVisibleMap = new Map();
-    for (const entry of filtered) {
-      const key = getTranscriptEntryKey(entry);
-      currentVisibleMap.set(key, entry);
-      
-      // Track new keys
-      if (!renderedKeysRef.current.has(key)) {
-        renderedKeysRef.current.add(key);
-        renderedOrderRef.current.push(key);
-      }
-      
-      // Update last known entry for this key
-      lastKnownEntryRef.current.set(key, entry);
-    }
-    
-    // Build stable list: all previously rendered keys in order, using latest entry data
-    const stableList = [];
-    for (const key of renderedOrderRef.current) {
-      // Use current entry if available, otherwise last known
-      const entry = currentVisibleMap.get(key) || lastKnownEntryRef.current.get(key);
-      if (entry) {
-        stableList.push(entry);
+      if (isOpenerEntry) {
+        const entryPackId = entry.packId || entry.meta?.packId || 'unknown';
+        const entryInstance = Number(entry.instanceNumber || entry.meta?.instanceNumber || 1);
+        const mapKey = `${entryPackId}:${entryInstance}`;
+        
+        // Keep latest opener per (packId, instance) - deterministic dedup
+        const existing = openersByPackInstance.get(mapKey);
+        if (!existing || (entry.createdAt || 0) > (existing.createdAt || 0)) {
+          openersByPackInstance.set(mapKey, entry);
+        }
+      } else {
+        nonOpeners.push(entry);
       }
     }
+    
+    // Rebuild filtered list: non-openers + deduplicated openers (in original order)
+    const dedupedOpeners = Array.from(openersByPackInstance.values());
+    const finalFiltered = [...nonOpeners, ...dedupedOpeners].sort((a, b) => {
+      const aCreated = a.createdAt || a.index || 0;
+      const bCreated = b.createdAt || b.index || 0;
+      return aCreated - bCreated;
+    });
     
     console.log('[TRANSCRIPT_RENDER]', {
       canonicalLen: base.length,
       dedupedLen: deduped.length,
-      filteredLen: filtered.length,
-      stableListLen: stableList.length,
-      renderedKeysCount: renderedKeysRef.current.size,
+      filteredLen: finalFiltered.length,
       screenMode,
       currentItemType: currentItem?.type
     });
     
-    return stableList;
+    return finalFiltered;
   }, [dbTranscript, currentItem, screenMode, getTranscriptEntryKey]);
 
   // Hooks must remain unconditional; keep memoized values above early returns.
@@ -1448,7 +1422,7 @@ export default function CandidateInterview() {
 
   // STABLE KEY HELPER: Deterministic key for each transcript entry
   const getTranscriptEntryKey = useCallback((entry) => {
-    if (!entry) return `fallback-${Date.now()}`;
+    if (!entry) return 'fallback-null-entry';
     
     // Priority 1: Stable key (best)
     if (entry.stableKey) return entry.stableKey;
@@ -1600,24 +1574,6 @@ export default function CandidateInterview() {
 
   // STABLE: Single mount per session - track by sessionId (survives remounts)
   const initMapRef = useRef({});
-  
-  // SESSION RESET: Clear render stability refs when sessionId changes
-  const lastSessionIdRef = useRef(null);
-  useEffect(() => {
-    if (sessionId && sessionId !== lastSessionIdRef.current) {
-      console.log('[RENDER_STABILITY][SESSION_RESET]', {
-        oldSessionId: lastSessionIdRef.current,
-        newSessionId: sessionId,
-        clearingRenderCache: true
-      });
-      
-      // Clear append-only render tracking for new session
-      renderedKeysRef.current = new Set();
-      renderedOrderRef.current = [];
-      lastKnownEntryRef.current = new Map();
-      lastSessionIdRef.current = sessionId;
-    }
-  }, [sessionId]);
   
   useEffect(() => {
     if (!sessionId) {
