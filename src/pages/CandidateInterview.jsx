@@ -5310,7 +5310,7 @@ export default function CandidateInterview() {
   else if (activeBlocker?.type === 'SECTION_MESSAGE' && currentItem?.type !== 'section_transition') {
     bottomBarMode = "CTA"; // "Continue →" button
   }
-  else if (pendingSectionTransition && uiCurrentItem?.type === 'section_transition') {
+  else if (pendingSectionTransition && currentItem?.type === 'section_transition') {
     bottomBarMode = "CTA"; // "Begin Next Section →" button
   }
   // Multi-instance gate (ALWAYS YES_NO)
