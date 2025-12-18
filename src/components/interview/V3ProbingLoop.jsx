@@ -454,45 +454,18 @@ export default function V3ProbingLoop({
           });
         }
         
-        // UI SELF-CHECK: Verify no duplicate prompts in messages
-        const activePromptsInMessages = messages.filter(m => 
-          m.role === 'ai' && !m.isCompletion && m.content === data.nextPrompt
-        );
-        if (activePromptsInMessages.length > 0) {
-          console.error('[V3_UI_CONTRACT][ERROR] DUPLICATE_PROMPT_RENDERED', {
-            promptHash,
-            foundInMessages: activePromptsInMessages.length,
-            reason: 'Prompt exists in messages array AND activePromptText'
-          });
-        }
-        
-        // Log V3 probe as system event only (NOT visible transcript message)
-        const { logSystemEvent } = await import("../utils/chatTranscriptHelpers");
-        await logSystemEvent(sessionId, 'V3_PROBE_ASKED', {
-          categoryId,
-          incidentId: currentIncidentId,
-          probeCount: newProbeCount,
-          promptPreview: data.nextPrompt.substring(0, 60)
-        });
-        
-        // [V3_UI_CONTRACT] Probe rendered as active prompt, not transcript message
+        // UI CONTRACT: V3 probe prompts MUST NOT append to transcript
+        // They are exposed ONLY via onPromptChange callback for placeholder rendering
         console.log('[V3_UI_CONTRACT]', {
           action: 'SET_ACTIVE_PROMPT',
           promptPreview: data.nextPrompt.substring(0, 60),
           appendedToTranscript: false,
+          exposedVia: 'onPromptChange callback',
           activePromptSet: true
         });
-
-        // Persist AI message to local transcript (V3ProbingLoop internal state only)
-        if (onTranscriptUpdate) {
-          onTranscriptUpdate({
-            type: 'v3_probe_question',
-            content: data.nextPrompt,
-            categoryId,
-            incidentId: currentIncidentId,
-            timestamp: new Date().toISOString()
-          });
-        }
+        
+        // DO NOT log to transcript - no V3_PROBE_ASKED system events
+        // DO NOT call onTranscriptUpdate for prompts - breaks UI contract
       } else if (data.nextAction === "RECAP" || data.nextAction === "STOP") {
         setIsDeciding(false);
         setActivePromptText(null);
