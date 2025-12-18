@@ -5382,12 +5382,12 @@ export default function CandidateInterview() {
   const showTextInput = bottomBarMode === "TEXT_INPUT";
   
   // Derive answerable from existing values (safe default: allow answer if we have a current item and it's a question-like type)
-  const answerable = uiCurrentItem && (
-    uiCurrentItem.type === 'question' || 
-    uiCurrentItem.type === 'v2_pack_field' || 
-    uiCurrentItem.type === 'v3_pack_opener' || 
-    uiCurrentItem.type === 'followup' ||
-    uiCurrentItem.type === 'multi_instance_gate'
+  const answerable = currentItem && (
+    currentItem.type === 'question' || 
+    currentItem.type === 'v2_pack_field' || 
+    currentItem.type === 'v3_pack_opener' || 
+    currentItem.type === 'followup' ||
+    currentItem.type === 'multi_instance_gate'
   ) && !v3ProbingActive;
 
   // Debug log: confirm which bottom bar path is rendering
