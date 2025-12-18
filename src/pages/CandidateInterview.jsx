@@ -4504,9 +4504,6 @@ export default function CandidateInterview() {
 
   // V3 probing completion handler - deferred transition pattern
   const handleV3ProbingComplete = useCallback((result) => {
-    console.log("[V3_PROBING][COMPLETE][DEFERRED] ========== V3 EXIT REQUESTED ==========");
-    console.log("[V3_PROBING][COMPLETE][DEFERRED]", result);
-
     exitV3Once('PROBING_COMPLETE', result);
   }, [exitV3Once]);
 
