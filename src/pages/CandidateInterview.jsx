@@ -5307,7 +5307,7 @@ export default function CandidateInterview() {
     }
   }
   // Section transition blockers
-  else if (activeBlocker?.type === 'SECTION_MESSAGE' && uiCurrentItem?.type !== 'section_transition') {
+  else if (activeBlocker?.type === 'SECTION_MESSAGE' && currentItem?.type !== 'section_transition') {
     bottomBarMode = "CTA"; // "Continue →" button
   }
   else if (pendingSectionTransition && uiCurrentItem?.type === 'section_transition') {
