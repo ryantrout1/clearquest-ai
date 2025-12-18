@@ -5230,6 +5230,31 @@ export default function CandidateInterview() {
 
   // Calculate currentPrompt (after all hooks declared)
   const currentPrompt = getCurrentPrompt();
+
+  // D) Verification instrumentation (minimal, rate-limited)
+  const lastViolationKeyRef = useRef(null);
+  useEffect(() => {
+    if (!Array.isArray(renderedTranscript) || renderedTranscript.length === 0) return;
+    const last = renderedTranscript[renderedTranscript.length - 1];
+    if (!last || last.messageType !== 'MULTI_INSTANCE_GATE_SHOWN') return;
+
+    const effectiveType = v3ProbingActive ? 'v3_probing' : (uiCurrentItem?.type || null);
+    const isGate = effectiveType === 'multi_instance_gate';
+    const footerIsYesNo = isGate || (currentPrompt?.responseType === 'yes_no');
+
+    if (!(isGate && footerIsYesNo)) {
+      const key = `${last.stableKey || last.id || 'gate'}:${effectiveType}:${currentPrompt?.responseType}`;
+      if (lastViolationKeyRef.current !== key) {
+        lastViolationKeyRef.current = key;
+        console.error('[UI_CONTRACT][VIOLATION]', {
+          reason: 'Gate prompt visible but footer not in YES_NO with multi_instance_gate',
+          effectiveType,
+          bottomBarMode: footerIsYesNo ? 'YES_NO' : 'other',
+          lastMessageType: last.messageType
+        });
+      }
+    }
+  }, [renderedTranscript, uiCurrentItem, v3ProbingActive, currentPrompt]);
   
   // Layout control: center WELCOME, top-align QUESTION/V3 modes
   const isWelcomeScreen = screenMode === "WELCOME";
