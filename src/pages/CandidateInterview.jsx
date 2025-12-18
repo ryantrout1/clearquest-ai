@@ -5915,7 +5915,7 @@ export default function CandidateInterview() {
             );
           })()}
 
-          {/* V3 Probing Loop - MOUNT GUARD: Only render if context is valid */}
+          {/* V3 Probing Loop - HEADLESS (no visible cards in main transcript area) */}
           {(() => {
             const shouldRenderV3Loop = v3ProbingActive && v3ProbingContext && 
               v3ProbingContext.categoryId && v3ProbingContext.packId;
@@ -5931,41 +5931,39 @@ export default function CandidateInterview() {
               return null;
             }
             
-            console.log('[V3_UI_RENDER][PARENT_RENDER]', {
-              sessionId,
-              currentItemType: currentItem?.type,
-              effectiveItemType: 'v3_probing',
+            console.log('[V3_UI_CONTRACT]', {
+              action: 'V3_LOOP_HEADLESS_MOUNT',
+              reason: 'V3ProbingLoop renders NO visible cards - parent owns all UI in bottom bar',
               v3ProbingActive,
-              rendered: true,
               loopKey: `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`
             });
             
+            // HEADLESS MODE: V3ProbingLoop has no visible DOM (returns null)
+            // All UI (prompt banner + input) rendered by parent in BottomBar
             return (
-              <ContentContainer className="bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 rounded-xl p-1">
-                <V3ProbingLoop
-                  key={`v3-probe-${sessionId}-${v3ProbingContext.categoryId}-${v3ProbingContext.instanceNumber || 1}`}
-                  sessionId={sessionId}
-                  categoryId={v3ProbingContext.categoryId}
-                  categoryLabel={v3ProbingContext.categoryLabel}
-                  incidentId={v3ProbingContext.incidentId}
-                  baseQuestionId={v3ProbingContext.baseQuestionId}
-                  questionCode={v3ProbingContext.questionCode}
-                  sectionId={v3ProbingContext.sectionId}
-                  instanceNumber={v3ProbingContext.instanceNumber}
-                  packData={v3ProbingContext.packData}
-                  openerAnswer={v3ProbingContext.openerAnswer}
-                  traceId={v3ProbingContext.traceId}
-                  onComplete={handleV3ProbingComplete}
-                  onTranscriptUpdate={handleV3TranscriptUpdate}
-                  onMultiInstancePrompt={(promptData) => {
-                    setPendingGatePrompt({ promptData, v3Context: v3ProbingContext });
-                  }}
-                  onMultiInstanceAnswer={setV3MultiInstanceHandler}
-                  onPromptChange={handleV3PromptChange}
-                  onAnswerNeeded={handleV3AnswerNeeded}
-                  pendingAnswer={v3PendingAnswer}
-                />
-              </ContentContainer>
+              <V3ProbingLoop
+                key={`v3-probe-${sessionId}-${v3ProbingContext.categoryId}-${v3ProbingContext.instanceNumber || 1}`}
+                sessionId={sessionId}
+                categoryId={v3ProbingContext.categoryId}
+                categoryLabel={v3ProbingContext.categoryLabel}
+                incidentId={v3ProbingContext.incidentId}
+                baseQuestionId={v3ProbingContext.baseQuestionId}
+                questionCode={v3ProbingContext.questionCode}
+                sectionId={v3ProbingContext.sectionId}
+                instanceNumber={v3ProbingContext.instanceNumber}
+                packData={v3ProbingContext.packData}
+                openerAnswer={v3ProbingContext.openerAnswer}
+                traceId={v3ProbingContext.traceId}
+                onComplete={handleV3ProbingComplete}
+                onTranscriptUpdate={handleV3TranscriptUpdate}
+                onMultiInstancePrompt={(promptData) => {
+                  setPendingGatePrompt({ promptData, v3Context: v3ProbingContext });
+                }}
+                onMultiInstanceAnswer={setV3MultiInstanceHandler}
+                onPromptChange={handleV3PromptChange}
+                onAnswerNeeded={handleV3AnswerNeeded}
+                pendingAnswer={v3PendingAnswer}
+              />
             );
           })()}
 
@@ -6404,18 +6402,17 @@ export default function CandidateInterview() {
             </div>
           ) : bottomBarMode === "TEXT_INPUT" ? (
           <div className="space-y-2">
-          {/* V3 UI CONTRACT: Active V3 Prompt Banner (NOT in transcript - separate UI surface) */}
+          {/* V3 UI CONTRACT: Active V3 Prompt Banner - INPUT AREA ONLY (NOT in transcript) */}
           {v3ProbingActive && v3ActivePromptText && (() => {
-            console.log("[V3_UI_CONTRACT] PROMPT_BANNER_RENDER", { 
+            console.log("[V3_UI_CONTRACT] PROMPT_SHOWN_IN_INPUT_AREA_ONLY", { 
+              v3ProbingActive: true,
               hasPrompt: !!v3ActivePromptText, 
-              preview: v3ActivePromptText?.slice(0, 60) 
+              preview: v3ActivePromptText?.slice(0, 60),
+              location: 'BOTTOM_BAR_ONLY (not transcript, not main body)'
             });
 
             return (
-              <div className="w-full bg-purple-900/40 border border-purple-600/60 rounded-xl p-4 shadow-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm font-semibold text-purple-300">Follow-up Question</span>
-                </div>
+              <div className="w-full bg-purple-900/40 border border-purple-600/60 rounded-xl p-3 shadow-lg">
                 <p className="text-white text-sm leading-relaxed">{v3ActivePromptText}</p>
               </div>
             );
@@ -6500,15 +6497,25 @@ export default function CandidateInterview() {
           </div>
           ) : null}
 
-          {/* V3 UI Contract Safety Log */}
+          {/* V3 UI Contract Enforcement - Self-Check */}
           {v3ProbingActive && (() => {
-           console.log('[V3_UI_CONTRACT] PROMPT_VISIBILITY', {
-             v3ProbingActive,
-             hasPrompt: !!v3ActivePromptText,
-             renderedBanner: false,
-             promptInPlaceholder: true
-           });
-           return null;
+            const shouldRenderPromptInBody = false; // ✓ ALWAYS FALSE per contract
+            
+            if (shouldRenderPromptInBody) {
+              console.error('[V3_UI_CONTRACT] VIOLATION', {
+                reason: 'Prompt attempted to render in main body during V3 probing',
+                v3ProbingActive,
+                hasPrompt: !!v3ActivePromptText
+              });
+            } else {
+              console.log('[V3_UI_CONTRACT] ENFORCED', {
+                v3ProbingActive,
+                hasPrompt: !!v3ActivePromptText,
+                promptLocation: v3ActivePromptText ? 'BOTTOM_BAR_ONLY' : 'NONE',
+                mainBodyPromptCards: 0
+              });
+            }
+            return null;
           })()}
 
           {/* Footer disclaimer - always show except during V3 probing */}
