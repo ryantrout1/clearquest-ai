@@ -1425,6 +1425,9 @@ export default function CandidateInterview() {
   };
 
   const handleTranscriptScroll = useCallback(() => {
+    // GUARD: Ignore programmatic scroll events to prevent flapping
+    if (isProgrammaticScrollRef.current) return;
+    
     if (isUserTyping) return;
     
     const el = historyRef.current;
