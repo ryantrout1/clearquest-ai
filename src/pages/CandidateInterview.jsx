@@ -1153,9 +1153,10 @@ export default function CandidateInterview() {
   const typingTimeoutRef = useRef(null);
   const aiResponseTimeoutRef = useRef(null);
   const [footerHeightPx, setFooterHeightPx] = useState(12); // Cushion for footer overlap
+  const [lockedFooterHeightPx, setLockedFooterHeightPx] = useState(null);
+  const footerHeightLockedRef = useRef(false);
   
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
-  const FOOTER_FIXED_HEIGHT_PX = 160;
 
   const [interviewMode, setInterviewMode] = useState("DETERMINISTIC");
   const [ideEnabled, setIdeEnabled] = useState(false);
@@ -4735,46 +4736,32 @@ export default function CandidateInterview() {
     }
   }, [currentItem, validationHint]);
 
-  // Measure footer height for scroll offset
+  // Measure-once and lock footer height (prevents viewport jump on mode changes)
   useEffect(() => {
-    if (footerRef.current) {
-      const updateFooterHeight = () => {
-        const measured = footerRef.current?.offsetHeight || 0;
-        setFooterHeightPx(measured + 12); // Add 12px cushion
-      };
+    if (!footerRef.current || footerHeightLockedRef.current) return;
+    
+    // Wait for footer to render naturally, then measure and lock ONCE
+    const measureAndLock = () => {
+      if (!footerRef.current) return;
       
-      // Initial measurement
-      updateFooterHeight();
+      const measured = footerRef.current.offsetHeight || 0;
+      const safeMinimum = 120;
+      const locked = Math.max(measured, safeMinimum);
       
-      // Re-measure on resize
-      const resizeObserver = new ResizeObserver(updateFooterHeight);
-      resizeObserver.observe(footerRef.current);
+      setLockedFooterHeightPx(locked);
+      footerHeightLockedRef.current = true;
       
-      // UI CONTRACT GUARD: Verify bottomAnchor has no fixed height
-      if (bottomAnchorRef.current) {
-        const anchorHeight = bottomAnchorRef.current.offsetHeight;
-        const anchorStyle = window.getComputedStyle(bottomAnchorRef.current);
-        const hasFixedHeight = anchorStyle.height !== 'auto' && anchorStyle.height !== '0px';
-        
-        if (hasFixedHeight || anchorHeight > 10) {
-          console.warn('[UI_CONTRACT][VIOLATION]', {
-            element: 'bottomAnchor',
-            reason: 'bottomAnchor must be zero-height sentinel',
-            actualHeight: anchorHeight,
-            computedHeight: anchorStyle.height,
-            action: 'Remove fixed height to restore bottom gravity'
-          });
-        }
-      }
-      
-      console.log('[FOOTER_MEASUREMENT]', { 
-        measuredHeight: measured,
-        withCushion: measured + 12,
-        bottomAnchorValid: bottomAnchorRef.current?.offsetHeight <= 10
+      console.log('[FOOTER_HEIGHT_LOCK]', { 
+        measured, 
+        locked,
+        reason: 'Measured once and locked to prevent mode-change viewport jumps'
       });
-      
-      return () => resizeObserver.disconnect();
-    }
+    };
+    
+    // Delay measurement to allow footer content to render
+    requestAnimationFrame(() => {
+      requestAnimationFrame(measureAndLock);
+    });
   }, []);
 
   // Deterministic scroll: initial snap once, then smooth follow when transcript grows
@@ -5541,10 +5528,10 @@ export default function CandidateInterview() {
 
       <main className="flex-1 relative overflow-hidden isolate">
         <div 
-          className="absolute inset-0 overflow-y-auto scrollbar-thin" 
+          className="absolute inset-0 overflow-y-auto scrollbar-thin pb-28" 
           ref={historyRef}
           onScroll={handleTranscriptScroll}
-          style={{ paddingBottom: FOOTER_FIXED_HEIGHT_PX + 8 }}
+          style={lockedFooterHeightPx ? { paddingBottom: Math.max(112, lockedFooterHeightPx + 8) } : undefined}
         >
         <div className="px-4 pb-2 pt-6 flex flex-col min-h-full justify-end">
           <div className="space-y-2 relative isolate">
@@ -6197,8 +6184,8 @@ export default function CandidateInterview() {
               </div>
               </main>
 
-              <footer ref={footerRef} className="fixed bottom-0 left-0 right-0 z-50 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4" style={{ height: FOOTER_FIXED_HEIGHT_PX }}>
-        <div className="max-w-5xl mx-auto h-full flex items-center">
+              <footer ref={footerRef} className="fixed bottom-0 left-0 right-0 z-50 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4" style={lockedFooterHeightPx ? { minHeight: lockedFooterHeightPx } : undefined}>
+        <div className="max-w-5xl mx-auto">
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
           {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarMode guard above */}
           {bottomBarMode === "CTA" && screenMode === 'WELCOME' ? (
