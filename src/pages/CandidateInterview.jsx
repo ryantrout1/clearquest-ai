@@ -1152,9 +1152,7 @@ export default function CandidateInterview() {
   const unsubscribeRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const aiResponseTimeoutRef = useRef(null);
-  const [footerHeightPx, setFooterHeightPx] = useState(12); // Cushion for footer overlap
-  const [lockedFooterHeightPx, setLockedFooterHeightPx] = useState(null);
-  const footerHeightLockedRef = useRef(false);
+  const [footerHeightPx, setFooterHeightPx] = useState(120); // Dynamic footer height measurement
   
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
 
@@ -4736,32 +4734,36 @@ export default function CandidateInterview() {
     }
   }, [currentItem, validationHint]);
 
-  // Measure-once and lock footer height (prevents viewport jump on mode changes)
+  // Dynamic footer height measurement (batched to RAF to prevent jitter)
   useEffect(() => {
-    if (!footerRef.current || footerHeightLockedRef.current) return;
+    if (!footerRef.current) return;
     
-    // Wait for footer to render naturally, then measure and lock ONCE
-    const measureAndLock = () => {
+    let rafId = null;
+    let pendingMeasurement = false;
+    
+    const measureFooter = () => {
       if (!footerRef.current) return;
-      
       const measured = footerRef.current.offsetHeight || 0;
-      const safeMinimum = 120;
-      const locked = Math.max(measured, safeMinimum);
-      
-      setLockedFooterHeightPx(locked);
-      footerHeightLockedRef.current = true;
-      
-      console.log('[FOOTER_HEIGHT_LOCK]', { 
-        measured, 
-        locked,
-        reason: 'Measured once and locked to prevent mode-change viewport jumps'
-      });
+      setFooterHeightPx(measured);
+      pendingMeasurement = false;
     };
     
-    // Delay measurement to allow footer content to render
-    requestAnimationFrame(() => {
-      requestAnimationFrame(measureAndLock);
-    });
+    const scheduleUpdate = () => {
+      if (pendingMeasurement) return;
+      pendingMeasurement = true;
+      rafId = requestAnimationFrame(measureFooter);
+    };
+    
+    const resizeObserver = new ResizeObserver(scheduleUpdate);
+    resizeObserver.observe(footerRef.current);
+    
+    // Initial measurement
+    scheduleUpdate();
+    
+    return () => {
+      resizeObserver.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   // Deterministic scroll: initial snap once, then smooth follow when transcript grows
@@ -5531,7 +5533,7 @@ export default function CandidateInterview() {
           className="absolute inset-0 overflow-y-auto scrollbar-thin pb-28" 
           ref={historyRef}
           onScroll={handleTranscriptScroll}
-          style={lockedFooterHeightPx ? { paddingBottom: Math.max(112, lockedFooterHeightPx + 8) } : undefined}
+          style={{ paddingBottom: Math.max(112, footerHeightPx + 8) }}
         >
         <div className="px-4 pb-2 pt-6 flex flex-col min-h-full justify-end">
           <div className="space-y-2 relative isolate">
@@ -6184,7 +6186,7 @@ export default function CandidateInterview() {
               </div>
               </main>
 
-              <footer ref={footerRef} className="fixed bottom-0 left-0 right-0 z-50 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4" style={lockedFooterHeightPx ? { minHeight: lockedFooterHeightPx } : undefined}>
+              <footer ref={footerRef} className="fixed bottom-0 left-0 right-0 z-50 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
         <div className="max-w-5xl mx-auto">
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
           {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarMode guard above */}
