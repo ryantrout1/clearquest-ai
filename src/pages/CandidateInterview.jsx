@@ -5376,14 +5376,19 @@ export default function CandidateInterview() {
   // UI CONTRACT: CTA mode is ONLY valid during WELCOME screen
   // Force override to prevent CTA leaking during interview progression
   if (bottomBarMode === "CTA" && screenMode !== "WELCOME") {
-    console.warn("[UI_CONTRACT] CTA_OUTSIDE_WELCOME_BLOCKED", { 
-      screenMode, 
-      currentItemType, 
-      effectiveItemType, 
-      v3ProbingActive,
-      action: 'forcing HIDDEN'
-    });
-    bottomBarMode = "HIDDEN";
+    if (effectiveItemType === 'section_transition') {
+      console.log("[UI_CONTRACT] CTA_SECTION_TRANSITION_ALLOWED", { effectiveItemType, screenMode });
+      // Allow CTA specifically for section transitions
+    } else {
+      console.warn("[UI_CONTRACT] CTA_OUTSIDE_WELCOME_BLOCKED", { 
+        screenMode, 
+        currentItemType, 
+        effectiveItemType, 
+        v3ProbingActive,
+        action: 'forcing HIDDEN'
+      });
+      bottomBarMode = "HIDDEN";
+    }
   }
   
   // Legacy flags (kept for compatibility)
