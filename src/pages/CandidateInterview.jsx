@@ -6426,8 +6426,11 @@ export default function CandidateInterview() {
             });
 
             return (
-              <div className="bg-purple-900/30 border border-purple-600/50 rounded-lg p-3 mb-2 max-w-full">
-                <p className="text-white text-sm leading-relaxed">{v3ActivePromptText}</p>
+              <div className="flex gap-3 mb-2">
+                <div className="flex-1 bg-purple-900/30 border border-purple-600/50 rounded-lg p-3">
+                  <p className="text-white text-sm leading-relaxed">{v3ActivePromptText}</p>
+                </div>
+                <div className="w-12" /> {/* Spacer to align with Send button */}
               </div>
             );
           })()}
