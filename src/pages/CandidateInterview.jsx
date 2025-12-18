@@ -967,35 +967,41 @@ export default function CandidateInterview() {
   
   // CANONICAL SOURCE: Refresh transcript from DB after any write
   const refreshTranscriptFromDB = useCallback(async (reason) => {
-    const oldLen = (dbTranscript || []).length;
-    
     try {
       const freshSession = await base44.entities.InterviewSession.get(sessionId);
       const freshTranscript = freshSession.transcript_snapshot || [];
       
-      // MERGE STRATEGY: Use monotonic merge instead of naive replacement
-      const mergedTranscript = mergeTranscript(dbTranscript, freshTranscript, sessionId);
-      
-      // Diagnostic: Detect if merge prevented shrinkage
-      if (mergedTranscript.length > freshTranscript.length) {
-        console.warn('[TRANSCRIPT_MERGE][PROTECTED]', {
-          oldLen,
-          freshLen: freshTranscript.length,
-          mergedLen: mergedTranscript.length,
-          reason,
-          source: 'server_regression_protected'
-        });
-      }
+      // MERGE STRATEGY: Use functional update to guarantee latest canonical state
+      let mergedTranscript;
+      setDbTranscriptSafe(prev => {
+        const merged = mergeTranscript(prev, freshTranscript, sessionId);
+        mergedTranscript = merged; // Capture for return value
+        
+        // Diagnostic: Detect if merge prevented shrinkage
+        if (merged.length > freshTranscript.length) {
+          console.warn('[TRANSCRIPT_MERGE][PROTECTED]', {
+            prevLen: prev.length,
+            freshLen: freshTranscript.length,
+            mergedLen: merged.length,
+            reason,
+            source: 'server_regression_protected'
+          });
+        }
+        
+        console.log('[TRANSCRIPT_REFRESH]', { reason, prevLen: prev.length, freshLen: freshTranscript.length, mergedLen: merged.length });
+        return merged;
+      });
       
       setSession(freshSession); // Sync session state to prevent stale reads
-      setDbTranscriptSafe(mergedTranscript);
-      console.log('[TRANSCRIPT_REFRESH]', { reason, freshLen: freshTranscript.length, mergedLen: mergedTranscript.length });
       return mergedTranscript;
     } catch (err) {
       console.error('[TRANSCRIPT_REFRESH][ERROR]', { reason, error: err.message });
-      return dbTranscript; // Fallback to current state on error
+      // Fallback: return current state (use functional ref to get latest)
+      let current;
+      setDbTranscriptSafe(prev => { current = prev; return prev; });
+      return current;
     }
-  }, [sessionId, dbTranscript, setDbTranscriptSafe]);
+  }, [sessionId, setDbTranscriptSafe]);
 
   // FORENSIC: Canonical transcript verification (DB = source of truth)
   const forensicCheck = useCallback(async (label) => {
@@ -1036,7 +1042,6 @@ export default function CandidateInterview() {
     
     const freshSession = await base44.entities.InterviewSession.get(sessionId);
     const currentTranscript = freshSession.transcript_snapshot || [];
-    const oldLen = (dbTranscript || []).length;
     
     let updatedTranscript;
     if (kind === 'user') {
@@ -1048,27 +1053,21 @@ export default function CandidateInterview() {
       return currentTranscript;
     }
     
-    // Refresh local mirror from DB
+    // Refresh local mirror from DB using functional update
     const freshAfterAppend = await base44.entities.InterviewSession.get(sessionId);
     const freshTranscript = freshAfterAppend.transcript_snapshot || [];
     
-    // SHRINK GUARD: Never allow transcript to shrink
-    if (freshTranscript.length < oldLen) {
-      console.error('[TRANSCRIPT_GUARD] prevented shrink in appendAndRefresh', {
-        oldLen,
-        newLen: freshTranscript.length,
-        reason: reasonLabel,
-        action: 'BLOCKED'
-      });
-      return dbTranscript; // Keep old transcript
-    }
+    let mergedTranscript;
+    setDbTranscriptSafe(prev => {
+      const merged = mergeTranscript(prev, freshTranscript, sessionId);
+      mergedTranscript = merged; // Capture for return value
+      console.log('[APPEND_AND_REFRESH]', { kind, reasonLabel, prevLen: prev.length, freshLen: freshTranscript.length, mergedLen: merged.length });
+      return merged;
+    });
     
     setSession(freshAfterAppend); // Sync session state to prevent stale reads
-    setDbTranscriptSafe(freshTranscript);
-    
-    console.log('[APPEND_AND_REFRESH]', { kind, reasonLabel, freshLen: freshTranscript.length });
-    return freshTranscript;
-  }, [sessionId, setDbTranscriptSafe, dbTranscript]);
+    return mergedTranscript;
+  }, [sessionId, setDbTranscriptSafe]);
 
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
 
@@ -1707,10 +1706,8 @@ export default function CandidateInterview() {
   }, []);
 
   const resumeFromDB = async () => {
-    const oldTranscriptLen = (dbTranscript || []).length;
-    
     try {
-      console.log('[BOOT][RESUME] Light resume from DB', { sessionId, oldTranscriptLen });
+      console.log('[BOOT][RESUME] Light resume from DB', { sessionId });
       
       const loadedSession = await base44.entities.InterviewSession.get(sessionId);
       if (!loadedSession) {
@@ -1721,11 +1718,14 @@ export default function CandidateInterview() {
       
       const freshTranscript = loadedSession.transcript_snapshot || [];
       
-      // MERGE STRATEGY: Use monotonic merge
-      const mergedTranscript = mergeTranscript(dbTranscript, freshTranscript, sessionId);
+      // MERGE STRATEGY: Use functional update to guarantee latest canonical state
+      setDbTranscriptSafe(prev => {
+        const merged = mergeTranscript(prev, freshTranscript, sessionId);
+        console.log('[BOOT][RESUME][MERGE]', { prevLen: prev.length, freshLen: freshTranscript.length, mergedLen: merged.length });
+        return merged;
+      });
       
       setSession(loadedSession);
-      setDbTranscriptSafe(mergedTranscript);
       setQueue(loadedSession.queue_snapshot || []);
       setCurrentItem(loadedSession.current_item_snapshot || null);
       
@@ -1978,7 +1978,6 @@ export default function CandidateInterview() {
   };
 
   const restoreFromSnapshots = async (engineData, loadedSession) => {
-    const oldTranscriptLen = (dbTranscript || []).length;
     const restoredTranscript = loadedSession.transcript_snapshot || [];
     const restoredQueue = loadedSession.queue_snapshot || [];
     const restoredCurrentItem = loadedSession.current_item_snapshot || null;
@@ -1995,10 +1994,13 @@ export default function CandidateInterview() {
       return false;
     }
 
-    // MERGE STRATEGY: Use monotonic merge
-    const mergedTranscript = mergeTranscript(dbTranscript, restoredTranscript, sessionId);
+    // MERGE STRATEGY: Use functional update to guarantee latest canonical state
+    setDbTranscriptSafe(prev => {
+      const merged = mergeTranscript(prev, restoredTranscript, sessionId);
+      console.log('[RESTORE][MERGE]', { prevLen: prev.length, restoredLen: restoredTranscript.length, mergedLen: merged.length });
+      return merged;
+    });
     
-    setDbTranscriptSafe(mergedTranscript);
     setQueue(restoredQueue);
     setCurrentItem(restoredCurrentItem);
 
@@ -2021,8 +2023,6 @@ export default function CandidateInterview() {
   };
 
   const rebuildSessionFromResponses = async (engineData, loadedSession) => {
-    const oldTranscriptLen = (dbTranscript || []).length;
-    
     try {
       const responses = await base44.entities.Response.filter({
         session_id: sessionId
@@ -2054,20 +2054,16 @@ export default function CandidateInterview() {
         }
       }
 
-      // SHRINK GUARD: Only update if rebuilt is longer or same length
-      if (transcriptInitializedRef.current && restoredTranscript.length < oldTranscriptLen) {
-        console.error('[TRANSCRIPT_GUARD] prevented shrink in rebuildFromResponses', {
-          oldLen: oldTranscriptLen,
-          newLen: restoredTranscript.length,
-          reason: 'rebuild',
-          action: 'KEEPING_OLD'
-        });
-        // Keep old transcript - critical for maintaining chat history
-      } else {
-        setDbTranscriptSafe(restoredTranscript);
-      }
+      // MERGE STRATEGY: Use functional update to guarantee latest canonical state
+      let finalLen;
+      setDbTranscriptSafe(prev => {
+        const merged = mergeTranscript(prev, restoredTranscript, sessionId);
+        finalLen = merged.length;
+        console.log('[REBUILD][MERGE]', { prevLen: prev.length, restoredLen: restoredTranscript.length, mergedLen: merged.length });
+        return merged;
+      });
       
-      displayOrderRef.current = Math.max(restoredTranscript.length, oldTranscriptLen);
+      displayOrderRef.current = Math.max(restoredTranscript.length, finalLen || 0);
 
       let nextQuestionId = null;
 
