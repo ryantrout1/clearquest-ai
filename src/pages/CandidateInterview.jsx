@@ -4790,6 +4790,15 @@ export default function CandidateInterview() {
     };
   }, []);
 
+  // Re-anchor bottom on footer height changes when auto-scroll is enabled
+  useEffect(() => {
+    if (!historyRef.current) return;
+    if (!autoScrollEnabledRef.current) return;
+    requestAnimationFrame(() => {
+      bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+    });
+  }, [footerHeightPx]);
+
   // Deterministic scroll: initial snap once, then smooth follow when transcript grows
   React.useLayoutEffect(() => {
     if (!bottomAnchorRef.current || !historyRef.current) return;
