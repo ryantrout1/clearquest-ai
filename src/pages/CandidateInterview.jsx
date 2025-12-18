@@ -5321,8 +5321,8 @@ export default function CandidateInterview() {
     bottomBarMode = "CTA"; // "Continue →" button
   }
   else if (pendingSectionTransition && currentItem?.type === 'section_transition') {
-    bottomBarMode = "CTA"; // "Begin Next Section →" button
-  }
+     bottomBarMode = "CTA"; // "Begin Next Section" button
+   }
   // Multi-instance gate (ALWAYS YES_NO)
   else if (isMultiInstanceGate) {
     bottomBarMode = "YES_NO";
@@ -6284,37 +6284,40 @@ export default function CandidateInterview() {
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
-                  console.log("[BLOCKER][RESOLVE] SECTION_MESSAGE");
+                   console.log("[BLOCKER][RESOLVE] SECTION_MESSAGE/TRANSITION");
 
-                  // Log section started
-                  const nextSection = sections[activeBlocker.nextSectionIndex];
-                  if (nextSection) {
-                    await logSectionStarted(sessionId, {
-                      sectionId: nextSection.id,
-                      sectionName: nextSection.displayName
-                    });
-                  }
+                   const nextData = (activeBlocker?.type === 'SECTION_MESSAGE') ? activeBlocker : pendingSectionTransition;
+                   if (!nextData) return;
 
-                  // Mark blocker resolved (UI-only)
-                  if (uiBlocker && !uiBlocker.resolved) {
-                    setUiBlocker(null);
-                  }
+                   // Log section started
+                   const nextSection = sections[nextData.nextSectionIndex];
+                   if (nextSection) {
+                     await logSectionStarted(sessionId, {
+                       sectionId: nextSection.id,
+                       sectionName: nextSection.displayName
+                     });
+                   }
 
-                  // Update section index and current item
-                  setCurrentSectionIndex(activeBlocker.nextSectionIndex);
-                  setCurrentItem({ id: activeBlocker.nextQuestionId, type: 'question' });
-                  setPendingSectionTransition(null);
+                   // Mark blocker resolved (UI-only)
+                   if (uiBlocker && !uiBlocker.resolved) {
+                     setUiBlocker(null);
+                   }
 
-                  await persistStateToDatabase(null, [], { id: activeBlocker.nextQuestionId, type: 'question' });
-                  setTimeout(() => autoScrollToBottom(), 100);
-                }}
+                   // Update section index and current item
+                   setCurrentSectionIndex(nextData.nextSectionIndex);
+                   setCurrentItem({ id: nextData.nextQuestionId, type: 'question' });
+                   setPendingSectionTransition(null);
+
+                   await persistStateToDatabase(null, [], { id: nextData.nextQuestionId, type: 'question' });
+                   setTimeout(() => autoScrollToBottom(), 100);
+                 }}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-base font-semibold"
                 size="lg"
               >
-                Continue →
+                {pendingSectionTransition ? "Begin next section" : "Continue →"}
               </Button>
               <p className="text-xs text-emerald-400 text-center mt-3">
-                Click to continue to {activeBlocker.nextSectionName}
+               Click to continue to {(activeBlocker?.nextSectionName || pendingSectionTransition?.nextSectionName)}
               </p>
             </div>
           ) : bottomBarMode === "YES_NO" && !isMultiInstanceGate && (activeBlocker?.type === 'V3_GATE' || isV3Gate) ? (
