@@ -4606,7 +4606,7 @@ export default function CandidateInterview() {
           
           const gatePromptText = `Do you have another ${categoryLabel || 'incident'} to report?`;
           
-          // Append gate prompt via canonical helper
+          // Append gate prompt via canonical helper FIRST
           await appendAndRefresh('assistant', {
             text: gatePromptText,
             metadata: {
@@ -4622,41 +4622,39 @@ export default function CandidateInterview() {
           
           await forensicCheck('gate_shown');
           
-          // CRITICAL: Fully exit V3 mode (all state cleared in single block)
-          setV3ProbingActive(false);
-          setV3ProbingContext(null);
-          setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
-          setUiBlocker(null); // Clear any V3 blockers
-          
-          console.log('[FORENSIC][MODE_TRANSITION]', {
-            from: 'V3_PROBING',
-            to: 'MULTI_INSTANCE_GATE',
-            packId,
-            instanceNumber
-          });
-
-          // Set up multi-instance gate as first-class currentItem
-          setMultiInstanceGate({
-            active: true,
-            packId,
-            categoryId,
-            categoryLabel,
-            promptText: gatePromptText,
-            instanceNumber,
-            baseQuestionId,
-            packData
-          });
-          
-          setCurrentItem({
-            id: `multi-instance-gate-${packId}-${instanceNumber}`,
-            type: 'multi_instance_gate',
-            packId,
-            categoryId,
-            categoryLabel,
-            promptText: gatePromptText,
-            instanceNumber,
-            baseQuestionId,
-            packData
+          // ATOMIC STATE TRANSITION: batch to avoid intermediate TEXT_INPUT footer
+          unstable_batchedUpdates(() => {
+            // Fully exit V3 mode and clear prompts
+            setV3ProbingActive(false);
+            setV3ActivePromptText(null);
+            setV3PendingAnswer(null);
+            setV3ProbingContext(null);
+            setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
+            setUiBlocker(null);
+            
+            // Set up multi-instance gate as first-class currentItem
+            const gateItem = {
+              id: `multi-instance-gate-${packId}-${instanceNumber}`,
+              type: 'multi_instance_gate',
+              packId,
+              categoryId,
+              categoryLabel,
+              promptText: gatePromptText,
+              instanceNumber,
+              baseQuestionId,
+              packData
+            };
+            setMultiInstanceGate({
+              active: true,
+              packId,
+              categoryId,
+              categoryLabel,
+              promptText: gatePromptText,
+              instanceNumber,
+              baseQuestionId,
+              packData
+            });
+            setCurrentItem(gateItem);
           });
           
           await persistStateToDatabase(null, [], {
