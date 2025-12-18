@@ -9,9 +9,60 @@
  * - User messages: Append immediately when submitted
  * - UI-only spinners: NEVER append to transcript
  * - Single source of truth: session.transcript_snapshot
+ * - MONOTONIC GUARANTEE: Transcript NEVER shrinks for same sessionId
  */
 
 import { base44 } from "@/api/base44Client";
+
+/**
+ * Merge transcripts monotonically (NEVER allow shrinkage)
+ * Uses stable identifiers (stableKey > id > index) for deduplication
+ * 
+ * @param {Array} existing - Current transcript (source of truth)
+ * @param {Array} incoming - New transcript from server/refresh
+ * @param {string} sessionId - Session identifier (for logging only)
+ * @returns {Array} Merged transcript (always >= existing.length)
+ */
+export function mergeTranscript(existing = [], incoming = [], sessionId = null) {
+  // MONOTONIC GUARD: Never allow incoming to be shorter
+  if (incoming.length < existing.length) {
+    console.error('[TRANSCRIPT_GUARD][IGNORE_SERVER_REGRESSION]', {
+      sessionId,
+      existingLen: existing.length,
+      incomingLen: incoming.length,
+      delta: existing.length - incoming.length,
+      action: 'KEEPING_EXISTING'
+    });
+    return existing;
+  }
+  
+  // Build stable key map for deduplication
+  const existingMap = new Map();
+  for (const entry of existing) {
+    const key = entry.stableKey || entry.id || `idx_${entry.index}`;
+    existingMap.set(key, entry);
+  }
+  
+  // Merge: keep all existing + append new unique entries from incoming
+  const merged = [...existing];
+  for (const entry of incoming) {
+    const key = entry.stableKey || entry.id || `idx_${entry.index}`;
+    if (!existingMap.has(key)) {
+      merged.push(entry);
+      existingMap.set(key, entry);
+    }
+  }
+  
+  console.log('[TRANSCRIPT_MERGE]', {
+    sessionId,
+    existingLen: existing.length,
+    incomingLen: incoming.length,
+    mergedLen: merged.length,
+    newEntriesCount: merged.length - existing.length
+  });
+  
+  return merged;
+}
 
 /**
  * Generate unique transcript ID

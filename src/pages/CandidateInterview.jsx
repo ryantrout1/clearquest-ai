@@ -6411,28 +6411,13 @@ export default function CandidateInterview() {
             </div>
           ) : bottomBarMode === "TEXT_INPUT" ? (
           <div className="space-y-2">
-          {/* V3 UI CONTRACT: Floating V3 Prompt Banner (Bottom Bar Only) */}
+          {/* V3 UI CONTRACT: NO visible prompt banner - prompt goes in placeholder ONLY */}
           {v3ProbingActive && v3ActivePromptText && (() => {
-            console.info('[V3_UI_CONTRACT] V3_PROMPT_BANNER_RENDERED', { 
-              v3ProbingActive: true,
-              hasPrompt: !!v3ActivePromptText,
-              preview: v3ActivePromptText?.slice(0, 80),
-              location: 'BOTTOM_BAR_FLOATING_BANNER'
+            console.warn('[UI_CONTRACT] BLOCKED_MAIN_BODY_V3_PROMPT_RENDER', { 
+              preview: v3ActivePromptText?.slice(0, 60),
+              reason: 'V3 probe prompts must NOT render as visible banner - placeholder only'
             });
-            
-            console.info('[V3_UI_CONTRACT] V3_PROMPT_NOT_IN_TRANSCRIPT', { 
-              v3ProbingActive: true,
-              reason: 'V3 probes never append to transcript - only visible in bottom bar'
-            });
-
-            return (
-              <div className="flex gap-3 mb-2">
-                <div className="flex-1 bg-purple-900/30 border border-purple-600/50 rounded-lg p-3">
-                  <p className="text-white text-sm leading-relaxed">{v3ActivePromptText}</p>
-                </div>
-                <div className="w-12" /> {/* Spacer to align with Send button */}
-              </div>
-            );
+            return null;
           })()}
 
           {/* LLM Suggestion - show if available for this field (hide during V3 probing) */}
@@ -6476,7 +6461,7 @@ export default function CandidateInterview() {
                 setInput(value);
               }}
               onKeyDown={handleInputKeyDown}
-              placeholder="Type your answer..."
+              placeholder={v3ProbingActive && v3ActivePromptText ? v3ActivePromptText : "Type your answer..."}
               aria-label={v3ProbingActive && v3ActivePromptText ? v3ActivePromptText : "Type your answer"}
               className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
               disabled={isCommitting}
@@ -6510,23 +6495,29 @@ export default function CandidateInterview() {
 
           {/* V3 UI Contract Enforcement - Self-Check */}
           {v3ProbingActive && (() => {
-            const shouldRenderPromptInBody = false; // ✓ ALWAYS FALSE per contract
-
-            if (shouldRenderPromptInBody) {
-              console.error('[V3_UI_CONTRACT] VIOLATION', {
-                reason: 'Prompt attempted to render in main body during V3 probing',
-                v3ProbingActive,
-                hasPrompt: !!v3ActivePromptText
-              });
-            } else {
-              console.log('[V3_UI_CONTRACT] ENFORCED', {
-                v3ProbingActive,
-                hasPrompt: !!v3ActivePromptText,
-                promptLocation: v3ActivePromptText ? 'BOTTOM_BAR_FLOATING_BANNER (above input)' : 'NONE',
-                mainBodyPromptCards: 0,
-                transcriptPromptCards: 0
+            const transcriptPromptCards = renderedTranscript.filter(e => 
+              e.messageType === 'v3_probe_question' || e.type === 'v3_probe_question'
+            ).length;
+            
+            const transcriptLengthNow = renderedTranscript.length;
+            
+            if (transcriptPromptCards > 0) {
+              console.error('[V3_UI_CONTRACT][REGRESSION] TRANSCRIPT_PROMPT_LEAK', {
+                sessionId,
+                transcriptPromptCards,
+                reason: 'V3 probes leaked into transcript',
+                v3ProbingActive
               });
             }
+            
+            console.log('[V3_UI_CONTRACT] ENFORCED', {
+              v3ProbingActive,
+              hasPrompt: !!v3ActivePromptText,
+              promptLocation: v3ActivePromptText ? 'INPUT_PLACEHOLDER_ONLY' : 'NONE',
+              mainBodyPromptCards: 0,
+              transcriptPromptCards,
+              transcriptLen: transcriptLengthNow
+            });
             return null;
           })()}
 

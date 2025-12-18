@@ -170,7 +170,7 @@ export default function V3ProbingLoop({
       console.log('[V3_PROBING_LOOP][INIT_SKIP] Instance blocked - will not initialize');
       return;
     }
-    
+
     // INIT-ONCE GUARD: Strictly enforce single initialization
     if (initRanRef.current) {
       console.log('[V3_PROBING_LOOP][INIT_ONCE_GUARD] Already initialized - blocking duplicate init', {
@@ -179,24 +179,26 @@ export default function V3ProbingLoop({
       });
       return;
     }
-    
+
     if (hasInitialized.current) {
       console.log('[V3_PROBING_LOOP][INIT_SKIP] Already initialized - preventing duplicate decide() call');
       return;
     }
-    
+
     // Mark as initialized BEFORE calling handleSubmit
     initRanRef.current = true;
     hasInitialized.current = true;
-    
+
     console.log("[V3_PROBING_LOOP][INIT] Starting with opener answer", {
       categoryId,
       incidentId,
       openerAnswerLength: openerAnswer?.length || 0,
-      initRanRef: initRanRef.current
+      initRanRef: initRanRef.current,
+      isInitialCall: true
     });
-    
+
     // Call decision engine with opener to get first probe
+    // CRITICAL: isInitialCall=true for first call ONLY
     if (openerAnswer) {
       handleSubmit(null, openerAnswer, true);
     }
@@ -269,14 +271,13 @@ export default function V3ProbingLoop({
       };
       setMessages(prev => [...prev, userMessage]);
 
-      // FIX #4: Append user answer to main transcript
-      const { appendUserMessage } = await import("../utils/chatTranscriptHelpers");
-      const session = await base44.entities.InterviewSession.get(sessionId);
-      await appendUserMessage(sessionId, session.transcript_snapshot || [], answer, {
+      // BLOCKED: V3 probe answers should NOT append to transcript (breaks UI contract)
+      // Only opener answers and completion messages go in transcript
+      console.log('[V3_UI_CONTRACT]', {
+        action: 'TRANSCRIPT_APPEND_BLOCKED',
         messageType: 'v3_probe_answer',
-        categoryId,
-        incidentId,
-        probeCount
+        reason: 'V3 probe Q&A must NOT appear in transcript - headless loop only',
+        answerPreview: answer?.substring(0, 50)
       });
     }
 

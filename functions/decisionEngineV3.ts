@@ -213,6 +213,7 @@ function isMonthYearLike(text) {
 /**
  * GENERIC ENUM INFERENCE: Map narrative text to FactModel enum values.
  * Works across all categories by matching keywords to enum_options.
+ * ENHANCED: Deterministic outcome inference for PRIOR_LE_APPS and similar packs
  */
 function inferEnumValue(field, narrativeText) {
   if (!field || !narrativeText) return null;
@@ -220,12 +221,12 @@ function inferEnumValue(field, narrativeText) {
   
   const lower = narrativeText.toLowerCase();
   
-  // Generic outcome/status/result field patterns
+  // ENHANCED: Comprehensive outcome/status inference patterns
   const outcomeKeywords = {
-    hired: ['hired', 'offered', 'accepted the position', 'got the job', 'selected'],
-    disqualified: ['disqualified', 'rejected', 'denied', 'not selected', 'did not pass', 'failed', 'eliminated'],
-    withdrew: ['withdrew', 'pulled out', 'withdrew my application', 'decided not to continue'],
-    still_in_process: ['still in process', 'pending', 'waiting to hear', 'under review', 'in progress']
+    hired: ['hired', 'offered', 'accepted the position', 'got the job', 'selected', 'received an offer', 'was hired'],
+    disqualified: ['disqualified', 'rejected', 'denied', 'not selected', 'did not pass', 'failed', 'eliminated', 'did not make it', 'was not selected', 'didn\'t pass'],
+    withdrew: ['withdrew', 'pulled out', 'withdrew my application', 'decided not to continue', 'pulled my application', 'dropped out', 'withdrew from'],
+    still_in_process: ['still in process', 'pending', 'waiting to hear', 'under review', 'in progress', 'still waiting', 'haven\'t heard', 'ongoing']
   };
   
   // Try to match narrative keywords to enum values
@@ -235,13 +236,24 @@ function inferEnumValue(field, narrativeText) {
     
     // Exact match (case-insensitive)
     if (lower.includes(enumLower)) {
+      console.log('[V3_ENUM_INFERENCE][EXACT_MATCH]', {
+        fieldId: field.field_id,
+        enumValue,
+        matchedOn: 'exact string match'
+      });
       return enumValue;
     }
     
     // Keyword-based inference
     for (const [canonicalOutcome, keywords] of Object.entries(outcomeKeywords)) {
-      if (canon(enumValue).includes(canonicalOutcome)) {
+      if (enumCanon.includes(canonicalOutcome)) {
         if (keywords.some(kw => lower.includes(kw))) {
+          console.log('[V3_ENUM_INFERENCE][KEYWORD_MATCH]', {
+            fieldId: field.field_id,
+            enumValue,
+            canonicalOutcome,
+            matchedKeyword: keywords.find(kw => lower.includes(kw))
+          });
           return enumValue;
         }
       }
@@ -441,20 +453,22 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
     }
   }
   
-  // UNIVERSAL OUTCOME/ENUM EXTRACTION
+  // UNIVERSAL OUTCOME/ENUM EXTRACTION (DETERMINISTIC)
   const outcomeFields = allFields.filter(f => 
     ['outcome', 'result', 'status', 'decision'].some(kw => canon(f.field_id || '').includes(kw))
   );
   
   for (const outcomeField of outcomeFields) {
-    // Try enum inference first if field has enum_options
+    // CRITICAL: Try enum inference FIRST if field has enum_options
+    // This enables deterministic outcome extraction for PRIOR_LE_APPS and similar packs
     const inferredValue = inferEnumValue(outcomeField, normalized);
     if (inferredValue) {
       extracted[outcomeField.field_id] = inferredValue;
       console.log('[V3_FACTMODEL_INGEST][ENUM]', {
         fieldId: outcomeField.field_id,
         inferredValue,
-        source: 'enum_inference'
+        source: 'enum_inference',
+        narrativePreview: normalized.substring(0, 60)
       });
       continue;
     }
@@ -892,7 +906,16 @@ async function decisionEngineV3Probe(base44, {
   // Detect opener narrative: use isInitialCall flag from caller (reliable on first call)
   const isOpenerNarrative = Boolean(isInitialCall) && latestAnswerText && latestAnswerText.length >= 20;
   
+  console.log('[V3_EXTRACT][PRE_CALL]', {
+    traceId: effectiveTraceId,
+    isInitialCall,
+    isOpenerNarrative,
+    answerLength: latestAnswerText?.length || 0,
+    missingFieldsBeforeExtraction: missingFieldsBefore.map(f => f.field_id).join(',')
+  });
+  
   // Extract facts from answer (BEFORE selecting next missing field)
+  // CRITICAL: This runs on EVERY call, including isInitialCall=true
   const extractedFacts = extractFactsFromAnswer(
     latestAnswerText, 
     missingFieldsBefore, 
@@ -900,6 +923,16 @@ async function decisionEngineV3Probe(base44, {
     isOpenerNarrative,
     categoryId
   );
+  
+  console.log('[V3_EXTRACT][POST_CALL]', {
+    traceId: effectiveTraceId,
+    extractedCount: Object.keys(extractedFacts).length,
+    extractedFields: Object.keys(extractedFacts).join(','),
+    extractedSample: Object.entries(extractedFacts).slice(0, 3).reduce((acc, [k, v]) => {
+      acc[k] = typeof v === 'string' ? v.substring(0, 30) : v;
+      return acc;
+    }, {})
+  });
   
   // Update incident.facts with extracted values
   incident.facts = {
