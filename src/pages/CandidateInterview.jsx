@@ -1374,6 +1374,34 @@ export default function CandidateInterview() {
       }
     }
     
+    // UI CONTRACT REGRESSION CHECK: If latest is gate, footer must be YES_NO and currentItem is gate
+    try {
+      const last = finalFiltered[finalFiltered.length - 1];
+      if (last && last.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
+        const footerIsYesNo = (() => {
+          const effectiveType = v3ProbingActive ? 'v3_probing' : (uiCurrentItem?.type || null);
+          const isGate = effectiveType === 'multi_instance_gate';
+          const isYesNoMode = ((() => {
+            // Recompute minimally to avoid dependency: infer from uiCurrentItem
+            if (!uiCurrentItem) return false;
+            return uiCurrentItem.type === 'multi_instance_gate' || uiCurrentItem.type === 'v3_gate' || (currentPrompt?.responseType === 'yes_no');
+          })());
+          return isGate && isYesNoMode;
+        })();
+        if (!footerIsYesNo) {
+          console.error('[UI_CONTRACT][VIOLATION]', {
+            reason: 'Gate prompt visible but footer not in YES_NO with multi_instance_gate',
+            currentItemType: uiCurrentItem?.type,
+            v3ProbingActive,
+            screenMode,
+            lastMessageType: last.messageType
+          });
+        }
+      }
+    } catch (e) {
+      // Non-blocking
+    }
+
     console.log('[TRANSCRIPT_RENDER]', {
       canonicalLen: base.length,
       dedupedLen: deduped.length,
