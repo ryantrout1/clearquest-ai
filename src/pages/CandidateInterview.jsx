@@ -5436,6 +5436,15 @@ export default function CandidateInterview() {
             return (
               <div className="opacity-100">
                 {renderedTranscript.map((entry, index) => {
+                  
+                  // V3 UI CONTRACT: HARD GUARD - Block V3 probe prompts from main body
+                  if (v3ProbingActive && entry.messageType === 'v3_probe_question') {
+                    console.warn("[UI_CONTRACT] BLOCKED_MAIN_BODY_V3_PROMPT_RENDER", { 
+                      preview: entry.text?.slice(0, 60),
+                      reason: 'V3 probe prompts must only render in footer banner, not main body'
+                    });
+                    return null;
+                  }
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
             if (entry.role === 'assistant' && entry.messageType === 'QUESTION_SHOWN') {
@@ -6417,7 +6426,7 @@ export default function CandidateInterview() {
             });
 
             return (
-              <div className="w-full bg-purple-900/30 border border-purple-600/50 rounded-lg p-3 mb-2">
+              <div className="bg-purple-900/30 border border-purple-600/50 rounded-lg p-3 mb-2 max-w-full">
                 <p className="text-white text-sm leading-relaxed">{v3ActivePromptText}</p>
               </div>
             );
