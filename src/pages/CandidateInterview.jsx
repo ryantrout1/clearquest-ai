@@ -5705,62 +5705,96 @@ export default function CandidateInterview() {
               )}
 
               {/* V2 Pack followups (combined question+answer, only show after answer submitted) */}
-              {entry.type === 'followup_question' && (entry.source === 'V2_PACK' || entry.source === 'AI_FOLLOWUP') && entry.answer && (
-                <ContentContainer>
-                <div className="w-full space-y-2">
-                  <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-semibold text-purple-400">Follow-up</span>
-                      <span className="text-xs text-slate-500">•</span>
-                      <span className="text-xs font-medium text-purple-400">
-                        {FOLLOWUP_PACK_CONFIGS[entry.packId]?.instancesLabel || entry.packId}
-                        {entry.instanceNumber > 1 ? ` — Instance ${entry.instanceNumber}` : ''}
-                      </span>
+              {entry.type === 'followup_question' && (entry.source === 'V2_PACK' || entry.source === 'AI_FOLLOWUP') && entry.answer && (() => {
+                // V3 UI CONTRACT: Block all follow-up cards during active V3 probing
+                if (v3ProbingActive) {
+                  console.log("[V3_UI_CONTRACT] BLOCKED_FOLLOWUP_QUESTION_CARD_DURING_PROBING", { 
+                    v3ProbingActive: true,
+                    entryType: entry.type,
+                    packId: entry.packId
+                  });
+                  return null;
+                }
+                
+                return (
+                  <ContentContainer>
+                  <div className="w-full space-y-2">
+                    <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-semibold text-purple-400">Follow-up</span>
+                        <span className="text-xs text-slate-500">•</span>
+                        <span className="text-xs font-medium text-purple-400">
+                          {FOLLOWUP_PACK_CONFIGS[entry.packId]?.instancesLabel || entry.packId}
+                          {entry.instanceNumber > 1 ? ` — Instance ${entry.instanceNumber}` : ''}
+                        </span>
+                      </div>
+                      <p className="text-white text-sm leading-relaxed">{entry.questionText || entry.text}</p>
                     </div>
-                    <p className="text-white text-sm leading-relaxed">{entry.questionText || entry.text}</p>
-                  </div>
-                  <div className="flex justify-end">
-                    <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                      <p className="text-white text-sm">{entry.answer}</p>
-                    </div>
-                  </div>
-                </div>
-                </ContentContainer>
-              )}
-
-              {/* Legacy/deterministic followup entries (combined question+answer) */}
-              {entry.type === 'followup' && !entry.source && (
-                <ContentContainer>
-                <div className="w-full space-y-2">
-                  <div className="bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
-                    <p className="text-slate-300 text-sm">{entry.questionText || entry.text}</p>
-                  </div>
-                  {entry.answer && (
                     <div className="flex justify-end">
-                      <div className="bg-slate-600 rounded-xl px-4 py-2">
+                      <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
                         <p className="text-white text-sm">{entry.answer}</p>
                       </div>
                     </div>
-                  )}
-                </div>
-                </ContentContainer>
-              )}
+                  </div>
+                  </ContentContainer>
+                );
+              })()}
+
+              {/* Legacy/deterministic followup entries (combined question+answer) */}
+              {entry.type === 'followup' && !entry.source && (() => {
+                // V3 UI CONTRACT: Block all follow-up cards during active V3 probing
+                if (v3ProbingActive) {
+                  console.log("[V3_UI_CONTRACT] BLOCKED_FOLLOWUP_QUESTION_CARD_DURING_PROBING", { 
+                    v3ProbingActive: true,
+                    entryType: entry.type
+                  });
+                  return null;
+                }
+                
+                return (
+                  <ContentContainer>
+                  <div className="w-full space-y-2">
+                    <div className="bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
+                      <p className="text-slate-300 text-sm">{entry.questionText || entry.text}</p>
+                    </div>
+                    {entry.answer && (
+                      <div className="flex justify-end">
+                        <div className="bg-slate-600 rounded-xl px-4 py-2">
+                          <p className="text-white text-sm">{entry.answer}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  </ContentContainer>
+                );
+              })()}
 
               {/* AI Probe Questions (including V2 pack cluster opening) - only show if answered */}
-              {entry.type === 'ai_probe_question' && entry.answer && (
-                <ContentContainer>
-                <div className="w-full space-y-2">
-                  <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                    <p className="text-white text-sm leading-relaxed">{entry.questionText || entry.text || entry.content}</p>
-                  </div>
-                  <div className="flex justify-end">
-                    <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                      <p className="text-white text-sm">{entry.answer}</p>
+              {entry.type === 'ai_probe_question' && entry.answer && (() => {
+                // V3 UI CONTRACT: Block all AI probe cards during active V3 probing
+                if (v3ProbingActive) {
+                  console.log("[V3_UI_CONTRACT] BLOCKED_FOLLOWUP_QUESTION_CARD_DURING_PROBING", { 
+                    v3ProbingActive: true,
+                    entryType: entry.type
+                  });
+                  return null;
+                }
+                
+                return (
+                  <ContentContainer>
+                  <div className="w-full space-y-2">
+                    <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                      <p className="text-white text-sm leading-relaxed">{entry.questionText || entry.text || entry.content}</p>
+                    </div>
+                    <div className="flex justify-end">
+                      <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                        <p className="text-white text-sm">{entry.answer}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-                </ContentContainer>
-              )}
+                  </ContentContainer>
+                );
+              })()}
 
               {/* Section Completion Messages */}
               {entry.role === 'assistant' && entry.messageType === 'SECTION_COMPLETE' && entry.visibleToCandidate && (
