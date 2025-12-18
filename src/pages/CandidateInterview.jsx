@@ -1620,7 +1620,6 @@ export default function CandidateInterview() {
         instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
         v3ProbingActive,
         canonicalLen: dbTranscript?.length || 0,
-        displayLen: renderTranscript?.length || 0,
         visibleLen: nextRenderable?.length || 0,
         last5MessageTypes: dbTranscript?.slice(-5).map(e => ({ type: e.messageType || e.type, key: e.stableKey || e.id })) || []
       });
@@ -1638,7 +1637,6 @@ export default function CandidateInterview() {
         instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
         v3ProbingActive,
         canonicalLen: dbTranscript?.length || 0,
-        displayLen: renderTranscript?.length || 0,
         visibleLen: nextRenderable?.length || 0,
         last5MessageTypes: dbTranscript?.slice(-5).map(e => ({ type: e.messageType || e.type, key: e.stableKey || e.id })) || []
       });
@@ -6360,7 +6358,6 @@ export default function CandidateInterview() {
             return (
               <div className="w-full bg-purple-900/40 border border-purple-600/60 rounded-xl p-4 shadow-lg">
                 <div className="flex items-center gap-2 mb-2">
-                  <Bot className="w-4 h-4 text-purple-400" />
                   <span className="text-sm font-semibold text-purple-300">Follow-up Question</span>
                 </div>
                 <p className="text-white text-sm leading-relaxed">{v3ActivePromptText}</p>
@@ -6409,7 +6406,13 @@ export default function CandidateInterview() {
                 setInput(value);
               }}
               onKeyDown={handleInputKeyDown}
-              placeholder="Type your answer..."
+              placeholder={(() => {
+                if (v3ProbingActive) {
+                  console.log("[V3_UI_CONTRACT] PLACEHOLDER_FORCED_GENERIC", { v3ProbingActive: true });
+                  return "Type your answer...";
+                }
+                return "Type your answer...";
+              })()}
               aria-label={v3ProbingActive && v3ActivePromptText ? v3ActivePromptText : "Type your answer"}
               className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
               disabled={isCommitting}
