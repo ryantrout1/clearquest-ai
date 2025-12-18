@@ -5433,20 +5433,6 @@ export default function CandidateInterview() {
           <div className="space-y-2 relative isolate">
           {/* UNIFIED STREAM: Render all transcript messages from canonical source */}
           {(() => {
-            // Helper: Check if next entry is a question/assistant message (for turn-break spacing)
-            const isNextEntryQuestion = (currentIndex) => {
-              const nextEntry = renderedTranscript[currentIndex + 1];
-              if (!nextEntry) return false;
-              
-              const isQuestion = nextEntry.role === 'assistant' || 
-                                 nextEntry.messageType === 'QUESTION_SHOWN' ||
-                                 nextEntry.messageType === 'FOLLOWUP_CARD_SHOWN' ||
-                                 nextEntry.messageType === 'SECTION_COMPLETE' ||
-                                 nextEntry.type === 'base_question';
-              
-              return isQuestion;
-            };
-            
             return (
               <div className="opacity-100">
                 {renderedTranscript.map((entry, index) => {
@@ -5459,11 +5445,6 @@ export default function CandidateInterview() {
                     });
                     return null;
                   }
-                  
-                  // Turn-break spacing: Add extra margin after user responses when followed by questions
-                  const isUserMessage = entry.role === 'user';
-                  const shouldAddTurnBreak = isUserMessage && isNextEntryQuestion(index);
-                  const turnBreakClass = shouldAddTurnBreak ? 'mb-6' : '';
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
             if (entry.role === 'assistant' && entry.messageType === 'QUESTION_SHOWN') {
@@ -5492,7 +5473,7 @@ export default function CandidateInterview() {
             // User answer (ANSWER from chatTranscriptHelpers)
             if (entry.role === 'user' && entry.messageType === 'ANSWER') {
               return (
-                <div key={entry.id} className={turnBreakClass}>
+                <div key={entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
                     <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -5520,7 +5501,7 @@ export default function CandidateInterview() {
             // Multi-instance gate answer (user's Yes/No)
             if (entry.role === 'user' && entry.messageType === 'MULTI_INSTANCE_GATE_ANSWER') {
               return (
-                <div key={entry.id} className={turnBreakClass}>
+                <div key={entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
                     <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -5600,15 +5581,13 @@ export default function CandidateInterview() {
 
               {/* User message - "Got it — Let's Begin" or any other user text */}
               {entry.role === 'user' && !entry.messageType?.includes('ANSWER') && !entry.messageType?.includes('v3_') && !entry.messageType?.includes('GATE') && (
-                <div className={turnBreakClass}>
-                  <ContentContainer>
-                  <div className="flex justify-end">
-                    <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
-                      <p className="text-white text-sm">{entry.text}</p>
-                    </div>
+                <ContentContainer>
+                <div className="flex justify-end">
+                  <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
+                    <p className="text-white text-sm">{entry.text}</p>
                   </div>
-                  </ContentContainer>
                 </div>
+                </ContentContainer>
               )}
 
               {/* Session resumed marker (collapsed system note) */}
@@ -5655,15 +5634,13 @@ export default function CandidateInterview() {
               })()}
 
               {entry.role === 'user' && entry.messageType === 'v3_opener_answer' && (
-                <div className={turnBreakClass}>
-                  <ContentContainer>
-                  <div className="flex justify-end">
-                    <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                      <p className="text-white text-sm">{entry.text}</p>
-                    </div>
+                <ContentContainer>
+                <div className="flex justify-end">
+                  <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                    <p className="text-white text-sm">{entry.text}</p>
                   </div>
-                  </ContentContainer>
                 </div>
+                </ContentContainer>
               )}
 
               {/* V3 probe questions: BLOCKED from transcript (UI contract enforcement) */}
@@ -5677,15 +5654,13 @@ export default function CandidateInterview() {
               })()}
 
               {entry.role === 'user' && entry.messageType === 'v3_probe_answer' && (
-                <div className={turnBreakClass}>
-                  <ContentContainer>
-                  <div className="flex justify-end">
-                    <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                      <p className="text-white text-sm">{entry.text}</p>
-                    </div>
+                <ContentContainer>
+                <div className="flex justify-end">
+                  <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                    <p className="text-white text-sm">{entry.text}</p>
                   </div>
-                  </ContentContainer>
                 </div>
+                </ContentContainer>
               )}
 
               {/* Base question (assistant) */}
@@ -5706,15 +5681,13 @@ export default function CandidateInterview() {
 
               {/* Base answer (user) */}
               {entry.role === 'user' && entry.type === 'base_answer' && (
-                <div className={turnBreakClass}>
-                  <ContentContainer>
-                  <div className="flex justify-end">
-                    <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
-                      <p className="text-white text-sm">{entry.answer || entry.text}</p>
-                    </div>
+                <ContentContainer>
+                <div className="flex justify-end">
+                  <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
+                    <p className="text-white text-sm">{entry.answer || entry.text}</p>
                   </div>
-                  </ContentContainer>
                 </div>
+                </ContentContainer>
               )}
 
               {/* Legacy combined question+answer entries (backward compatibility) */}
