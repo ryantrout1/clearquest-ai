@@ -4766,7 +4766,8 @@ export default function CandidateInterview() {
     
     const measureFooter = () => {
       if (!footerRef.current) return;
-      const measured = footerRef.current.offsetHeight || 0;
+      const rect = footerRef.current.getBoundingClientRect();
+      const measured = Math.round(rect.height || footerRef.current.offsetHeight || 0);
       setFooterHeightPx(measured);
       pendingMeasurement = false;
     };
