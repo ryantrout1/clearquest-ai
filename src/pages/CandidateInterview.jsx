@@ -5083,33 +5083,23 @@ export default function CandidateInterview() {
       const packLabel = packConfig?.instancesLabel || categoryLabel || categoryId || 'Follow-up';
 
       // UI CONTRACT: V3 opener MUST append to transcript (visible to candidate)
-      const openerCardId = `followup-card-${sessionId}-${packId}-opener-${instanceNumber}`;
-      if (lastLoggedFollowupCardIdRef.current !== openerCardId) {
-        lastLoggedFollowupCardIdRef.current = openerCardId;
+      const openerStableKey = `followup-card:${packId}:opener:${instanceNumber}`;
+      if (lastLoggedFollowupCardIdRef.current !== openerStableKey) {
+        lastLoggedFollowupCardIdRef.current = openerStableKey;
 
-        console.log('[V3_OPENER_TRANSCRIPT]', {
-          action: 'APPEND_TO_TRANSCRIPT',
-          packId,
-          instanceNumber,
-          categoryId,
-          note: 'V3 opener is deterministic and MUST remain visible in history'
-        });
-
-        // Append opener to transcript as visible message
         const safeCategoryLabel = effectiveCurrentItem.categoryLabel || packLabel || categoryId || "Follow-up";
         logFollowupCardShown(sessionId, {
           packId,
           variant: 'opener',
-          stableKey: `${packId}-opener-${instanceNumber}`,
+          stableKey: openerStableKey,
           promptText: openerText,
           exampleText: exampleNarrative,
           packLabel,
           instanceNumber,
           baseQuestionId: effectiveCurrentItem.baseQuestionId,
           categoryLabel: safeCategoryLabel
-        }).then(() => {
-          return refreshTranscriptFromDB('v3_opener_shown');
-        }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
+        }).then(() => refreshTranscriptFromDB('v3_opener_shown'))
+          .catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
       }
 
       return {
