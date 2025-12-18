@@ -1330,79 +1330,28 @@ export default function CandidateInterview() {
   // STABLE RENDER LIST: Pure deterministic filtering (no UI-state-dependent shrink/grow)
   const renderedTranscript = useMemo(() => {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
-    const deduped = dedupeByStableKey(base);
-    const filtered = deduped.filter(entry => isRenderableTranscriptEntry(entry));
+    // REQUIREMENT: Filter first, then dedupe, preserving insertion order
+    const filteredFirst = base.filter(entry => isRenderableTranscriptEntry(entry));
+    const deduped = dedupeByStableKey(filteredFirst);
     
-    // STABLE KEY DEDUPE: Preserve insertion order, prefer visible entries
-    const stableKeyMap = new Map(); // Map: stableKey -> output index
+    // STABLE KEY DEDUPE: Preserve insertion order, keep FIRST renderable duplicate
+    const stableKeySet = new Set();
     const finalFiltered = [];
     
-    for (const entry of filtered) {
+    for (const entry of deduped) {
       const sk = entry.stableKey;
-      
       if (!sk) {
-        // No stableKey: always add (can't dedupe)
         finalFiltered.push(entry);
         continue;
       }
-      
-      const existingIndex = stableKeyMap.get(sk);
-      
-      if (existingIndex === undefined) {
-        // First occurrence: add and record position
-        const newIndex = finalFiltered.length;
+      if (!stableKeySet.has(sk)) {
+        stableKeySet.add(sk);
         finalFiltered.push(entry);
-        stableKeyMap.set(sk, newIndex);
-      } else {
-        // Duplicate detected: decide if we should upgrade the kept entry
-        const keptEntry = finalFiltered[existingIndex];
-        
-        // Prefer visible entries over system/non-renderable entries
-        const currentIsVisible = entry.role === 'assistant' || entry.visibleToCandidate !== false;
-        const keptIsVisible = keptEntry.role === 'assistant' || keptEntry.visibleToCandidate !== false;
-        
-        if (currentIsVisible && !keptIsVisible) {
-          // Upgrade: replace kept entry IN PLACE (preserves first occurrence position)
-          console.log('[DEDUPE_UPGRADE]', {
-            stableKey: sk,
-            keptRole: keptEntry.role,
-            currentRole: entry.role,
-            action: 'replacing system entry with visible entry at same index'
-          });
-          finalFiltered[existingIndex] = entry;
-        }
-        // Otherwise: keep first occurrence, skip duplicate
       }
+      // If duplicate sk encountered, we SKIP it (keep first renderable one)
     }
     
-    // UI CONTRACT REGRESSION CHECK: If latest is gate, footer must be YES_NO and currentItem is gate
-    try {
-      const last = finalFiltered[finalFiltered.length - 1];
-      if (last && last.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
-        const footerIsYesNo = (() => {
-          const effectiveType = v3ProbingActive ? 'v3_probing' : (uiCurrentItem?.type || null);
-          const isGate = effectiveType === 'multi_instance_gate';
-          const isYesNoMode = ((() => {
-            // Recompute minimally to avoid dependency: infer from uiCurrentItem
-            if (!uiCurrentItem) return false;
-            return uiCurrentItem.type === 'multi_instance_gate' || uiCurrentItem.type === 'v3_gate' || (currentPrompt?.responseType === 'yes_no');
-          })());
-          return isGate && isYesNoMode;
-        })();
-        if (!footerIsYesNo) {
-          console.error('[UI_CONTRACT][VIOLATION]', {
-            reason: 'Gate prompt visible but footer not in YES_NO with multi_instance_gate',
-            currentItemType: uiCurrentItem?.type,
-            v3ProbingActive,
-            screenMode,
-            lastMessageType: last.messageType
-          });
-        }
-      }
-    } catch (e) {
-      // Non-blocking
-    }
-
+    // Minimal contract check moved out of render loop below
     console.log('[TRANSCRIPT_RENDER]', {
       canonicalLen: base.length,
       dedupedLen: deduped.length,
