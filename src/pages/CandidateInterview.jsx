@@ -1365,7 +1365,7 @@ export default function CandidateInterview() {
     });
     
     return finalFiltered;
-  }, [dbTranscript, currentItem, screenMode, getTranscriptEntryKey]);
+  }, [dbTranscript]);
 
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
