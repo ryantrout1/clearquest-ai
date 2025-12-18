@@ -4634,22 +4634,6 @@ export default function CandidateInterview() {
           
           const gatePromptText = `Do you have another ${categoryLabel || 'incident'} to report?`;
           
-          // Append gate prompt via canonical helper FIRST
-          await appendAndRefresh('assistant', {
-            text: gatePromptText,
-            metadata: {
-              id: `mi-gate-${packId}-${instanceNumber}`,
-              messageType: 'MULTI_INSTANCE_GATE_SHOWN',
-              packId,
-              categoryId,
-              instanceNumber,
-              baseQuestionId,
-              visibleToCandidate: true
-            }
-          }, 'gate_shown');
-          
-          await forensicCheck('gate_shown');
-          
           // ATOMIC STATE TRANSITION: batch to avoid intermediate TEXT_INPUT footer
           unstable_batchedUpdates(() => {
             // Fully exit V3 mode and clear prompts
@@ -4684,6 +4668,22 @@ export default function CandidateInterview() {
             });
             setCurrentItem(gateItem);
           });
+          
+          // Append gate prompt via canonical helper AFTER state switch (prevents footer TEXT_INPUT frame)
+          await appendAndRefresh('assistant', {
+            text: gatePromptText,
+            metadata: {
+              id: `mi-gate-${packId}-${instanceNumber}`,
+              messageType: 'MULTI_INSTANCE_GATE_SHOWN',
+              packId,
+              categoryId,
+              instanceNumber,
+              baseQuestionId,
+              visibleToCandidate: true
+            }
+          }, 'gate_shown');
+          
+          await forensicCheck('gate_shown');
           
           await persistStateToDatabase(null, [], {
             id: `multi-instance-gate-${packId}-${instanceNumber}`,
