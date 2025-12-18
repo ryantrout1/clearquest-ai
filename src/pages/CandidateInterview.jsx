@@ -5545,10 +5545,10 @@ export default function CandidateInterview() {
 
       <main className="flex-1 relative overflow-hidden isolate">
         <div 
-          className="absolute inset-0 overflow-y-auto scrollbar-thin pb-28" 
+          className="absolute inset-0 overflow-y-auto scrollbar-thin" 
           ref={historyRef}
           onScroll={handleTranscriptScroll}
-          style={{ paddingBottom: Math.max(112, footerHeightPx + 8) }}
+          style={{ bottom: Math.max(0, (footerHeightPx || 0) + 8) }}
         >
         <div className="px-4 pb-2 pt-6 flex flex-col min-h-full justify-end">
           <div className="space-y-2 relative isolate">
