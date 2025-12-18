@@ -1329,10 +1329,9 @@ export default function CandidateInterview() {
     const deduped = dedupeByStableKey(base);
     const filtered = deduped.filter(entry => isRenderableTranscriptEntry(entry));
     
-    // V3 UI CONTRACT: Deterministic opener dedup (always keep latest, never conditionally hide)
-    // Build map of opener entries by (packId, instanceNumber)
-    const openersByPackInstance = new Map();
-    const nonOpeners = [];
+    // V3 UI CONTRACT: Deterministic opener dedup (keep first, preserve insertion order)
+    const seenOpenerKeys = new Set();
+    const finalFiltered = [];
     
     for (const entry of filtered) {
       const isOpenerEntry = 
@@ -1342,25 +1341,18 @@ export default function CandidateInterview() {
       if (isOpenerEntry) {
         const entryPackId = entry.packId || entry.meta?.packId || 'unknown';
         const entryInstance = Number(entry.instanceNumber || entry.meta?.instanceNumber || 1);
-        const mapKey = `${entryPackId}:${entryInstance}`;
+        const dedupeKey = `opener:${entryPackId}:${entryInstance}`;
         
-        // Keep latest opener per (packId, instance) - deterministic dedup
-        const existing = openersByPackInstance.get(mapKey);
-        if (!existing || (entry.createdAt || 0) > (existing.createdAt || 0)) {
-          openersByPackInstance.set(mapKey, entry);
+        // Keep first occurrence only, skip duplicates
+        if (!seenOpenerKeys.has(dedupeKey)) {
+          seenOpenerKeys.add(dedupeKey);
+          finalFiltered.push(entry);
         }
       } else {
-        nonOpeners.push(entry);
+        // Non-opener: always keep
+        finalFiltered.push(entry);
       }
     }
-    
-    // Rebuild filtered list: non-openers + deduplicated openers (in original order)
-    const dedupedOpeners = Array.from(openersByPackInstance.values());
-    const finalFiltered = [...nonOpeners, ...dedupedOpeners].sort((a, b) => {
-      const aCreated = a.createdAt || a.index || 0;
-      const bCreated = b.createdAt || b.index || 0;
-      return aCreated - bCreated;
-    });
     
     console.log('[TRANSCRIPT_RENDER]', {
       canonicalLen: base.length,
