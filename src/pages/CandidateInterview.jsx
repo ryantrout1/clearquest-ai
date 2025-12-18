@@ -5979,7 +5979,6 @@ export default function CandidateInterview() {
             const categoryLabel = currentItem.categoryLabel;
             
             // ACTIVE CARD RENDERER DISABLED: Opener must be transcript-driven only
-            console.log('[V3_UI_CONTRACT] Skipping deterministic opener renderer (transcript is source of truth)');
             return null;
             
             // REGRESSION GUARD: Fail-loud if missing prompt text
