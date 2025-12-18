@@ -5702,19 +5702,8 @@ export default function CandidateInterview() {
               )}
 
               {/* V3 Pack opener prompt (FOLLOWUP_CARD_SHOWN) - MUST be visible in transcript history */}
-              {entry.role === 'assistant' && entry.messageType === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener' && (() => {
-                // V3 UI CONTRACT: Block opener card from transcript during active V3 probing
-                if (v3ProbingActive) {
-                  console.log("[V3_UI_CONTRACT] BLOCKED_FOLLOWUP_CARD_RENDER_DURING_PROBING", { 
-                    v3ProbingActive: true,
-                    packId: entry.packId || entry.meta?.packId,
-                    variant: entry.meta?.variant
-                  });
-                  return null;
-                }
-                
-                return (
-                  <ContentContainer>
+              {entry.role === 'assistant' && entry.messageType === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener' && (
+                <ContentContainer>
                   <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                     {entry.categoryLabel && (
                       <div className="flex items-center gap-2 mb-2">
@@ -5731,9 +5720,8 @@ export default function CandidateInterview() {
                       </div>
                     )}
                   </div>
-                  </ContentContainer>
-                );
-              })()}
+                </ContentContainer>
+              )}
 
               {entry.role === 'user' && entry.messageType === 'v3_opener_answer' && (
                 <div style={{ marginBottom: 10 }}>
