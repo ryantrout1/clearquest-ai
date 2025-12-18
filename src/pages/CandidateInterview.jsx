@@ -3165,6 +3165,17 @@ export default function CandidateInterview() {
 
         // SECTION GATE LOGIC: Check if this is a gate question with "No" answer
         // This must run BEFORE follow-up trigger check to properly skip remaining section questions
+        
+        // GUARD: Ensure newTranscript is an array before filtering
+        if (!Array.isArray(newTranscript)) {
+          console.warn('[ANSWER_PROCESSING][GUARD] newTranscript was not an array, defaulting to []', {
+            currentItemType: currentItem?.type,
+            currentItemId: currentItem?.id,
+            questionCode: question?.question_id,
+            value: newTranscript
+          });
+        }
+        
         const gateResult = await applySectionGateIfNeeded({
           sessionId,
           currentQuestion: question,
@@ -3172,7 +3183,7 @@ export default function CandidateInterview() {
           engine,
           currentSectionIndex,
           sections,
-          answeredQuestionIds: new Set(newTranscript.filter(t => t.type === 'question').map(t => t.questionId))
+          answeredQuestionIds: new Set((newTranscript || []).filter(t => t.type === 'question').map(t => t.questionId))
         });
 
         if (gateResult?.gateTriggered) {
