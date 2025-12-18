@@ -5156,7 +5156,11 @@ export default function CandidateInterview() {
             // CRITICAL: Refresh transcript after appending prompt message
             return refreshTranscriptFromDB('v2_field_shown');
           }).then((freshTranscript) => {
-            console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { freshLen: freshTranscript?.length });
+            const normalizedFresh = Array.isArray(freshTranscript) ? freshTranscript : [];
+            console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { 
+              freshLen: normalizedFresh.length,
+              wasArray: Array.isArray(freshTranscript)
+            });
           }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
         }
       }
