@@ -6402,14 +6402,25 @@ export default function CandidateInterview() {
             </div>
           ) : bottomBarMode === "TEXT_INPUT" ? (
           <div className="space-y-2">
-          {/* V3 UI CONTRACT: NO visible prompt box - prompt ONLY in placeholder */}
+          {/* V3 UI CONTRACT: Floating V3 Prompt Banner (Bottom Bar Only) */}
           {v3ProbingActive && v3ActivePromptText && (() => {
-            console.warn('[V3_UI_CONTRACT] BLOCKED_VISIBLE_PROMPT_UI', { 
+            console.info('[V3_UI_CONTRACT] V3_PROMPT_BANNER_RENDERED', { 
               v3ProbingActive: true,
               hasPrompt: !!v3ActivePromptText,
-              reason: 'Prompt must appear ONLY in input placeholder, NOT as visible card/banner'
+              preview: v3ActivePromptText?.slice(0, 80),
+              location: 'BOTTOM_BAR_FLOATING_BANNER'
             });
-            return null; // ✓ NO visible banner - prompt goes in placeholder only
+            
+            console.info('[V3_UI_CONTRACT] V3_PROMPT_NOT_IN_TRANSCRIPT', { 
+              v3ProbingActive: true,
+              reason: 'V3 probes never append to transcript - only visible in bottom bar'
+            });
+
+            return (
+              <div className="w-full bg-purple-900/30 border border-purple-600/50 rounded-lg p-3 mb-2">
+                <p className="text-white text-sm leading-relaxed">{v3ActivePromptText}</p>
+              </div>
+            );
           })()}
 
           {/* LLM Suggestion - show if available for this field (hide during V3 probing) */}
@@ -6453,17 +6464,7 @@ export default function CandidateInterview() {
                 setInput(value);
               }}
               onKeyDown={handleInputKeyDown}
-              placeholder={(() => {
-                if (v3ProbingActive && v3ActivePromptText) {
-                  console.info('[V3_UI_CONTRACT] PROMPT_IN_PLACEHOLDER_ONLY', { 
-                    v3ProbingActive: true,
-                    preview: v3ActivePromptText?.slice(0, 60),
-                    location: 'INPUT_PLACEHOLDER_ONLY'
-                  });
-                  return v3ActivePromptText;
-                }
-                return "Type your answer...";
-              })()}
+              placeholder="Type your answer..."
               aria-label={v3ProbingActive && v3ActivePromptText ? v3ActivePromptText : "Type your answer"}
               className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
               disabled={isCommitting}
