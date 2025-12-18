@@ -4811,7 +4811,7 @@ export default function CandidateInterview() {
     }
   }, [dbTranscript.length, isUserTyping, scrollToBottomSafely]);
 
-  // UX: Auto-resize textarea based on content (max 3 lines)
+  // UX: Auto-resize textarea based on content (max 5 lines)
   useEffect(() => {
     if (!inputRef.current) return;
 
@@ -4819,7 +4819,7 @@ export default function CandidateInterview() {
     textarea.style.height = 'auto';
 
     const lineHeight = 24; // Approximate line height in pixels
-    const maxLines = 3;
+    const maxLines = 5;
     const maxHeight = lineHeight * maxLines;
     const scrollHeight = textarea.scrollHeight;
 
