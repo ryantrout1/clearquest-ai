@@ -5481,7 +5481,7 @@ export default function CandidateInterview() {
           ref={historyRef}
           onScroll={handleTranscriptScroll}
         >
-        <div className="px-4 pb-6 pt-6 flex flex-col min-h-full justify-end">
+        <div className="px-4 pb-2 pt-6 flex flex-col min-h-full justify-end">
           <div className="space-y-2 relative isolate">
           {/* UNIFIED STREAM: Render all transcript messages from canonical source */}
           {(() => {
@@ -5525,7 +5525,7 @@ export default function CandidateInterview() {
             // User answer (ANSWER from chatTranscriptHelpers)
             if (entry.role === 'user' && entry.messageType === 'ANSWER') {
               return (
-                <div key={entry.id}>
+                <div key={entry.id} style={{ marginBottom: 10 }}>
                   <ContentContainer>
                   <div className="flex justify-end">
                     <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -5553,7 +5553,7 @@ export default function CandidateInterview() {
             // Multi-instance gate answer (user's Yes/No)
             if (entry.role === 'user' && entry.messageType === 'MULTI_INSTANCE_GATE_ANSWER') {
               return (
-                <div key={entry.id}>
+                <div key={entry.id} style={{ marginBottom: 10 }}>
                   <ContentContainer>
                   <div className="flex justify-end">
                     <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -5633,13 +5633,15 @@ export default function CandidateInterview() {
 
               {/* User message - "Got it — Let's Begin" or any other user text */}
               {entry.role === 'user' && !entry.messageType?.includes('ANSWER') && !entry.messageType?.includes('v3_') && !entry.messageType?.includes('GATE') && (
-                <ContentContainer>
-                <div className="flex justify-end">
-                  <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
-                    <p className="text-white text-sm">{entry.text}</p>
+                <div style={{ marginBottom: 10 }}>
+                  <ContentContainer>
+                  <div className="flex justify-end">
+                    <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
+                      <p className="text-white text-sm">{entry.text}</p>
+                    </div>
                   </div>
+                  </ContentContainer>
                 </div>
-                </ContentContainer>
               )}
 
               {/* Session resumed marker (collapsed system note) */}
@@ -5686,13 +5688,15 @@ export default function CandidateInterview() {
               })()}
 
               {entry.role === 'user' && entry.messageType === 'v3_opener_answer' && (
-                <ContentContainer>
-                <div className="flex justify-end">
-                  <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                    <p className="text-white text-sm">{entry.text}</p>
+                <div style={{ marginBottom: 10 }}>
+                  <ContentContainer>
+                  <div className="flex justify-end">
+                    <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                      <p className="text-white text-sm">{entry.text}</p>
+                    </div>
                   </div>
+                  </ContentContainer>
                 </div>
-                </ContentContainer>
               )}
 
               {/* V3 probe questions: BLOCKED from transcript (UI contract enforcement) */}
@@ -5706,13 +5710,15 @@ export default function CandidateInterview() {
               })()}
 
               {entry.role === 'user' && entry.messageType === 'v3_probe_answer' && (
-                <ContentContainer>
-                <div className="flex justify-end">
-                  <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                    <p className="text-white text-sm">{entry.text}</p>
+                <div style={{ marginBottom: 10 }}>
+                  <ContentContainer>
+                  <div className="flex justify-end">
+                    <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                      <p className="text-white text-sm">{entry.text}</p>
+                    </div>
                   </div>
+                  </ContentContainer>
                 </div>
-                </ContentContainer>
               )}
 
               {/* Base question (assistant) */}
@@ -5733,13 +5739,15 @@ export default function CandidateInterview() {
 
               {/* Base answer (user) */}
               {entry.role === 'user' && entry.type === 'base_answer' && (
-                <ContentContainer>
-                <div className="flex justify-end">
-                  <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
-                    <p className="text-white text-sm">{entry.answer || entry.text}</p>
+                <div style={{ marginBottom: 10 }}>
+                  <ContentContainer>
+                  <div className="flex justify-end">
+                    <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
+                      <p className="text-white text-sm">{entry.answer || entry.text}</p>
+                    </div>
                   </div>
+                  </ContentContainer>
                 </div>
-                </ContentContainer>
               )}
 
               {/* Legacy combined question+answer entries (backward compatibility) */}
