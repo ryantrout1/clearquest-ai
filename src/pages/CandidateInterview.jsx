@@ -1302,11 +1302,12 @@ export default function CandidateInterview() {
   // CRITICAL: This memo MUST NOT trigger component remount
   const nextRenderable = React.useMemo(() => {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
-    const deduped = dedupeByStableKey(base);
-    const filtered = deduped.filter(entry => isRenderableTranscriptEntry(entry));
+    // REQUIREMENT: Filter first, then dedupe (preserve insertion order)
+    const filtered = base.filter(entry => isRenderableTranscriptEntry(entry));
+    const deduped = dedupeByStableKey(filtered);
     
     // FALLBACK: If filter hides all messages but we have canonical data, use last 10
-    if (base.length > 0 && filtered.length === 0) {
+    if (base.length > 0 && deduped.length === 0) {
       console.warn('[TRANSCRIPT_FILTER_FALLBACK]', {
         canonicalLen: base.length,
         currentItemType: currentItem?.type,
@@ -1320,7 +1321,7 @@ export default function CandidateInterview() {
       return base.slice(-10); // Show last 10 messages as fallback
     }
     
-    return filtered;
+    return deduped;
   }, [dbTranscript]);
 
   // Loading watchdog state
