@@ -1391,6 +1391,7 @@ export default function CandidateInterview() {
 
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
+  // uiCurrentItem removed: use currentItem directly everywhere to avoid TDZ
   const uiCurrentItem = React.useMemo(() => {
     // Priority 1: V3 gate
     if (v3GateActive) {
