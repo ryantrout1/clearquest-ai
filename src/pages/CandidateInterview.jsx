@@ -1371,13 +1371,12 @@ export default function CandidateInterview() {
     const last = renderedTranscript[renderedTranscript.length - 1];
     if (!last || last.messageType !== 'MULTI_INSTANCE_GATE_SHOWN') return;
 
-    const effectiveType = v3ProbingActive ? 'v3_probing' : (uiCurrentItem?.type || null);
-    const prompt = getCurrentPrompt();
+    const effectiveType = v3ProbingActive ? 'v3_probing' : (currentItem?.type || null);
     const isGate = effectiveType === 'multi_instance_gate';
-    const footerIsYesNo = isGate || (prompt?.responseType === 'yes_no');
+    const footerIsYesNo = isGate; // simplified to avoid TDZ on currentPrompt
 
     if (!(isGate && footerIsYesNo)) {
-      const key = `${last.stableKey || last.id || 'gate'}:${effectiveType}:${prompt?.responseType}`;
+      const key = `${last.stableKey || last.id || 'gate'}:${effectiveType}`;
       if (uiContractViolationKeyRef.current !== key) {
         uiContractViolationKeyRef.current = key;
         console.error('[UI_CONTRACT][VIOLATION]', {
@@ -1388,7 +1387,7 @@ export default function CandidateInterview() {
         });
       }
     }
-  }, [renderedTranscript, uiCurrentItem, v3ProbingActive]);
+  }, [renderedTranscript, currentItem, v3ProbingActive]);
 
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
