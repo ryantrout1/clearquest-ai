@@ -5633,17 +5633,7 @@ export default function CandidateInterview() {
               return null;
             }
 
-            // SUPPRESS: "Do you have another..." prompts in transcript (footer gate shows it)
-            if (entry.role === 'assistant' && typeof entry.text === 'string') {
-              const textLower = entry.text.trim().toLowerCase();
-              if (textLower.startsWith('do you have another')) {
-                console.log('[V3 UX] Suppressed transcript gate prompt', {
-                  messageType: entry.messageType,
-                  textPreview: entry.text?.slice(0, 80)
-                });
-                return null;
-              }
-            }
+            // Gate prompts are part of append-only transcript history; do not suppress
 
             // Skip entries without stable IDs (safety guard)
             if (!entry.id && !entry.stableKey) {
