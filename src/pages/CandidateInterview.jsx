@@ -1152,6 +1152,11 @@ export default function CandidateInterview() {
   const aiResponseTimeoutRef = useRef(null);
   const [footerHeightPx, setFooterHeightPx] = useState(12); // Cushion for footer overlap
   
+  // APPEND-ONLY RENDER: Track rendered keys and order for stable UI (no shrink/flicker)
+  const renderedKeysRef = useRef(new Set());
+  const renderedOrderRef = useRef([]);
+  const lastKnownEntryRef = useRef(new Map());
+  
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
 
   const [interviewMode, setInterviewMode] = useState("DETERMINISTIC");
@@ -1323,7 +1328,7 @@ export default function CandidateInterview() {
   // Loading watchdog state
   const [showLoadingRetry, setShowLoadingRetry] = useState(false);
   
-  // DIRECT TRANSCRIPT RENDER: Use canonical source (no append-only cache)
+  // STABLE RENDER LIST: Append-only (no shrink/flicker even when filters change)
   const renderedTranscript = useMemo(() => {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
     const deduped = dedupeByStableKey(base);
@@ -1355,24 +1360,44 @@ export default function CandidateInterview() {
     // Filter out duplicate opener entries while active
     filtered = filtered.filter(entry => !isDuplicateOpenerTranscriptEntry(entry));
     
-    if (isActiveV3Opener) {
-      console.log("[V3_UI_CONTRACT] OPENER_DEDUP_ACTIVE", { 
-        packId, 
-        instanceNumber,
-        filteredOutCount: deduped.filter(isDuplicateOpenerTranscriptEntry).length
-      });
+    // APPEND-ONLY STABILIZATION: Build stable render list
+    const currentVisibleMap = new Map();
+    for (const entry of filtered) {
+      const key = getTranscriptEntryKey(entry);
+      currentVisibleMap.set(key, entry);
+      
+      // Track new keys
+      if (!renderedKeysRef.current.has(key)) {
+        renderedKeysRef.current.add(key);
+        renderedOrderRef.current.push(key);
+      }
+      
+      // Update last known entry for this key
+      lastKnownEntryRef.current.set(key, entry);
+    }
+    
+    // Build stable list: all previously rendered keys in order, using latest entry data
+    const stableList = [];
+    for (const key of renderedOrderRef.current) {
+      // Use current entry if available, otherwise last known
+      const entry = currentVisibleMap.get(key) || lastKnownEntryRef.current.get(key);
+      if (entry) {
+        stableList.push(entry);
+      }
     }
     
     console.log('[TRANSCRIPT_RENDER]', {
       canonicalLen: base.length,
       dedupedLen: deduped.length,
       filteredLen: filtered.length,
+      stableListLen: stableList.length,
+      renderedKeysCount: renderedKeysRef.current.size,
       screenMode,
       currentItemType: currentItem?.type
     });
     
-    return filtered;
-  }, [dbTranscript, currentItem, screenMode]);
+    return stableList;
+  }, [dbTranscript, currentItem, screenMode, getTranscriptEntryKey]);
 
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
@@ -1420,6 +1445,28 @@ export default function CandidateInterview() {
     if (!s || typeof s !== 'string') return '';
     return s.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[?.!]+$/, '');
   };
+
+  // STABLE KEY HELPER: Deterministic key for each transcript entry
+  const getTranscriptEntryKey = useCallback((entry) => {
+    if (!entry) return `fallback-${Date.now()}`;
+    
+    // Priority 1: Stable key (best)
+    if (entry.stableKey) return entry.stableKey;
+    
+    // Priority 2: ID (good)
+    if (entry.id) return entry.id;
+    if (entry._id) return entry._id;
+    
+    // Priority 3: Deterministic composite (fallback)
+    const role = entry.role || 'unknown';
+    const type = entry.messageType || entry.type || 'message';
+    const qId = entry.questionDbId || entry.questionId || entry.meta?.questionDbId || '';
+    const pId = entry.packId || entry.meta?.packId || '';
+    const inst = entry.instanceNumber || entry.meta?.instanceNumber || '';
+    const idx = entry.index || 0;
+    
+    return `${role}-${type}-${qId}-${pId}-${inst}-${idx}`;
+  }, []);
 
   const handleTranscriptScroll = useCallback(() => {
     // GUARD: Ignore programmatic scroll events to prevent flapping
@@ -1553,6 +1600,24 @@ export default function CandidateInterview() {
 
   // STABLE: Single mount per session - track by sessionId (survives remounts)
   const initMapRef = useRef({});
+  
+  // SESSION RESET: Clear render stability refs when sessionId changes
+  const lastSessionIdRef = useRef(null);
+  useEffect(() => {
+    if (sessionId && sessionId !== lastSessionIdRef.current) {
+      console.log('[RENDER_STABILITY][SESSION_RESET]', {
+        oldSessionId: lastSessionIdRef.current,
+        newSessionId: sessionId,
+        clearingRenderCache: true
+      });
+      
+      // Clear append-only render tracking for new session
+      renderedKeysRef.current = new Set();
+      renderedOrderRef.current = [];
+      lastKnownEntryRef.current = new Map();
+      lastSessionIdRef.current = sessionId;
+    }
+  }, [sessionId]);
   
   useEffect(() => {
     if (!sessionId) {
@@ -5638,13 +5703,13 @@ export default function CandidateInterview() {
             }
 
             // Skip entries without stable IDs (safety guard)
-            if (!entry.id) {
-              console.warn('[TRANSCRIPT][RENDER] Entry missing stable ID, skipping:', entry);
+            if (!entry.id && !entry.stableKey) {
+              console.warn('[TRANSCRIPT][RENDER] Entry missing stable ID/key, skipping:', entry);
               return null;
             }
             
             return (
-            <div key={entry.id}>
+            <div key={getTranscriptEntryKey(entry)}>
 
               {/* Welcome message (from transcript) - READ-ONLY history only */}
               {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
