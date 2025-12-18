@@ -6350,76 +6350,94 @@ export default function CandidateInterview() {
             </div>
           ) : bottomBarMode === "TEXT_INPUT" ? (
           <div className="space-y-2">
-           {/* LLM Suggestion - show if available for this field (hide during V3 probing) */}
-           {!v3ProbingActive && (() => {
-             const suggestionKey = currentItem?.packId && currentItem?.fieldKey
-               ? `${currentItem.packId}_${currentItem.instanceNumber || 1}_${currentItem.fieldKey}`
-               : null;
-             const suggestion = suggestionKey ? fieldSuggestions[suggestionKey] : null;
+          {/* V3 UI CONTRACT: Active V3 Prompt Banner (NOT in transcript - separate UI surface) */}
+          {v3ProbingActive && v3ActivePromptText && (() => {
+            console.log("[V3_UI_CONTRACT] PROMPT_BANNER_RENDER", { 
+              hasPrompt: !!v3ActivePromptText, 
+              preview: v3ActivePromptText?.slice(0, 60) 
+            });
 
-             return suggestion ? (
-               <div className="flex items-center gap-2 px-3 py-2 bg-purple-900/30 border border-purple-700/50 rounded-lg">
-                 <span className="text-xs text-purple-300">Suggested:</span>
-                 <span className="text-sm text-white flex-1">{suggestion}</span>
-                 <Button
-                   size="sm"
-                   variant="ghost"
-                   onClick={() => {
-                     setInput(suggestion);
-                     setFieldSuggestions(prev => {
-                       const updated = { ...prev };
-                       delete updated[suggestionKey];
-                       return updated;
-                     });
-                   }}
-                   className="h-7 text-xs text-purple-300 hover:text-purple-100 hover:bg-purple-800/50"
-                 >
-                   Use This
-                 </Button>
-               </div>
-             ) : null;
-           })()}
+            return (
+              <div className="w-full bg-purple-900/40 border border-purple-600/60 rounded-xl p-4 shadow-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Bot className="w-4 h-4 text-purple-400" />
+                  <span className="text-sm font-semibold text-purple-300">Follow-up Question</span>
+                </div>
+                <p className="text-white text-sm leading-relaxed">{v3ActivePromptText}</p>
+              </div>
+            );
+          })()}
 
-           <div className="flex gap-3">
-             <Textarea
-               ref={inputRef}
-               value={input}
-               onChange={(e) => {
-                 const value = e.target.value;
-                 markUserTyping();
-                 saveDraft(value);
-                 setInput(value);
-               }}
-               onKeyDown={handleInputKeyDown}
-               placeholder={v3ProbingActive ? (v3ActivePromptText || "Loading next question...") : "Type your answer..."}
-               aria-label={v3ProbingActive ? (v3ActivePromptText || "Loading next question...") : "Type your answer"}
-               className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
-               disabled={isCommitting}
-               autoFocus
-               rows={1}
-             />
-             <Button
-               type="button"
-               onClick={() => {
-                 console.log("[BOTTOM_BAR_BUTTON][CLICK]", { 
-                   currentItemType: currentItem?.type, 
-                   packId: currentItem?.packId, 
-                   fieldKey: currentItem?.fieldKey,
-                   v3ProbingActive 
-                 });
-                 handleBottomBarSubmit();
-               }}
-               disabled={isBottomBarSubmitDisabled || (v3ProbingActive && !v3ActivePromptText)}
-               className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5"
-             >
-               {v3ProbingActive && !v3ActivePromptText ? (
-                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-               ) : (
-                 <Send className="w-4 h-4 mr-2" />
-               )}
-               Send
-             </Button>
-           </div>
+          {/* LLM Suggestion - show if available for this field (hide during V3 probing) */}
+          {!v3ProbingActive && (() => {
+            const suggestionKey = currentItem?.packId && currentItem?.fieldKey
+              ? `${currentItem.packId}_${currentItem.instanceNumber || 1}_${currentItem.fieldKey}`
+              : null;
+            const suggestion = suggestionKey ? fieldSuggestions[suggestionKey] : null;
+
+            return suggestion ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-purple-900/30 border border-purple-700/50 rounded-lg">
+                <span className="text-xs text-purple-300">Suggested:</span>
+                <span className="text-sm text-white flex-1">{suggestion}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setInput(suggestion);
+                    setFieldSuggestions(prev => {
+                      const updated = { ...prev };
+                      delete updated[suggestionKey];
+                      return updated;
+                    });
+                  }}
+                  className="h-7 text-xs text-purple-300 hover:text-purple-100 hover:bg-purple-800/50"
+                >
+                  Use This
+                </Button>
+              </div>
+            ) : null;
+          })()}
+
+          <div className="flex gap-3">
+            <Textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => {
+                const value = e.target.value;
+                markUserTyping();
+                saveDraft(value);
+                setInput(value);
+              }}
+              onKeyDown={handleInputKeyDown}
+              placeholder="Type your answer..."
+              aria-label={v3ProbingActive && v3ActivePromptText ? v3ActivePromptText : "Type your answer"}
+              className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
+              disabled={isCommitting}
+              autoFocus
+              rows={1}
+            />
+            <Button
+              type="button"
+              onClick={() => {
+                console.log("[BOTTOM_BAR_BUTTON][CLICK]", { 
+                  currentItemType: currentItem?.type, 
+                  packId: currentItem?.packId, 
+                  fieldKey: currentItem?.fieldKey,
+                  v3ProbingActive 
+                });
+                handleBottomBarSubmit();
+              }}
+              disabled={isBottomBarSubmitDisabled || (v3ProbingActive && !v3ActivePromptText)}
+              className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5"
+            >
+              {v3ProbingActive && !v3ActivePromptText ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4 mr-2" />
+              )}
+              Send
+            </Button>
+          </div>
           </div>
           ) : null}
 
