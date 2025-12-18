@@ -5591,26 +5591,38 @@ export default function CandidateInterview() {
               )}
 
               {/* V3 Pack opener prompt (FOLLOWUP_CARD_SHOWN) - MUST be visible in transcript history */}
-              {entry.role === 'assistant' && entry.messageType === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener' && (
-                <ContentContainer>
-                <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                  {entry.categoryLabel && (
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-sm font-medium text-purple-400">
-                        {entry.categoryLabel}
-                      </span>
-                    </div>
-                  )}
-                  <p className="text-white text-sm leading-relaxed">{entry.text}</p>
-                  {entry.example && (
-                    <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
-                      <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
-                      <p className="text-slate-300 text-xs italic">{entry.example}</p>
-                    </div>
-                  )}
-                </div>
-                </ContentContainer>
-              )}
+              {entry.role === 'assistant' && entry.messageType === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener' && (() => {
+                // V3 UI CONTRACT: Block opener card from transcript during active V3 probing
+                if (v3ProbingActive) {
+                  console.log("[V3_UI_CONTRACT] BLOCKED_FOLLOWUP_CARD_RENDER_DURING_PROBING", { 
+                    v3ProbingActive: true,
+                    packId: entry.packId || entry.meta?.packId,
+                    variant: entry.meta?.variant
+                  });
+                  return null;
+                }
+                
+                return (
+                  <ContentContainer>
+                  <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                    {entry.categoryLabel && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-medium text-purple-400">
+                          {entry.categoryLabel}
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                    {entry.example && (
+                      <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
+                        <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
+                        <p className="text-slate-300 text-xs italic">{entry.example}</p>
+                      </div>
+                    )}
+                  </div>
+                  </ContentContainer>
+                );
+              })()}
 
               {entry.role === 'user' && entry.messageType === 'v3_opener_answer' && (
                 <ContentContainer>
@@ -5795,6 +5807,16 @@ export default function CandidateInterview() {
           {(() => {
             // UI CONTRACT: Use effectiveItemType (never render opener during probing)
             const isV3OpenerMode = effectiveItemType === 'v3_pack_opener';
+            
+            // V3 UI CONTRACT: Hard block opener card during active V3 probing
+            if (v3ProbingActive) {
+              console.log("[V3_UI_CONTRACT] BLOCKED_FOLLOWUP_CARD_RENDER_DURING_PROBING", { 
+                v3ProbingActive: true,
+                currentItemType: currentItem?.type,
+                reason: 'Active V3 probing - opener card must not render'
+              });
+              return null;
+            }
             
             if (!isV3OpenerMode) {
               // Diagnostic log when blocked
