@@ -1321,9 +1321,12 @@ export default function CandidateInterview() {
     
     // V3 UI CONTRACT: Suppress opener transcript entry when opener is actively displayed
     const isActiveV3Opener =
-      (currentItem?.type === 'v3_pack_opener' || uiCurrentItem?.type === 'v3_pack_opener') &&
+      currentItem?.type === 'v3_pack_opener' &&
       !!currentItem?.packId &&
       typeof currentItem?.instanceNumber !== "undefined";
+    
+    const packId = currentItem?.packId;
+    const instanceNumber = currentItem?.instanceNumber;
     
     const isDuplicateOpenerTranscriptEntry = (entry) => {
       if (!isActiveV3Opener) return false;
@@ -1333,8 +1336,8 @@ export default function CandidateInterview() {
         entry.messageType === "FOLLOWUP_CARD_SHOWN" &&
         (entry.meta?.variant === "opener" || entry.variant === "opener" || entry.followupVariant === "opener");
       
-      const samePack = entry.packId === currentItem?.packId || entry.meta?.packId === currentItem?.packId;
-      const sameInstance = Number(entry.instanceNumber || entry.meta?.instanceNumber) === Number(currentItem?.instanceNumber);
+      const samePack = entry.packId === packId || entry.meta?.packId === packId;
+      const sameInstance = Number(entry.instanceNumber || entry.meta?.instanceNumber) === Number(instanceNumber);
       
       return isOpenerShown && samePack && sameInstance;
     };
@@ -1344,8 +1347,8 @@ export default function CandidateInterview() {
     
     if (isActiveV3Opener) {
       console.log("[V3_UI_CONTRACT] OPENER_DEDUP_ACTIVE", { 
-        packId: currentItem?.packId, 
-        instanceNumber: currentItem?.instanceNumber,
+        packId, 
+        instanceNumber,
         filteredOutCount: deduped.filter(isDuplicateOpenerTranscriptEntry).length
       });
     }
@@ -1359,7 +1362,7 @@ export default function CandidateInterview() {
     });
     
     return filtered;
-  }, [dbTranscript, currentItem, uiCurrentItem, screenMode]);
+  }, [dbTranscript, currentItem, screenMode]);
 
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
