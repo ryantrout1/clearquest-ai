@@ -972,10 +972,8 @@ export default function CandidateInterview() {
       const freshTranscript = freshSession.transcript_snapshot || [];
       
       // MERGE STRATEGY: Use functional update to guarantee latest canonical state
-      let mergedTranscript;
       setDbTranscriptSafe(prev => {
         const merged = mergeTranscript(prev, freshTranscript, sessionId);
-        mergedTranscript = merged; // Capture for return value
         
         // Diagnostic: Detect if merge prevented shrinkage
         if (merged.length > freshTranscript.length) {
@@ -993,13 +991,13 @@ export default function CandidateInterview() {
       });
       
       setSession(freshSession); // Sync session state to prevent stale reads
-      return mergedTranscript;
+      
+      // RETURN CONTRACT: Always return array (DB snapshot is canonical source after refresh)
+      return freshTranscript;
     } catch (err) {
       console.error('[TRANSCRIPT_REFRESH][ERROR]', { reason, error: err.message });
-      // Fallback: return current state (use functional ref to get latest)
-      let current;
-      setDbTranscriptSafe(prev => { current = prev; return prev; });
-      return current;
+      // Fallback: return empty array on error (safe default)
+      return [];
     }
   }, [sessionId, setDbTranscriptSafe]);
 
@@ -1050,23 +1048,23 @@ export default function CandidateInterview() {
       updatedTranscript = await appendAssistantMessage(sessionId, currentTranscript, payload.text, payload.metadata || {});
     } else {
       console.error('[APPEND_AND_REFRESH] Unknown kind:', kind);
-      return currentTranscript;
+      return currentTranscript || [];
     }
     
     // Refresh local mirror from DB using functional update
     const freshAfterAppend = await base44.entities.InterviewSession.get(sessionId);
     const freshTranscript = freshAfterAppend.transcript_snapshot || [];
     
-    let mergedTranscript;
     setDbTranscriptSafe(prev => {
       const merged = mergeTranscript(prev, freshTranscript, sessionId);
-      mergedTranscript = merged; // Capture for return value
       console.log('[APPEND_AND_REFRESH]', { kind, reasonLabel, prevLen: prev.length, freshLen: freshTranscript.length, mergedLen: merged.length });
       return merged;
     });
     
     setSession(freshAfterAppend); // Sync session state to prevent stale reads
-    return mergedTranscript;
+    
+    // RETURN CONTRACT: Always return array (DB snapshot is canonical source after append)
+    return freshTranscript;
   }, [sessionId, setDbTranscriptSafe]);
 
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
@@ -3166,13 +3164,17 @@ export default function CandidateInterview() {
         // SECTION GATE LOGIC: Check if this is a gate question with "No" answer
         // This must run BEFORE follow-up trigger check to properly skip remaining section questions
         
-        // GUARD: Ensure newTranscript is an array before filtering
+        // GUARD: Ensure newTranscript is always an array (should not trigger after return contract fix)
+        const normalizedTranscript = Array.isArray(newTranscript) ? newTranscript : [];
         if (!Array.isArray(newTranscript)) {
-          console.warn('[ANSWER_PROCESSING][GUARD] newTranscript was not an array, defaulting to []', {
+          console.error('[ANSWER_PROCESSING][GUARD] newTranscript was not an array, normalized to []', {
             currentItemType: currentItem?.type,
             currentItemId: currentItem?.id,
             questionCode: question?.question_id,
-            value: newTranscript
+            value: newTranscript,
+            returnedBy: 'refreshTranscriptFromDB',
+            reason: 'base_question_answered',
+            stack: new Error().stack?.split('\n').slice(1, 3).join(' | ')
           });
         }
         
@@ -3183,7 +3185,7 @@ export default function CandidateInterview() {
           engine,
           currentSectionIndex,
           sections,
-          answeredQuestionIds: new Set((newTranscript || []).filter(t => t.type === 'question').map(t => t.questionId))
+          answeredQuestionIds: new Set(normalizedTranscript.filter(t => t.type === 'question').map(t => t.questionId))
         });
 
         if (gateResult?.gateTriggered) {
@@ -4965,7 +4967,11 @@ export default function CandidateInterview() {
           // CRITICAL: Refresh transcript after appending prompt message
           return refreshTranscriptFromDB('question_shown');
         }).then((freshTranscript) => {
-          console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { freshLen: freshTranscript?.length });
+          const normalizedFresh = Array.isArray(freshTranscript) ? freshTranscript : [];
+          console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { 
+            freshLen: normalizedFresh.length,
+            wasArray: Array.isArray(freshTranscript)
+          });
         }).catch(err => console.warn('[LOG_QUESTION] Failed:', err));
       }
 
