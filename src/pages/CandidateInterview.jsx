@@ -1331,8 +1331,8 @@ export default function CandidateInterview() {
     const deduped = dedupeByStableKey(base);
     const filtered = deduped.filter(entry => isRenderableTranscriptEntry(entry));
     
-    // V3 UI CONTRACT: Deterministic opener dedup (keep first, preserve insertion order)
-    const seenOpenerKeys = new Set();
+    // V3 UI CONTRACT: Deterministic opener dedup (prefer visible, preserve insertion order)
+    const seenOpenerKeys = new Map(); // Map: dedupeKey -> entry
     const finalFiltered = [];
     
     for (const entry of filtered) {
@@ -1345,15 +1345,41 @@ export default function CandidateInterview() {
         const entryInstance = Number(entry.instanceNumber || entry.meta?.instanceNumber || 1);
         const dedupeKey = `opener:${entryPackId}:${entryInstance}`;
         
-        // Keep first occurrence only, skip duplicates
-        if (!seenOpenerKeys.has(dedupeKey)) {
-          seenOpenerKeys.add(dedupeKey);
-          finalFiltered.push(entry);
+        const existing = seenOpenerKeys.get(dedupeKey);
+        
+        // Keep entry if:
+        // - No duplicate seen yet, OR
+        // - Current entry is visible (role=assistant/visibleToCandidate=true) AND existing is not
+        const isVisible = entry.role === 'assistant' || entry.visibleToCandidate !== false;
+        const existingIsVisible = existing?.role === 'assistant' || existing?.visibleToCandidate !== false;
+        
+        if (!existing || (isVisible && !existingIsVisible)) {
+          seenOpenerKeys.set(dedupeKey, entry);
         }
       } else {
         // Non-opener: always keep
         finalFiltered.push(entry);
       }
+    }
+    
+    // Build final list: add all non-opener entries + kept opener entries in order
+    for (const entry of filtered) {
+      const isOpenerEntry = 
+        entry.messageType === "FOLLOWUP_CARD_SHOWN" &&
+        (entry.meta?.variant === "opener" || entry.variant === "opener" || entry.followupVariant === "opener");
+      
+      if (isOpenerEntry) {
+        const entryPackId = entry.packId || entry.meta?.packId || 'unknown';
+        const entryInstance = Number(entry.instanceNumber || entry.meta?.instanceNumber || 1);
+        const dedupeKey = `opener:${entryPackId}:${entryInstance}`;
+        const kept = seenOpenerKeys.get(dedupeKey);
+        
+        // Only add if this is the kept entry
+        if (kept === entry) {
+          finalFiltered.push(entry);
+        }
+      }
+      // Non-openers already added above
     }
     
     console.log('[TRANSCRIPT_RENDER]', {
