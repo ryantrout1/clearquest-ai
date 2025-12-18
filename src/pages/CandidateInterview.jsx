@@ -1352,6 +1352,7 @@ export default function CandidateInterview() {
     }
     
     // Minimal contract check moved out of render loop below
+    // no-op
     console.log('[TRANSCRIPT_RENDER]', {
       canonicalLen: base.length,
       dedupedLen: deduped.length,
