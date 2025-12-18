@@ -6402,20 +6402,14 @@ export default function CandidateInterview() {
             </div>
           ) : bottomBarMode === "TEXT_INPUT" ? (
           <div className="space-y-2">
-          {/* V3 UI CONTRACT: Active V3 Prompt Banner - INPUT AREA ONLY (NOT in transcript) */}
+          {/* V3 UI CONTRACT: NO visible prompt box - prompt ONLY in placeholder */}
           {v3ProbingActive && v3ActivePromptText && (() => {
-            console.log("[V3_UI_CONTRACT] PROMPT_SHOWN_IN_INPUT_AREA_ONLY", { 
+            console.warn('[V3_UI_CONTRACT] BLOCKED_VISIBLE_PROMPT_UI', { 
               v3ProbingActive: true,
-              hasPrompt: !!v3ActivePromptText, 
-              preview: v3ActivePromptText?.slice(0, 60),
-              location: 'BOTTOM_BAR_ONLY (not transcript, not main body)'
+              hasPrompt: !!v3ActivePromptText,
+              reason: 'Prompt must appear ONLY in input placeholder, NOT as visible card/banner'
             });
-
-            return (
-              <div className="w-full bg-purple-900/40 border border-purple-600/60 rounded-xl p-3 shadow-lg">
-                <p className="text-white text-sm leading-relaxed">{v3ActivePromptText}</p>
-              </div>
-            );
+            return null; // ✓ NO visible banner - prompt goes in placeholder only
           })()}
 
           {/* LLM Suggestion - show if available for this field (hide during V3 probing) */}
@@ -6460,9 +6454,13 @@ export default function CandidateInterview() {
               }}
               onKeyDown={handleInputKeyDown}
               placeholder={(() => {
-                if (v3ProbingActive) {
-                  console.log("[V3_UI_CONTRACT] PLACEHOLDER_FORCED_GENERIC", { v3ProbingActive: true });
-                  return "Type your answer...";
+                if (v3ProbingActive && v3ActivePromptText) {
+                  console.info('[V3_UI_CONTRACT] PROMPT_IN_PLACEHOLDER_ONLY', { 
+                    v3ProbingActive: true,
+                    preview: v3ActivePromptText?.slice(0, 60),
+                    location: 'INPUT_PLACEHOLDER_ONLY'
+                  });
+                  return v3ActivePromptText;
                 }
                 return "Type your answer...";
               })()}
