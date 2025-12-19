@@ -1235,58 +1235,6 @@ export default function CandidateInterview() {
       setV3Gate(prev => ({ ...prev, active: true }));
     }
   }, [v3Gate]);
-  
-  // DIAGNOSTIC: Missing prompt detection (de-duped logging) - MUST be top-level unconditional hook
-  useEffect(() => {
-    // Compute derived values inside effect to avoid TDZ
-    const itemType = v3ProbingActive ? 'v3_probing' : (currentItem?.type || null);
-    const needs = ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(itemType);
-    
-    // Derive active prompt text
-    let promptText = null;
-    if (v3ProbingActive && v3ActivePromptText) {
-      promptText = v3ActivePromptText;
-    } else if (itemType === 'v2_pack_field' && currentItem) {
-      const backendText = currentItem.backendQuestionText;
-      const clarifierText = v2ClarifierState?.packId === currentItem.packId && 
-                           v2ClarifierState?.fieldKey === currentItem.fieldKey && 
-                           v2ClarifierState?.instanceNumber === currentItem.instanceNumber
-                           ? v2ClarifierState.clarifierQuestion
-                           : null;
-      promptText = clarifierText || backendText || currentItem.fieldConfig?.label || null;
-    } else if (itemType === 'v3_pack_opener' && currentItem) {
-      promptText = currentItem.openerText || null;
-    }
-    
-    const has = Boolean(promptText && promptText.trim().length > 0);
-    
-    if (needs && !has && currentItem) {
-      const diagKey = `${sessionId}:${itemType}:${currentItem.packId}:${currentItem.fieldKey}:${currentItem.instanceNumber}:${currentItem.id}`;
-      if (promptMissingKeyRef.current !== diagKey) {
-        promptMissingKeyRef.current = diagKey;
-        
-        const logPrefix = itemType === 'v3_probing' || itemType === 'v3_pack_opener' 
-          ? 'V3_UI_PROMPT_MISSING' 
-          : 'V2_UI_PROMPT_MISSING';
-        
-        console.warn(`[${logPrefix}]`, {
-          sessionId,
-          currentItemType: currentItem?.type,
-          effectiveItemType: itemType,
-          packId: currentItem?.packId,
-          fieldKey: currentItem?.fieldKey,
-          instanceNumber: currentItem?.instanceNumber,
-          currentItemId: currentItem?.id,
-          hasBackendQuestionText: !!currentItem?.backendQuestionText,
-          hasClarifierState: !!v2ClarifierState,
-          hasV3ActivePrompt: !!v3ActivePromptText,
-          hasCurrentPrompt: false
-        });
-      }
-    } else if (has) {
-      promptMissingKeyRef.current = null;
-    }
-  }, [sessionId, currentItem, v3ProbingActive, v3ActivePromptText, v2ClarifierState]);
 
   // V3 gate decision handler (prevents setState during render)
   useEffect(() => {
@@ -5613,6 +5561,34 @@ export default function CandidateInterview() {
   const needsPrompt = bottomBarMode === 'TEXT_INPUT' || 
                       ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
   const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
+  
+  // One-time diagnostic log when prompt is missing (no hook - just side effect)
+  if (needsPrompt && !hasPrompt && currentItem) {
+    const diagKey = `${sessionId}:${effectiveItemType}:${currentItem.packId}:${currentItem.fieldKey}:${currentItem.instanceNumber}:${currentItem.id}`;
+    if (promptMissingKeyRef.current !== diagKey) {
+      promptMissingKeyRef.current = diagKey;
+      
+      const logPrefix = effectiveItemType === 'v3_probing' || effectiveItemType === 'v3_pack_opener' 
+        ? 'V3_UI_PROMPT_MISSING' 
+        : 'V2_UI_PROMPT_MISSING';
+      
+      console.warn(`[${logPrefix}]`, {
+        sessionId,
+        currentItemType: currentItem?.type,
+        effectiveItemType,
+        packId: currentItem?.packId,
+        fieldKey: currentItem?.fieldKey,
+        instanceNumber: currentItem?.instanceNumber,
+        currentItemId: currentItem?.id,
+        hasBackendQuestionText: !!currentItem?.backendQuestionText,
+        hasClarifierState: !!v2ClarifierState,
+        hasV3ActivePrompt: !!v3ActivePromptText,
+        hasCurrentPrompt: !!currentPrompt?.text
+      });
+    }
+  } else if (hasPrompt) {
+    promptMissingKeyRef.current = null;
+  }
 
   // Debug log: confirm which bottom bar path is rendering
   console.log("[BOTTOM_BAR_RENDER]", {
