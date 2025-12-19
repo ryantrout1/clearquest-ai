@@ -96,7 +96,7 @@ function generateV3ProbeQuestion(field, collectedFacts = {}) {
   switch (type) {
     case 'date':
     case 'month_year':
-      return `When did this occur? Please provide ${label?.toLowerCase() || 'the date'}.`;
+      return `When did this occur?`;
     case 'boolean':
     case 'yes_no':
       return `${label}?`;
@@ -335,45 +335,78 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
   // UNIVERSAL DATE EXTRACTION: Scan for all date-ish fields in FactModel
   const dateFields = allFields.filter(f => {
     const typeMatch = f.type === 'date' || f.type === 'month_year';
-    const idMatch = ['date', 'when', 'occurred', 'month', 'year', 'time'].some(kw => 
+    const idMatch = ['date', 'when', 'occurred', 'month', 'year', 'time', 'approx'].some(kw => 
       canon(f.field_id || '').includes(kw)
     );
     return typeMatch || idMatch;
   });
   
   if (dateFields.length > 0) {
+    // Enhanced date patterns with short month abbreviations and numeric formats
     const datePatterns = [
-      /(?:in|during)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:of\s+)?(\d{4})/i,
-      /(January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:of\s+)?(\d{4})/i,
-      /(\d{4})\s+(January|February|March|April|May|June|July|August|September|October|November|December)/i,
+      // "In March 2022", "In Oct 2019", "during March 2022"
+      /(?:in|during|around)\s+(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+(?:of\s+)?(\d{4})/i,
+      // "March 2022", "Oct 2019"
+      /(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+(?:of\s+)?(\d{4})/i,
+      // "2022 March" (year first)
+      /(\d{4})\s+(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?/i,
+      // "3/2022", "03/2022"
       /\b(\d{1,2})\/(\d{4})\b/,
+      // "2022-03", "2022/03"
       /\b(\d{4})[-\/](\d{1,2})\b/
     ];
     
     for (const pattern of datePatterns) {
       const match = normalized.match(pattern);
       if (match) {
-        let month, year;
+        let monthStr, yearStr;
         
-        if (match[1] && /^[A-Za-z]+$/.test(match[1])) {
-          month = match[1];
-          year = match[2] || match[1];
+        // Handle month-name patterns (groups: month, year OR year, month)
+        if (match[1] && match[2]) {
           if (/^\d{4}$/.test(match[1])) {
-            year = match[1];
-            month = match[2];
-          }
-        } else if (match[1] && match[2]) {
-          if (/^\d{4}$/.test(match[1])) {
-            year = match[1];
-            month = match[2];
-          } else {
-            month = match[1];
-            year = match[2];
+            // "2022 March" format
+            yearStr = match[1];
+            monthStr = match[2];
+          } else if (/^\d{4}$/.test(match[2])) {
+            // "March 2022" format
+            monthStr = match[1];
+            yearStr = match[2];
+          } else if (/^\d{1,2}$/.test(match[1])) {
+            // "3/2022" format
+            monthStr = match[1];
+            yearStr = match[2];
+          } else if (/^\d{1,2}$/.test(match[2])) {
+            // "2022/03" format
+            yearStr = match[1];
+            monthStr = match[2];
           }
         }
         
-        if (month && year) {
-          const dateValue = `${month} ${year}`;
+        if (monthStr && yearStr) {
+          // Normalize month to full name for consistent storage
+          const monthMap = {
+            'jan': 'January', 'feb': 'February', 'mar': 'March', 'apr': 'April',
+            'may': 'May', 'jun': 'June', 'jul': 'July', 'aug': 'August',
+            'sep': 'September', 'sept': 'September', 'oct': 'October', 'nov': 'November', 'dec': 'December'
+          };
+          
+          let finalMonth = monthStr;
+          
+          // Convert numeric month to name
+          if (/^\d{1,2}$/.test(monthStr)) {
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthNum = parseInt(monthStr, 10);
+            if (monthNum >= 1 && monthNum <= 12) {
+              finalMonth = monthNames[monthNum - 1];
+            }
+          } else if (monthStr.length <= 4) {
+            // Expand abbreviated month (Mar → March, Oct → October)
+            const abbrev = monthStr.toLowerCase().replace('.', '');
+            finalMonth = monthMap[abbrev] || monthStr;
+          }
+          
+          const dateValue = `${finalMonth} ${yearStr}`;
           
           // Map to ALL matching date fields in FactModel
           for (const dateField of dateFields) {
@@ -382,7 +415,8 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
           
           console.log('[V3_FACTMODEL_INGEST][DATE]', {
             extractedValue: dateValue,
-            mappedToFields: dateFields.map(f => f.field_id).join(',')
+            mappedToFields: dateFields.map(f => f.field_id).join(','),
+            rawMatch: `${monthStr} ${yearStr}`
           });
           break;
         }
@@ -948,16 +982,17 @@ async function decisionEngineV3Probe(base44, {
   
   // Diagnostic log on initial call ONLY (definitive)
   if (isInitialCall) {
-    const hadAgency = Object.keys(extractedFacts).some(k => canon(k) === canon("agency_name"));
-    const agencyResolvedTo = hadAgency ? Object.keys(extractedFacts).find(k => canon(k) === canon("agency_name")) : null;
-    const agencyValueExtracted = hadAgency ? extractedFacts[agencyResolvedTo] : null;
+    const extractedMonthYear = Object.keys(extractedFacts).find(k => 
+      ['date', 'month', 'year', 'when', 'time', 'approx'].some(kw => canon(k).includes(kw))
+    );
+    const monthYearValue = extractedMonthYear ? extractedFacts[extractedMonthYear] : null;
     
-    console.log(`[V3_OPENER_EXTRACT][INITIAL] traceId=${effectiveTraceId} isInitialCall=${isInitialCall} incidentId=${incidentId} extractedKeys=${Object.keys(extractedFacts).join(",")} hadAgency=${hadAgency} agencyResolvedTo=${agencyResolvedTo} agencyValue="${agencyValueExtracted || ''}" missingBefore=${missingFieldsBefore.map(f=>f.field_id).join(",")} missingAfter=${missingFieldsAfter.map(f=>f.field_id).join(",")} openerPreview="${latestAnswerText?.substring(0, 60) || ''}"`);
+    const fieldIdsSatisfiedByExtraction = Object.keys(extractedFacts).filter(k => {
+      const val = extractedFacts[k];
+      return val && String(val).trim() !== '';
+    });
     
-    // AGENCY SKIP GUARD: Log if agency was extracted (won't be asked)
-    if (hadAgency && agencyValueExtracted) {
-      console.log(`[OPENER][AGENCY_SKIP] traceId=${effectiveTraceId} reason="Extracted from opener" value="${agencyValueExtracted}" fieldId=${agencyResolvedTo}`);
-    }
+    console.log(`[V3_OPENER_EXTRACT][INITIAL_CALL] categoryId=${categoryId} packId=${factModel?.linked_pack_ids?.[0] || 'N/A'} incidentId=${incidentId} extractedMonthYear=${monthYearValue || 'null'} fieldIdsSatisfiedByExtraction=[${fieldIdsSatisfiedByExtraction.join(',')}] missingFieldsCount=${missingFieldsAfter.length} missingFieldIds=[${missingFieldsAfter.map(f=>f.field_id).slice(0,10).join(',')}]`);
   }
   
   // Diagnostic log with key alignment check
