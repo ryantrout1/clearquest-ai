@@ -5950,10 +5950,10 @@ export default function CandidateInterview() {
                     </div>
                   </div>
                   </ContentContainer>
-                );
-              })()}
+                  );
+                  })()))}
 
-              {/* Section Completion Messages */}
+                  {/* Section Completion Messages */}
               {entry.role === 'assistant' && entry.messageType === 'SECTION_COMPLETE' && entry.visibleToCandidate && (
                 <ContentContainer>
                 <div className="w-full bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
