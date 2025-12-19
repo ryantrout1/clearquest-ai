@@ -311,15 +311,5 @@ export function mapPackIdToCategory(packId) {
     return 'INTEGRITY_APPS';
   }
   
-  // EXPLICIT PACK MAPPING (highest priority - checked first)
-  const EXPLICIT_PACK_TO_CATEGORY = {
-    'PACK_PRIOR_LE_APPS_STANDARD': 'PRIOR_LE_APPS',
-    'PACK_INTEGRITY_APPS': 'INTEGRITY_APPS'
-  };
-  
-  if (EXPLICIT_PACK_TO_CATEGORY[packId]) {
-    return EXPLICIT_PACK_TO_CATEGORY[packId];
-  }
-  
   return null;
 }
