@@ -562,20 +562,19 @@ const getBackendQuestionText = (map, packId, fieldKey, instanceNumber) => {
 const callProbeEngineV2PerField = async (base44Client, params) => {
   const { packId, fieldKey, fieldValue, previousProbesCount, incidentContext, sessionId, questionCode, baseQuestionId, instanceNumber, schemaSource, resolvedField } = params;
 
+  // CORRELATION TRACE: Generate stable traceId for this probe
+  const traceId = `v2-probe-${sessionId}-${packId}-${fieldKey}-${Date.now()}`;
+  
   console.log('[V2_PER_FIELD][SEND] ========== CALLING BACKEND PER-FIELD PROBE ==========');
-  console.log(`[V2_PER_FIELD][SEND] pack=${packId} field=${fieldKey} instance=${instanceNumber || 1} schemaSource=${schemaSource || 'unknown'}`);
-  console.log('[V2_PER_FIELD][SEND] params:', {
+  console.log(`[V2_PER_FIELD][SEND]`, {
+    traceId,
     packId,
     fieldKey,
-    fieldValueLength: fieldValue?.length || 0,
-    fieldValuePreview: fieldValue?.substring?.(0, 50) || fieldValue,
-    previousProbesCount,
-    sessionId,
-    questionCode,
-    baseQuestionId,
     instanceNumber: instanceNumber || 1,
-    schemaSource,
-    hasResolvedField: !!resolvedField
+    schemaSource: schemaSource || 'unknown',
+    hasResolvedField: !!resolvedField,
+    fieldValueLength: fieldValue?.length || 0,
+    fieldValuePreview: fieldValue?.substring?.(0, 50) || fieldValue
   });
 
   // TIMEOUT GUARD: 10s max for backend call
@@ -583,6 +582,7 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
 
   try {
     const backendPromise = base44Client.functions.invoke('probeEngineV2', {
+      trace_id: traceId,
       pack_id: packId,
       field_key: fieldKey,
       field_value: fieldValue,
@@ -603,11 +603,14 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
     const response = await Promise.race([backendPromise, timeoutPromise]);
 
     console.log('[V2_PER_FIELD][RECV] ========== BACKEND RESPONSE RECEIVED ==========');
-    console.log(`[V2_PER_FIELD][RECV] pack=${packId} field=${fieldKey} result:`, {
+    console.log(`[V2_PER_FIELD][RECV]`, {
+      traceId,
+      packId,
+      fieldKey,
       mode: response.data?.mode,
       hasQuestion: !!response.data?.question,
       questionPreview: response.data?.question?.substring?.(0, 60),
-      followupsCount: response.data?.followups?.length || 0
+      errorCode: response.data?.errorCode || null
     });
 
     // AUDIT LOG: Full result for PACK_PRIOR_LE_APPS_STANDARD
@@ -643,6 +646,7 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
     // TIMEOUT HANDLING
     if (err.message === 'BACKEND_TIMEOUT') {
       console.error('[V2_PER_FIELD][TIMEOUT]', { 
+        traceId,
         packId, 
         fieldKey, 
         instanceNumber,
@@ -653,17 +657,23 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
       return {
         mode: 'ERROR',
         errorCode: 'BACKEND_TIMEOUT',
-        message: `Backend probe timeout after ${BACKEND_TIMEOUT_MS}ms`,
-        debug: { packId, fieldKey, schemaSource }
+        message: `Backend probe timeout after ${BACKEND_TIMEOUT_MS / 1000}s`,
+        debug: { traceId, packId, fieldKey, schemaSource }
       };
     }
     
-    console.error('[V2_PER_FIELD][ERROR] Backend call failed:', { packId, fieldKey, message: err?.message });
+    console.error('[V2_PER_FIELD][EXCEPTION]', { 
+      traceId,
+      packId, 
+      fieldKey, 
+      message: err?.message,
+      stack: err?.stack?.substring(0, 200)
+    });
     return {
       mode: 'ERROR',
       errorCode: 'BACKEND_ERROR',
       message: err.message || 'Failed to call probeEngineV2',
-      debug: { packId, fieldKey }
+      debug: { traceId, packId, fieldKey }
     };
   }
 };
@@ -2835,8 +2845,51 @@ export default function CandidateInterview() {
             debug: v2Result?.debug
           });
           
-          // Show error to user without breaking interview
-          setValidationHint(`Technical issue: ${errorMessage}. Please try again or skip this field.`);
+          // ERROR UI STATE: Show inline error with retry button
+          setValidationHint(
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+              <span className="flex-1">{errorMessage}</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  console.log('[V2_ERROR][RETRY]', { packId, fieldKey, errorCode });
+                  setValidationHint(null);
+                  setIsCommitting(false);
+                  
+                  // Retry the probe with current answer
+                  const retryResult = await runV2FieldProbeIfNeeded({
+                    base44Client: base44,
+                    packId,
+                    fieldKey,
+                    fieldValue: finalAnswer,
+                    previousProbesCount: probeCount,
+                    incidentContext: activeV2Pack.collectedAnswers || {},
+                    sessionId,
+                    questionCode: baseQuestion?.question_id,
+                    baseQuestionId,
+                    aiProbingEnabled,
+                    aiProbingDisabledForSession,
+                    maxAiFollowups,
+                    instanceNumber,
+                    setBackendQuestionTextMap,
+                    schemaSource: activeV2Pack.schemaSource,
+                    resolvedField: fieldConfig?.raw || null
+                  });
+                  
+                  if (retryResult?.mode !== 'ERROR') {
+                    // Retry succeeded - process result normally
+                    console.log('[V2_ERROR][RETRY_SUCCESS]', { mode: retryResult.mode });
+                    // TODO: Process retryResult (refactor to shared handler)
+                  }
+                }}
+                className="text-xs px-2 py-1 h-7"
+              >
+                Retry
+              </Button>
+            </div>
+          );
           setIsCommitting(false);
           return;
         }

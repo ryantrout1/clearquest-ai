@@ -5316,40 +5316,36 @@ async function resolveFieldDefinition(base44Client, packId, fieldKey, packEntity
  * NOTE: This is the CORE implementation - call probeEngineV2Entry for normalized results with diagnostics
  */
 async function probeEngineV2Core(params, base44Client) {
+  // BACKEND INTERNAL TIMEOUT: 8s fail-safe
+  const BACKEND_INTERNAL_TIMEOUT_MS = 8000;
+  const backendStartTime = Date.now();
+  
   // Defensive normalization - ensure params is always an object
   params = params && typeof params === 'object' ? params : {};
   
+  // PARAMETER NORMALIZATION: Accept both camelCase and snake_case
+  const pack_id = params.pack_id || params.packId;
+  const field_key = params.field_key || params.fieldKey;
+  const field_value = params.field_value || params.fieldValue;
+  const previous_probes_count = params.previous_probes_count ?? params.previousProbesCount ?? 0;
+  const incident_context = params.incident_context || params.incidentContext || {};
+  const instance_number = params.instance_number ?? params.instanceNumber ?? 1;
+  const session_id = params.session_id || params.sessionId || null;
+  const schema_source = params.schema_source || params.schemaSource || null;
+  const resolved_field = params.resolved_field || params.resolvedField || null;
+  const trace_id = params.trace_id || params.traceId || `backend-${Date.now()}`;
+  
   // VERSION BANNER - Production build with real anchor extraction
-  console.log("[V2_ENGINE] probeEngineV2 production build - DB-first field resolution enabled");
-  
-  // Diagnostic checkpoint for PACK_PRIOR_LE_APPS_STANDARD
-  if (params && (params.packId === "PACK_PRIOR_LE_APPS_STANDARD" || params.pack_id === "PACK_PRIOR_LE_APPS_STANDARD")) {
-    logV2BackendAudit("PACK_PRIOR_LE_APPS_STANDARD_CORE_ENTRY", params, {
-      hasParamsInScope: true,
-      paramsIsObject: typeof params === 'object'
-    });
-  }
-  
-  const {
-    pack_id,
-    field_key,
-    field_value,
-    previous_probes_count = 0,
-    incident_context = {},
-    mode: requestMode = "VALIDATE_FIELD",
-    answerLooksLikeNoRecall: frontendNoRecallFlag = false,
-    sectionName = null,
-    baseQuestionText = null,
-    questionDbId = null,
-    questionCode = null,
-    instance_number = 1,
-    instance_anchors = {},
-    session_id = null,
-    schema_source = null, // NEW: Frontend hint for schema source
-    resolved_field = null // NEW: Frontend can pass full field definition
-  } = params;
-
-  console.log(`[V2-UNIVERSAL][ENTRY] pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}, schemaSource=${schema_source}`);
+  console.log("[V2_BACKEND][ENTRY] ========== V2 PROBE ENGINE START ==========");
+  console.log("[V2_BACKEND][ENTRY]", {
+    traceId: trace_id,
+    packId: pack_id,
+    fieldKey: field_key,
+    schemaSource: schema_source || 'unknown',
+    hasResolvedField: !!resolved_field,
+    probeCount: previous_probes_count,
+    instanceNumber: instance_number
+  });
   
   // ============================================================================
   // V2 OPENING STRATEGY - Use pack meta to control opening behavior
@@ -5368,6 +5364,24 @@ async function probeEngineV2Core(params, base44Client) {
   let packEntity = null;
   
   try {
+    // TIMEOUT CHECK: Abort if we've already exceeded internal limit
+    if (Date.now() - backendStartTime > BACKEND_INTERNAL_TIMEOUT_MS) {
+      console.error('[V2_BACKEND][INTERNAL_TIMEOUT]', {
+        traceId: trace_id,
+        elapsed: Date.now() - backendStartTime
+      });
+      return createV2ProbeResult({
+        mode: "ERROR",
+        errorCode: "BACKEND_TIMEOUT",
+        message: "Internal backend timeout",
+        debug: { traceId: trace_id, elapsed: Date.now() - backendStartTime },
+        anchors: {},
+        collectedAnchors: {}
+      });
+    }
+    
+    console.log('[V2_BACKEND][RESOLVE_FIELD][START]', { packId: pack_id, fieldKey: field_key });
+    
     const packs = await base44Client.entities.FollowUpPack.filter({
       followup_pack_id: pack_id,
       active: true
@@ -5389,18 +5403,23 @@ async function probeEngineV2Core(params, base44Client) {
       // Priority: resolved_field from frontend > DB field_config > static FIELD_LABELS
       if (resolved_field) {
         fieldConfig = resolved_field;
-        console.log('[FIELD_RESOLVER][FRONTEND_PROVIDED]', {
+        console.log('[V2_BACKEND][RESOLVE_FIELD][OK]', {
           fieldKey: field_key,
-          label: fieldConfig.label
+          resolvedFrom: 'frontend_provided',
+          label: fieldConfig.label || fieldConfig.question_text
         });
       } else {
         const resolved = await resolveFieldDefinition(base44Client, pack_id, field_key, packEntity);
         
         if (!resolved) {
-          console.error('[FIELD_RESOLVER][ERROR]', {
+          console.error('[V2_BACKEND][RESOLVE_FIELD][FIELD_NOT_FOUND]', {
+            traceId: trace_id,
             packId: pack_id,
             fieldKey: field_key,
-            reason: 'No field definition found in DB or static config'
+            schemaSource: schema_source,
+            hasDbFieldConfig: !!packEntity?.field_config,
+            dbFieldCount: packEntity?.field_config?.length || 0,
+            availableFields: packEntity?.field_config?.map(f => f.fieldKey || f.id) || []
           });
           
           return createV2ProbeResult({
@@ -5409,6 +5428,7 @@ async function probeEngineV2Core(params, base44Client) {
             errorCode: "FIELD_NOT_FOUND",
             message: `Field "${field_key}" not found in pack "${pack_id}" schema`,
             debug: {
+              traceId: trace_id,
               packId: pack_id,
               fieldKey: field_key,
               schemaSource: schema_source,
@@ -5422,10 +5442,36 @@ async function probeEngineV2Core(params, base44Client) {
         }
         
         fieldConfig = resolved;
+        console.log('[V2_BACKEND][RESOLVE_FIELD][OK]', {
+          fieldKey: field_key,
+          resolvedFrom: resolved.source,
+          canonicalFieldKey: resolved.fieldKey,
+          label: resolved.label
+        });
       }
     }
   } catch (err) {
-    console.warn('[V2_BACKEND][PACK_META] Failed to fetch pack meta:', err.message);
+    console.error('[V2_BACKEND][EXCEPTION]', {
+      traceId: trace_id,
+      packId: pack_id,
+      fieldKey: field_key,
+      message: err.message,
+      stackPreview: err.stack?.substring(0, 300)
+    });
+    
+    return createV2ProbeResult({
+      mode: "ERROR",
+      errorCode: "BACKEND_EXCEPTION",
+      message: `Backend error: ${err.message}`,
+      debug: {
+        traceId: trace_id,
+        packId: pack_id,
+        fieldKey: field_key,
+        stackPreview: err.stack?.substring(0, 300)
+      },
+      anchors: {},
+      collectedAnchors: {}
+    });
   }
   
   const openingMeta = getV2OpeningMeta(packMeta);
@@ -6423,8 +6469,9 @@ async function probeEngineV2Core(params, base44Client) {
 }
 
 /**
- * Main probe engine function - Normalized wrapper around core logic
+ * Main probe engine function - Normalized wrapper around core logic with timeout guard
  * BACKWARDS-COMPATIBLE: Guarantees anchors/collectedAnchors on ALL responses
+ * TIMEOUT GUARD: 8s internal timeout prevents serverless function hangs
  * 
  * @param {object} params - Probe parameters (standardized name)
  * @param {object} base44Client - Base44 SDK client
@@ -6434,46 +6481,73 @@ async function probeEngineV2(params, base44Client) {
   // Defensive normalization - ensure params is always an object
   params = params && typeof params === 'object' ? params : {};
   
-  console.log('[V2_PROBE][ENTRY]', {
+  // Extract trace_id early for correlation
+  const trace_id = params.trace_id || params.traceId || `backend-${Date.now()}`;
+  
+  console.log('[V2_BACKEND][WRAPPER_ENTRY]', {
+    traceId: trace_id,
     packId: params.pack_id || params.packId,
     fieldKey: params.field_key || params.fieldKey,
     instanceNumber: params.instance_number || params.instanceNumber,
     probeCount: params.previous_probes_count || params.probeCount || 0,
   });
   
-  console.log("═════════════════════════════════════════════════════════════");
-  console.log("FORENSIC CHECKPOINT 9: WRAPPER CALLING CORE");
-  console.log("═════════════════════════════════════════════════════════════");
+  // INTERNAL TIMEOUT GUARD: Abort operations after 8s
+  const INTERNAL_TIMEOUT_MS = 8000;
+  const timeoutPromise = new Promise((_, reject) => 
+    setTimeout(() => reject(new Error('INTERNAL_BACKEND_TIMEOUT')), INTERNAL_TIMEOUT_MS)
+  );
   
-  const rawResult = await probeEngineV2Core(params, base44Client);
-  
-  console.log("═════════════════════════════════════════════════════════════");
-  console.log("FORENSIC CHECKPOINT 10: CORE RETURNED TO WRAPPER");
-  console.log("═════════════════════════════════════════════════════════════");
-  console.log("[WRAPPER][RAW_RESULT]", {
-    rawResultType: typeof rawResult,
-    rawResultKeys: Object.keys(rawResult || {}),
-    rawResultAnchors: rawResult?.anchors,
-    rawResultCollected: rawResult?.collectedAnchors,
-    rawResultAnchorsKeys: Object.keys(rawResult?.anchors || {}),
-    applicationOutcome: rawResult?.anchors?.application_outcome || '(MISSING)'
-  });
-  
-  const normalized = normalizeV2ProbeResult(rawResult);
-  
-  console.log("═════════════════════════════════════════════════════════════");
-  console.log("FORENSIC CHECKPOINT 11: AFTER NORMALIZATION");
-  console.log("═════════════════════════════════════════════════════════════");
-  console.log("[WRAPPER][NORMALIZED]", {
-    normalizedType: typeof normalized,
-    normalizedKeys: Object.keys(normalized || {}),
-    normalizedAnchors: normalized?.anchors,
-    normalizedCollected: normalized?.collectedAnchors,
-    normalizedAnchorsKeys: Object.keys(normalized?.anchors || {}),
-    applicationOutcome: normalized?.anchors?.application_outcome || '(MISSING)'
-  });
-  
-  return normalized;
+  try {
+    const rawResult = await Promise.race([
+      probeEngineV2Core(params, base44Client),
+      timeoutPromise
+    ]);
+    
+    const normalized = normalizeV2ProbeResult(rawResult);
+    
+    console.log("[V2_BACKEND][SUCCESS]", {
+      traceId: trace_id,
+      mode: normalized?.mode,
+      hasQuestion: !!normalized?.question,
+      elapsed: Date.now() - (rawResult?._startTime || Date.now())
+    });
+    
+    return normalized;
+  } catch (err) {
+    if (err.message === 'INTERNAL_BACKEND_TIMEOUT') {
+      console.error('[V2_BACKEND][INTERNAL_TIMEOUT]', {
+        traceId: trace_id,
+        packId: params.pack_id || params.packId,
+        fieldKey: params.field_key || params.fieldKey,
+        elapsed: INTERNAL_TIMEOUT_MS
+      });
+      
+      return createV2ProbeResult({
+        mode: "ERROR",
+        errorCode: "BACKEND_TIMEOUT",
+        message: "Backend processing timeout",
+        debug: { traceId: trace_id, elapsed: INTERNAL_TIMEOUT_MS },
+        anchors: {},
+        collectedAnchors: {}
+      });
+    }
+    
+    console.error('[V2_BACKEND][WRAPPER_EXCEPTION]', {
+      traceId: trace_id,
+      message: err.message,
+      stackPreview: err.stack?.substring(0, 300)
+    });
+    
+    return createV2ProbeResult({
+      mode: "ERROR",
+      errorCode: "BACKEND_EXCEPTION",
+      message: err.message || 'Unknown backend error',
+      debug: { traceId: trace_id, stackPreview: err.stack?.substring(0, 300) },
+      anchors: {},
+      collectedAnchors: {}
+    });
+  }
 }
 
 /**

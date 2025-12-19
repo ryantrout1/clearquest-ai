@@ -1,108 +1,92 @@
 /**
- * Pack Schema Resolver - SINGLE SOURCE OF TRUTH for V2 pack field schema
+ * Pack Schema Resolver - Single Source of Truth for V2 Pack Field Definitions
  * 
- * Enforces DB-first schema for standard cluster packs, prevents static override drift.
- * 
- * SCHEMA OWNERSHIP RULES:
- * 1. V3 packs (ide_version="V3"): Backend owns schema (FactModel)
- * 2. V2 DB-first (is_standard_cluster=true + field_config exists): Database owns schema
- * 3. V2 legacy static: Static config owns schema (fallback)
+ * GOLDEN RULE: Database-first for standard cluster packs (is_standard_cluster=true)
+ * Static config only used as fallback for legacy packs
  */
-
-import { buildV2PackFromDbRow } from "../followups/followupPackConfig";
 
 /**
- * Resolve which schema source to use for a V2 pack
- * 
- * @param {Object} dbPackMeta - Database FollowUpPack record
- * @param {Object} staticConfig - Static FOLLOWUP_PACK_CONFIGS entry
- * @returns {Object} { schemaSource: "db"|"static"|"none", fields: [...], packConfig: {...} }
+ * Resolve pack schema from database or static config
+ * @param {object} dbPackMeta - Pack metadata from FollowUpPack entity
+ * @param {object} staticConfig - Static pack config from FOLLOWUP_PACK_CONFIGS
+ * @returns {{schemaSource: 'db'|'static', fields: array, packConfig: object}}
  */
 export function resolvePackSchema(dbPackMeta, staticConfig) {
-  const packId = dbPackMeta?.followup_pack_id || staticConfig?.packId;
+  console.log('[PACK_SCHEMA][RESOLVE]', {
+    packId: dbPackMeta?.followup_pack_id || staticConfig?.packId,
+    hasDb: !!dbPackMeta,
+    hasStatic: !!staticConfig,
+    isStandardCluster: dbPackMeta?.is_standard_cluster,
+    dbFieldCount: dbPackMeta?.field_config?.length || 0,
+    staticFieldCount: staticConfig?.fields?.length || 0
+  });
   
-  if (!packId) {
-    console.error('[PACK_SCHEMA][ERROR] No packId provided');
-    return { schemaSource: "none", fields: [], packConfig: null };
-  }
-  
-  // RULE 1: V3 packs use FactModel (no field schema)
-  if (dbPackMeta?.ide_version === "V3") {
-    console.log(`[PACK_SCHEMA][V3] ${packId} uses FactModel (no field schema)`);
+  // PRIORITY 1: Database field_config (for standard cluster packs)
+  if (dbPackMeta?.is_standard_cluster && dbPackMeta?.field_config?.length > 0) {
+    console.log('[PACK_SCHEMA][DB_FIRST]', {
+      packId: dbPackMeta.followup_pack_id,
+      schemaSource: 'db',
+      fieldCount: dbPackMeta.field_config.length
+    });
+    
     return {
-      schemaSource: "factmodel",
-      fields: [],
-      packConfig: staticConfig || {},
-      isV3Pack: true
+      schemaSource: 'db',
+      fields: dbPackMeta.field_config,
+      packConfig: dbPackMeta
     };
   }
   
-  // RULE 2: V2 DB-first (standard cluster with field_config)
-  const hasDbFieldConfig = dbPackMeta?.field_config && Array.isArray(dbPackMeta.field_config) && dbPackMeta.field_config.length > 0;
-  const isStandardCluster = dbPackMeta?.is_standard_cluster === true;
-  
-  if (hasDbFieldConfig && isStandardCluster) {
-    // DATABASE WINS - ignore static fields even if present
-    const merged = buildV2PackFromDbRow(dbPackMeta);
-    const dbFields = merged.field_config || [];
-    
-    // DRIFT WARNING: Log if static has conflicting fields
-    const staticFields = staticConfig?.fields || [];
-    if (staticFields.length > 0) {
-      console.warn(`[PACK_SCHEMA][DRIFT_WARNING] ${packId} has both DB field_config (${dbFields.length}) and static fields (${staticFields.length})`);
-      console.warn(`[PACK_SCHEMA][DRIFT_WARNING] Using DB schema - static fields IGNORED`);
-      console.warn(`[PACK_SCHEMA][DRIFT_WARNING] To fix: set static config fields: [] for DB-first packs`);
-    }
-    
-    console.log(`[PACK_SCHEMA][DB_FIRST] ${packId} using database schema (${dbFields.length} fields)`);
+  // PRIORITY 2: Static config fallback
+  if (staticConfig?.fields?.length > 0) {
+    console.log('[PACK_SCHEMA][STATIC_FALLBACK]', {
+      packId: staticConfig.packId,
+      schemaSource: 'static',
+      fieldCount: staticConfig.fields.length
+    });
     
     return {
-      schemaSource: "db",
-      fields: dbFields,
-      packConfig: merged,
-      isV2Pack: true
+      schemaSource: 'static',
+      fields: staticConfig.fields,
+      packConfig: staticConfig
     };
   }
   
-  // RULE 3: Legacy static fallback (no DB field_config or not standard cluster)
-  const staticFields = staticConfig?.fields || [];
-  
-  console.log(`[PACK_SCHEMA][STATIC_FALLBACK] ${packId} using static schema (${staticFields.length} fields)`, {
-    reason: hasDbFieldConfig ? 'not_standard_cluster' : 'no_db_field_config'
+  // PRIORITY 3: Empty fallback (error case)
+  console.error('[PACK_SCHEMA][NO_SCHEMA]', {
+    packId: dbPackMeta?.followup_pack_id || staticConfig?.packId,
+    reason: 'No field definitions found in database or static config'
   });
   
   return {
-    schemaSource: "static",
-    fields: staticFields,
-    packConfig: staticConfig || {},
-    isV2Pack: true
+    schemaSource: 'none',
+    fields: [],
+    packConfig: null
   };
 }
 
 /**
- * Validate schema source matches intent (dev mode warning)
+ * Validate schema source matches pack intent
+ * Warns if DB-first pack has static fields (drift risk)
  */
 export function validateSchemaSource(packId, schemaSource, dbPackMeta, staticConfig) {
-  const isStandardCluster = dbPackMeta?.is_standard_cluster === true;
-  const hasDbFieldConfig = dbPackMeta?.field_config && dbPackMeta.field_config.length > 0;
-  const hasStaticFields = staticConfig?.fields && staticConfig.fields.length > 0;
-  
-  // WARNING: Standard cluster pack with static fields override
-  if (isStandardCluster && hasDbFieldConfig && hasStaticFields && schemaSource === "static") {
-    console.error('[PACK_SCHEMA][VIOLATION]', {
+  // Check for drift: DB-first pack with static fields
+  if (schemaSource === 'db' && staticConfig?.fields?.length > 0) {
+    console.warn('[PACK_SCHEMA][DRIFT_RISK]', {
       packId,
-      issue: 'STATIC_OVERRIDE_DB',
-      isStandardCluster,
-      dbFieldCount: dbPackMeta.field_config.length,
-      staticFieldCount: staticConfig.fields.length,
       schemaSource,
-      expectedSource: 'db',
-      action: 'DRIFT_DETECTED - Remove static fields for DB-first packs'
+      dbFieldCount: dbPackMeta?.field_config?.length || 0,
+      staticFieldCount: staticConfig.fields.length,
+      reason: 'Static fields exist but DB wins - static config should be empty for DB-first packs'
     });
   }
   
-  // INFO: Confirm DB-first packs use database
-  if (isStandardCluster && hasDbFieldConfig && schemaSource === "db") {
-    console.log(`[PACK_SCHEMA][✓] ${packId} correctly using DB schema (${dbPackMeta.field_config.length} fields)`);
+  // Check for missing DB schema when expected
+  if (dbPackMeta?.is_standard_cluster && schemaSource !== 'db') {
+    console.warn('[PACK_SCHEMA][DB_EXPECTED]', {
+      packId,
+      schemaSource,
+      isStandardCluster: dbPackMeta.is_standard_cluster,
+      reason: 'Standard cluster pack should use DB schema but fell back to static'
+    });
   }
 }
