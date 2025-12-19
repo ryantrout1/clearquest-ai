@@ -141,7 +141,7 @@ export const PACK_FACT_ANCHORS = {
     multiInstance: true
   },
   "PACK_INTEGRITY_APPS": {
-    required: ["omitted_agency_name", "omitted_application_timeframe", "omission_reason", "omission_intentionality", "omission_materiality", "discovery_risk_awareness", "corrective_action_taken", "additional_context_or_explanation"], // 8 critical fields
+    required: ["agency_name", "position_applied_for", "omission_timeframe", "omission_nature", "what_omitted", "reason_for_omission", "disclosure_or_discovery_context", "corrective_or_consequential_actions"], // 8 critical fields
     optional: [],
     severity: "strict",
     maxProbes: 8,

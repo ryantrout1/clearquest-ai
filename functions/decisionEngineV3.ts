@@ -30,15 +30,14 @@ const FIELD_QUESTION_TEMPLATES = {
   agency: "Which agency or organization was involved?",
   agency_name: "What is the name of the agency?",
   position: "What position were you applying for or held?",
-  position_applied_for: "What position were you applying for?",
-  omitted_agency_name: "What was the name of the law enforcement agency where you omitted information?",
-  omitted_application_timeframe: "When did you submit that application (approximately)?",
-  omission_reason: "What was your reason for not disclosing this information at the time?",
-  omission_intentionality: "Was the omission intentional or unintentional?",
-  omission_materiality: "In your view, was this information material to your application?",
-  discovery_risk_awareness: "Were you aware at the time that full disclosure was required?",
-  corrective_action_taken: "Did you take any steps to correct or clarify this omission?",
-  additional_context_or_explanation: "Is there any additional context or explanation you'd like to provide?"
+  position_applied_for: "What position did you apply for with that agency?",
+  agency_name: "What was the name of the law enforcement agency where you omitted information?",
+  omission_timeframe: "When did that application occur (approximately)?",
+  omission_nature: "What was the nature of what you omitted?",
+  what_omitted: "Can you explain what specific information was not disclosed?",
+  reason_for_omission: "What was your reason for not disclosing this at the time?",
+  disclosure_or_discovery_context: "How did this come to light - did you disclose it yourself, clarify it later, or was it discovered?",
+  corrective_or_consequential_actions: "What steps did you take after realizing this information was needed?"
 };
 
 const OPENING_PROMPTS_BY_CATEGORY = {
@@ -473,47 +472,31 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
     }
   }
   
-  // CATEGORY-SPECIFIC EXTRACTIONS: INTEGRITY_APPS (8-field MVP)
+  // CATEGORY-SPECIFIC EXTRACTIONS: INTEGRITY_APPS (8-field MVP - realigned semantics)
   
-  // omission_intentionality
-  const intentionalityFields = allFields.filter(f => canon(f.field_id || '').includes('intentionality'));
-  if (intentionalityFields.length > 0) {
-    let intentionality = null;
-    if (lower.includes('intentional') && !lower.includes('unintentional')) {
-      intentionality = 'Intentional';
-    } else if (lower.includes('unintentional') || lower.includes('accidental') || lower.includes('oversight') || lower.includes('mistake')) {
-      intentionality = 'Unintentional';
-    } else if (lower.includes('unclear') || lower.includes('not sure')) {
-      intentionality = 'Unclear';
+  // omission_nature - detect from narrative context
+  const omissionNatureFields = allFields.filter(f => canon(f.field_id || '').includes('omission_nature'));
+  if (omissionNatureFields.length > 0) {
+    let nature = null;
+    if (lower.includes('prior application') || lower.includes('previous application')) {
+      nature = 'Prior application';
+    } else if (lower.includes('withdrew') || lower.includes('withdrawal')) {
+      nature = 'Withdrawal';
+    } else if (lower.includes('disqualified') || lower.includes('disqualification')) {
+      nature = 'Disqualification';
+    } else if (lower.includes('background') || lower.includes('citation') || lower.includes('violation')) {
+      nature = 'Background detail';
     }
-    if (intentionality) {
-      for (const field of intentionalityFields) {
-        extracted[field.field_id] = intentionality;
+    if (nature) {
+      for (const field of omissionNatureFields) {
+        extracted[field.field_id] = nature;
       }
     }
   }
   
-  // discovery_risk_awareness
-  const awarenessFields = allFields.filter(f => canon(f.field_id || '').includes('awareness') || canon(f.field_id || '').includes('discovery_risk'));
-  if (awarenessFields.length > 0) {
-    let awareness = null;
-    if (lower.includes('fully aware') || (lower.includes('aware') && lower.includes('required'))) {
-      awareness = 'Fully aware';
-    } else if (lower.includes('partially aware') || lower.includes('somewhat aware')) {
-      awareness = 'Partially aware';
-    } else if (lower.includes('not aware') || lower.includes('didn\'t know') || lower.includes('unaware')) {
-      awareness = 'Not aware';
-    }
-    if (awareness) {
-      for (const field of awarenessFields) {
-        extracted[field.field_id] = awareness;
-      }
-    }
-  }
-  
-  // omission_reason - extract from "reason" or "why" context
-  const omissionReasonFields = allFields.filter(f => canon(f.field_id || '').includes('omission_reason'));
-  if (omissionReasonFields.length > 0 && normalized.length > 20) {
+  // reason_for_omission - extract from "reason" or "why" context
+  const reasonFields = allFields.filter(f => canon(f.field_id || '').includes('reason_for_omission'));
+  if (reasonFields.length > 0 && normalized.length > 20) {
     const sentences = normalized.split(/[.!?]+/);
     for (const sentence of sentences) {
       if (sentence.length > 15 && (
@@ -523,7 +506,7 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
         sentence.includes('forgot') ||
         sentence.includes('didn\'t think')
       )) {
-        for (const field of omissionReasonFields) {
+        for (const field of reasonFields) {
           extracted[field.field_id] = sentence.trim();
         }
         break;
@@ -531,8 +514,28 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
     }
   }
   
-  // corrective_action_taken
-  const correctiveFields = allFields.filter(f => canon(f.field_id || '').includes('corrective') || canon(f.field_id || '').includes('action'));
+  // disclosure_or_discovery_context
+  const disclosureFields = allFields.filter(f => canon(f.field_id || '').includes('disclosure') || canon(f.field_id || '').includes('discovery_context'));
+  if (disclosureFields.length > 0) {
+    let context = null;
+    if (lower.includes('self-disclosed') || lower.includes('disclosed it myself')) {
+      context = 'Self-disclosed';
+    } else if (lower.includes('clarified during') || lower.includes('explained during')) {
+      context = 'Clarified during background';
+    } else if (lower.includes('investigator discovered') || lower.includes('investigator found')) {
+      context = 'Discovered by investigator';
+    } else if (lower.includes('corrected voluntarily') || lower.includes('corrected it later')) {
+      context = 'Corrected voluntarily';
+    }
+    if (context) {
+      for (const field of disclosureFields) {
+        extracted[field.field_id] = context;
+      }
+    }
+  }
+  
+  // corrective_or_consequential_actions
+  const correctiveFields = allFields.filter(f => canon(f.field_id || '').includes('corrective') || canon(f.field_id || '').includes('consequential'));
   if (correctiveFields.length > 0 && normalized.length > 20) {
     const sentences = normalized.split(/[.!?]+/);
     for (const sentence of sentences) {
@@ -540,28 +543,11 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
         sentence.includes('correct') || 
         sentence.includes('clarif') || 
         sentence.includes('disclosed') ||
-        sentence.includes('later') ||
-        sentence.includes('voluntarily')
+        sentence.includes('steps') ||
+        sentence.includes('voluntarily') ||
+        sentence.includes('later')
       )) {
         for (const field of correctiveFields) {
-          extracted[field.field_id] = sentence.trim();
-        }
-        break;
-      }
-    }
-  }
-  
-  // omission_materiality
-  const materialityFields = allFields.filter(f => canon(f.field_id || '').includes('materiality'));
-  if (materialityFields.length > 0 && normalized.length > 20) {
-    const sentences = normalized.split(/[.!?]+/);
-    for (const sentence of sentences) {
-      if (sentence.length > 15 && (
-        sentence.includes('material') || 
-        sentence.includes('important') || 
-        sentence.includes('significant')
-      )) {
-        for (const field of materialityFields) {
           extracted[field.field_id] = sentence.trim();
         }
         break;

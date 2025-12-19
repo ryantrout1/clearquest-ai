@@ -155,15 +155,15 @@ export const FIELD_QUESTION_TEMPLATES = {
   position: "What position were you applying for or held?",
   position_applied_for: "What position were you applying for?",
   
-  // Integrity-specific (8-field MVP)
-  omitted_agency_name: "What was the name of the law enforcement agency where you omitted information?",
-  omitted_application_timeframe: "When did you submit that application (approximately)?",
-  omission_reason: "What was your reason for not disclosing this information at the time?",
-  omission_intentionality: "Was the omission intentional or unintentional?",
-  omission_materiality: "In your view, was this information material to your application?",
-  discovery_risk_awareness: "Were you aware at the time that full disclosure was required?",
-  corrective_action_taken: "Did you take any steps to correct or clarify this omission?",
-  additional_context_or_explanation: "Is there any additional context or explanation you'd like to provide?"
+  // Integrity-specific (8-field MVP - realigned semantics)
+  agency_name: "What was the name of the law enforcement agency where you omitted information?",
+  position_applied_for: "What position did you apply for with that agency?",
+  omission_timeframe: "When did that application occur (approximately)?",
+  omission_nature: "What was the nature of what you omitted?",
+  what_omitted: "Can you explain what specific information was not disclosed?",
+  reason_for_omission: "What was your reason for not disclosing this at the time?",
+  disclosure_or_discovery_context: "How did this come to light - did you disclose it yourself, clarify it later, or was it discovered?",
+  corrective_or_consequential_actions: "What steps did you take after realizing this information was needed?"
 };
 
 /**
