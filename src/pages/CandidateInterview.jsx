@@ -34,6 +34,7 @@ import FollowUpContext from "../components/interview/FollowUpContext";
 import { updateFactForField } from "../components/followups/factsManager";
 import { validateFollowupValue, answerLooksLikeNoRecall } from "../components/followups/semanticValidator";
 import { FOLLOWUP_PACK_CONFIGS, getPackMaxAiFollowups, usePerFieldProbing } from "../components/followups/followupPackConfig";
+import { resolvePackSchema, validateSchemaSource } from "../components/utils/packSchemaResolver";
 import { getSystemConfig, getEffectiveInterviewMode } from "../components/utils/systemConfigHelpers";
 import { getFactModelForCategory, mapPackIdToCategory } from "../components/utils/factModelHelpers";
 import V3ProbingLoop from "../components/interview/V3ProbingLoop";
@@ -3520,15 +3521,25 @@ export default function CandidateInterview() {
 
             // === V2 PACK HANDLING: Enter V2_PACK mode ===
             if (isV2PackFinal) {
-              const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+              // SCHEMA RESOLUTION: Use centralized resolver (DB-first for standard clusters)
+              const staticConfig = FOLLOWUP_PACK_CONFIGS[packId];
+              const dbPackMeta = engine?.v2PacksById?.[packId]?.meta || null;
+              
+              const { schemaSource, fields, packConfig } = resolvePackSchema(dbPackMeta, staticConfig);
+              
+              // VALIDATION: Warn if schema source doesn't match intent
+              if (dbPackMeta && staticConfig) {
+                validateSchemaSource(packId, schemaSource, dbPackMeta, staticConfig);
+              }
 
-              if (!packConfig || !Array.isArray(packConfig.fields) || packConfig.fields.length === 0) {
+              if (!packConfig || !Array.isArray(fields) || fields.length === 0) {
                 console.error("[V2_PACK][BLOCKED]", {
                   packId,
-                  reason: 'Missing or invalid pack config',
+                  reason: 'Missing or invalid pack schema',
+                  schemaSource,
                   hasConfig: !!packConfig,
-                  hasFields: Array.isArray(packConfig?.fields),
-                  fieldsCount: packConfig?.fields?.length || 0
+                  hasFields: Array.isArray(fields),
+                  fieldsCount: fields.length
                 });
                 // Fallback: advance to next question
                 saveAnswerToDatabase(currentItem.id, value, question);
@@ -3542,13 +3553,14 @@ export default function CandidateInterview() {
                 packId,
                 baseQuestionId: currentItem.id,
                 questionCode: question.question_id,
-                fieldsCount: packConfig.fields.length
+                schemaSource,
+                fieldsCount: fields.length
               });
 
-              // Build ordered list of fields in this V2 pack
-              const orderedFields = packConfig.fields
-                .filter(f => f.fieldKey && f.label)
-                .sort((a, b) => (a.factsOrder || 0) - (b.factsOrder || 0));
+              // Build ordered list of fields in this V2 pack (from resolved schema)
+              const orderedFields = fields
+                .filter(f => (f.fieldKey || f.id) && (f.label || f.question_text))
+                .sort((a, b) => (a.factsOrder || a.order || 0) - (b.factsOrder || b.order || 0));
 
               // EXPLICIT LOGGING: Entering V2 pack mode
               console.log(`[V2_PACK][ENTER] ========== ENTERING V2 PACK MODE ==========`);
