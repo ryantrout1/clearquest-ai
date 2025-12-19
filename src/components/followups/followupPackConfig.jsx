@@ -141,11 +141,11 @@ export const PACK_FACT_ANCHORS = {
     multiInstance: true
   },
   "PACK_INTEGRITY_APPS": {
-    required: ["agency", "issue_type", "month_year"], // Critical 3 (strict severity)
-    optional: ["consequences", "what_omitted", "reason_omitted"],
+    required: ["omitted_agency_name", "omitted_application_timeframe", "omission_reason", "omission_intentionality", "omission_materiality", "discovery_risk_awareness", "corrective_action_taken", "additional_context_or_explanation"], // 8 critical fields
+    optional: [],
     severity: "strict",
-    maxProbes: 4,
-    multiInstance: true
+    maxProbes: 8,
+    multiInstance: false
   },
   
   // Financial Packs - CRITICAL ANCHORS
@@ -320,9 +320,15 @@ export const FOLLOWUP_PACK_CONFIGS = {
     // V3 CATEGORY MAPPING
     categoryId: "INTEGRITY_APPS",
     
+    // AUTHOR-CONTROLLED OPENER
+    use_author_defined_openers: true,
+    opening_question_text: "I want to make sure we have a complete and accurate record. Please explain whether you intentionally withheld any information about prior applications with other law enforcement agencies, and if so, describe what was omitted and why.",
+    opening_example_narrative: "For example, you might explain that you previously applied to another department, chose not to disclose it, the reason for that decision, whether you understood the importance of full disclosure, and whether you later attempted to correct or clarify the omission.",
+    probing_instruction_text: "Maintain a neutral, non-accusatory tone. Do not assume wrongdoing. Clarify factual details first (agency, timing, what was omitted). Distinguish intentional vs. unintentional omission. Assess awareness of disclosure requirements at the time. Ask whether the applicant attempted to correct the record voluntarily. Capture context without judgment or legal conclusions. Stop probing once all 8 fields are sufficiently populated. Do NOT restate or summarize the narrative unless needed to clarify facts.",
+    
     // LEGACY V2 CONFIG (preserved but not used for routing)
     fields: [], // DB field_config preserved for reference
-    maxAiFollowups: 2,
+    maxAiFollowups: 8,
     multiInstance: false,
     
     // V3 BEHAVIOR

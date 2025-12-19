@@ -35,7 +35,7 @@ export const OPENING_PROMPTS_BY_CATEGORY = {
   EMPLOYMENT: "I appreciate you mentioning this. Can you tell me when this employment situation occurred?",
   FINANCIAL: "Thank you for disclosing this. Let's discuss the circumstances. When did this financial issue arise?",
   PRIOR_LE_APPS: "Thanks for letting me know about your prior applications. Can you tell me about the first agency you applied to?",
-  INTEGRITY_APPS: "In your own words, walk me through this application integrity issue — which agency it was with, what position you were applying for, when it happened, what the issue was, what information was involved, how it was discovered, and what the outcome was."
+  INTEGRITY_APPS: "I want to make sure we have a complete and accurate record. Please explain whether you intentionally withheld any information about prior applications with other law enforcement agencies, and if so, describe what was omitted and why."
 };
 
 /**
@@ -83,7 +83,7 @@ export function getV3DeterministicOpener(packData, categoryId, categoryLabel) {
   const categoryKey = categoryId?.toUpperCase();
   if (OPENING_PROMPTS_BY_CATEGORY[categoryKey]) {
     const exampleMap = {
-      INTEGRITY_APPS: "In 2021, I applied to Mesa PD for a Police Officer position. During my background interview, the investigator asked about a prior traffic citation that I had accidentally left off my application. I explained it was an oversight and provided the details. They allowed me to continue in the process but I was ultimately not selected for other reasons."
+      INTEGRITY_APPS: "For example, you might explain that you previously applied to another department, chose not to disclose it, the reason for that decision, whether you understood the importance of full disclosure, and whether you later attempted to correct or clarify the omission."
     };
     
     return {
@@ -155,11 +155,15 @@ export const FIELD_QUESTION_TEMPLATES = {
   position: "What position were you applying for or held?",
   position_applied_for: "What position were you applying for?",
   
-  // Integrity-specific
-  issue_type: "What type of issue was this?",
-  what_omitted: "What information was omitted or inaccurate?",
-  reason_omitted: "Why was that information left off or answered that way?",
-  discovery_method: "How was this issue discovered?"
+  // Integrity-specific (8-field MVP)
+  omitted_agency_name: "What was the name of the law enforcement agency where you omitted information?",
+  omitted_application_timeframe: "When did you submit that application (approximately)?",
+  omission_reason: "What was your reason for not disclosing this information at the time?",
+  omission_intentionality: "Was the omission intentional or unintentional?",
+  omission_materiality: "In your view, was this information material to your application?",
+  discovery_risk_awareness: "Were you aware at the time that full disclosure was required?",
+  corrective_action_taken: "Did you take any steps to correct or clarify this omission?",
+  additional_context_or_explanation: "Is there any additional context or explanation you'd like to provide?"
 };
 
 /**
