@@ -1149,14 +1149,19 @@ async function decisionEngineV3Probe(base44, {
         
         if (isDateField) {
           suppressedCount++;
-          console.log(`[V3_INSTANCE_GATE][SKIP_DATE]`, {
-            traceId: effectiveTraceId,
+          
+          // DEFINITIVE GATE FIRED LOG
+          console.warn(`[V3_DATE_GATE][FIRED]`, {
             categoryId,
             instanceNumber: instanceNumber || 1,
-            fieldId: field.field_id,
-            reason: 'Opener already contains month/year - skipping date question',
-            openerHadDate: true
+            openerHasMonthYear: true,
+            extractedMonthYear: extractedMonthYearRaw || 'detected_via_hasMonthYear',
+            blockedFieldId: field.field_id,
+            blockedPromptPreview: generateV3ProbeQuestion(field, incident.facts)?.substring(0, 60) || null,
+            nextActionBeforeBlock: 'ASK',
+            reason: 'Opener contains month/year - date question suppressed'
           });
+          
           continue;
         }
       }
@@ -1344,6 +1349,71 @@ async function decisionEngineV3Probe(base44, {
     openingPrompt = getOpeningPrompt(categoryId, factModel.category_label);
   }
 
+  // HARD FAIL-SAFE: PRIOR_LE_APPS openerHasMonthYear=true MUST NOT ask date/apply/occur questions
+  let gateStatus = 'NOT_APPLICABLE';
+  let blockedFieldIdFailsafe = null;
+  
+  if (categoryId === 'PRIOR_LE_APPS' && openerHasMonthYear && nextAction === 'ASK' && nextPrompt) {
+    // Check if we're about to ask a date/apply/occur question
+    const promptLower = (nextPrompt || '').toLowerCase();
+    const chosenFieldId = missingFieldsAfter.length > 0 ? missingFieldsAfter[0]?.field_id : null;
+    const chosenFieldIdLower = (chosenFieldId || '').toLowerCase();
+    
+    const isAskingDateQuestion = ['apply', 'applied', 'occur', 'date', 'month', 'year', 'timeframe', 'when did'].some(kw =>
+      promptLower.includes(kw) || chosenFieldIdLower.includes(kw)
+    );
+    
+    if (isAskingDateQuestion) {
+      // FAIL-SAFE TRIGGERED: Find next non-date field or force RECAP
+      blockedFieldIdFailsafe = chosenFieldId;
+      
+      const nonDateField = missingFieldsAfter.find(f => {
+        const fIdLower = (f.field_id || '').toLowerCase();
+        const fLabelLower = (f.label || '').toLowerCase();
+        return !['apply', 'applied', 'occur', 'date', 'month', 'year', 'timeframe', 'when'].some(kw =>
+          fIdLower.includes(kw) || fLabelLower.includes(kw)
+        );
+      });
+      
+      if (nonDateField) {
+        // Override to ask non-date field
+        nextPrompt = generateV3ProbeQuestion(nonDateField, incident.facts);
+        nextAction = 'ASK';
+        gateStatus = 'FAILSAFE';
+        
+        console.warn(`[V3_DATE_GATE][FAILSAFE]`, {
+          categoryId,
+          instanceNumber: instanceNumber || 1,
+          openerHasMonthYear: true,
+          extractedMonthYear: extractedMonthYearRaw || 'detected_via_hasMonthYear',
+          blockedFieldId: blockedFieldIdFailsafe,
+          blockedPromptPreview: promptLower.substring(0, 60),
+          overrideToFieldId: nonDateField.field_id,
+          overridePromptPreview: nextPrompt?.substring(0, 60) || null,
+          reason: 'Date question slipped through gate - fail-safe override applied'
+        });
+      } else {
+        // No non-date fields remain - force RECAP
+        nextAction = 'RECAP';
+        nextPrompt = getCompletionMessage('RECAP', null);
+        stopReason = 'REQUIRED_FIELDS_COMPLETE';
+        legacyFactState.completion_status = 'complete';
+        gateStatus = 'FAILSAFE';
+        
+        console.warn(`[V3_DATE_GATE][FAILSAFE]`, {
+          categoryId,
+          instanceNumber: instanceNumber || 1,
+          openerHasMonthYear: true,
+          extractedMonthYear: extractedMonthYearRaw || 'detected_via_hasMonthYear',
+          blockedFieldId: blockedFieldIdFailsafe,
+          blockedPromptPreview: promptLower.substring(0, 60),
+          overrideAction: 'RECAP',
+          reason: 'Date question slipped through gate - no non-date fields remain - forcing RECAP'
+        });
+      }
+    }
+  }
+  
   // Build debug object for engine visibility
   const debugInfo = categoryId === 'PRIOR_LE_APPS' ? {
     categoryId,
@@ -1357,7 +1427,9 @@ async function decisionEngineV3Probe(base44, {
     chosenMissingFieldId: nextAction === 'ASK' && missingFieldsAfter.length > 0 ? missingFieldsAfter[0]?.field_id : null,
     nextAction,
     nextItemType: nextAction === 'ASK' ? 'v3_probe_question' : nextAction.toLowerCase(),
-    promptPreview: nextPrompt?.substring(0, 60) || null
+    promptPreview: nextPrompt?.substring(0, 60) || null,
+    gateStatus,
+    blockedFieldId: blockedFieldIdFailsafe
   } : null;
   
   return {

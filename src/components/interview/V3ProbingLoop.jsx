@@ -350,6 +350,14 @@ export default function V3ProbingLoop({
       if (data.debug) {
         console.log('[V3_ENGINE_DEBUG]', data.debug);
       }
+      
+      // ENGINE PROMPT VISIBILITY: Log prompt details
+      console.log('[V3_ENGINE_PROMPT]', {
+        instanceNumber: instanceNumber || 1,
+        nextAction: data.nextAction,
+        nextItemType: data.nextAction === 'ASK' ? 'v3_probe_question' : data.nextAction?.toLowerCase(),
+        promptPreview: data.nextPrompt?.substring(0, 80) || null
+      });
 
       // DIAGNOSTIC: Explicit STOP reason logging (console-truncation-proof)
       if (data.nextAction === 'STOP' || data.nextAction === 'RECAP') {
