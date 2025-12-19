@@ -560,10 +560,10 @@ const getBackendQuestionText = (map, packId, fieldKey, instanceNumber) => {
 };
 
 const callProbeEngineV2PerField = async (base44Client, params) => {
-  const { packId, fieldKey, fieldValue, previousProbesCount, incidentContext, sessionId, questionCode, baseQuestionId, instanceNumber } = params;
+  const { packId, fieldKey, fieldValue, previousProbesCount, incidentContext, sessionId, questionCode, baseQuestionId, instanceNumber, schemaSource, resolvedField } = params;
 
   console.log('[V2_PER_FIELD][SEND] ========== CALLING BACKEND PER-FIELD PROBE ==========');
-  console.log(`[V2_PER_FIELD][SEND] pack=${packId} field=${fieldKey} instance=${instanceNumber || 1}`);
+  console.log(`[V2_PER_FIELD][SEND] pack=${packId} field=${fieldKey} instance=${instanceNumber || 1} schemaSource=${schemaSource || 'unknown'}`);
   console.log('[V2_PER_FIELD][SEND] params:', {
     packId,
     fieldKey,
@@ -573,13 +573,16 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
     sessionId,
     questionCode,
     baseQuestionId,
-    instanceNumber: instanceNumber || 1
+    instanceNumber: instanceNumber || 1,
+    schemaSource,
+    hasResolvedField: !!resolvedField
   });
 
-
+  // TIMEOUT GUARD: 10s max for backend call
+  const BACKEND_TIMEOUT_MS = 10000;
 
   try {
-    const response = await base44Client.functions.invoke('probeEngineV2', {
+    const backendPromise = base44Client.functions.invoke('probeEngineV2', {
       pack_id: packId,
       field_key: fieldKey,
       field_value: fieldValue,
@@ -588,8 +591,16 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
       session_id: sessionId,
       question_code: questionCode,
       instance_number: instanceNumber || 1,
-      mode: 'VALIDATE_FIELD'
+      mode: 'VALIDATE_FIELD',
+      schema_source: schemaSource || null,
+      resolved_field: resolvedField || null
     });
+    
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('BACKEND_TIMEOUT')), BACKEND_TIMEOUT_MS)
+    );
+    
+    const response = await Promise.race([backendPromise, timeoutPromise]);
 
     console.log('[V2_PER_FIELD][RECV] ========== BACKEND RESPONSE RECEIVED ==========');
     console.log(`[V2_PER_FIELD][RECV] pack=${packId} field=${fieldKey} result:`, {
@@ -629,10 +640,30 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
 
     return response.data;
   } catch (err) {
+    // TIMEOUT HANDLING
+    if (err.message === 'BACKEND_TIMEOUT') {
+      console.error('[V2_PER_FIELD][TIMEOUT]', { 
+        packId, 
+        fieldKey, 
+        instanceNumber,
+        schemaSource,
+        elapsed: BACKEND_TIMEOUT_MS
+      });
+      
+      return {
+        mode: 'ERROR',
+        errorCode: 'BACKEND_TIMEOUT',
+        message: `Backend probe timeout after ${BACKEND_TIMEOUT_MS}ms`,
+        debug: { packId, fieldKey, schemaSource }
+      };
+    }
+    
     console.error('[V2_PER_FIELD][ERROR] Backend call failed:', { packId, fieldKey, message: err?.message });
     return {
       mode: 'ERROR',
-      message: err.message || 'Failed to call probeEngineV2'
+      errorCode: 'BACKEND_ERROR',
+      message: err.message || 'Failed to call probeEngineV2',
+      debug: { packId, fieldKey }
     };
   }
 };
@@ -805,7 +836,9 @@ const runV2FieldProbeIfNeeded = async ({
   aiProbingDisabledForSession,
   maxAiFollowups,
   instanceNumber,
-  setBackendQuestionTextMap
+  setBackendQuestionTextMap,
+  schemaSource = null,
+  resolvedField = null
 }) => {
   const probeCount = previousProbesCount || 0;
 
@@ -2718,7 +2751,9 @@ export default function CandidateInterview() {
           aiProbingDisabledForSession,
           maxAiFollowups,
           instanceNumber,
-          setBackendQuestionTextMap // STEP 1: Pass setter
+          setBackendQuestionTextMap,
+          schemaSource: activeV2Pack.schemaSource,
+          resolvedField: fieldConfig?.raw || null
         });
 
 
@@ -2787,15 +2822,28 @@ export default function CandidateInterview() {
           collectedAnswers: updatedCollectedAnswers
         }));
 
-        // Handle backend errors gracefully - fallback to deterministic advancement
-        if (v2Result?.mode === 'NONE' || v2Result?.mode === 'ERROR' || !v2Result) {
-          console.log(`[V2_PACK_FIELD][FALLBACK] Backend returned ${v2Result?.mode || 'null'} - using deterministic fallback`);
-          if (v2Result) {
-            v2Result.mode = 'NEXT_FIELD';
-          } else {
-            // Create a fallback result object
-            v2Result = { mode: 'NEXT_FIELD', reason: 'backend returned null' };
-          }
+        // Handle backend errors gracefully - surface to user with retry option
+        if (v2Result?.mode === 'ERROR') {
+          const errorCode = v2Result?.errorCode || 'UNKNOWN';
+          const errorMessage = v2Result?.message || 'Backend error';
+          
+          console.error(`[V2_PACK_FIELD][ERROR]`, {
+            packId,
+            fieldKey,
+            errorCode,
+            errorMessage,
+            debug: v2Result?.debug
+          });
+          
+          // Show error to user without breaking interview
+          setValidationHint(`Technical issue: ${errorMessage}. Please try again or skip this field.`);
+          setIsCommitting(false);
+          return;
+        }
+        
+        if (v2Result?.mode === 'NONE' || !v2Result) {
+          console.log(`[V2_PACK_FIELD][FALLBACK] Backend returned ${v2Result?.mode || 'null'} - advancing`);
+          v2Result = { mode: 'NEXT_FIELD', reason: 'backend returned null or NONE' };
         }
 
         // Handle AI clarifier from backend
@@ -3558,9 +3606,31 @@ export default function CandidateInterview() {
               });
 
               // Build ordered list of fields in this V2 pack (from resolved schema)
+              // Normalize field accessors for DB vs static formats
               const orderedFields = fields
                 .filter(f => (f.fieldKey || f.id) && (f.label || f.question_text))
-                .sort((a, b) => (a.factsOrder || a.order || 0) - (b.factsOrder || b.order || 0));
+                .sort((a, b) => (a.factsOrder || a.order || 0) - (b.factsOrder || b.order || 0))
+                .map(f => ({
+                  // Normalize field structure for unified access
+                  fieldKey: f.fieldKey || f.id,
+                  label: f.label || f.question_text,
+                  semanticType: f.semanticType || f.semanticKey,
+                  inputType: f.inputType || 'long_text',
+                  required: f.required || false,
+                  aiProbeHint: f.aiProbeHint || null,
+                  choices: f.choices || f.options || [],
+                  helperText: f.helperText || f.placeholder,
+                  exampleValue: f.exampleValue || null,
+                  order: f.order || f.factsOrder || 0,
+                  // Keep raw for backend pass-through
+                  raw: f
+                }));
+              
+              // Store schema source in pack state for backend calls
+              const packState = {
+                schemaSource,
+                dbPackMeta
+              };
 
               // EXPLICIT LOGGING: Entering V2 pack mode
               console.log(`[V2_PACK][ENTER] ========== ENTERING V2 PACK MODE ==========`);
@@ -3590,7 +3660,9 @@ export default function CandidateInterview() {
                 baseQuestionId: currentItem.id,
                 instanceNumber: 1,
                 substanceName: substanceName,
-                collectedAnswers: {}
+                collectedAnswers: {},
+                schemaSource: packState.schemaSource,
+                dbPackMeta: packState.dbPackMeta
               });
               setV2PackTriggerQuestionId(currentItem.id);
               setV2PackMode("V2_PACK");
@@ -3645,7 +3717,9 @@ export default function CandidateInterview() {
                 aiProbingDisabledForSession,
                 maxAiFollowups: getPackMaxAiFollowups(packId),
                 instanceNumber: 1,
-                setBackendQuestionTextMap // STEP 1: Pass setter
+                setBackendQuestionTextMap, // STEP 1: Pass setter
+                schemaSource: packState.schemaSource,
+                resolvedField: firstField.raw
               });
 
               console.log(`[V2_PACK][CLUSTER_INIT] Backend response:`, {
@@ -4091,8 +4165,10 @@ export default function CandidateInterview() {
             aiProbingEnabled,
             aiProbingDisabledForSession,
             maxAiFollowups,
-            setBackendQuestionTextMap // STEP 1: Pass setter for legacy followup path
-          });
+            setBackendQuestionTextMap, // STEP 1: Pass setter for legacy followup path
+            schemaSource: null, // Legacy followups use static schema
+            resolvedField: null
+            });
 
           // Save the answer
           await saveFollowUpAnswer(packId, fieldKey, normalizedAnswer, substanceName, instanceNumber, 'user');

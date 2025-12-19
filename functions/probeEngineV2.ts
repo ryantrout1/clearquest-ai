@@ -5230,6 +5230,78 @@ async function persistFactAnchorsHybrid({
 }
 
 /**
+ * Resolve field definition from database or static config
+ * CRITICAL: DB-first for standard cluster packs
+ */
+async function resolveFieldDefinition(base44Client, packId, fieldKey, packEntity) {
+  console.log('[FIELD_RESOLVER][START]', { packId, fieldKey });
+  
+  // PRIORITY 1: Database field_config (for standard clusters)
+  if (packEntity?.is_standard_cluster && packEntity?.field_config?.length > 0) {
+    const dbField = packEntity.field_config.find(f => 
+      f.fieldKey === fieldKey || f.id === fieldKey
+    );
+    
+    if (dbField) {
+      console.log('[FIELD_RESOLVER][DB_HIT]', { 
+        packId, 
+        fieldKey, 
+        fieldLabel: dbField.label,
+        semanticType: dbField.semanticType 
+      });
+      
+      return {
+        source: 'db',
+        fieldKey: dbField.fieldKey || dbField.id,
+        label: dbField.label,
+        semanticType: dbField.semanticType,
+        inputType: dbField.inputType,
+        required: dbField.required,
+        aiProbeHint: dbField.aiProbeHint,
+        choices: dbField.choices || [],
+        helperText: dbField.helperText,
+        exampleValue: dbField.exampleValue,
+        order: dbField.order,
+        raw: dbField
+      };
+    }
+    
+    console.warn('[FIELD_RESOLVER][DB_MISS]', { 
+      packId, 
+      fieldKey,
+      availableFields: packEntity.field_config.map(f => f.fieldKey || f.id)
+    });
+  }
+  
+  // PRIORITY 2: Static config fallback
+  const packConfig = PACK_CONFIG[packId];
+  const semanticField = packConfig?.fieldKeyMap?.[fieldKey] || fieldKey;
+  const staticLabel = FIELD_LABELS[semanticField] || FIELD_LABELS[fieldKey];
+  
+  if (staticLabel) {
+    console.log('[FIELD_RESOLVER][STATIC_HIT]', { packId, fieldKey, semanticField, label: staticLabel });
+    
+    return {
+      source: 'static',
+      fieldKey,
+      label: staticLabel,
+      semanticType: 'free_text',
+      inputType: 'long_text',
+      required: packConfig?.requiredFields?.includes(semanticField) || false,
+      aiProbeHint: null,
+      choices: [],
+      helperText: null,
+      exampleValue: null,
+      order: null,
+      raw: null
+    };
+  }
+  
+  console.error('[FIELD_RESOLVER][NO_DEFINITION]', { packId, fieldKey });
+  return null;
+}
+
+/**
  * Core probe engine logic - Universal MVP Mode
  * V2.6 Universal MVP: ALL V2 packs use Discretion Engine
  * 
@@ -5239,6 +5311,7 @@ async function persistFactAnchorsHybrid({
  * 3. Return QUESTION with AI-generated text, or NEXT_FIELD/COMPLETE when done
  * 
  * SYSTEMIC FIX: All return paths now include anchors and collectedAnchors
+ * DB-FIRST SUPPORT: Loads field definitions from database for standard cluster packs
  * 
  * NOTE: This is the CORE implementation - call probeEngineV2Entry for normalized results with diagnostics
  */
@@ -5247,7 +5320,7 @@ async function probeEngineV2Core(params, base44Client) {
   params = params && typeof params === 'object' ? params : {};
   
   // VERSION BANNER - Production build with real anchor extraction
-  console.log("[V2_ENGINE] probeEngineV2 production build - real anchor extraction enabled");
+  console.log("[V2_ENGINE] probeEngineV2 production build - DB-first field resolution enabled");
   
   // Diagnostic checkpoint for PACK_PRIOR_LE_APPS_STANDARD
   if (params && (params.packId === "PACK_PRIOR_LE_APPS_STANDARD" || params.pack_id === "PACK_PRIOR_LE_APPS_STANDARD")) {
@@ -5271,10 +5344,12 @@ async function probeEngineV2Core(params, base44Client) {
     questionCode = null,
     instance_number = 1,
     instance_anchors = {},
-    session_id = null
+    session_id = null,
+    schema_source = null, // NEW: Frontend hint for schema source
+    resolved_field = null // NEW: Frontend can pass full field definition
   } = params;
 
-  console.log(`[V2-UNIVERSAL][ENTRY] pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}`);
+  console.log(`[V2-UNIVERSAL][ENTRY] pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}, schemaSource=${schema_source}`);
   
   // ============================================================================
   // V2 OPENING STRATEGY - Use pack meta to control opening behavior
@@ -5287,31 +5362,70 @@ async function probeEngineV2Core(params, base44Client) {
   
   const isFirstProbe = probeCount === 0;
   
-  // Fetch pack meta to check opening strategy
+  // DB-FIRST: Always fetch pack meta (needed for both opening and field resolution)
   let packMeta = {};
   let fieldConfig = null;
+  let packEntity = null;
   
-  if (isFirstProbe) {
-    try {
-      const packs = await base44Client.entities.FollowUpPack.filter({
-        followup_pack_id: pack_id,
-        active: true
+  try {
+    const packs = await base44Client.entities.FollowUpPack.filter({
+      followup_pack_id: pack_id,
+      active: true
+    });
+    
+    if (packs.length > 0) {
+      packEntity = packs[0];
+      packMeta = packEntity || {};
+      
+      console.log('[V2_BACKEND][PACK_META]', {
+        packId: pack_id,
+        hasFieldConfig: !!packEntity.field_config,
+        fieldConfigLen: packEntity.field_config?.length || 0,
+        isStandardCluster: packEntity.is_standard_cluster,
+        ideVersion: packEntity.ide_version
       });
       
-      if (packs.length > 0) {
-        const packEntity = packs[0];
-        packMeta = packEntity || {};
+      // SYSTEMIC FIX: Resolve field definition from DB or static
+      // Priority: resolved_field from frontend > DB field_config > static FIELD_LABELS
+      if (resolved_field) {
+        fieldConfig = resolved_field;
+        console.log('[FIELD_RESOLVER][FRONTEND_PROVIDED]', {
+          fieldKey: field_key,
+          label: fieldConfig.label
+        });
+      } else {
+        const resolved = await resolveFieldDefinition(base44Client, pack_id, field_key, packEntity);
         
-        // Get field config for this field
-        if (packEntity.field_config && Array.isArray(packEntity.field_config)) {
-          fieldConfig = packEntity.field_config.find(f => 
-            (f.fieldKey === field_key || f.id === field_key)
-          );
+        if (!resolved) {
+          console.error('[FIELD_RESOLVER][ERROR]', {
+            packId: pack_id,
+            fieldKey: field_key,
+            reason: 'No field definition found in DB or static config'
+          });
+          
+          return createV2ProbeResult({
+            mode: "ERROR",
+            hasQuestion: false,
+            errorCode: "FIELD_NOT_FOUND",
+            message: `Field "${field_key}" not found in pack "${pack_id}" schema`,
+            debug: {
+              packId: pack_id,
+              fieldKey: field_key,
+              schemaSource: schema_source,
+              hasDbFieldConfig: !!packEntity?.field_config,
+              dbFieldCount: packEntity?.field_config?.length || 0,
+              availableFields: packEntity?.field_config?.map(f => f.fieldKey || f.id) || []
+            },
+            anchors: {},
+            collectedAnchors: {}
+          });
         }
+        
+        fieldConfig = resolved;
       }
-    } catch (err) {
-      console.warn('[V2_BACKEND][OPENING_META] Failed to fetch pack meta:', err.message);
     }
+  } catch (err) {
+    console.warn('[V2_BACKEND][PACK_META] Failed to fetch pack meta:', err.message);
   }
   
   const openingMeta = getV2OpeningMeta(packMeta);
