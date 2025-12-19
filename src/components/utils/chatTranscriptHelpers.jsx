@@ -180,8 +180,44 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
     'v3_probe_complete',
     'SECTION_COMPLETE',
     'WELCOME',
-    'RESUME'
+    'RESUME',
+    'MULTI_INSTANCE_GATE_SHOWN'
   ];
+  
+  // MULTI_INSTANCE_GATE_SHOWN: Require exact stableKey match (packId + instanceNumber)
+  if (metadata.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
+    const incomingStableKey = stableKey || metadata.stableKey;
+    if (!incomingStableKey) {
+      console.error('[TRANSCRIPT][MI_GATE][NO_STABLE_KEY]', {
+        packId: metadata.packId,
+        instanceNumber: metadata.instanceNumber,
+        reason: 'Multi-instance gate MUST have stableKey mi-gate:{packId}:{instanceNumber}'
+      });
+    }
+    
+    const foundExisting = existingTranscript.find(e => 
+      e.stableKey === incomingStableKey || 
+      (e.messageType === 'MULTI_INSTANCE_GATE_SHOWN' && 
+       e.meta?.packId === metadata.packId && 
+       e.meta?.instanceNumber === metadata.instanceNumber)
+    );
+    
+    console.log('[TRANSCRIPT][DEDUPED_CHECK][MI_GATE]', {
+      incomingStableKey,
+      packId: metadata.packId,
+      instanceNumber: metadata.instanceNumber,
+      foundExisting: !!foundExisting
+    });
+    
+    if (foundExisting) {
+      console.log('[TRANSCRIPT][DEDUPED][MI_GATE] Skipping duplicate for same packId+instanceNumber', {
+        packId: metadata.packId,
+        instanceNumber: metadata.instanceNumber,
+        stableKey: incomingStableKey
+      });
+      return existingTranscript;
+    }
+  }
   
   if (!neverDedupeTypes.includes(metadata.messageType)) {
     if (text && text.trim() !== '') {

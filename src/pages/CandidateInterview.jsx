@@ -3423,8 +3423,9 @@ export default function CandidateInterview() {
               saveAnswerToDatabase(currentItem.id, value, question);
 
               // STEP 1: Show deterministic opener (non-AI)
+              const openerItemId = `v3-opener-${packId}-1`;
               const openerItem = {
-                id: `v3-opener-${packId}-${currentItem.id}`,
+                id: openerItemId,
                 type: 'v3_pack_opener',
                 packId,
                 categoryId,
@@ -3438,11 +3439,66 @@ export default function CandidateInterview() {
                 packData: packMetadata
               };
 
+              console.log('[V3_PACK][ENTER_STATE_SET]', {
+                packId,
+                instanceNumber: 1,
+                currentItemType: 'v3_pack_opener',
+                currentItemId: openerItemId,
+                openerTextPreview: opener.text?.substring(0, 60)
+              });
+
               setCurrentItem(openerItem);
               setQueue([]);
 
               await refreshTranscriptFromDB('v3_opener_set');
               await persistStateToDatabase(null, [], openerItem);
+
+              // FAIL-SAFE: Detect dead-end after state transition
+              setTimeout(async () => {
+                try {
+                  const freshSession = await base44.entities.InterviewSession.get(sessionId);
+                  const currentSnapshot = freshSession.current_item_snapshot;
+                  
+                  // Check if we're still stuck on the base question or no current item
+                  const isStuck = !currentSnapshot || 
+                                  (currentSnapshot.type === 'question' && currentSnapshot.id === currentItem.id) ||
+                                  (currentSnapshot.type !== 'v3_pack_opener' && currentSnapshot.type !== 'v3_probing');
+                  
+                  if (isStuck) {
+                    console.error('[V3_PACK][FAILSAFE_REAPPLY]', {
+                      packId,
+                      instanceNumber: 1,
+                      currentSnapshotType: currentSnapshot?.type,
+                      expectedType: 'v3_pack_opener',
+                      action: 'Reapplying opener state'
+                    });
+                    
+                    // Reapply opener state
+                    setCurrentItem(openerItem);
+                    await persistStateToDatabase(null, [], openerItem);
+                    
+                    // If still stuck after reapply, advance to next question
+                    setTimeout(async () => {
+                      const checkSession = await base44.entities.InterviewSession.get(sessionId);
+                      const checkSnapshot = checkSession.current_item_snapshot;
+                      
+                      if (!checkSnapshot || checkSnapshot.type === 'question') {
+                        console.error('[V3_PACK][FAILSAFE_ADVANCE]', {
+                          packId,
+                          fromQuestionId: currentItem.id,
+                          toQuestionId: 'next_via_engine',
+                          reason: 'V3 pack entry failed twice - advancing to prevent dead-end'
+                        });
+                        
+                        // Advance to next base question
+                        await advanceToNextBaseQuestion(currentItem.id);
+                      }
+                    }, 500);
+                  }
+                } catch (err) {
+                  console.error('[V3_PACK][FAILSAFE_ERROR]', err.message);
+                }
+              }, 200);
 
               setIsCommitting(false);
               setInput("");
@@ -4633,69 +4689,79 @@ export default function CandidateInterview() {
 
         // GUARD: If multi-instance is offered, show gate BEFORE advancing
         if (shouldOfferAnotherInstance) {
-          console.log('[EXIT_V3][MULTI_INSTANCE_GATE] Showing gate instead of advancing');
-          
-          const gatePromptText = `Do you have another ${categoryLabel || 'incident'} to report?`;
-          
-          // ATOMIC STATE TRANSITION: batch to avoid intermediate TEXT_INPUT footer
-          unstable_batchedUpdates(() => {
-            // Fully exit V3 mode and clear prompts
-            setV3ProbingActive(false);
-            setV3ActivePromptText(null);
-            setV3PendingAnswer(null);
-            setV3ProbingContext(null);
-            setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
-            setUiBlocker(null);
-            
-            // Set up multi-instance gate as first-class currentItem
-            const gateItem = {
-              id: `multi-instance-gate-${packId}-${instanceNumber}`,
-              type: 'multi_instance_gate',
-              packId,
-              categoryId,
-              categoryLabel,
-              promptText: gatePromptText,
-              instanceNumber,
-              baseQuestionId,
-              packData
-            };
-            setMultiInstanceGate({
-              active: true,
-              packId,
-              categoryId,
-              categoryLabel,
-              promptText: gatePromptText,
-              instanceNumber,
-              baseQuestionId,
-              packData
-            });
-            setCurrentItem(gateItem);
-          });
-          
-          // Append gate prompt via canonical helper AFTER state switch (prevents footer TEXT_INPUT frame)
-          await appendAndRefresh('assistant', {
-            text: gatePromptText,
-            metadata: {
-              id: `mi-gate-${packId}-${instanceNumber}`,
-              messageType: 'MULTI_INSTANCE_GATE_SHOWN',
-              packId,
-              categoryId,
-              instanceNumber,
-              baseQuestionId,
-              visibleToCandidate: true
-            }
-          }, 'gate_shown');
-          
-          await forensicCheck('gate_shown');
-          
-          await persistStateToDatabase(null, [], {
-            id: `multi-instance-gate-${packId}-${instanceNumber}`,
+        console.log('[EXIT_V3][MULTI_INSTANCE_GATE] Showing gate instead of advancing');
+
+        const gatePromptText = `Do you have another ${categoryLabel || 'incident'} to report?`;
+        const gateItemId = `multi-instance-gate-${packId}-${instanceNumber}`;
+        const gateStableKey = `mi-gate:${packId}:${instanceNumber}`;
+
+        console.log('[MULTI_INSTANCE_GATE][SHOW]', {
+          packId,
+          instanceNumber,
+          stableKey: gateStableKey,
+          shouldOfferAnotherInstance: true
+        });
+
+        // ATOMIC STATE TRANSITION: batch to avoid intermediate TEXT_INPUT footer
+        unstable_batchedUpdates(() => {
+          // Fully exit V3 mode and clear prompts
+          setV3ProbingActive(false);
+          setV3ActivePromptText(null);
+          setV3PendingAnswer(null);
+          setV3ProbingContext(null);
+          setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
+          setUiBlocker(null);
+
+          // Set up multi-instance gate as first-class currentItem
+          const gateItem = {
+            id: gateItemId,
             type: 'multi_instance_gate',
-            packId
+            packId,
+            categoryId,
+            categoryLabel,
+            promptText: gatePromptText,
+            instanceNumber,
+            baseQuestionId,
+            packData
+          };
+          setMultiInstanceGate({
+            active: true,
+            packId,
+            categoryId,
+            categoryLabel,
+            promptText: gatePromptText,
+            instanceNumber,
+            baseQuestionId,
+            packData
           });
-          
-          exitV3HandledRef.current = false; // Reset for gate handlers
-          return; // Exit early - transition already cleared at top
+          setCurrentItem(gateItem);
+        });
+
+        // Append gate prompt via canonical helper AFTER state switch (prevents footer TEXT_INPUT frame)
+        await appendAndRefresh('assistant', {
+          text: gatePromptText,
+          metadata: {
+            id: `mi-gate-${packId}-${instanceNumber}`,
+            stableKey: gateStableKey,
+            messageType: 'MULTI_INSTANCE_GATE_SHOWN',
+            packId,
+            categoryId,
+            instanceNumber,
+            baseQuestionId,
+            visibleToCandidate: true
+          }
+        }, 'gate_shown');
+
+        await forensicCheck('gate_shown');
+
+        await persistStateToDatabase(null, [], {
+          id: gateItemId,
+          type: 'multi_instance_gate',
+          packId
+        });
+
+        exitV3HandledRef.current = false; // Reset for gate handlers
+        return; // Exit early - transition already cleared at top
         }
 
         // Clear gate FIRST
@@ -5137,11 +5203,20 @@ export default function CandidateInterview() {
       };
     }
 
-    // V3 Pack opener question (ONLY if not in v3_probing mode)
-    if (effectiveCurrentItem.type === 'v3_pack_opener' && !v3ProbingActive) {
+    // V3 Pack opener question (allow even during early V3 setup)
+    if (effectiveCurrentItem.type === 'v3_pack_opener') {
       const { packId, openerText, exampleNarrative, categoryId, categoryLabel, instanceNumber } = effectiveCurrentItem;
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
       const packLabel = packConfig?.instancesLabel || categoryLabel || categoryId || 'Follow-up';
+
+      // REGRESSION FIX: Log opener state at render time for dead-end diagnosis
+      console.log('[V3_PACK][OPENER_RENDER]', {
+        packId,
+        instanceNumber,
+        hasOpenerText: !!openerText,
+        v3ProbingActive,
+        currentItemId: effectiveCurrentItem.id
+      });
 
       // UI CONTRACT: V3 opener MUST append to transcript (visible to candidate)
       const openerStableKey = `followup-card:${packId}:opener:${instanceNumber}`;
@@ -5166,7 +5241,7 @@ export default function CandidateInterview() {
       return {
         type: 'v3_pack_opener',
         id: effectiveCurrentItem.id,
-        text: openerText,
+        text: openerText || "In your own words, tell me about your prior law enforcement applications.",
         exampleNarrative: exampleNarrative,
         responseType: 'text',
         packId,
