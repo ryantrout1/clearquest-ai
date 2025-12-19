@@ -3369,6 +3369,16 @@ export default function CandidateInterview() {
             const isV2PackFinal = !isV3PackFinal && (isV2PackExplicit || usesPerFieldProbing);
 
             console.log(`[FOLLOWUP-TRIGGER] ${packId} isV3Pack=${isV3PackFinal} isV2Pack=${isV2PackFinal}`);
+            
+            // ROUTING LOG: Show which path will be taken
+            const routePath = isV3PackFinal ? 'V3' : isV2PackFinal ? 'V2' : 'NONE';
+            console.log('[FOLLOWUP-ROUTE]', {
+              packId,
+              isV2Pack: isV2PackFinal,
+              isV3Pack: isV3PackFinal,
+              aiProbingMode: interviewMode === "AI_PROBING",
+              route: routePath
+            });
 
             // === V3 PACK HANDLING: Two-layer flow (Deterministic Opener → AI Probing) ===
             if (isV3PackFinal) {
@@ -3507,20 +3517,16 @@ export default function CandidateInterview() {
 
             // === V2 PACK HANDLING: Enter V2_PACK mode ===
             if (isV2PackFinal) {
-              // V3-ONLY MODE: Block V2 packs in production
-              if (V3_ONLY_MODE) {
-                console.warn(`[LEGACY_V2_DISABLED] Attempted to trigger V2-only pack ${packId} in V3-only mode - skipping follow-up`);
-                saveAnswerToDatabase(currentItem.id, value, question);
-                advanceToNextBaseQuestion(currentItem.id, newTranscript);
-                setIsCommitting(false);
-                setInput("");
-                return;
-              }
-
               const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
 
               if (!packConfig || !Array.isArray(packConfig.fields) || packConfig.fields.length === 0) {
-                console.warn("[V2_PACK] Missing or invalid pack config for", packId, packConfig);
+                console.error("[V2_PACK][BLOCKED]", {
+                  packId,
+                  reason: 'Missing or invalid pack config',
+                  hasConfig: !!packConfig,
+                  hasFields: Array.isArray(packConfig?.fields),
+                  fieldsCount: packConfig?.fields?.length || 0
+                });
                 // Fallback: advance to next question
                 saveAnswerToDatabase(currentItem.id, value, question);
                 advanceToNextBaseQuestion(currentItem.id);
@@ -3528,6 +3534,13 @@ export default function CandidateInterview() {
                 setInput("");
                 return;
               }
+              
+              console.log('[V2_PACK][ENTER]', {
+                packId,
+                baseQuestionId: currentItem.id,
+                questionCode: question.question_id,
+                fieldsCount: packConfig.fields.length
+              });
 
               // Build ordered list of fields in this V2 pack
               const orderedFields = packConfig.fields
