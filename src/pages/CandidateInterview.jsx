@@ -5951,7 +5951,7 @@ export default function CandidateInterview() {
                   </div>
                   </ContentContainer>
                   );
-                  })()))}
+                  })())}
 
                   {/* Section Completion Messages */}
               {entry.role === 'assistant' && entry.messageType === 'SECTION_COMPLETE' && entry.visibleToCandidate && (
