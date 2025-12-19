@@ -40,7 +40,8 @@ const OPENING_PROMPTS_BY_CATEGORY = {
   CRIMINAL: "Thanks for sharing this information. Let's go through the details. When did this incident take place?",
   EMPLOYMENT: "I appreciate you mentioning this. Can you tell me when this employment situation occurred?",
   FINANCIAL: "Thank you for disclosing this. Let's discuss the circumstances. When did this financial issue arise?",
-  PRIOR_LE_APPS: "Thanks for letting me know about your prior applications. Can you tell me about the first agency you applied to?"
+  PRIOR_LE_APPS: "Thanks for letting me know about your prior applications. Can you tell me about the first agency you applied to?",
+  INTEGRITY_APPS: "In your own words, walk me through this application integrity issue — which agency it was with, what position you were applying for, when it happened, what the issue was, what information was involved, how it was discovered, and what the outcome was."
 };
 
 const COMPLETION_MESSAGES = {
@@ -527,7 +528,7 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
   
   // UNIVERSAL OUTCOME/ENUM EXTRACTION (DETERMINISTIC)
   const outcomeFields = allFields.filter(f => 
-    ['outcome', 'result', 'status', 'decision'].some(kw => canon(f.field_id || '').includes(kw))
+    ['outcome', 'result', 'status', 'decision', 'consequence'].some(kw => canon(f.field_id || '').includes(kw))
   );
   
   for (const outcomeField of outcomeFields) {
@@ -564,6 +565,70 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
         extractedValue: outcome,
         source: 'keyword_match'
       });
+    }
+  }
+  
+  // INTEGRITY-SPECIFIC: Extract issue_type
+  const issueTypeFields = allFields.filter(f => 
+    canon(f.field_id || '').includes('issue') || canon(f.field_id || '').includes('type')
+  );
+  
+  if (issueTypeFields.length > 0) {
+    let issueType = null;
+    
+    if (lower.includes('omit') || lower.includes('left off') || lower.includes('forgot to include')) {
+      issueType = 'Omission';
+    } else if (lower.includes('false statement') || lower.includes('lied') || lower.includes('misrepresented')) {
+      issueType = 'False Statement';
+    } else if (lower.includes('cheat') || lower.includes('copied')) {
+      issueType = 'Cheating';
+    } else if (lower.includes('false document') || lower.includes('falsified')) {
+      issueType = 'False Document';
+    }
+    
+    if (issueType) {
+      for (const field of issueTypeFields) {
+        if (field.enum_options?.includes(issueType)) {
+          extracted[field.field_id] = issueType;
+          console.log('[V3_FACTMODEL_INGEST][ISSUE_TYPE]', {
+            fieldId: field.field_id,
+            extractedValue: issueType,
+            source: 'keyword_match'
+          });
+        }
+      }
+    }
+  }
+  
+  // INTEGRITY-SPECIFIC: Extract discovery_method
+  const discoveryFields = allFields.filter(f => 
+    canon(f.field_id || '').includes('discover') || canon(f.field_id || '').includes('how')
+  );
+  
+  if (discoveryFields.length > 0) {
+    let discoveryMethod = null;
+    
+    if (lower.includes('background investigator') || lower.includes('investigator found')) {
+      discoveryMethod = 'Background Investigator';
+    } else if (lower.includes('polygraph')) {
+      discoveryMethod = 'Polygraph';
+    } else if (lower.includes('self-disclosed') || lower.includes('i disclosed') || lower.includes('i told them')) {
+      discoveryMethod = 'Self-disclosed';
+    } else if (lower.includes('reference') || lower.includes('reference check')) {
+      discoveryMethod = 'Reference check';
+    }
+    
+    if (discoveryMethod) {
+      for (const field of discoveryFields) {
+        if (field.enum_options?.includes(discoveryMethod)) {
+          extracted[field.field_id] = discoveryMethod;
+          console.log('[V3_FACTMODEL_INGEST][DISCOVERY]', {
+            fieldId: field.field_id,
+            extractedValue: discoveryMethod,
+            source: 'keyword_match'
+          });
+        }
+      }
     }
   }
   

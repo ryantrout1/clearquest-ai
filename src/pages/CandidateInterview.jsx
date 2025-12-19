@@ -112,6 +112,8 @@ const resetMountTracker = (sid) => {
     'AI_PROBING_CALLED',        // AI probing events
     'AI_PROBING_RESPONSE',
     'V3_PROBE_ASKED',           // V3 probe system events (visibleToCandidate=false)
+    'V3_PROBE_QUESTION',        // V3 UI CONTRACT: Probe questions never in transcript
+    'V3_PROBE_PROMPT',          // V3 UI CONTRACT: Probe prompts never in transcript
     'PROCESSING',               // V3 UI CONTRACT: No processing bubbles during V3
     'REVIEWING',                // V3 UI CONTRACT: No reviewing bubbles during V3
     'AI_THINKING',              // V3 UI CONTRACT: No thinking bubbles during V3
@@ -133,12 +135,27 @@ const resetMountTracker = (sid) => {
       }
     }
     
-    // Block V3 PROBE prompts only (NOT opener prompts)
-    if (t === "V3_PROBE_ASKED") return true;
-    if (t === "V3_PROBE_PROMPT") return true;
-    if (t === "v3_probe_question") return true;
-    if (t === "V3_PROMPT") return true;
-    if (t === "V3_PROBE") return true;
+    // REGRESSION GUARD: Hard-block V3 probe questions from transcript
+    // These type strings MUST NEVER appear in renderable transcript
+    const V3_PROBE_TYPES = [
+      "V3_PROBE_ASKED",
+      "V3_PROBE_PROMPT", 
+      "V3_PROBE_QUESTION",
+      "v3_probe_question",
+      "V3_PROMPT",
+      "V3_PROBE"
+    ];
+    
+    if (V3_PROBE_TYPES.includes(t)) {
+      console.log('[V3_UI_CONTRACT][BLOCKED_TRANSCRIPT_APPEND]', {
+        messageType: t,
+        textPreview: msg?.text?.substring(0, 60) || null,
+        reason: 'V3 probe questions must never be in transcript - placeholder only'
+      });
+      return true;
+    }
+    
+    // Additional heuristic blocks
     if (t === "ai_probe_question" && entrySource.includes('v3')) return true;
     if (msg?.role === 'assistant' && isProbePrompt && entrySource.includes('v3')) return true;
     if (hasFieldKey && t.includes('probe') && entrySource.includes('v3')) return true;
@@ -3477,11 +3494,12 @@ export default function CandidateInterview() {
             
             // ROUTING LOG: Show which path will be taken
             const routePath = isV3PackFinal ? 'V3' : isV2PackFinal ? 'V2' : 'NONE';
-            console.log('[FOLLOWUP-ROUTE]', {
+            console.log('[V3_PACK][ROUTE]', {
               packId,
               isV2Pack: isV2PackFinal,
               isV3Pack: isV3PackFinal,
-              aiProbingMode: interviewMode === "AI_PROBING",
+              ideVersion: packConfig?.engineVersion || 'unknown',
+              reason: isV3PackExplicit ? 'isV3Pack=true' : isV2PackExplicit ? 'isV2Pack=true' : 'heuristic',
               route: routePath
             });
 

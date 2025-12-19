@@ -475,11 +475,22 @@ export default function V3ProbingLoop({
           promptPreview: data.nextPrompt.substring(0, 60),
           appendedToTranscript: false,
           exposedVia: 'onPromptChange callback',
-          activePromptSet: true
+          activePromptSet: true,
+          packId: currentIncidentId?.split('_')[1] || 'unknown'
         });
-        
+
+        // REGRESSION GUARD: Explicitly prevent any transcript writes for probe prompts
+        // These should NEVER call appendAssistantMessage with V3_PROBE_QUESTION type
         // DO NOT log to transcript - no V3_PROBE_ASKED system events
         // DO NOT call onTranscriptUpdate for prompts - breaks UI contract
+
+        // GUARD: Validate no accidental transcript write occurred
+        if (onTranscriptUpdate) {
+          console.log('[V3_UI_CONTRACT][GUARD]', {
+            action: 'onTranscriptUpdate callback exists but NOT called for probe prompt',
+            reason: 'V3 probes are headless - no transcript writes'
+          });
+        }
       } else if (data.nextAction === "RECAP" || data.nextAction === "STOP") {
         setIsDeciding(false);
         setActivePromptText(null);

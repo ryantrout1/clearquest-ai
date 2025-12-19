@@ -311,22 +311,23 @@ export const FOLLOWUP_PACK_CONFIGS = {
     supportedBaseQuestions: ["Q002"],
     instancesLabel: "Application Integrity Issues",
     
-    // EXPLICIT V2 DB-FIRST PACK MARKERS
-    isV2Pack: true,
-    isV3Pack: false,
+    // EXPLICIT V3 PACK MARKERS
+    isV2Pack: false,
+    isV3Pack: true,
+    mode: "V3_ONLY",
+    engineVersion: "v3",
     
-    // SCHEMA SOURCE: Database field_config (10 fields)
-    // Static fields REMOVED - defer to database
-    fields: [],
+    // V3 CATEGORY MAPPING
+    categoryId: "INTEGRITY_APPS",
     
-    // ALIGN WITH DATABASE
-    maxAiFollowups: 2, // Match DB max_ai_followups
-    multiInstance: false, // Match Q002.followup_multi_instance
+    // LEGACY V2 CONFIG (preserved but not used for routing)
+    fields: [], // DB field_config preserved for reference
+    maxAiFollowups: 2,
+    multiInstance: false,
     
-    // V2 BEHAVIOR FLAGS
-    usePerFieldProbing: true,
+    // V3 BEHAVIOR
     requiresCompletion: true,
-    flagOnUnresolved: "red_flag"
+    usePerFieldProbing: false // V3 uses conversational probing, not per-field
   },
   "PACK_LE_APPS": {
     packId: "PACK_LE_APPS",
