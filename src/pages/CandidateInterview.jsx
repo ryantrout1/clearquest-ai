@@ -4834,6 +4834,7 @@ export default function CandidateInterview() {
         setInput(savedDraft);
       } else {
         console.log("[FORENSIC][STORAGE][READ]", { operation: 'READ', key: draftKey, success: true, found: false });
+        // UI CONTRACT: NEVER prefill with prompt - input starts empty unless real draft exists
         setInput("");
       }
     } catch (e) {
@@ -4847,6 +4848,7 @@ export default function CandidateInterview() {
         fallbackBehavior: 'Input cleared - continue without draft'
       });
       console.warn("[UX][DRAFT] Failed to restore draft", e);
+      setInput(""); // UI CONTRACT: NEVER use prompt as fallback
     }
   }, [currentItem, sessionId, buildDraftKey]);
 
@@ -6801,7 +6803,7 @@ export default function CandidateInterview() {
           <div className="flex gap-3">
             <Textarea
               ref={inputRef}
-              value={input}
+              value={input ?? ""}
               onChange={(e) => {
                 const value = e.target.value;
                 markUserTyping();
@@ -6809,8 +6811,8 @@ export default function CandidateInterview() {
                 setInput(value);
               }}
               onKeyDown={handleInputKeyDown}
-              placeholder={hasPrompt ? activePromptText : "Loading follow-up..."}
-              aria-label={hasPrompt ? activePromptText : "Loading follow-up"}
+              placeholder={hasPrompt ? activePromptText : "Loading next question..."}
+              aria-label={hasPrompt ? activePromptText : "Loading next question"}
               className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
               style={{ maxHeight: '120px', overflowY: 'auto' }}
               disabled={isCommitting || !hasPrompt}
