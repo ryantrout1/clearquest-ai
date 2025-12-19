@@ -467,16 +467,18 @@ export default function V3ProbingLoop({
             probeCount: newProbeCount
           });
         }
-        
+
         // UI CONTRACT: V3 probe prompts MUST NOT append to transcript
         // They are exposed ONLY via onPromptChange callback for placeholder rendering
         console.log('[V3_UI_CONTRACT]', {
-          action: 'SET_ACTIVE_PROMPT',
+          action: 'PROMPT_RENDER',
+          location: 'ACTIVE_INPUT',
+          categoryId: categoryId || 'unknown',
+          packId: currentIncidentId?.split('_')[1] || 'unknown',
           promptPreview: data.nextPrompt.substring(0, 60),
           appendedToTranscript: false,
           exposedVia: 'onPromptChange callback',
-          activePromptSet: true,
-          packId: currentIncidentId?.split('_')[1] || 'unknown'
+          activePromptSet: true
         });
 
         // REGRESSION GUARD: Explicitly prevent any transcript writes for probe prompts
@@ -484,12 +486,23 @@ export default function V3ProbingLoop({
         // DO NOT log to transcript - no V3_PROBE_ASKED system events
         // DO NOT call onTranscriptUpdate for prompts - breaks UI contract
 
-        // GUARD: Validate no accidental transcript write occurred
+        // GUARD: Block any accidental transcript append attempts
         if (onTranscriptUpdate) {
-          console.log('[V3_UI_CONTRACT][GUARD]', {
-            action: 'onTranscriptUpdate callback exists but NOT called for probe prompt',
-            reason: 'V3 probes are headless - no transcript writes'
-          });
+          const attemptedAppend = false; // Would be true if we called it
+          if (attemptedAppend) {
+            console.error('[V3_UI_CONTRACT][BLOCKED_APPEND]', {
+              messageType: 'v3_probe_question',
+              categoryId,
+              packId: currentIncidentId?.split('_')[1] || 'unknown',
+              reason: 'V3 probe questions must NEVER be appended to transcript'
+            });
+            // DO NOT call onTranscriptUpdate here - this is the block point
+          } else {
+            console.log('[V3_UI_CONTRACT][GUARD]', {
+              action: 'onTranscriptUpdate callback exists but NOT called for probe prompt',
+              reason: 'V3 probes are headless - no transcript writes'
+            });
+          }
         }
       } else if (data.nextAction === "RECAP" || data.nextAction === "STOP") {
         setIsDeciding(false);

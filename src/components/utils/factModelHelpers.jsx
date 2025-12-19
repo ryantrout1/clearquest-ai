@@ -244,6 +244,21 @@ export function findIncidentById(session, incidentId) {
 export function mapPackIdToCategory(packId) {
   if (!packId) return null;
   
+  // EXPLICIT PACK MAPPING (highest priority)
+  const EXPLICIT_PACK_TO_CATEGORY = {
+    'PACK_PRIOR_LE_APPS_STANDARD': 'PRIOR_LE_APPS',
+    'PACK_INTEGRITY_APPS': 'INTEGRITY_APPS'
+  };
+  
+  if (EXPLICIT_PACK_TO_CATEGORY[packId]) {
+    console.log('[V3_PACK][CATEGORY_RESOLVED]', {
+      packId,
+      categoryId: EXPLICIT_PACK_TO_CATEGORY[packId],
+      source: 'explicit_mapping'
+    });
+    return EXPLICIT_PACK_TO_CATEGORY[packId];
+  }
+  
   const packUpper = packId.toUpperCase();
   
   // DUI/DWI related packs
@@ -289,6 +304,21 @@ export function mapPackIdToCategory(packId) {
   // Prior LE applications
   if (packUpper.includes('LE_APP') || packUpper.includes('PRIOR') || packUpper.includes('APPLICATION')) {
     return 'PRIOR_LE_APPS';
+  }
+  
+  // Application integrity issues
+  if (packUpper.includes('INTEGRITY')) {
+    return 'INTEGRITY_APPS';
+  }
+  
+  // EXPLICIT PACK MAPPING (highest priority - checked first)
+  const EXPLICIT_PACK_TO_CATEGORY = {
+    'PACK_PRIOR_LE_APPS_STANDARD': 'PRIOR_LE_APPS',
+    'PACK_INTEGRITY_APPS': 'INTEGRITY_APPS'
+  };
+  
+  if (EXPLICIT_PACK_TO_CATEGORY[packId]) {
+    return EXPLICIT_PACK_TO_CATEGORY[packId];
   }
   
   return null;

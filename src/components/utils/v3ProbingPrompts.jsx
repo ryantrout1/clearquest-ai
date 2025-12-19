@@ -34,7 +34,8 @@ export const OPENING_PROMPTS_BY_CATEGORY = {
   CRIMINAL: "Thanks for sharing this information. Let's go through the details. When did this incident take place?",
   EMPLOYMENT: "I appreciate you mentioning this. Can you tell me when this employment situation occurred?",
   FINANCIAL: "Thank you for disclosing this. Let's discuss the circumstances. When did this financial issue arise?",
-  PRIOR_LE_APPS: "Thanks for letting me know about your prior applications. Can you tell me about the first agency you applied to?"
+  PRIOR_LE_APPS: "Thanks for letting me know about your prior applications. Can you tell me about the first agency you applied to?",
+  INTEGRITY_APPS: "In your own words, walk me through this application integrity issue — which agency it was with, what position you were applying for, when it happened, what the issue was, what information was involved, how it was discovered, and what the outcome was."
 };
 
 /**
@@ -47,6 +48,13 @@ export const OPENING_PROMPTS_BY_CATEGORY = {
  * @returns {string} Synthesized opener question
  */
 export function synthesizeV3Opener(categoryId, categoryLabel, packData = null) {
+  // PRIORITY 1: Category-specific template
+  const categoryKey = categoryId?.toUpperCase();
+  if (OPENING_PROMPTS_BY_CATEGORY[categoryKey]) {
+    return OPENING_PROMPTS_BY_CATEGORY[categoryKey];
+  }
+  
+  // PRIORITY 2: Synthesize from category label
   const label = categoryLabel || categoryId || "incident";
   
   return `In your own words, walk me through what happened with this ${label.toLowerCase()} — who was involved, when it took place, what occurred, and how it ended. Please include as much detail as you can.`;
@@ -71,7 +79,21 @@ export function getV3DeterministicOpener(packData, categoryId, categoryLabel) {
     };
   }
   
-  // PRIORITY 2: Synthesize from category/pack context
+  // PRIORITY 2: Category-specific template with example
+  const categoryKey = categoryId?.toUpperCase();
+  if (OPENING_PROMPTS_BY_CATEGORY[categoryKey]) {
+    const exampleMap = {
+      INTEGRITY_APPS: "In 2021, I applied to Mesa PD for a Police Officer position. During my background interview, the investigator asked about a prior traffic citation that I had accidentally left off my application. I explained it was an oversight and provided the details. They allowed me to continue in the process but I was ultimately not selected for other reasons."
+    };
+    
+    return {
+      text: OPENING_PROMPTS_BY_CATEGORY[categoryKey],
+      example: exampleMap[categoryKey] || null,
+      isSynthesized: false
+    };
+  }
+  
+  // PRIORITY 3: Synthesize from category/pack context
   const synthesized = synthesizeV3Opener(categoryId, categoryLabel, packData);
   
   return {
@@ -110,6 +132,7 @@ export const FIELD_QUESTION_TEMPLATES = {
   legal_outcome: "What was the legal outcome, if any?",
   charges: "Were any charges filed? If so, what were they?",
   arrest_status: "Were you arrested in connection with this?",
+  consequences: "What were the consequences of this situation?",
   
   // Description fields
   description: "Can you describe what happened in more detail?",
@@ -122,12 +145,21 @@ export const FIELD_QUESTION_TEMPLATES = {
   // Resolution fields
   resolution: "How was this matter resolved?",
   restitution: "Was any restitution made?",
+  corrected: "Has this issue been corrected or addressed?",
+  remediation_steps: "What steps have you taken since then?",
   
   // Agency-specific
   agency: "Which agency or organization was involved?",
   agency_name: "What is the name of the agency?",
   employer: "Who was the employer?",
-  position: "What position were you applying for or held?"
+  position: "What position were you applying for or held?",
+  position_applied_for: "What position were you applying for?",
+  
+  // Integrity-specific
+  issue_type: "What type of issue was this?",
+  what_omitted: "What information was omitted or inaccurate?",
+  reason_omitted: "Why was that information left off or answered that way?",
+  discovery_method: "How was this issue discovered?"
 };
 
 /**
@@ -270,10 +302,11 @@ export function buildRecapPrompt(incident, categoryLabel) {
  * Messages shown when V3 probing completes.
  */
 export const COMPLETION_MESSAGES = {
-  RECAP: "Thank you for providing those details. I have all the information I need for this incident.",
-  STOP_COMPLETE: "Thank you. We've covered the key points for this incident.",
-  STOP_MAX_PROBES: "Thank you for your responses. Let's move on to the next topic.",
-  STOP_NON_SUBSTANTIVE: "I understand. Let's continue with the interview."
+  RECAP: "Thank you for providing those details. I have all the information I need about this matter.",
+  STOP_COMPLETE: "Thank you. We've covered the key points.",
+  STOP_MAX_PROBES: "Thank you for your responses. Let's move on to the next question.",
+  STOP_NON_SUBSTANTIVE: "I understand. Let's continue with the interview.",
+  STOP_REQUIRED_COMPLETE: "Thank you. I have all the details I need about this matter."
 };
 
 /**
@@ -293,6 +326,10 @@ export function getCompletionMessage(nextAction, stopReason) {
   
   if (stopReason === "NON_SUBSTANTIVE_LIMIT") {
     return COMPLETION_MESSAGES.STOP_NON_SUBSTANTIVE;
+  }
+  
+  if (stopReason === "REQUIRED_FIELDS_COMPLETE") {
+    return COMPLETION_MESSAGES.STOP_REQUIRED_COMPLETE;
   }
   
   return COMPLETION_MESSAGES.STOP_COMPLETE;

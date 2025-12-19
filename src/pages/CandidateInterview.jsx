@@ -3487,8 +3487,21 @@ export default function CandidateInterview() {
             const usesPerFieldProbing = useProbeEngineV2(packId);
 
             // V3 takes precedence over V2 - explicit V3 flag wins
-            const isV3PackFinal = isV3PackExplicit || (isV3Pack && !isV2PackExplicit);
-            const isV2PackFinal = !isV3PackFinal && (isV2PackExplicit || usesPerFieldProbing);
+            let isV3PackFinal = isV3PackExplicit || (isV3Pack && !isV2PackExplicit);
+            let isV2PackFinal = !isV3PackFinal && (isV2PackExplicit || usesPerFieldProbing);
+            
+            // HARD GUARD: Force V3 for PACK_INTEGRITY_APPS (MVP requirement)
+            if (packId === 'PACK_INTEGRITY_APPS' && !isV3PackFinal) {
+              console.error('[V3_PACK][FORCE_V3]', {
+                packId,
+                wasV3: isV3PackFinal,
+                wasV2: isV2PackFinal,
+                reason: 'PACK_INTEGRITY_APPS must route to V3 for MVP',
+                action: 'forcing isV3PackFinal=true'
+              });
+              isV3PackFinal = true;
+              isV2PackFinal = false;
+            }
 
             console.log(`[FOLLOWUP-TRIGGER] ${packId} isV3Pack=${isV3PackFinal} isV2Pack=${isV2PackFinal}`);
             
@@ -3499,25 +3512,47 @@ export default function CandidateInterview() {
               isV2Pack: isV2PackFinal,
               isV3Pack: isV3PackFinal,
               ideVersion: packConfig?.engineVersion || 'unknown',
-              reason: isV3PackExplicit ? 'isV3Pack=true' : isV2PackExplicit ? 'isV2Pack=true' : 'heuristic',
+              reason: isV3PackExplicit ? 'isV3Pack=true' : isV2PackExplicit ? 'isV2Pack=true' : packId === 'PACK_INTEGRITY_APPS' ? 'forced_v3_guard' : 'heuristic',
               route: routePath
             });
 
             // === V3 PACK HANDLING: Two-layer flow (Deterministic Opener → AI Probing) ===
             if (isV3PackFinal) {
               console.log(`[V3_PACK][ENTER] ========== ENTERING V3 PACK MODE ==========`);
-              console.log(`[V3_PACK][ENTER] pack=${packId} categoryId=${mapPackIdToCategory(packId)}`);
-
+              
               // Get category for V3 probing
               const categoryId = mapPackIdToCategory(packId);
+              
+              console.log(`[V3_PACK][ENTER]`, {
+                packId,
+                categoryId,
+                baseQuestionId: currentItem.id,
+                questionCode: question.question_id,
+                ideVersion: packConfig?.engineVersion || 'v3'
+              });
 
               if (!categoryId) {
-                console.warn("[V3_PACK] No category mapping for pack:", packId);
+                console.error("[V3_PACK][NO_CATEGORY_MAPPING]", { 
+                  packId,
+                  reason: 'No categoryId mapping found - cannot route to V3',
+                  action: 'advancing to next question'
+                });
                 saveAnswerToDatabase(currentItem.id, value, question);
                 advanceToNextBaseQuestion(currentItem.id);
                 setIsCommitting(false);
                 setInput("");
                 return;
+              }
+              
+              // V3 ROUTING GUARD: Hard-enforce V3 for PACK_INTEGRITY_APPS
+              if (packId === 'PACK_INTEGRITY_APPS' && !isV3PackFinal) {
+                console.error('[V3_PACK][ROUTING_ERROR]', {
+                  packId,
+                  isV3PackFinal,
+                  expectedRoute: 'V3',
+                  actualRoute: isV2PackFinal ? 'V2' : 'NONE',
+                  action: 'forcing V3 route'
+                });
               }
 
               // Load pack metadata for opener
@@ -4789,6 +4824,7 @@ export default function CandidateInterview() {
       entryType === 'v3_probe_question' ||
       entryType === 'V3_PROBE_ASKED' ||
       entryType === 'V3_PROBE_PROMPT' ||
+      entryType === 'V3_PROBE_QUESTION' ||
       entryType === 'V3_PROMPT' ||
       entryType === 'V3_PROBE' ||
       entryType === 'ai_probe_question' ||
@@ -4797,9 +4833,9 @@ export default function CandidateInterview() {
       (hasFieldKey && (entryType.includes('probe') || entryType.includes('V3')));
     
     if (isV3ProbePrompt) {
-      console.warn('[UI_CONTRACT][DROP_TRANSCRIPT_V3_PROBE_PROMPT]', {
-        preview: (entry?.text || entry?.questionText || '').slice(0, 80),
+      console.error('[V3_UI_CONTRACT][BLOCKED_APPEND]', {
         messageType: entryType,
+        preview: (entry?.text || entry?.questionText || '').slice(0, 80),
         source: entrySource,
         fieldKey: entry?.fieldKey || null,
         reason: 'V3 probe prompts must ONLY appear in input placeholder, NEVER in transcript'

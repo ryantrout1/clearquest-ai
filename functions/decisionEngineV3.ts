@@ -23,12 +23,20 @@ const FIELD_QUESTION_TEMPLATES = {
   location: "Where did this occur?",
   outcome: "What was the outcome of this situation?",
   legal_outcome: "What was the legal outcome, if any?",
+  consequences: "What were the consequences of this situation?",
   description: "Can you describe what happened in more detail?",
   circumstances: "What were the circumstances surrounding this?",
   injuries: "Were there any injuries involved?",
   agency: "Which agency or organization was involved?",
   agency_name: "What is the name of the agency?",
-  position: "What position were you applying for or held?"
+  position: "What position were you applying for or held?",
+  position_applied_for: "What position were you applying for?",
+  issue_type: "What type of issue was this?",
+  what_omitted: "What information was omitted or inaccurate?",
+  reason_omitted: "Why was that information left off or answered that way?",
+  discovery_method: "How was this issue discovered?",
+  corrected: "Has this issue been corrected or addressed?",
+  remediation_steps: "What steps have you taken since then?"
 };
 
 const OPENING_PROMPTS_BY_CATEGORY = {
@@ -460,6 +468,64 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
           break;
         }
       }
+    }
+  }
+  
+  // CATEGORY-SPECIFIC EXTRACTIONS
+  
+  // INTEGRITY_APPS: Extract what_omitted (narrative field)
+  const whatOmittedFields = allFields.filter(f => 
+    canon(f.field_id || '').includes('what') && canon(f.field_id || '').includes('omit')
+  );
+  if (whatOmittedFields.length > 0 && normalized.length > 30) {
+    // Extract first substantial description of what was omitted
+    const sentences = normalized.split(/[.!?]+/);
+    for (const sentence of sentences) {
+      if (sentence.length > 20 && (
+        sentence.includes('omit') || 
+        sentence.includes('left off') || 
+        sentence.includes('didn\'t include') ||
+        sentence.includes('forgot to') ||
+        sentence.includes('citation') ||
+        sentence.includes('violation') ||
+        sentence.includes('arrest')
+      )) {
+        for (const field of whatOmittedFields) {
+          extracted[field.field_id] = sentence.trim();
+        }
+        console.log('[V3_FACTMODEL_INGEST][WHAT_OMITTED]', {
+          extractedValue: sentence.trim().substring(0, 50),
+          mappedToFields: whatOmittedFields.map(f => f.field_id).join(',')
+        });
+        break;
+      }
+    }
+  }
+  
+  // INTEGRITY_APPS: Extract reason_omitted
+  const reasonOmittedFields = allFields.filter(f => 
+    canon(f.field_id || '').includes('reason') && canon(f.field_id || '').includes('omit')
+  );
+  if (reasonOmittedFields.length > 0) {
+    let reason = null;
+    if (lower.includes('oversight') || lower.includes('accidentally')) {
+      reason = 'Oversight/accidental';
+    } else if (lower.includes('forgot')) {
+      reason = 'Forgot to include';
+    } else if (lower.includes('didn\'t think') || lower.includes('did not think')) {
+      reason = 'Did not think it was necessary';
+    } else if (lower.includes('explain') && (lower.includes('investigator') || lower.includes('background'))) {
+      reason = 'Explained during background interview';
+    }
+    
+    if (reason) {
+      for (const field of reasonOmittedFields) {
+        extracted[field.field_id] = reason;
+      }
+      console.log('[V3_FACTMODEL_INGEST][REASON_OMITTED]', {
+        extractedValue: reason,
+        mappedToFields: reasonOmittedFields.map(f => f.field_id).join(',')
+      });
     }
   }
   
