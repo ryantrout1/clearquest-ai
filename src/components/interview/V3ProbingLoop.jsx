@@ -356,7 +356,8 @@ export default function V3ProbingLoop({
         instanceNumber: instanceNumber || 1,
         nextAction: data.nextAction,
         nextItemType: data.nextAction === 'ASK' ? 'v3_probe_question' : data.nextAction?.toLowerCase(),
-        promptPreview: data.nextPrompt?.substring(0, 80) || null
+        promptPreview: data.nextPrompt?.substring(0, 80) || null,
+        gateStatus: data.debug?.gateStatus || null
       });
 
       // DIAGNOSTIC: Explicit STOP reason logging (console-truncation-proof)

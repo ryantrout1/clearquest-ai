@@ -219,6 +219,36 @@ function isMonthYearLike(text) {
 }
 
 /**
+ * Detect if a prompt/field is asking for date/apply/occur information.
+ * Checks both prompt text content and field ID naming.
+ * @param {Object} params
+ * @param {string} params.promptText - The prompt text being shown
+ * @param {string} params.missingFieldId - The field ID being asked about
+ * @param {string} params.categoryId - The category ID
+ * @returns {boolean} - True if this is a date/apply/occur question
+ */
+function isDateApplyOccurIntent({ promptText, missingFieldId, categoryId }) {
+  const promptLower = (promptText || '').toLowerCase();
+  const fieldIdLower = (missingFieldId || '').toLowerCase();
+  
+  // Check prompt text for date/apply/occur phrases
+  const promptHasDateIntent = [
+    'when did', 'when was', 'what date', 'month', 'year', 
+    'occur', 'appl', 'date of', 'what month', 'when this'
+  ].some(phrase => promptLower.includes(phrase));
+  
+  // Check field ID for date/apply/occur naming
+  const fieldIdHasDateIntent = [
+    'date', 'month', 'year', 'occur', 'appl', 'time', 'when'
+  ].some(kw => fieldIdLower.includes(kw));
+  
+  // Special case: PRIOR_LE_APPS and prompt mentions "apply" anywhere
+  const isPriorLeApplyIntent = categoryId === 'PRIOR_LE_APPS' && promptLower.includes('apply');
+  
+  return promptHasDateIntent || fieldIdHasDateIntent || isPriorLeApplyIntent;
+}
+
+/**
  * GENERIC ENUM INFERENCE: Map narrative text to FactModel enum values.
  * Works across all categories by matching keywords to enum_options.
  * ENHANCED: Deterministic outcome inference for PRIOR_LE_APPS and similar packs
@@ -1141,13 +1171,14 @@ async function decisionEngineV3Probe(base44, {
       
       // INSTANCE-AWARE SAFETY GATE: PRIOR_LE_APPS date suppression
       if (categoryId === 'PRIOR_LE_APPS' && isInitialCall && openerHasMonthYear) {
-        const fieldIdLower = field.field_id?.toLowerCase() || '';
-        const fieldLabelLower = field.label?.toLowerCase() || '';
-        const isDateField = ['apply', 'applied', 'occur', 'date', 'month', 'year', 'timeframe', 'when'].some(kw =>
-          fieldIdLower.includes(kw) || fieldLabelLower.includes(kw)
-        );
+        const potentialPrompt = generateV3ProbeQuestion(field, incident.facts);
+        const isDateIntent = isDateApplyOccurIntent({
+          promptText: potentialPrompt,
+          missingFieldId: field.field_id,
+          categoryId
+        });
         
-        if (isDateField) {
+        if (isDateIntent) {
           suppressedCount++;
           
           // DEFINITIVE GATE FIRED LOG
@@ -1157,9 +1188,9 @@ async function decisionEngineV3Probe(base44, {
             openerHasMonthYear: true,
             extractedMonthYear: extractedMonthYearRaw || 'detected_via_hasMonthYear',
             blockedFieldId: field.field_id,
-            blockedPromptPreview: generateV3ProbeQuestion(field, incident.facts)?.substring(0, 60) || null,
+            blockedPromptPreview: potentialPrompt?.substring(0, 60) || null,
             nextActionBeforeBlock: 'ASK',
-            reason: 'Opener contains month/year - date question suppressed'
+            reason: 'Opener contains month/year - date/apply/occur question suppressed'
           });
           
           continue;
@@ -1354,25 +1385,25 @@ async function decisionEngineV3Probe(base44, {
   let blockedFieldIdFailsafe = null;
   
   if (categoryId === 'PRIOR_LE_APPS' && openerHasMonthYear && nextAction === 'ASK' && nextPrompt) {
-    // Check if we're about to ask a date/apply/occur question
-    const promptLower = (nextPrompt || '').toLowerCase();
+    // Use shared detection helper for consistent classification
     const chosenFieldId = missingFieldsAfter.length > 0 ? missingFieldsAfter[0]?.field_id : null;
-    const chosenFieldIdLower = (chosenFieldId || '').toLowerCase();
-    
-    const isAskingDateQuestion = ['apply', 'applied', 'occur', 'date', 'month', 'year', 'timeframe', 'when did'].some(kw =>
-      promptLower.includes(kw) || chosenFieldIdLower.includes(kw)
-    );
+    const isAskingDateQuestion = isDateApplyOccurIntent({
+      promptText: nextPrompt,
+      missingFieldId: chosenFieldId,
+      categoryId
+    });
     
     if (isAskingDateQuestion) {
       // FAIL-SAFE TRIGGERED: Find next non-date field or force RECAP
       blockedFieldIdFailsafe = chosenFieldId;
       
       const nonDateField = missingFieldsAfter.find(f => {
-        const fIdLower = (f.field_id || '').toLowerCase();
-        const fLabelLower = (f.label || '').toLowerCase();
-        return !['apply', 'applied', 'occur', 'date', 'month', 'year', 'timeframe', 'when'].some(kw =>
-          fIdLower.includes(kw) || fLabelLower.includes(kw)
-        );
+        const potentialPrompt = generateV3ProbeQuestion(f, incident.facts);
+        return !isDateApplyOccurIntent({
+          promptText: potentialPrompt,
+          missingFieldId: f.field_id,
+          categoryId
+        });
       });
       
       if (nonDateField) {
@@ -1387,7 +1418,7 @@ async function decisionEngineV3Probe(base44, {
           openerHasMonthYear: true,
           extractedMonthYear: extractedMonthYearRaw || 'detected_via_hasMonthYear',
           blockedFieldId: blockedFieldIdFailsafe,
-          blockedPromptPreview: promptLower.substring(0, 60),
+          blockedPromptPreview: nextPrompt.substring(0, 60),
           overrideToFieldId: nonDateField.field_id,
           overridePromptPreview: nextPrompt?.substring(0, 60) || null,
           reason: 'Date question slipped through gate - fail-safe override applied'
@@ -1406,7 +1437,7 @@ async function decisionEngineV3Probe(base44, {
           openerHasMonthYear: true,
           extractedMonthYear: extractedMonthYearRaw || 'detected_via_hasMonthYear',
           blockedFieldId: blockedFieldIdFailsafe,
-          blockedPromptPreview: promptLower.substring(0, 60),
+          blockedPromptPreview: nextPrompt.substring(0, 60),
           overrideAction: 'RECAP',
           reason: 'Date question slipped through gate - no non-date fields remain - forcing RECAP'
         });
@@ -1415,6 +1446,13 @@ async function decisionEngineV3Probe(base44, {
   }
   
   // Build debug object for engine visibility
+  const chosenMissingFieldId = nextAction === 'ASK' && missingFieldsAfter.length > 0 ? missingFieldsAfter[0]?.field_id : null;
+  const intentIsDate = categoryId === 'PRIOR_LE_APPS' && nextPrompt ? isDateApplyOccurIntent({
+    promptText: nextPrompt,
+    missingFieldId: chosenMissingFieldId,
+    categoryId
+  }) : false;
+  
   const debugInfo = categoryId === 'PRIOR_LE_APPS' ? {
     categoryId,
     instanceNumber: instanceNumber || 1,
@@ -1424,13 +1462,28 @@ async function decisionEngineV3Probe(base44, {
     extractedMonthYear: extractedMonthYearRaw || null,
     fieldIdsSatisfiedExact,
     missingFieldIds: missingFieldsAfter.slice(0, 10).map(f => f.field_id),
-    chosenMissingFieldId: nextAction === 'ASK' && missingFieldsAfter.length > 0 ? missingFieldsAfter[0]?.field_id : null,
+    chosenMissingFieldId,
     nextAction,
     nextItemType: nextAction === 'ASK' ? 'v3_probe_question' : nextAction.toLowerCase(),
     promptPreview: nextPrompt?.substring(0, 60) || null,
     gateStatus,
-    blockedFieldId: blockedFieldIdFailsafe
+    blockedFieldId: blockedFieldIdFailsafe,
+    intentIsDate
   } : null;
+  
+  // CLASSIFICATION DUMP: Single definitive log for PRIOR_LE_APPS
+  if (categoryId === 'PRIOR_LE_APPS') {
+    console.log('[V3_DATE_GATE][CLASSIFY]', {
+      instanceNumber: instanceNumber || 1,
+      openerHasMonthYear,
+      promptPreview: nextPrompt?.substring(0, 60) || null,
+      chosenMissingFieldId,
+      intentIsDate,
+      nextAction,
+      nextItemType: nextAction === 'ASK' ? 'v3_probe_question' : nextAction.toLowerCase(),
+      gateStatus
+    });
+  }
   
   return {
     updatedSession,
