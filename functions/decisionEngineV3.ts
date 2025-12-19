@@ -968,31 +968,54 @@ async function decisionEngineV3Probe(base44, {
     }, {})
   });
   
-  // Update incident.facts with extracted values
+  // EXACT-FIELD SATISFACTION: Force-write extracted values to EXACT missing fieldIds
+  // This ensures missing field checks pass for the fields we extracted
+  const fieldIdsSatisfiedExact = [];
+  if (Object.keys(extractedFacts).length > 0) {
+    for (const missingField of missingFieldsBefore) {
+      const missingFieldIdCanon = canon(missingField.field_id);
+      
+      // Check if we have an extracted value that should satisfy this missing field
+      const matchingExtractedKey = Object.keys(extractedFacts).find(extKey => 
+        canon(extKey) === missingFieldIdCanon
+      );
+      
+      if (matchingExtractedKey) {
+        const extractedValue = extractedFacts[matchingExtractedKey];
+        // Write using EXACT missing field ID (not the extracted key)
+        incident.facts[missingField.field_id] = extractedValue;
+        fieldIdsSatisfiedExact.push(missingField.field_id);
+        
+        console.log('[V3_EXACT_FIELD_WRITE]', {
+          missingFieldId: missingField.field_id,
+          extractedKey: matchingExtractedKey,
+          value: typeof extractedValue === 'string' ? extractedValue.substring(0, 40) : extractedValue,
+          canonMatch: `${missingFieldIdCanon} === ${canon(matchingExtractedKey)}`
+        });
+      }
+    }
+  }
+  
+  // Update incident.facts with ALL extracted values (includes exact writes above)
   incident.facts = {
     ...(incident.facts || {}),
     ...extractedFacts
   };
   
-  // Update fact_state
+  // Update fact_state to reflect newly written facts
   factState = updateV3FactState(factState, incidentId, factModel, incident.facts);
   
-  // Get updated missing fields AFTER extraction merge
+  // RECOMPUTE missing fields AFTER exact writes
   const missingFieldsAfter = getMissingRequiredFields(factState, incidentId, factModel);
   
-  // Diagnostic log on initial call ONLY (definitive)
+  // LOAD-BEARING DIAGNOSTIC: Initial call truth log
   if (isInitialCall) {
-    const extractedMonthYear = Object.keys(extractedFacts).find(k => 
+    const extractedMonthYearKey = Object.keys(extractedFacts).find(k => 
       ['date', 'month', 'year', 'when', 'time', 'approx'].some(kw => canon(k).includes(kw))
     );
-    const monthYearValue = extractedMonthYear ? extractedFacts[extractedMonthYear] : null;
+    const extractedMonthYearRaw = extractedMonthYearKey ? extractedFacts[extractedMonthYearKey] : null;
     
-    const fieldIdsSatisfiedByExtraction = Object.keys(extractedFacts).filter(k => {
-      const val = extractedFacts[k];
-      return val && String(val).trim() !== '';
-    });
-    
-    console.log(`[V3_OPENER_EXTRACT][INITIAL_CALL] categoryId=${categoryId} packId=${factModel?.linked_pack_ids?.[0] || 'N/A'} incidentId=${incidentId} extractedMonthYear=${monthYearValue || 'null'} fieldIdsSatisfiedByExtraction=[${fieldIdsSatisfiedByExtraction.join(',')}] missingFieldsCount=${missingFieldsAfter.length} missingFieldIds=[${missingFieldsAfter.map(f=>f.field_id).slice(0,10).join(',')}]`);
+    console.log(`[V3_OPENER_EXTRACT][INITIAL_CALL] categoryId=${categoryId} packId=${factModel?.linked_pack_ids?.[0] || 'N/A'} incidentId=${incidentId} extractedMonthYear=${extractedMonthYearRaw || 'null'} fieldIdsSatisfiedByExtraction=[${fieldIdsSatisfiedExact.join(',')}] missingFieldsCount=${missingFieldsAfter.length} missingFieldIds=[${missingFieldsAfter.map(f=>f.field_id).slice(0,10).join(',')}]`);
   }
   
   // Diagnostic log with key alignment check
