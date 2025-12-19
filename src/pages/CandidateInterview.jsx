@@ -5265,6 +5265,13 @@ export default function CandidateInterview() {
   }
 
   // Calculate currentPrompt (after all hooks declared)
+  const isV3PromptAllowedInMainBody = (promptText) => {
+    if (v3ProbingActive) {
+      console.warn('[V3_UI_CONTRACT] MAIN_BODY_PROMPT_RENDER_INVOCATION_BLOCKED', { preview: (promptText || '').slice(0,80) });
+      return false;
+    }
+    return true;
+  };
   const currentPrompt = getCurrentPrompt();
 
   // D) Verification instrumentation moved above early returns
@@ -5587,13 +5594,18 @@ export default function CandidateInterview() {
               <div className="opacity-100">
                 {renderedTranscript.map((entry, index) => {
                   
-                  // V3 UI CONTRACT: HARD GUARD - Block V3 probe prompts from main body
-                  if (v3ProbingActive && entry.messageType === 'v3_probe_question') {
-                    console.warn("[UI_CONTRACT] BLOCKED_MAIN_BODY_V3_PROMPT_RENDER", { 
-                      preview: entry.text?.slice(0, 60),
-                      reason: 'V3 probe prompts must only render in footer banner, not main body'
-                    });
-                    return null;
+                  // V3 UI CONTRACT: HARD GUARD - Block ANY V3 probe prompts from main body
+                  if (v3ProbingActive) {
+                    const mt = (entry.messageType || entry.type || '').toString();
+                    const textPreview = entry.text || entry.questionText || entry.content || '';
+                    const isProbeLike = /v3_?probe|v3_?prompt/i.test(mt) || mt === 'ai_probe_question';
+                    if (!isV3PromptAllowedInMainBody(textPreview) && isProbeLike) {
+                      console.warn("[UI_CONTRACT] BLOCKED_MAIN_BODY_V3_PROMPT_RENDER", { 
+                        preview: textPreview.slice(0, 60),
+                        reason: 'V3 probe prompts must only render in bottom input placeholder, not main body'
+                      });
+                      return null;
+                    }
                   }
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
@@ -5915,7 +5927,7 @@ export default function CandidateInterview() {
               })()}
 
               {/* AI Probe Questions (including V2 pack cluster opening) - only show if answered */}
-              {entry.type === 'ai_probe_question' && entry.answer && (() => {
+              {v3ProbingActive ? null : (entry.type === 'ai_probe_question' && entry.answer && (() => {
                 // V3 UI CONTRACT: Block all AI probe cards during active V3 probing
                 if (v3ProbingActive) {
                   console.log("[V3_UI_CONTRACT] BLOCKED_FOLLOWUP_QUESTION_CARD_DURING_PROBING", { 
