@@ -120,6 +120,9 @@ const resetMountTracker = (sid) => {
   // NARROW FILTER: Only blocks V3 PROBE prompts (NOT opener prompts)
   const isV3PromptTranscriptItem = (msg) => {
     const t = msg?.messageType || msg?.type || msg?.kind;
+    const entrySource = msg?.source || msg?.meta?.source || '';
+    const isProbePrompt = msg?.isProbePrompt === true;
+    const hasFieldKey = !!msg?.fieldKey;
     
     // ALLOW: V3 opener prompts (FOLLOWUP_CARD_SHOWN with variant='opener')
     if (t === "FOLLOWUP_CARD_SHOWN") {
@@ -135,6 +138,9 @@ const resetMountTracker = (sid) => {
     if (t === "v3_probe_question") return true;
     if (t === "V3_PROMPT") return true;
     if (t === "V3_PROBE") return true;
+    if (t === "ai_probe_question" && entrySource.includes('v3')) return true;
+    if (msg?.role === 'assistant' && isProbePrompt && entrySource.includes('v3')) return true;
+    if (hasFieldKey && t.includes('probe') && entrySource.includes('v3')) return true;
     
     // DO NOT block opener prompts (v3_opener_question, FOLLOWUP_CARD_SHOWN)
     // Openers are deterministic and must remain in transcript history
@@ -4541,15 +4547,33 @@ export default function CandidateInterview() {
 
   // V3 transcript update handler - BLOCK V3 probe prompts from appending
   const handleV3TranscriptUpdate = useCallback(async (entry) => {
-    // V3 UI CONTRACT: Block v3_probe_question from appending to transcript
-    if (entry?.type === 'v3_probe_question' || entry?.messageType === 'V3_PROBE_ASKED') {
-      console.log('[V3_UI_CONTRACT]', {
-        action: 'BLOCKED_V3_PROMPT_TRANSCRIPT_APPEND',
-        type: entry.type,
-        messageType: entry.messageType,
-        reason: 'V3 probes must NOT be appended to transcript - prompt lives only in input placeholder'
+    // V3 UI CONTRACT: Hard-block V3 probe prompts from EVER entering transcript
+    const entryType = entry?.type || entry?.messageType || '';
+    const entrySource = entry?.source || entry?.meta?.source || '';
+    const isProbePrompt = entry?.isProbePrompt === true;
+    const hasFieldKey = !!entry?.fieldKey;
+    
+    // Detection: Multiple signals for V3 probe prompts
+    const isV3ProbePrompt = 
+      entryType === 'v3_probe_question' ||
+      entryType === 'V3_PROBE_ASKED' ||
+      entryType === 'V3_PROBE_PROMPT' ||
+      entryType === 'V3_PROMPT' ||
+      entryType === 'V3_PROBE' ||
+      entryType === 'ai_probe_question' ||
+      (entry?.role === 'assistant' && isProbePrompt) ||
+      (entrySource.includes('v3') && entrySource.includes('probe')) ||
+      (hasFieldKey && (entryType.includes('probe') || entryType.includes('V3')));
+    
+    if (isV3ProbePrompt) {
+      console.warn('[UI_CONTRACT][DROP_TRANSCRIPT_V3_PROBE_PROMPT]', {
+        preview: (entry?.text || entry?.questionText || '').slice(0, 80),
+        messageType: entryType,
+        source: entrySource,
+        fieldKey: entry?.fieldKey || null,
+        reason: 'V3 probe prompts must ONLY appear in input placeholder, NEVER in transcript'
       });
-      return; // DO NOT append to transcript
+      return; // DROP - do not append
     }
     
     // V3 messages written to DB by V3ProbingLoop
@@ -5595,17 +5619,33 @@ export default function CandidateInterview() {
                 {renderedTranscript.map((entry, index) => {
                   
                   // V3 UI CONTRACT: HARD GUARD - Block ANY V3 probe prompts from main body
-                  if (v3ProbingActive) {
-                    const mt = (entry.messageType || entry.type || '').toString();
-                    const textPreview = entry.text || entry.questionText || entry.content || '';
-                    const isProbeLike = /v3_?probe|v3_?prompt/i.test(mt) || mt === 'ai_probe_question';
-                    if (!isV3PromptAllowedInMainBody(textPreview) && isProbeLike) {
-                      console.warn("[UI_CONTRACT] BLOCKED_MAIN_BODY_V3_PROMPT_RENDER", { 
-                        preview: textPreview.slice(0, 60),
-                        reason: 'V3 probe prompts must only render in bottom input placeholder, not main body'
-                      });
-                      return null;
-                    }
+                  const mt = (entry.messageType || entry.type || '').toString();
+                  const entrySource = entry?.source || entry?.meta?.source || '';
+                  const textPreview = entry.text || entry.questionText || entry.content || '';
+                  const isProbePrompt = entry?.isProbePrompt === true;
+                  const hasFieldKey = !!entry?.fieldKey;
+
+                  // Comprehensive V3 probe detection
+                  const isV3ProbeInTranscript = 
+                   mt === 'v3_probe_question' ||
+                   mt === 'V3_PROBE_ASKED' ||
+                   mt === 'V3_PROBE_PROMPT' ||
+                   mt === 'V3_PROMPT' ||
+                   mt === 'V3_PROBE' ||
+                   (mt === 'ai_probe_question' && (entrySource.includes('v3') || v3ProbingActive)) ||
+                   (entry?.role === 'assistant' && isProbePrompt && entrySource.includes('v3')) ||
+                   (hasFieldKey && mt.includes('probe') && v3ProbingActive);
+
+                  if (isV3ProbeInTranscript) {
+                   console.warn("[UI_CONTRACT][BLOCK_RENDER_TRANSCRIPT_V3_PROBE_PROMPT]", { 
+                     preview: textPreview.slice(0, 80),
+                     messageType: mt,
+                     source: entrySource,
+                     fieldKey: entry?.fieldKey || null,
+                     v3ProbingActive,
+                     reason: 'V3 probe prompts must ONLY render in input placeholder, NEVER in main body'
+                   });
+                   return null;
                   }
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
