@@ -345,6 +345,11 @@ export default function V3ProbingLoop({
         errorCode: data.errorCode,
         incidentId: data.incidentId
       });
+      
+      // ENGINE DEBUG VISIBILITY: Log debug object for PRIOR_LE_APPS
+      if (data.debug) {
+        console.log('[V3_ENGINE_DEBUG]', data.debug);
+      }
 
       // DIAGNOSTIC: Explicit STOP reason logging (console-truncation-proof)
       if (data.nextAction === 'STOP' || data.nextAction === 'RECAP') {
