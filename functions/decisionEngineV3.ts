@@ -197,17 +197,25 @@ function canon(s) {
 
 /**
  * Detect if text contains month/year pattern.
- * Matches: "March 2022", "Mar 2022", "3/2022", "03/2022", "2022-03"
+ * Matches: "March 2022", "Mar 2022", "3/2022", "03/2022", "2022-03", "In March 2022", "In Oct 2019"
  */
-function isMonthYearLike(text) {
+function hasMonthYear(text) {
   if (!text || typeof text !== 'string') return false;
   const patterns = [
     /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/i,
-    /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+\d{4}\b/i,
+    /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+\d{4}\b/i,
     /\b\d{1,2}\/\d{4}\b/,
-    /\b\d{4}[-\/]\d{1,2}\b/
+    /\b\d{4}[-\/]\d{1,2}\b/,
+    /(?:in|during|around)\s+(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+\d{4}/i
   ];
   return patterns.some(p => p.test(text));
+}
+
+/**
+ * Legacy wrapper for backward compatibility
+ */
+function isMonthYearLike(text) {
+  return hasMonthYear(text);
 }
 
 /**
@@ -1009,25 +1017,14 @@ async function decisionEngineV3Probe(base44, {
   const missingFieldsAfter = getMissingRequiredFields(factState, incidentId, factModel);
   
   // LOAD-BEARING DIAGNOSTIC: Initial call truth log
+  const extractedMonthYearKey = Object.keys(extractedFacts).find(k => 
+    ['date', 'month', 'year', 'when', 'time', 'approx'].some(kw => canon(k).includes(kw))
+  );
+  const extractedMonthYearRaw = extractedMonthYearKey ? extractedFacts[extractedMonthYearKey] : null;
+  const openerHasMonthYear = isInitialCall && hasMonthYear(latestAnswerText || '');
+  
   if (isInitialCall) {
-    const extractedMonthYearKey = Object.keys(extractedFacts).find(k => 
-      ['date', 'month', 'year', 'when', 'time', 'approx'].some(kw => canon(k).includes(kw))
-    );
-    const extractedMonthYearRaw = extractedMonthYearKey ? extractedFacts[extractedMonthYearKey] : null;
-    
     console.log(`[V3_OPENER_EXTRACT][INITIAL_CALL] categoryId=${categoryId} packId=${factModel?.linked_pack_ids?.[0] || 'N/A'} incidentId=${incidentId} extractedMonthYear=${extractedMonthYearRaw || 'null'} fieldIdsSatisfiedByExtraction=[${fieldIdsSatisfiedExact.join(',')}] missingFieldsCount=${missingFieldsAfter.length} missingFieldIds=[${missingFieldsAfter.map(f=>f.field_id).slice(0,10).join(',')}]`);
-  }
-  
-  // Diagnostic log with key alignment check
-  const allModelFields = [
-    ...(factModel?.required_fields || []),
-    ...(factModel?.optional_fields || [])
-  ];
-  console.log(`[V3_EXTRACT_KEYS] extractedKeys=${Object.keys(extractedFacts).join(",")} modelKeys=${allModelFields.slice(0,10).map(f=>f.field_id).join(",")} missingAfter=${missingFieldsAfter.map(f=>f.field_id).join(",")}`);
-  
-  // Log extraction for debugging
-  if (Object.keys(extractedFacts).length > 0) {
-    console.log(`[V3_EXTRACT][${categoryId}] extracted=${JSON.stringify(extractedFacts)} missingAfter=${missingFieldsAfter.map(f => f.field_id).join(',')}`);
   }
   
   // Track probe and non-substantive counts
@@ -1142,6 +1139,28 @@ async function decisionEngineV3Probe(base44, {
         continue;
       }
       
+      // INSTANCE-AWARE SAFETY GATE: PRIOR_LE_APPS date suppression
+      if (categoryId === 'PRIOR_LE_APPS' && isInitialCall && openerHasMonthYear) {
+        const fieldIdLower = field.field_id?.toLowerCase() || '';
+        const fieldLabelLower = field.label?.toLowerCase() || '';
+        const isDateField = ['apply', 'applied', 'occur', 'date', 'month', 'year', 'timeframe', 'when'].some(kw =>
+          fieldIdLower.includes(kw) || fieldLabelLower.includes(kw)
+        );
+        
+        if (isDateField) {
+          suppressedCount++;
+          console.log(`[V3_INSTANCE_GATE][SKIP_DATE]`, {
+            traceId: effectiveTraceId,
+            categoryId,
+            instanceNumber: instanceNumber || 1,
+            fieldId: field.field_id,
+            reason: 'Opener already contains month/year - skipping date question',
+            openerHadDate: true
+          });
+          continue;
+        }
+      }
+      
       // Found first truly missing field
       candidateField = field;
       break;
@@ -1157,7 +1176,7 @@ async function decisionEngineV3Probe(base44, {
       console.log('[V3_PRE_ASK_GUARD][ALL_SUPPRESSED]', {
         traceId: effectiveTraceId,
         suppressedCount,
-        reason: 'All missing fields already collected via ingestion'
+        reason: 'All missing fields already collected via ingestion + instance gate'
       });
     } else if (!candidateField) {
       // Safety: No candidate field found (shouldn't happen)
@@ -1325,6 +1344,22 @@ async function decisionEngineV3Probe(base44, {
     openingPrompt = getOpeningPrompt(categoryId, factModel.category_label);
   }
 
+  // Build debug object for engine visibility
+  const debugInfo = categoryId === 'PRIOR_LE_APPS' ? {
+    categoryId,
+    instanceNumber: instanceNumber || 1,
+    incidentId,
+    isInitialCall: isInitialCall || false,
+    openerHasMonthYear,
+    extractedMonthYear: extractedMonthYearRaw || null,
+    fieldIdsSatisfiedExact,
+    missingFieldIds: missingFieldsAfter.slice(0, 10).map(f => f.field_id),
+    chosenMissingFieldId: nextAction === 'ASK' && missingFieldsAfter.length > 0 ? missingFieldsAfter[0]?.field_id : null,
+    nextAction,
+    nextItemType: nextAction === 'ASK' ? 'v3_probe_question' : nextAction.toLowerCase(),
+    promptPreview: nextPrompt?.substring(0, 60) || null
+  } : null;
+  
   return {
     updatedSession,
     incidentId,
@@ -1341,7 +1376,8 @@ async function decisionEngineV3Probe(base44, {
       ? Math.round(((factModel.required_fields.length - missingFieldsAfter.length) / factModel.required_fields.length) * 100)
       : 100,
     stopReasonCode: stopReason || null,
-    stopReasonDetail: stopReason ? `Stop triggered: ${stopReason}` : null
+    stopReasonDetail: stopReason ? `Stop triggered: ${stopReason}` : null,
+    debug: debugInfo
   };
 }
 
