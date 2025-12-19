@@ -5523,6 +5523,71 @@ export default function CandidateInterview() {
     currentItem.type === 'followup' ||
     currentItem.type === 'multi_instance_gate'
   ) && !v3ProbingActive;
+  
+  // ============================================================================
+  // ACTIVE PROMPT TEXT RESOLUTION - Single source of truth for what user sees
+  // ============================================================================
+  let activePromptText = null;
+  
+  // Priority 1: V3 active prompt (from V3ProbingLoop callback)
+  if (v3ProbingActive && v3ActivePromptText) {
+    activePromptText = v3ActivePromptText;
+  }
+  // Priority 2: V2 pack field - use backend question text or field label
+  else if (effectiveItemType === 'v2_pack_field' && currentItem) {
+    const backendText = currentItem.backendQuestionText;
+    const clarifierText = v2ClarifierState?.packId === currentItem.packId && 
+                         v2ClarifierState?.fieldKey === currentItem.fieldKey && 
+                         v2ClarifierState?.instanceNumber === currentItem.instanceNumber
+                         ? v2ClarifierState.clarifierQuestion
+                         : null;
+    activePromptText = clarifierText || backendText || currentItem.fieldConfig?.label || null;
+  }
+  // Priority 3: V3 pack opener
+  else if (effectiveItemType === 'v3_pack_opener' && currentItem) {
+    activePromptText = currentItem.openerText || null;
+  }
+  // Priority 4: Current prompt from getCurrentPrompt()
+  else if (currentPrompt?.text) {
+    activePromptText = currentPrompt.text;
+  }
+  
+  // UI CONTRACT: TEXT_INPUT mode requires valid prompt
+  const needsPrompt = bottomBarMode === 'TEXT_INPUT' || 
+                      ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
+  const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
+  
+  // DIAGNOSTIC: Log missing prompt condition (de-duped)
+  const promptMissingKeyRef = useRef(null);
+  useEffect(() => {
+    if (needsPrompt && !hasPrompt && currentItem) {
+      const diagKey = `${sessionId}:${effectiveItemType}:${currentItem.packId}:${currentItem.fieldKey}:${currentItem.instanceNumber}:${currentItem.id}`;
+      if (promptMissingKeyRef.current !== diagKey) {
+        promptMissingKeyRef.current = diagKey;
+        
+        const logPrefix = effectiveItemType === 'v3_probing' || effectiveItemType === 'v3_pack_opener' 
+          ? 'V3_UI_PROMPT_MISSING' 
+          : 'V2_UI_PROMPT_MISSING';
+        
+        console.warn(`[${logPrefix}]`, {
+          sessionId,
+          currentItemType: currentItem?.type,
+          effectiveItemType,
+          packId: currentItem.packId,
+          fieldKey: currentItem.fieldKey,
+          instanceNumber: currentItem.instanceNumber,
+          currentItemId: currentItem.id,
+          hasBackendQuestionText: !!currentItem.backendQuestionText,
+          hasClarifierState: !!v2ClarifierState,
+          hasV3ActivePrompt: !!v3ActivePromptText,
+          hasCurrentPrompt: !!currentPrompt?.text
+        });
+      }
+    } else if (hasPrompt) {
+      // Reset diagnostic key when prompt becomes available
+      promptMissingKeyRef.current = null;
+    }
+  }, [needsPrompt, hasPrompt, currentItem, effectiveItemType, sessionId]);
 
   // Debug log: confirm which bottom bar path is rendering
   console.log("[BOTTOM_BAR_RENDER]", {
@@ -6702,8 +6767,8 @@ export default function CandidateInterview() {
             return null;
           })()}
 
-          {/* LLM Suggestion - show if available for this field (hide during V3 probing) */}
-          {!v3ProbingActive && (() => {
+          {/* LLM Suggestion - show if available for this field (hide during V3 probing or missing prompt) */}
+          {!v3ProbingActive && hasPrompt && (() => {
             const suggestionKey = currentItem?.packId && currentItem?.fieldKey
               ? `${currentItem.packId}_${currentItem.instanceNumber || 1}_${currentItem.fieldKey}`
               : null;
@@ -6743,12 +6808,12 @@ export default function CandidateInterview() {
                 setInput(value);
               }}
               onKeyDown={handleInputKeyDown}
-              placeholder={v3ProbingActive && v3ActivePromptText ? v3ActivePromptText : "Type your answer..."}
-              aria-label={v3ProbingActive && v3ActivePromptText ? v3ActivePromptText : "Type your answer"}
+              placeholder={hasPrompt ? activePromptText : "Loading follow-up..."}
+              aria-label={hasPrompt ? activePromptText : "Loading follow-up"}
               className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
               style={{ maxHeight: '120px', overflowY: 'auto' }}
-              disabled={isCommitting}
-              autoFocus
+              disabled={isCommitting || !hasPrompt}
+              autoFocus={hasPrompt}
               rows={1}
             />
             <Button
@@ -6758,14 +6823,15 @@ export default function CandidateInterview() {
                   currentItemType: currentItem?.type, 
                   packId: currentItem?.packId, 
                   fieldKey: currentItem?.fieldKey,
-                  v3ProbingActive 
+                  v3ProbingActive,
+                  hasPrompt 
                 });
                 handleBottomBarSubmit();
               }}
-              disabled={isBottomBarSubmitDisabled || (v3ProbingActive && !v3ActivePromptText)}
-              className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5"
+              disabled={isBottomBarSubmitDisabled || !hasPrompt}
+              className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5 disabled:opacity-50"
             >
-              {v3ProbingActive && !v3ActivePromptText ? (
+              {!hasPrompt ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
                 <Send className="w-4 h-4 mr-2" />
