@@ -6151,77 +6151,6 @@ export default function CandidateInterview() {
     }
   }, [screenMode, currentItem, v3ProbingActive, dbTranscript]);
 
-  // UX: Auto-focus input after state transitions (Send button → next prompt)
-  useEffect(() => {
-    // Skip if typing lock active
-    if (isUserTyping) return;
-    
-    // Focus conditions: TEXT_INPUT mode when prompt is ready
-    const shouldFocus = 
-      bottomBarMode === 'TEXT_INPUT' && 
-      (hasPrompt || currentItem?.type === 'v3_pack_opener' || v3ProbingActive);
-    
-    // Prevent redundant focus (only focus on mode transition)
-    if (lastFocusedBottomBarModeRef.current === bottomBarMode && bottomBarMode === 'TEXT_INPUT') {
-      return;
-    }
-    
-    if (!shouldFocus) {
-      lastFocusedBottomBarModeRef.current = bottomBarMode;
-      return;
-    }
-    
-    // Log focus attempt
-    const focusReason = v3ProbingActive ? 'v3_probe_ready' : 
-                       currentItem?.type === 'v3_pack_opener' ? 'opener_ready' :
-                       hasPrompt ? 'prompt_ready' : 'unknown';
-    
-    console.log('[BOTTOM_BAR_FOCUS]', {
-      didFocus: 'pending',
-      reason: focusReason,
-      bottomBarMode,
-      effectiveItemType,
-      v3ProbingActive,
-      hasPrompt
-    });
-    
-    // Defer focus until DOM updates complete
-    const focusTimer = setTimeout(() => {
-      if (!inputRef.current) {
-        console.log('[BOTTOM_BAR_FOCUS]', { didFocus: false, reason: 'inputRef null' });
-        return;
-      }
-      
-      try {
-        inputRef.current.focus();
-        
-        // Put cursor at end (works on desktop + mobile)
-        if (inputRef.current.setSelectionRange) {
-          const len = inputRef.current.value?.length || 0;
-          inputRef.current.setSelectionRange(len, len);
-        }
-        
-        console.log('[BOTTOM_BAR_FOCUS]', {
-          didFocus: true,
-          reason: focusReason,
-          bottomBarMode,
-          effectiveItemType,
-          v3ProbingActive
-        });
-        
-        lastFocusedBottomBarModeRef.current = bottomBarMode;
-      } catch (err) {
-        console.log('[BOTTOM_BAR_FOCUS]', {
-          didFocus: false,
-          reason: 'focus error',
-          error: err.message
-        });
-      }
-    }, 0);
-    
-    return () => clearTimeout(focusTimer);
-  }, [bottomBarMode, hasPrompt, v3ProbingActive, currentItem, isUserTyping]);
-
   // Transcript logging is now handled in answer saving functions where we have Response IDs
   // This prevents logging questions with null responseId
 
@@ -6758,6 +6687,81 @@ export default function CandidateInterview() {
     currentItem.type === 'followup' ||
     currentItem.type === 'multi_instance_gate'
   ) && !v3ProbingActive;
+  
+  // UX: Auto-focus input after state transitions (Send button → next prompt)
+  // CRITICAL: Must be AFTER bottomBarMode is computed (TDZ safety)
+  useEffect(() => {
+    // Skip if typing lock active
+    if (isUserTyping) return;
+    
+    // Guard: bottomBarMode must exist
+    if (!bottomBarMode) return;
+    
+    // Focus conditions: TEXT_INPUT mode when prompt is ready
+    const shouldFocus = 
+      bottomBarMode === 'TEXT_INPUT' && 
+      (hasPrompt || currentItem?.type === 'v3_pack_opener' || v3ProbingActive);
+    
+    // Prevent redundant focus (only focus on mode transition)
+    if (lastFocusedBottomBarModeRef.current === bottomBarMode && bottomBarMode === 'TEXT_INPUT') {
+      return;
+    }
+    
+    if (!shouldFocus) {
+      lastFocusedBottomBarModeRef.current = bottomBarMode;
+      return;
+    }
+    
+    // Log focus attempt
+    const focusReason = v3ProbingActive ? 'v3_probe_ready' : 
+                       currentItem?.type === 'v3_pack_opener' ? 'opener_ready' :
+                       hasPrompt ? 'prompt_ready' : 'unknown';
+    
+    console.log('[BOTTOM_BAR_FOCUS]', {
+      didFocus: 'pending',
+      reason: focusReason,
+      bottomBarMode,
+      effectiveItemType,
+      v3ProbingActive,
+      hasPrompt
+    });
+    
+    // Defer focus until DOM updates complete
+    const focusTimer = setTimeout(() => {
+      if (!inputRef.current) {
+        console.log('[BOTTOM_BAR_FOCUS]', { didFocus: false, reason: 'inputRef null' });
+        return;
+      }
+      
+      try {
+        inputRef.current.focus();
+        
+        // Put cursor at end (works on desktop + mobile)
+        if (inputRef.current.setSelectionRange) {
+          const len = inputRef.current.value?.length || 0;
+          inputRef.current.setSelectionRange(len, len);
+        }
+        
+        console.log('[BOTTOM_BAR_FOCUS]', {
+          didFocus: true,
+          reason: focusReason,
+          bottomBarMode,
+          effectiveItemType,
+          v3ProbingActive
+        });
+        
+        lastFocusedBottomBarModeRef.current = bottomBarMode;
+      } catch (err) {
+        console.log('[BOTTOM_BAR_FOCUS]', {
+          didFocus: false,
+          reason: 'focus error',
+          error: err.message
+        });
+      }
+    }, 0);
+    
+    return () => clearTimeout(focusTimer);
+  }, [bottomBarMode, hasPrompt, v3ProbingActive, currentItem, isUserTyping, effectiveItemType]);
   
   // ============================================================================
   // ACTIVE PROMPT TEXT RESOLUTION - Single source of truth for what user sees
