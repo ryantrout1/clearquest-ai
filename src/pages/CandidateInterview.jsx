@@ -1325,6 +1325,15 @@ export default function CandidateInterview() {
   const v3OpenerSubmitTokenRef = useRef(null);
   const v3OpenerSubmitLoopKeyRef = useRef(null);
   const v3OpenerFailsafeTimerRef = useRef(null);
+  
+  // V3 PACK ENTRY FAILSAFE: Separate timer/token for pack entry detection
+  const v3PackEntryFailsafeTokenRef = useRef(null);
+  const v3PackEntryFailsafeTimerRef = useRef(null);
+  const v3PackEntryContextRef = useRef(null);
+  
+  // V3 OPENER/PROBING TRACKING: Track if opener submitted or probing started (per loopKey)
+  const v3OpenerSubmittedRef = useRef(new Map()); // Map<loopKey, boolean>
+  const v3ProbingStartedRef = useRef(new Map()); // Map<loopKey, boolean>
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
@@ -3442,6 +3451,9 @@ export default function CandidateInterview() {
           openerAnswerLength: value?.length || 0
         });
         
+        // Track opener submission
+        v3OpenerSubmittedRef.current.set(loopKey, true);
+        
         console.log('[V3_PROBING][START_AFTER_OPENER]', {
           packId,
           categoryId,
@@ -3450,6 +3462,9 @@ export default function CandidateInterview() {
           submitToken,
           v3ProbingActive: true
         });
+        
+        // Track probing start
+        v3ProbingStartedRef.current.set(loopKey, true);
 
         await refreshTranscriptFromDB('v3_probing_enter');
         await persistStateToDatabase(null, [], {
@@ -3916,8 +3931,52 @@ export default function CandidateInterview() {
               await refreshTranscriptFromDB('v3_opener_set');
               await persistStateToDatabase(null, [], openerItem);
 
+              // PACK ENTRY FAILSAFE: Arm ONLY if opener not yet active
+              // Generate token for this pack entry attempt
+              const packEntryLoopKey = `${sessionId}:${categoryId}:1`;
+              const packEntryToken = `${packEntryLoopKey}:${Date.now()}`;
+              
+              // Clear any existing pack entry timer
+              if (v3PackEntryFailsafeTimerRef.current) {
+                clearTimeout(v3PackEntryFailsafeTimerRef.current);
+                v3PackEntryFailsafeTimerRef.current = null;
+              }
+              
+              // Store context for validation
+              v3PackEntryContextRef.current = { packId, instanceNumber: 1, categoryId };
+              v3PackEntryFailsafeTokenRef.current = packEntryToken;
+              
+              console.log('[V3_PACK][ENTRY_FAILSAFE_ARMED]', {
+                packId,
+                instanceNumber: 1,
+                packEntryToken,
+                packEntryLoopKey
+              });
+
               // FAIL-SAFE: Detect dead-end after state transition (V3 pack entry)
-              setTimeout(async () => {
+              v3PackEntryFailsafeTimerRef.current = setTimeout(async () => {
+                // TOKEN GUARD: Validate this timer is still current
+                if (v3PackEntryFailsafeTokenRef.current !== packEntryToken) {
+                  console.log('[V3_PACK][ENTRY_FAILSAFE_STALE]', {
+                    packId,
+                    instanceNumber: 1,
+                    capturedToken: packEntryToken,
+                    currentToken: v3PackEntryFailsafeTokenRef.current,
+                    reason: 'Token mismatch - newer entry occurred'
+                  });
+                  return;
+                }
+                
+                // CONTEXT GUARD: Validate pack/instance still matches
+                const currentContext = v3PackEntryContextRef.current;
+                if (!currentContext || currentContext.packId !== packId || currentContext.instanceNumber !== 1) {
+                  console.log('[V3_PACK][ENTRY_FAILSAFE_STALE]', {
+                    packId,
+                    instanceNumber: 1,
+                    reason: 'Context changed - different pack'
+                  });
+                  return;
+                }
                 try {
                   const freshSession = await base44.entities.InterviewSession.get(sessionId);
                   const currentSnapshot = freshSession.current_item_snapshot;
@@ -3971,6 +4030,27 @@ export default function CandidateInterview() {
                           reason: 'V3 pack must not auto-advance - routing deterministically instead'
                         });
                         
+                        // UI CONTRACT GUARD: Never route to gate before opener submit/probing start
+                        const openerLoopKey = `${sessionId}:${categoryId}:1`;
+                        const openerSubmitted = v3OpenerSubmittedRef.current.get(openerLoopKey) === true;
+                        const probingStarted = v3ProbingStartedRef.current.get(openerLoopKey) === true;
+                        
+                        if (!openerSubmitted && !probingStarted) {
+                          console.error('[V3_UI_CONTRACT][ENTRY_FAILSAFE_BLOCKED]', {
+                            packId,
+                            instanceNumber: 1,
+                            openerSubmitted,
+                            probingStarted,
+                            reason: 'UI_CONTRACT_NO_GATE_BEFORE_OPENER_SUBMIT',
+                            action: 'Reapplying opener state only - no gate'
+                          });
+                          
+                          // Reapply opener state one more time and stop
+                          setCurrentItem(openerItem);
+                          await persistStateToDatabase(null, [], openerItem);
+                          return;
+                        }
+                        
                         // Deterministic recovery based on pack type
                         const isMultiIncident = packMetadata?.behavior_type === 'multi_incident' || 
                                                packMetadata?.followup_multi_instance === true;
@@ -3979,7 +4059,9 @@ export default function CandidateInterview() {
                           console.log('[V3_UI_CONTRACT][RECOVERY_TO_ANOTHER_INSTANCE]', {
                             packId,
                             instanceNumber: 1,
-                            reason: 'PACK_ENTRY_INCONSISTENT'
+                            reason: 'PACK_ENTRY_INCONSISTENT',
+                            openerSubmitted,
+                            probingStarted
                           });
                           
                           // Route to multi-instance gate
@@ -6146,6 +6228,20 @@ export default function CandidateInterview() {
         v3ProbingActive,
         currentItemId: effectiveCurrentItem.id
       });
+      
+      // PACK ENTRY FAILSAFE CANCELLATION: Opener is active - cancel entry failsafe
+      if (openerText && packId === v3PackEntryContextRef.current?.packId) {
+        if (v3PackEntryFailsafeTimerRef.current) {
+          clearTimeout(v3PackEntryFailsafeTimerRef.current);
+          v3PackEntryFailsafeTimerRef.current = null;
+          v3PackEntryFailsafeTokenRef.current = null;
+          console.log('[V3_PACK][ENTRY_FAILSAFE_CANCELLED]', {
+            packId,
+            instanceNumber,
+            reason: 'OPENER_ACTIVE'
+          });
+        }
+      }
 
       // UI CONTRACT: V3 opener MUST append to transcript (visible to candidate)
       const openerStableKey = `followup-card:${packId}:opener:${instanceNumber}`;
