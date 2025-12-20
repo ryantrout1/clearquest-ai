@@ -3762,14 +3762,16 @@ export default function CandidateInterview() {
 
             console.log(`[FOLLOWUP-TRIGGER] Pack triggered: ${packId}, checking versions...`);
             
-            // IDEMPOTENCY RELEASE: Q001 routed to V3 pack - release base question lock
+            // IDEMPOTENCY RELEASE: Base question routed to V3 pack - release lock
             const baseQuestionKey = `q:${currentItem.id}`;
             if (submittedKeysRef.current.has(baseQuestionKey)) {
               submittedKeysRef.current.delete(baseQuestionKey);
+              const questionCode = question?.question_id || currentItem.id;
               console.log('[IDEMPOTENCY][RELEASE]', { 
                 lockKey: baseQuestionKey, 
-                packId, 
-                reason: 'Q001_ROUTED_TO_V3_PACK' 
+                packId,
+                questionCode,
+                reason: `${questionCode}_ROUTED_TO_V3_PACK` 
               });
             }
 
@@ -3914,11 +3916,28 @@ export default function CandidateInterview() {
               await refreshTranscriptFromDB('v3_opener_set');
               await persistStateToDatabase(null, [], openerItem);
 
-              // FAIL-SAFE: Detect dead-end after state transition
+              // FAIL-SAFE: Detect dead-end after state transition (V3 pack entry)
               setTimeout(async () => {
                 try {
                   const freshSession = await base44.entities.InterviewSession.get(sessionId);
                   const currentSnapshot = freshSession.current_item_snapshot;
+                  
+                  // TIGHTENED: Only treat as stuck if opener truly not present
+                  const hasOpenerState = currentSnapshot?.type === 'v3_pack_opener' && 
+                                        currentSnapshot?.openerText && 
+                                        currentSnapshot?.packId === packId;
+                  const isProbingActive = currentSnapshot?.type === 'v3_probing' && 
+                                         currentSnapshot?.packId === packId;
+                  
+                  if (hasOpenerState || isProbingActive) {
+                    console.log('[V3_PACK][FAILSAFE_SKIP]', {
+                      packId,
+                      instanceNumber: 1,
+                      currentSnapshotType: currentSnapshot?.type,
+                      reason: 'Opener already active or probing started'
+                    });
+                    return;
+                  }
                   
                   // Check if we're still stuck on the base question or no current item
                   const isStuck = !currentSnapshot || 
@@ -3938,21 +3957,60 @@ export default function CandidateInterview() {
                     setCurrentItem(openerItem);
                     await persistStateToDatabase(null, [], openerItem);
                     
-                    // If still stuck after reapply, advance to next question
+                    // If still stuck after reapply, route deterministically (NEVER auto-advance for V3)
                     setTimeout(async () => {
                       const checkSession = await base44.entities.InterviewSession.get(sessionId);
                       const checkSnapshot = checkSession.current_item_snapshot;
                       
                       if (!checkSnapshot || checkSnapshot.type === 'question') {
-                        console.error('[V3_PACK][FAILSAFE_ADVANCE]', {
+                        // GUARD: V3 packs MUST NOT auto-advance to next base question
+                        console.error('[V3_PACK][FAILSAFE_ADVANCE_BLOCKED]', {
                           packId,
+                          instanceNumber: 1,
                           fromQuestionId: currentItem.id,
-                          toQuestionId: 'next_via_engine',
-                          reason: 'V3 pack entry failed twice - advancing to prevent dead-end'
+                          reason: 'V3 pack must not auto-advance - routing deterministically instead'
                         });
                         
-                        // Advance to next base question
-                        await advanceToNextBaseQuestion(currentItem.id);
+                        // Deterministic recovery based on pack type
+                        const isMultiIncident = packMetadata?.behavior_type === 'multi_incident' || 
+                                               packMetadata?.followup_multi_instance === true;
+                        
+                        if (isMultiIncident) {
+                          console.log('[V3_UI_CONTRACT][RECOVERY_TO_ANOTHER_INSTANCE]', {
+                            packId,
+                            instanceNumber: 1,
+                            reason: 'PACK_ENTRY_INCONSISTENT'
+                          });
+                          
+                          // Route to multi-instance gate
+                          transitionToAnotherInstanceGate({
+                            packId,
+                            categoryId,
+                            categoryLabel,
+                            instanceNumber: 1,
+                            packData: packMetadata
+                          });
+                        } else {
+                          console.log('[EXIT_V3][ONCE]', {
+                            reason: 'PACK_ENTRY_INCONSISTENT',
+                            packId,
+                            instanceNumber: 1
+                          });
+                          
+                          // Exit V3 cleanly
+                          exitV3Once('PACK_ENTRY_INCONSISTENT', {
+                            incidentId: null,
+                            categoryId,
+                            completionReason: 'STOP',
+                            messages: [],
+                            reason: 'PACK_ENTRY_INCONSISTENT',
+                            shouldOfferAnotherInstance: false,
+                            packId,
+                            categoryLabel,
+                            instanceNumber: 1,
+                            packData: packMetadata
+                          });
+                        }
                       }
                     }, 500);
                   }
