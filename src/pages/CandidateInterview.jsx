@@ -6724,10 +6724,16 @@ export default function CandidateInterview() {
     });
     
     // VERIFICATION: Log placeholder vs value state
+    console.log('[V3_OPENER][PLACEHOLDER_MODE]', {
+      packId: currentItem.packId,
+      instanceNumber: currentItem.instanceNumber,
+      placeholder: 'generic'
+    });
+    
     console.log('[V3_OPENER][PLACEHOLDER_STATE]', {
       packId: currentItem.packId,
       instanceNumber: currentItem.instanceNumber,
-      placeholderPreview: promptText?.substring(0, 60)
+      placeholderPreview: 'Type your response here…'
     });
     
     console.log('[V3_OPENER][VALUE_STATE]', {
@@ -8192,7 +8198,13 @@ export default function CandidateInterview() {
                }
              }}
              onKeyDown={handleInputKeyDown}
-             placeholder={currentItem?.type === 'v3_pack_opener' && activePromptText ? activePromptText : "Type your answer here..."}
+             placeholder={
+               currentItem?.type === 'v3_pack_opener' 
+                 ? "Type your response here…" 
+                 : v3ProbingActive && v3ActivePromptText 
+                   ? v3ActivePromptText 
+                   : "Type your answer here..."
+             }
              aria-label="Answer input"
              className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
              style={{ maxHeight: '120px', overflowY: 'auto' }}
