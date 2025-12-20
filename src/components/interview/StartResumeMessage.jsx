@@ -30,15 +30,15 @@ export default function StartResumeMessage({
           <div className="space-y-2 mb-6 ml-16">
             <div className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-              <p className="text-slate-300 text-sm">One question at a time, at your own pace</p>
+              <p className="text-slate-300 text-sm pl-6" style={{ textIndent: '-1.5rem' }}>One question at a time, at your own pace</p>
             </div>
             <div className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-              <p className="text-slate-300 text-sm">Clear, complete, and honest answers help investigators understand the full picture</p>
+              <p className="text-slate-300 text-sm pl-6" style={{ textIndent: '-1.5rem' }}>Clear, complete, and honest answers help investigators understand the full picture</p>
             </div>
             <div className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-              <p className="text-slate-300 text-sm">You can pause and come back — we'll pick up where you left off</p>
+              <p className="text-slate-300 text-sm pl-6" style={{ textIndent: '-1.5rem' }}>You can pause and come back — we'll pick up where you left off</p>
             </div>
           </div>
           
