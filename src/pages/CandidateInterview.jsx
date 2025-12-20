@@ -4987,10 +4987,13 @@ export default function CandidateInterview() {
     
     // WATCHDOG: Verify UI stabilizes in 1 render cycle
     requestAnimationFrame(() => {
+      // Derive effectiveItemType locally (avoids TDZ with outer scope variable)
+      const localEffectiveItemType = v3ProbingActive ? 'v3_probing' : currentItemType;
+      
       // Check if bottom bar is in stable "answer needed" state
       const isStable = 
         v3ProbingActive &&
-        effectiveItemType === 'v3_probing' &&
+        localEffectiveItemType === 'v3_probing' &&
         !!v3ActivePromptText &&
         bottomBarMode === 'TEXT_INPUT';
       
@@ -5001,7 +5004,7 @@ export default function CandidateInterview() {
           loopKey: `${sessionId}:${v3ProbingContext?.categoryId}:${v3ProbingContext?.instanceNumber || 1}`,
           reason: 'Prompt exists but bottom bar did not stabilize',
           v3ProbingActive,
-          effectiveItemType,
+          effectiveItemType: localEffectiveItemType,
           hasActivePrompt: !!v3ActivePromptText,
           bottomBarMode
         });
