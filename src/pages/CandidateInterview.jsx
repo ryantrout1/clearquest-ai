@@ -1320,6 +1320,11 @@ export default function CandidateInterview() {
   const lastWatchdogOutcomeRef = useRef(null);
   const lastMultiIncidentSourceRef = useRef(null);
   const lastRecoveryAnotherInstanceRef = useRef(null);
+  
+  // V3 FAILSAFE: Opener submit tracking for safe timeout recovery
+  const v3OpenerSubmitTokenRef = useRef(null);
+  const v3OpenerSubmitLoopKeyRef = useRef(null);
+  const v3OpenerFailsafeTimerRef = useRef(null);
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
@@ -3397,6 +3402,18 @@ export default function CandidateInterview() {
         
         const loopKey = `${sessionId}:${categoryId}:${instanceNumber}`;
         
+        // FAILSAFE: Clear any existing timer before starting new one
+        if (v3OpenerFailsafeTimerRef.current) {
+          clearTimeout(v3OpenerFailsafeTimerRef.current);
+          v3OpenerFailsafeTimerRef.current = null;
+          console.log('[V3_FAILSAFE][CLEAR_EXISTING]', { loopKey });
+        }
+        
+        // Generate unique submit token for this opener submission
+        const submitToken = `${loopKey}:${Date.now()}`;
+        v3OpenerSubmitTokenRef.current = submitToken;
+        v3OpenerSubmitLoopKeyRef.current = loopKey;
+        
         // ATOMIC STATE TRANSITION: Set probing active + context in one batch
         unstable_batchedUpdates(() => {
           setV3ProbingActive(true);
@@ -3421,6 +3438,7 @@ export default function CandidateInterview() {
           instanceNumber,
           traceId,
           loopKey,
+          submitToken,
           openerAnswerLength: value?.length || 0
         });
         
@@ -3429,6 +3447,7 @@ export default function CandidateInterview() {
           categoryId,
           instanceNumber,
           loopKey,
+          submitToken,
           v3ProbingActive: true
         });
 
@@ -3441,18 +3460,69 @@ export default function CandidateInterview() {
           baseQuestionId
         });
         
-        // FAILSAFE: Detect if probing doesn't start within 3s
-        setTimeout(() => {
-          // Check if we're still stuck on opener or have no prompt
-          const stillOnOpener = currentItem?.type === 'v3_pack_opener' && currentItem?.packId === packId;
+        // FAILSAFE: Detect if probing doesn't start within 3s (token-gated)
+        // Capture local copies for closure safety
+        const capturedSubmitToken = submitToken;
+        const capturedLoopKey = loopKey;
+        const capturedPackId = packId;
+        const capturedInstanceNumber = instanceNumber;
+        
+        v3OpenerFailsafeTimerRef.current = setTimeout(() => {
+          // GUARD: Validate this timer is still current
+          if (v3OpenerSubmitTokenRef.current !== capturedSubmitToken) {
+            console.log('[V3_FAILSAFE][CANCELLED_OR_STALE]', {
+              capturedToken: capturedSubmitToken,
+              currentToken: v3OpenerSubmitTokenRef.current,
+              reason: 'Token mismatch - newer submission occurred'
+            });
+            return;
+          }
+          
+          if (v3OpenerSubmitLoopKeyRef.current !== capturedLoopKey) {
+            console.log('[V3_FAILSAFE][CANCELLED_OR_STALE]', {
+              capturedLoopKey,
+              currentLoopKey: v3OpenerSubmitLoopKeyRef.current,
+              reason: 'LoopKey mismatch - different context'
+            });
+            return;
+          }
+          
+          // GUARD: Verify context still matches
+          const currentPackId = v3ProbingContextRef.current?.packId;
+          const currentInstanceNumber = v3ProbingContextRef.current?.instanceNumber;
+          
+          if (currentPackId !== capturedPackId || currentInstanceNumber !== capturedInstanceNumber) {
+            console.log('[V3_FAILSAFE][CANCELLED_OR_STALE]', {
+              capturedPackId,
+              currentPackId,
+              capturedInstanceNumber,
+              currentInstanceNumber,
+              reason: 'Pack/instance changed - different submission'
+            });
+            return;
+          }
+          
+          // GUARD: Check if prompt already arrived
+          if (v3ActivePromptTextRef.current && v3ActivePromptTextRef.current.trim().length > 0) {
+            console.log('[V3_FAILSAFE][CANCELLED_OR_STALE]', {
+              submitToken: capturedSubmitToken,
+              loopKey: capturedLoopKey,
+              reason: 'Prompt arrived - failsafe not needed'
+            });
+            return;
+          }
+          
+          // All guards passed - execute recovery
+          const stillOnOpener = currentItem?.type === 'v3_pack_opener' && currentItem?.packId === capturedPackId;
           const probingActiveNow = v3ProbingActiveRef.current;
           const hasPromptNow = !!v3ActivePromptTextRef.current;
           
           if (stillOnOpener || (probingActiveNow && !hasPromptNow)) {
             console.error('[V3_UI_CONTRACT][PROMPT_MISSING_AFTER_OPENER]', {
-              packId,
-              instanceNumber,
-              loopKey,
+              submitToken: capturedSubmitToken,
+              packId: capturedPackId,
+              instanceNumber: capturedInstanceNumber,
+              loopKey: capturedLoopKey,
               stillOnOpener,
               probingActiveNow,
               hasPromptNow,
@@ -3464,15 +3534,17 @@ export default function CandidateInterview() {
                                    packData?.followup_multi_instance === true;
             
             console.log('[V3_UI_CONTRACT][RECOVERY_FROM_PROMPT_MISSING]', {
-              packId,
-              instanceNumber,
+              submitToken: capturedSubmitToken,
+              packId: capturedPackId,
+              instanceNumber: capturedInstanceNumber,
+              loopKey: capturedLoopKey,
               action: isMultiIncident ? 'ANOTHER_INSTANCE' : 'ADVANCE',
               isMultiIncident
             });
             
             if (isMultiIncident) {
               // Route to "another instance?" gate
-              transitionToAnotherInstanceGate({ packId, categoryId, categoryLabel, instanceNumber, packData });
+              transitionToAnotherInstanceGate({ packId: capturedPackId, categoryId, categoryLabel, instanceNumber: capturedInstanceNumber, packData });
             } else {
               // Exit probing and advance to next question
               exitV3Once('PROMPT_MISSING_RECOVERY', {
@@ -3482,12 +3554,25 @@ export default function CandidateInterview() {
                 messages: [],
                 reason: 'PROMPT_MISSING_RECOVERY',
                 shouldOfferAnotherInstance: false,
-                packId,
+                packId: capturedPackId,
                 categoryLabel,
-                instanceNumber,
+                instanceNumber: capturedInstanceNumber,
                 packData
               });
             }
+            
+            // Clear token after recovery
+            v3OpenerSubmitTokenRef.current = null;
+            v3OpenerSubmitLoopKeyRef.current = null;
+          } else {
+            console.log('[V3_FAILSAFE][CANCELLED_OR_STALE]', {
+              submitToken: capturedSubmitToken,
+              loopKey: capturedLoopKey,
+              stillOnOpener,
+              probingActiveNow,
+              hasPromptNow,
+              reason: 'Conditions no longer met for recovery'
+            });
           }
         }, 3000);
 
@@ -5085,13 +5170,23 @@ export default function CandidateInterview() {
 
     exitV3HandledRef.current = true;
     console.log('[EXIT_V3][ONCE]', { reason, baseQuestionId: v3BaseQuestionIdRef.current });
+    
+    // FAILSAFE CANCEL: Exiting probing - cancel opener failsafe
+    if (v3OpenerFailsafeTimerRef.current) {
+      clearTimeout(v3OpenerFailsafeTimerRef.current);
+      v3OpenerFailsafeTimerRef.current = null;
+      v3OpenerSubmitTokenRef.current = null;
+      v3OpenerSubmitLoopKeyRef.current = null;
+      const loopKey = payload?.packId ? `${sessionId}:${payload.categoryId || 'unknown'}:${payload.instanceNumber || 1}` : 'unknown';
+      console.log('[V3_FAILSAFE][CANCEL_ON_EXIT]', { loopKey, reason });
+    }
 
     // Queue transition (executed in useEffect)
     setPendingTransition({
       type: 'EXIT_V3',
       payload: { ...payload, reason }
     });
-  }, []);
+  }, [sessionId]);
 
   // V3 probing completion handler - deferred transition pattern
   const handleV3ProbingComplete = useCallback((result) => {
@@ -5179,6 +5274,15 @@ export default function CandidateInterview() {
         setScreenMode('QUESTION');
       }
     });
+    
+    // FAILSAFE CANCEL: Prompt arrived - cancel opener failsafe
+    if (v3OpenerFailsafeTimerRef.current) {
+      clearTimeout(v3OpenerFailsafeTimerRef.current);
+      v3OpenerFailsafeTimerRef.current = null;
+      v3OpenerSubmitTokenRef.current = null;
+      v3OpenerSubmitLoopKeyRef.current = null;
+      console.log('[V3_FAILSAFE][CANCEL_ON_PROMPT]', { loopKey });
+    }
     
     return promptId;
   }, [v3ProbingActive, screenMode]);
