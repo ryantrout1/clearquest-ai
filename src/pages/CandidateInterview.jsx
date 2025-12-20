@@ -5126,19 +5126,23 @@ export default function CandidateInterview() {
       }
       
       if (isReady) {
-        console.log('[V3_PROMPT_WATCHDOG][OK]', {
+        const okPayload = {
+          outcome: 'OK',
           loopKey: snapshot.loopKey,
           packId: snapshot.packId,
           instanceNumber: snapshot.instanceNumber,
           promptId
-        });
+        };
+        console.log('[V3_PROMPT_WATCHDOG][OK]', okPayload);
+        lastWatchdogOutcomeRef.current = okPayload; // DEV: Capture for debug bundle
         
         // IDEMPOTENCY RELEASE: Use stored lock key (guarantees exact match)
         const lockKey = lastV3SubmitLockKeyRef.current;
         if (lockKey) {
           if (submittedKeysRef.current.has(lockKey)) {
             submittedKeysRef.current.delete(lockKey);
-            console.log('[IDEMPOTENCY][RELEASE]', { lockKey, reason: 'WATCHDOG_OK' });
+            console.log('[IDEMPOTENCY][RELEASE]', { lockKey, packId: snapshot.packId, instanceNumber: snapshot.instanceNumber, source: 'handleOpenerSubmit' });
+            lastIdempotencyReleasedRef.current = lockKey; // DEV: Capture for debug bundle
           }
           lastV3SubmitLockKeyRef.current = null;
         } else {
@@ -5180,23 +5184,24 @@ export default function CandidateInterview() {
                            packData?.followup_multi_instance === true ? 'packMeta.followup_multi_instance' :
                            'fallback:false';
       
-      console.log('[V3_MULTI_INCIDENT][SOURCE_OF_TRUTH]', {
+      const sourcePayload = {
         packId: snapshot.packId,
         instanceNumber: snapshot.instanceNumber,
-        result: isMultiIncident,
-        source: sourceOfTruth,
-        packBehavior: packData?.behavior_type || null,
-        packMultiInstance: packData?.followup_multi_instance || null
-      });
+        behavior_type: packData?.behavior_type,
+        followup_multi_instance: packData?.followup_multi_instance,
+        isMultiIncident
+      };
+      console.log('[V3_MULTI_INCIDENT][SOURCE_OF_TRUTH]', sourcePayload);
+      lastMultiIncidentSourceRef.current = sourcePayload; // DEV: Capture for debug bundle
       
       if (isMultiIncident) {
-        console.log('[V3_UI_CONTRACT][RECOVERY_TO_ANOTHER_INSTANCE]', {
+        const recoveryPayload = {
           packId: snapshot.packId,
           instanceNumber: snapshot.instanceNumber,
-          loopKey: snapshot.loopKey,
-          promptId,
-          reason: failureReason
-        });
+          reason: 'Watchdog FAILED - transitioning to gate for multi-incident pack'
+        };
+        console.log('[V3_UI_CONTRACT][RECOVERY_TO_ANOTHER_INSTANCE]', recoveryPayload);
+        lastRecoveryAnotherInstanceRef.current = recoveryPayload; // DEV: Capture for debug bundle
         
         // Trigger transition to multi-instance gate (reuses existing gate UI)
         transitionToAnotherInstanceGate(v3ProbingContext);
@@ -5230,7 +5235,8 @@ export default function CandidateInterview() {
       if (lockKey) {
         if (submittedKeysRef.current.has(lockKey)) {
           submittedKeysRef.current.delete(lockKey);
-          console.log('[IDEMPOTENCY][RELEASE]', { lockKey, reason: 'WATCHDOG_FAILED_RECOVERY' });
+          console.log('[IDEMPOTENCY][RELEASE]', { lockKey, packId: snapshot.packId, instanceNumber: snapshot.instanceNumber, source: 'handleOpenerSubmit' });
+          lastIdempotencyReleasedRef.current = lockKey; // DEV: Capture for debug bundle
         }
         lastV3SubmitLockKeyRef.current = null;
       } else {
@@ -7487,6 +7493,17 @@ export default function CandidateInterview() {
           sessionId={sessionId}
           incidentId={v3ProbingContext?.incidentId}
         />
+      )}
+      
+      {/* DEV DEBUG: One-click evidence bundle (v3debug=1 only) */}
+      {isV3DebugEnabled && (
+        <button
+          onClick={copyV3DebugBundle}
+          className="fixed bottom-4 right-4 z-[10000] px-3 py-1 text-xs bg-purple-600 text-white rounded shadow-lg hover:bg-purple-700"
+          title="Copy V3 Debug Bundle (Ctrl+Shift+C)"
+        >
+          Copy V3 Debug
+        </button>
       )}
       </div>
       );
