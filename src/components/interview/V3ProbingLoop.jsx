@@ -136,6 +136,9 @@ export default function V3ProbingLoop({
   
   // IN-FLIGHT GUARD: Prevent concurrent engine calls
   const engineInFlightRef = useRef(false);
+  
+  // LOOP-KEY GUARD: Prevent re-initialization for same loopKey during active session
+  const activeLoopKeysRef = useRef(new Set());
 
   // RENDER TRUTH: Diagnostic logging for prompt card visibility
   const shouldShowPromptCard = !!activePromptText && !isComplete;
@@ -171,6 +174,12 @@ export default function V3ProbingLoop({
       return;
     }
 
+    // LOOP-KEY GUARD: Prevent re-initialization for same loopKey during active session
+    if (activeLoopKeysRef.current.has(loopKey)) {
+      console.log('[V3_PROBING_LOOP][INIT_SKIPPED_ALREADY_ACTIVE]', { loopKey });
+      return;
+    }
+
     // INIT-ONCE GUARD: Strictly enforce single initialization
     if (initRanRef.current) {
       console.log('[V3_PROBING_LOOP][INIT_ONCE_GUARD] Already initialized - blocking duplicate init', {
@@ -185,6 +194,9 @@ export default function V3ProbingLoop({
       return;
     }
 
+    // Mark loopKey as active
+    activeLoopKeysRef.current.add(loopKey);
+
     // Mark as initialized BEFORE calling handleSubmit
     initRanRef.current = true;
     hasInitialized.current = true;
@@ -192,16 +204,16 @@ export default function V3ProbingLoop({
     console.log("[V3_PROBING_LOOP][INIT] Starting with opener answer", {
       categoryId,
       incidentId,
+      loopKey,
       openerAnswerLength: openerAnswer?.length || 0,
       initRanRef: initRanRef.current,
       isInitialCall: true
     });
 
-    // Call decision engine with opener to get first probe
-    // CRITICAL: isInitialCall=true for first call ONLY
-    if (openerAnswer) {
-      handleSubmit(null, openerAnswer, true);
-    }
+    // Cleanup: remove loopKey on unmount
+    return () => {
+      activeLoopKeysRef.current.delete(loopKey);
+    };
   }, []);
 
   // HEADLESS MODE: Consume pending answer from parent

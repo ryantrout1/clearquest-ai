@@ -4789,6 +4789,85 @@ export default function CandidateInterview() {
     return '';
   }, [engine]);
 
+  // HELPER: Transition to multi-instance "another instance?" gate (reusable)
+  const transitionToAnotherInstanceGate = useCallback(async (v3Context) => {
+    const { packId, categoryId, categoryLabel, instanceNumber, packData } = v3Context || v3ProbingContext;
+    const baseQuestionId = v3BaseQuestionIdRef.current;
+    
+    console.log('[V3_PACK][ASK_ANOTHER_INSTANCE]', {
+      packId,
+      instanceNumber,
+      loopKey: `${sessionId}:${categoryId}:${instanceNumber || 1}`
+    });
+    
+    const gatePromptText = `Do you have another ${categoryLabel || 'incident'} to report?`;
+    const gateItemId = `multi-instance-gate-${packId}-${instanceNumber}`;
+    const gateStableKey = `mi-gate:${packId}:${instanceNumber}`;
+    
+    console.log('[MULTI_INSTANCE_GATE][SHOW]', {
+      packId,
+      instanceNumber,
+      stableKey: gateStableKey,
+      shouldOfferAnotherInstance: true
+    });
+    
+    // ATOMIC STATE TRANSITION: batch to avoid intermediate TEXT_INPUT footer
+    unstable_batchedUpdates(() => {
+      // Fully exit V3 mode and clear prompts
+      setV3ProbingActive(false);
+      setV3ActivePromptText(null);
+      setV3PendingAnswer(null);
+      setV3ProbingContext(null);
+      setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
+      setUiBlocker(null);
+      
+      // Set up multi-instance gate as first-class currentItem
+      const gateItem = {
+        id: gateItemId,
+        type: 'multi_instance_gate',
+        packId,
+        categoryId,
+        categoryLabel,
+        promptText: gatePromptText,
+        instanceNumber,
+        baseQuestionId,
+        packData
+      };
+      setMultiInstanceGate({
+        active: true,
+        packId,
+        categoryId,
+        categoryLabel,
+        promptText: gatePromptText,
+        instanceNumber,
+        baseQuestionId,
+        packData
+      });
+      setCurrentItem(gateItem);
+    });
+    
+    // Append gate prompt via canonical helper AFTER state switch
+    await appendAndRefresh('assistant', {
+      text: gatePromptText,
+      metadata: {
+        id: `mi-gate-${packId}-${instanceNumber}`,
+        stableKey: gateStableKey,
+        messageType: 'MULTI_INSTANCE_GATE_SHOWN',
+        packId,
+        categoryId,
+        instanceNumber,
+        baseQuestionId,
+        visibleToCandidate: true
+      }
+    }, 'gate_shown');
+    
+    await persistStateToDatabase(null, [], {
+      id: gateItemId,
+      type: 'multi_instance_gate',
+      packId
+    });
+  }, [v3ProbingContext, sessionId, appendAndRefresh, persistStateToDatabase]);
+
   // V3 EXIT: Idempotent exit function (only runs once)
   const exitV3Once = useCallback((reason, payload) => {
     if (exitV3HandledRef.current) {
@@ -4848,11 +4927,47 @@ export default function CandidateInterview() {
     console.log('[V3_TRANSCRIPT_UPDATE]', { type: entry?.type, deferred: true });
   }, []);
 
-  // V3 prompt change handler - updates placeholder text
+  // V3 ATOMIC PROMPT COMMIT: All state changes for activating V3 prompt in bottom bar
+  const commitV3PromptToBottomBar = useCallback(({ packId, instanceNumber, loopKey, promptText }) => {
+    console.log('[V3_PROMPT_COMMIT]', {
+      packId,
+      instanceNumber,
+      loopKey,
+      preview: promptText?.substring(0, 60)
+    });
+
+    // ATOMIC STATE UPDATE: All V3 prompt activation in one place
+    unstable_batchedUpdates(() => {
+      // Confirm V3 probing is active
+      if (!v3ProbingActive) {
+        setV3ProbingActive(true);
+      }
+      
+      // Set active prompt text (bottom bar placeholder reads from this)
+      setV3ActivePromptText(promptText);
+      
+      // Clear typing lock (allow user input)
+      setIsUserTyping(false);
+      
+      // Ensure screen mode is QUESTION (not WELCOME)
+      if (screenMode !== 'QUESTION') {
+        setScreenMode('QUESTION');
+      }
+    });
+  }, [v3ProbingActive, screenMode]);
+
+  // V3 prompt change handler - routes through atomic commit
   const handleV3PromptChange = useCallback((promptText) => {
     console.log('[V3_PROMPT_CHANGE]', { promptPreview: promptText?.substring(0, 60) || null });
-    setV3ActivePromptText(promptText);
-  }, []);
+    
+    // Get pack context for commit
+    const packId = v3ProbingContext?.packId || currentItem?.packId;
+    const instanceNumber = v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1;
+    const loopKey = `${sessionId}:${v3ProbingContext?.categoryId}:${instanceNumber}`;
+    
+    // ATOMIC COMMIT: All state changes in one place
+    commitV3PromptToBottomBar({ packId, instanceNumber, loopKey, promptText });
+  }, [commitV3PromptToBottomBar, v3ProbingContext, currentItem, sessionId]);
 
   // V3 answer submit handler - routes answer to V3ProbingLoop
   const handleV3AnswerSubmit = useCallback((answerText) => {
@@ -4860,7 +4975,7 @@ export default function CandidateInterview() {
     setV3PendingAnswer(answerText);
   }, []);
 
-  // V3 answer needed handler - stores answer submit capability
+  // V3 answer needed handler - stores answer submit capability + watchdog
   const handleV3AnswerNeeded = useCallback((answerContext) => {
     console.log('[V3_ANSWER_NEEDED]', { 
       hasPrompt: !!answerContext?.promptText,
@@ -4869,7 +4984,68 @@ export default function CandidateInterview() {
     
     // Store context for answer routing
     v3AnswerHandlerRef.current = answerContext;
-  }, []);
+    
+    // WATCHDOG: Verify UI stabilizes in 1 render cycle
+    requestAnimationFrame(() => {
+      // Check if bottom bar is in stable "answer needed" state
+      const isStable = 
+        v3ProbingActive &&
+        effectiveItemType === 'v3_probing' &&
+        !!v3ActivePromptText &&
+        bottomBarMode === 'TEXT_INPUT';
+      
+      if (!isStable) {
+        console.error('[V3_PROMPT_WATCHDOG][FAILED]', {
+          packId: v3ProbingContext?.packId,
+          instanceNumber: v3ProbingContext?.instanceNumber,
+          loopKey: `${sessionId}:${v3ProbingContext?.categoryId}:${v3ProbingContext?.instanceNumber || 1}`,
+          reason: 'Prompt exists but bottom bar did not stabilize',
+          v3ProbingActive,
+          effectiveItemType,
+          hasActivePrompt: !!v3ActivePromptText,
+          bottomBarMode
+        });
+        
+        // RECOVERY: Transition to multi-instance gate if pack supports it
+        const packData = v3ProbingContext?.packData;
+        const shouldOfferAnotherInstance = packData?.behavior_type === 'multi_incident' || 
+                                          packData?.followup_multi_instance === true;
+        
+        if (shouldOfferAnotherInstance) {
+          console.log('[V3_UI_CONTRACT][RECOVERY_TO_ANOTHER_INSTANCE]', {
+            packId: v3ProbingContext?.packId,
+            instanceNumber: v3ProbingContext?.instanceNumber,
+            loopKey: `${sessionId}:${v3ProbingContext?.categoryId}:${v3ProbingContext?.instanceNumber || 1}`
+          });
+          
+          // Trigger transition to multi-instance gate
+          transitionToAnotherInstanceGate(v3ProbingContext);
+        } else {
+          // Non-multi-instance pack: advance to next question
+          console.log('[V3_PROMPT_WATCHDOG][RECOVERY_ADVANCE]', {
+            packId: v3ProbingContext?.packId,
+            reason: 'Non-multi-instance pack - advancing to next question'
+          });
+          
+          const baseQuestionId = v3BaseQuestionIdRef.current;
+          if (baseQuestionId) {
+            exitV3Once('WATCHDOG_RECOVERY', {
+              incidentId: answerContext?.incidentId,
+              categoryId: v3ProbingContext?.categoryId,
+              completionReason: 'STOP',
+              messages: [],
+              reason: 'WATCHDOG_RECOVERY',
+              shouldOfferAnotherInstance: false,
+              packId: v3ProbingContext?.packId,
+              categoryLabel: v3ProbingContext?.categoryLabel,
+              instanceNumber: v3ProbingContext?.instanceNumber,
+              packData
+            });
+          }
+        }
+      }
+    });
+  }, [v3ProbingActive, effectiveItemType, v3ActivePromptText, bottomBarMode, v3ProbingContext, sessionId, exitV3Once]);
 
   // Deferred transition handler (fixes React warning)
   useEffect(() => {
