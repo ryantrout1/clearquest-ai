@@ -8169,13 +8169,36 @@ export default function CandidateInterview() {
             ) : null;
           })()}
 
-          {/* V3 UI CONTRACT: Log placeholder resolution for probing mode */}
+          {/* V3 UI CONTRACT: Active Prompt Card (probe questions render ABOVE input, not in placeholder) */}
+          {effectiveItemType === 'v3_probing' && v3ProbingActive && v3ActivePromptText?.trim() && (
+            <div className="mb-2 bg-purple-900/30 border border-purple-700/50 rounded-lg px-4 py-2.5">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-medium text-purple-400">AI Follow-Up</span>
+              </div>
+              <p className="text-white text-sm leading-relaxed">{v3ActivePromptText}</p>
+            </div>
+          )}
+
+          {/* V3 UI CONTRACT: Violation detection (dev-only) */}
           {effectiveItemType === 'v3_probing' && (() => {
+            const placeholder = "Type your response here…";
+            const promptInPlaceholder = v3ActivePromptText && placeholder.includes(v3ActivePromptText);
+            
+            if (promptInPlaceholder) {
+              console.error('[V3_UI_CONTRACT][VIOLATION] PROBE_PROMPT_IN_PLACEHOLDER', {
+                effectiveItemType,
+                promptPreview: v3ActivePromptText?.substring(0, 60) || 'none',
+                placeholderPreview: placeholder,
+                reason: 'V3 probe prompts must NEVER appear in input placeholder'
+              });
+            }
+            
             console.log('[V3_UI_CONTRACT][PLACEHOLDER_RESOLVED]', {
               effectiveItemType,
               currentItemType: currentItem?.type,
               hasPrompt: !!v3ActivePromptText,
-              placeholderPreview: v3ActivePromptText?.substring(0, 60) || 'none'
+              placeholderPreview: placeholder,
+              promptRenderedAboveInput: !!v3ActivePromptText
             });
             return null;
           })()}
@@ -8228,13 +8251,7 @@ export default function CandidateInterview() {
                }
              }}
              onKeyDown={handleInputKeyDown}
-             placeholder={
-               currentItem?.type === 'v3_pack_opener' 
-                 ? "Type your response here…" 
-                 : v3ProbingActive && v3ActivePromptText 
-                   ? v3ActivePromptText 
-                   : "Type your answer here..."
-             }
+             placeholder="Type your response here…"
              aria-label="Answer input"
              className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
              style={{ maxHeight: '120px', overflowY: 'auto' }}
@@ -8291,7 +8308,7 @@ export default function CandidateInterview() {
             console.log('[V3_UI_CONTRACT] ENFORCED', {
               v3ProbingActive,
               hasPrompt: !!v3ActivePromptText,
-              promptLocation: v3ActivePromptText ? 'INPUT_PLACEHOLDER_ONLY' : 'NONE',
+              promptLocation: v3ActivePromptText ? 'BOTTOM_BAR_ACTIVE_PROMPT' : 'NONE',
               mainBodyPromptCards: 0,
               transcriptPromptCards,
               transcriptLen: transcriptLengthNow
