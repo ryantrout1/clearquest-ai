@@ -1291,6 +1291,9 @@ export default function CandidateInterview() {
   
   // V3 IDEMPOTENCY: Store actual lock key used for submit (for correct release)
   const lastV3SubmitLockKeyRef = useRef(null);
+  
+  // TDZ SAFETY: Ref for bottomBarMode (allows early callbacks to read without TDZ)
+  const bottomBarModeRef = useRef(null);
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
@@ -5058,38 +5061,38 @@ export default function CandidateInterview() {
         actualPreview === promptPreview
       );
       
-      // Check UI stability using ONLY safe, contract-aligned signals
+      // Check UI stability using ONLY safe, contract-aligned signals (TDZ-safe via ref)
       const isReady = 
         v3ProbingActive === true &&
-        bottomBarMode === 'TEXT_INPUT' &&
+        bottomBarModeRef.current === 'TEXT_INPUT' &&
         v3ActivePromptText &&
         v3ActivePromptText.trim().length > 0 &&
         promptMatch;
       
-      // CONSOLIDATED DECISION LOG
+      // CONSOLIDATED DECISION LOG (TDZ-safe via ref)
       console.log('[V3_PROMPT_WATCHDOG][DECISION]', {
         packId: snapshot.packId,
         instanceNumber: snapshot.instanceNumber,
         loopKey: snapshot.loopKey,
         promptId,
-        bottomBarMode,
+        bottomBarMode: bottomBarModeRef.current,
         v3ProbingActive,
         hasPrompt: !!v3ActivePromptText,
         promptMatch,
         decision: isReady ? 'OK' : 'FAILED'
       });
       
-      // RUNTIME ASSERT: Verify OK decision is correct
+      // RUNTIME ASSERT: Verify OK decision is correct (TDZ-safe via ref)
       if (isReady) {
         // Assert conditions match
-        if (bottomBarMode !== 'TEXT_INPUT' || !promptMatch) {
+        if (bottomBarModeRef.current !== 'TEXT_INPUT' || !promptMatch) {
           console.error('[V3_PROMPT_WATCHDOG][ASSERT_FAIL_TO_FAILED]', {
             reason: 'OK decision but conditions invalid',
             packId: snapshot.packId,
             instanceNumber: snapshot.instanceNumber,
             loopKey: snapshot.loopKey,
             promptId,
-            bottomBarMode,
+            bottomBarMode: bottomBarModeRef.current,
             promptMatch
           });
           // Force FAILED path
@@ -5119,9 +5122,9 @@ export default function CandidateInterview() {
         return;
       }
       
-      // FAILED: UI did not stabilize
+      // FAILED: UI did not stabilize (TDZ-safe via ref)
       const failureReason = !promptMatch ? 'PROMPT_MISMATCH' : 
-                           bottomBarMode !== 'TEXT_INPUT' ? 'WRONG_BOTTOM_BAR_MODE' :
+                           bottomBarModeRef.current !== 'TEXT_INPUT' ? 'WRONG_BOTTOM_BAR_MODE' :
                            !v3ProbingActive ? 'PROBING_NOT_ACTIVE' :
                            'PROMPT_NOT_BOUND';
       
@@ -5132,7 +5135,7 @@ export default function CandidateInterview() {
         loopKey: snapshot.loopKey,
         reason: failureReason,
         v3ProbingActive,
-        bottomBarMode,
+        bottomBarMode: bottomBarModeRef.current,
         hasPrompt: !!v3ActivePromptText,
         promptMatch
       });
@@ -6029,6 +6032,9 @@ export default function CandidateInterview() {
   
   // Log final mode selection
   console.log('[BOTTOM_BAR_MODE]', { currentItemType, effectiveItemType, bottomBarMode, isQuestion, screenMode });
+  
+  // TDZ SAFETY: Sync computed bottomBarMode to ref (allows early callbacks to read)
+  bottomBarModeRef.current = bottomBarMode;
   
   // UI CONTRACT: CTA mode is ONLY valid during WELCOME screen
   // Force override to prevent CTA leaking during interview progression
