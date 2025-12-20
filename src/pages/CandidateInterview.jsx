@@ -1337,6 +1337,9 @@ export default function CandidateInterview() {
   
   // V3 RECAP TRACKING: Track recap ready state (prevents prompt missing logs)
   const v3RecapReadyRef = useRef(new Map()); // Map<loopKey, { recapText, nextAction }>
+  
+  // V3 RECAP APPEND GUARD: Prevent duplicate refresh calls (per stableKey)
+  const v3RecapAppendedKeysRef = useRef(new Set()); // Set<stableKey>
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
@@ -7031,6 +7034,7 @@ export default function CandidateInterview() {
                       <span className="text-sm font-medium text-emerald-400">Summary</span>
                     </div>
                     <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                    <p className="text-emerald-300/70 text-xs mt-2">No additional follow-up questions required.</p>
                   </div>
                 </ContentContainer>
               )}
@@ -7378,13 +7382,35 @@ export default function CandidateInterview() {
                     nextAction
                   });
                   
+                  // UI SIGNAL: Explicit log that no follow-ups are needed
+                  console.log('[V3_RECAP][UI_SIGNAL]', {
+                    packId,
+                    instanceNumber,
+                    loopKey,
+                    message: 'Engine returned RECAP/STOP — no follow-up questions required'
+                  });
+                  
                   // Mark recap as ready (prevents prompt missing logs)
                   v3RecapReadyRef.current.set(loopKey, { recapText, nextAction });
+                  
+                  // Generate stable key for dedupe safety
+                  const recapStableKey = `v3-recap:${packId}:${instanceNumber}:${loopKey}`;
+                  
+                  // GUARD: Prevent duplicate append/refresh for same recap
+                  if (v3RecapAppendedKeysRef.current.has(recapStableKey)) {
+                    console.log('[V3_RECAP][APPEND_SKIP]', {
+                      stableKey: recapStableKey,
+                      reason: 'Already appended - preventing duplicate'
+                    });
+                    return;
+                  }
+                  
+                  // Mark as appended
+                  v3RecapAppendedKeysRef.current.add(recapStableKey);
                   
                   // Append recap as allowed system event (NOT a probe prompt)
                   const { appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
                   const freshSession = await base44.entities.InterviewSession.get(sessionId);
-                  const recapStableKey = `v3-recap:${packId}:${instanceNumber}:${loopKey}`;
                   await appendAssistantMessage(sessionId, freshSession.transcript_snapshot || [], recapText, {
                     id: `v3-recap-${packId}-${instanceNumber}-${Date.now()}`,
                     stableKey: recapStableKey,
@@ -7397,7 +7423,7 @@ export default function CandidateInterview() {
                     visibleToCandidate: true
                   });
                   
-                  // Refresh transcript
+                  // Refresh transcript exactly once
                   await refreshTranscriptFromDB('v3_recap_appended');
                   
                   console.log('[V3_RECAP][APPENDED]', {
