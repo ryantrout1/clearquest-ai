@@ -5210,7 +5210,7 @@ export default function CandidateInterview() {
       }
       exitV3HandledRef.current = false;
     });
-  }, [v3ProbingActive, bottomBarMode, v3ActivePromptText, v3ProbingContext, sessionId, exitV3Once, transitionToAnotherInstanceGate]);
+  }, [v3ProbingActive, v3ActivePromptText, v3ProbingContext, sessionId, exitV3Once, transitionToAnotherInstanceGate]);
 
   // Deferred transition handler (fixes React warning)
   useEffect(() => {
