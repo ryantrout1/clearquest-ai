@@ -1292,8 +1292,11 @@ export default function CandidateInterview() {
   // V3 IDEMPOTENCY: Store actual lock key used for submit (for correct release)
   const lastV3SubmitLockKeyRef = useRef(null);
   
-  // TDZ SAFETY: Ref for bottomBarMode (allows early callbacks to read without TDZ)
+  // TDZ SAFETY: Refs for state used in watchdog (avoids stale closures and TDZ)
   const bottomBarModeRef = useRef(null);
+  const v3ActivePromptTextRef = useRef(null);
+  const v3ProbingActiveRef = useRef(null);
+  const v3ProbingContextRef = useRef(null);
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
@@ -5061,23 +5064,31 @@ export default function CandidateInterview() {
         actualPreview === promptPreview
       );
       
-      // Check UI stability using ONLY safe, contract-aligned signals (TDZ-safe via ref)
+      // Snapshot log: prove refs are fresh (no stale closure)
+      console.log('[V3_PROMPT_WATCHDOG][REF_SNAPSHOT]', {
+        promptId,
+        bottomBarMode: bottomBarModeRef.current,
+        v3ProbingActive: v3ProbingActiveRef.current,
+        hasPrompt: !!v3ActivePromptTextRef.current
+      });
+      
+      // Check UI stability using ONLY refs (no stale closures)
       const isReady = 
-        v3ProbingActive === true &&
+        v3ProbingActiveRef.current === true &&
         bottomBarModeRef.current === 'TEXT_INPUT' &&
-        v3ActivePromptText &&
-        v3ActivePromptText.trim().length > 0 &&
+        v3ActivePromptTextRef.current &&
+        v3ActivePromptTextRef.current.trim().length > 0 &&
         promptMatch;
       
-      // CONSOLIDATED DECISION LOG (TDZ-safe via ref)
+      // CONSOLIDATED DECISION LOG (ref-based, no stale closure)
       console.log('[V3_PROMPT_WATCHDOG][DECISION]', {
         packId: snapshot.packId,
         instanceNumber: snapshot.instanceNumber,
         loopKey: snapshot.loopKey,
         promptId,
         bottomBarMode: bottomBarModeRef.current,
-        v3ProbingActive,
-        hasPrompt: !!v3ActivePromptText,
+        v3ProbingActive: v3ProbingActiveRef.current,
+        hasPrompt: !!v3ActivePromptTextRef.current,
         promptMatch,
         decision: isReady ? 'OK' : 'FAILED'
       });
@@ -5122,10 +5133,10 @@ export default function CandidateInterview() {
         return;
       }
       
-      // FAILED: UI did not stabilize (TDZ-safe via ref)
+      // FAILED: UI did not stabilize (ref-based, no stale closure)
       const failureReason = !promptMatch ? 'PROMPT_MISMATCH' : 
                            bottomBarModeRef.current !== 'TEXT_INPUT' ? 'WRONG_BOTTOM_BAR_MODE' :
-                           !v3ProbingActive ? 'PROBING_NOT_ACTIVE' :
+                           !v3ProbingActiveRef.current ? 'PROBING_NOT_ACTIVE' :
                            'PROMPT_NOT_BOUND';
       
       console.error('[V3_PROMPT_WATCHDOG][FAILED]', {
@@ -5134,9 +5145,9 @@ export default function CandidateInterview() {
         instanceNumber: snapshot.instanceNumber,
         loopKey: snapshot.loopKey,
         reason: failureReason,
-        v3ProbingActive,
+        v3ProbingActive: v3ProbingActiveRef.current,
         bottomBarMode: bottomBarModeRef.current,
-        hasPrompt: !!v3ActivePromptText,
+        hasPrompt: !!v3ActivePromptTextRef.current,
         promptMatch
       });
       
@@ -6033,8 +6044,11 @@ export default function CandidateInterview() {
   // Log final mode selection
   console.log('[BOTTOM_BAR_MODE]', { currentItemType, effectiveItemType, bottomBarMode, isQuestion, screenMode });
   
-  // TDZ SAFETY: Sync computed bottomBarMode to ref (allows early callbacks to read)
+  // WATCHDOG FRESHNESS: Sync all watchdog-critical state to refs (no stale closures)
   bottomBarModeRef.current = bottomBarMode;
+  v3ActivePromptTextRef.current = v3ActivePromptText;
+  v3ProbingActiveRef.current = v3ProbingActive;
+  v3ProbingContextRef.current = v3ProbingContext;
   
   // UI CONTRACT: CTA mode is ONLY valid during WELCOME screen
   // Force override to prevent CTA leaking during interview progression
