@@ -6688,19 +6688,60 @@ export default function CandidateInterview() {
     currentItem.type === 'multi_instance_gate'
   ) && !v3ProbingActive;
   
+  // ============================================================================
+  // ACTIVE PROMPT TEXT RESOLUTION - Single source of truth for what user sees
+  // ============================================================================
+  let activePromptText = null;
+  
+  // Priority 1: V3 active prompt (from V3ProbingLoop callback)
+  if (v3ProbingActive && v3ActivePromptText) {
+    activePromptText = v3ActivePromptText;
+  }
+  // Priority 2: V2 pack field - use backend question text or field label
+  else if (effectiveItemType === 'v2_pack_field' && currentItem) {
+    const backendText = currentItem.backendQuestionText;
+    const clarifierText = v2ClarifierState?.packId === currentItem.packId && 
+                         v2ClarifierState?.fieldKey === currentItem.fieldKey && 
+                         v2ClarifierState?.instanceNumber === currentItem.instanceNumber
+                         ? v2ClarifierState.clarifierQuestion
+                         : null;
+    activePromptText = clarifierText || backendText || currentItem.fieldConfig?.label || null;
+  }
+  // Priority 3: V3 pack opener (with fallback)
+  else if (effectiveItemType === 'v3_pack_opener' && currentItem) {
+    const openerText = currentItem.openerText;
+    const usingFallback = !openerText || openerText.trim() === '';
+    activePromptText = usingFallback 
+      ? "Please describe the details for this section in your own words."
+      : openerText;
+  }
+  // Priority 4: Current prompt from getCurrentPrompt()
+  else if (currentPrompt?.text) {
+    activePromptText = currentPrompt.text;
+  }
+  
+  // ============================================================================
+  // BOTTOM BAR DERIVED STATE BLOCK - All derived variables in strict order
+  // ============================================================================
+  const needsPrompt = bottomBarMode === 'TEXT_INPUT' || 
+                      ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
+  const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
+  const shouldRenderFooter = 
+    screenMode === 'QUESTION' && 
+    (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
+  
   // UX: Auto-focus input after state transitions (Send button → next prompt)
-  // CRITICAL: Must be AFTER bottomBarMode is computed (TDZ safety)
+  // CRITICAL: Must be AFTER hasPrompt/bottomBarMode computed (TDZ safety)
   useEffect(() => {
     // Skip if typing lock active
     if (isUserTyping) return;
     
-    // Guard: bottomBarMode must exist
-    if (!bottomBarMode) return;
+    // Guard: Must be in QUESTION mode with TEXT_INPUT
+    if (screenMode !== 'QUESTION') return;
+    if (bottomBarMode !== 'TEXT_INPUT') return;
     
     // Focus conditions: TEXT_INPUT mode when prompt is ready
-    const shouldFocus = 
-      bottomBarMode === 'TEXT_INPUT' && 
-      (hasPrompt || currentItem?.type === 'v3_pack_opener' || v3ProbingActive);
+    const shouldFocus = hasPrompt || currentItem?.type === 'v3_pack_opener' || v3ProbingActive;
     
     // Prevent redundant focus (only focus on mode transition)
     if (lastFocusedBottomBarModeRef.current === bottomBarMode && bottomBarMode === 'TEXT_INPUT') {
@@ -6761,46 +6802,7 @@ export default function CandidateInterview() {
     }, 0);
     
     return () => clearTimeout(focusTimer);
-  }, [bottomBarMode, hasPrompt, v3ProbingActive, currentItem, isUserTyping, effectiveItemType]);
-  
-  // ============================================================================
-  // ACTIVE PROMPT TEXT RESOLUTION - Single source of truth for what user sees
-  // ============================================================================
-  let activePromptText = null;
-  
-  // Priority 1: V3 active prompt (from V3ProbingLoop callback)
-  if (v3ProbingActive && v3ActivePromptText) {
-    activePromptText = v3ActivePromptText;
-  }
-  // Priority 2: V2 pack field - use backend question text or field label
-  else if (effectiveItemType === 'v2_pack_field' && currentItem) {
-    const backendText = currentItem.backendQuestionText;
-    const clarifierText = v2ClarifierState?.packId === currentItem.packId && 
-                         v2ClarifierState?.fieldKey === currentItem.fieldKey && 
-                         v2ClarifierState?.instanceNumber === currentItem.instanceNumber
-                         ? v2ClarifierState.clarifierQuestion
-                         : null;
-    activePromptText = clarifierText || backendText || currentItem.fieldConfig?.label || null;
-  }
-  // Priority 3: V3 pack opener (with fallback)
-  else if (effectiveItemType === 'v3_pack_opener' && currentItem) {
-    const openerText = currentItem.openerText;
-    const usingFallback = !openerText || openerText.trim() === '';
-    activePromptText = usingFallback 
-      ? "Please describe the details for this section in your own words."
-      : openerText;
-  }
-  // Priority 4: Current prompt from getCurrentPrompt()
-  else if (currentPrompt?.text) {
-    activePromptText = currentPrompt.text;
-  }
-  
-  // ============================================================================
-  // DERIVED UI STATE: Prompt Guard (MUST be after all upstream variables)
-  // ============================================================================
-  const needsPrompt = bottomBarMode === 'TEXT_INPUT' || 
-                      ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
-  const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
+  }, [bottomBarMode, hasPrompt, v3ProbingActive, currentItem, isUserTyping, effectiveItemType, screenMode]);
   
   // V3 OPENER SUBMIT STATE: Log submit affordance for opener
   if (effectiveItemType === 'v3_pack_opener' && currentItem) {
@@ -8379,10 +8381,7 @@ export default function CandidateInterview() {
 
           {/* Footer disclaimer - show during all active interview Q&A states */}
           {(() => {
-            const shouldRenderFooter = 
-              screenMode === 'QUESTION' && 
-              (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
-            
+            // Use pre-computed shouldRenderFooter from derived block
             console.log('[BOTTOM_BAR_FOOTER]', {
               shouldRenderFooter,
               screenMode,
