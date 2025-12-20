@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 
 /**
  * PublicAppShell - NO-AUTH wrapper for anonymous/public routes
@@ -13,7 +13,7 @@ import React, { useEffect } from "react";
  */
 export default function PublicAppShell({ children }) {
   useEffect(() => {
-    console.log('[PUBLIC_SHELL] Mounted (NO AuthContext) — Candidate routes are anonymous');
+    console.log('[AUTH][BOOT] AuthProvider=false route=public/candidate');
   }, []);
 
   return (
