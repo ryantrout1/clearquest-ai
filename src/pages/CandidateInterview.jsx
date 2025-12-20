@@ -1334,6 +1334,9 @@ export default function CandidateInterview() {
   // V3 OPENER/PROBING TRACKING: Track if opener submitted or probing started (per loopKey)
   const v3OpenerSubmittedRef = useRef(new Map()); // Map<loopKey, boolean>
   const v3ProbingStartedRef = useRef(new Map()); // Map<loopKey, boolean>
+  
+  // V3 RECAP TRACKING: Track recap ready state (prevents prompt missing logs)
+  const v3RecapReadyRef = useRef(new Map()); // Map<loopKey, { recapText, nextAction }>
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
@@ -6579,27 +6582,40 @@ export default function CandidateInterview() {
   
   // One-time diagnostic log when prompt is missing (no hook - just side effect)
   if (needsPrompt && !hasPrompt && currentItem) {
-    const diagKey = `${sessionId}:${effectiveItemType}:${currentItem.packId}:${currentItem.fieldKey}:${currentItem.instanceNumber}:${currentItem.id}`;
-    if (promptMissingKeyRef.current !== diagKey) {
-      promptMissingKeyRef.current = diagKey;
-      
-      const logPrefix = effectiveItemType === 'v3_probing' || effectiveItemType === 'v3_pack_opener' 
-        ? 'V3_UI_PROMPT_MISSING' 
-        : 'V2_UI_PROMPT_MISSING';
-      
-      console.warn(`[${logPrefix}]`, {
-        sessionId,
-        currentItemType: currentItem?.type,
-        effectiveItemType,
+    // GUARD: Don't log prompt missing if recap is ready for this loopKey
+    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+    const hasRecapReady = loopKey && v3RecapReadyRef.current.has(loopKey);
+    
+    if (hasRecapReady) {
+      console.log('[V3_RECAP][PENDING_ROUTE]', {
+        loopKey,
         packId: currentItem?.packId,
-        fieldKey: currentItem?.fieldKey,
         instanceNumber: currentItem?.instanceNumber,
-        currentItemId: currentItem?.id,
-        hasBackendQuestionText: !!currentItem?.backendQuestionText,
-        hasClarifierState: !!v2ClarifierState,
-        hasV3ActivePrompt: !!v3ActivePromptText,
-        hasCurrentPrompt: !!currentPrompt?.text
+        reason: 'Recap ready - routing imminent, prompt missing is expected'
       });
+    } else {
+      const diagKey = `${sessionId}:${effectiveItemType}:${currentItem.packId}:${currentItem.fieldKey}:${currentItem.instanceNumber}:${currentItem.id}`;
+      if (promptMissingKeyRef.current !== diagKey) {
+        promptMissingKeyRef.current = diagKey;
+        
+        const logPrefix = effectiveItemType === 'v3_probing' || effectiveItemType === 'v3_pack_opener' 
+          ? 'V3_UI_PROMPT_MISSING' 
+          : 'V2_UI_PROMPT_MISSING';
+        
+        console.warn(`[${logPrefix}]`, {
+          sessionId,
+          currentItemType: currentItem?.type,
+          effectiveItemType,
+          packId: currentItem?.packId,
+          fieldKey: currentItem?.fieldKey,
+          instanceNumber: currentItem?.instanceNumber,
+          currentItemId: currentItem?.id,
+          hasBackendQuestionText: !!currentItem?.backendQuestionText,
+          hasClarifierState: !!v2ClarifierState,
+          hasV3ActivePrompt: !!v3ActivePromptText,
+          hasCurrentPrompt: !!currentPrompt?.text
+        });
+      }
     }
   } else if (hasPrompt) {
     promptMissingKeyRef.current = null;
@@ -7006,6 +7022,19 @@ export default function CandidateInterview() {
                 return null;
               })()}
 
+              {/* V3 Recap/Completion Message - ALLOWED system event */}
+              {entry.role === 'assistant' && entry.messageType === 'V3_PACK_RECAP' && (
+                <ContentContainer>
+                  <div className="w-full bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span className="text-sm font-medium text-emerald-400">Summary</span>
+                    </div>
+                    <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                  </div>
+                </ContentContainer>
+              )}
+
               {entry.role === 'user' && entry.messageType === 'v3_probe_answer' && (
                 <div style={{ marginBottom: 10 }}>
                   <ContentContainer>
@@ -7340,12 +7369,48 @@ export default function CandidateInterview() {
                     promptLen
                   });
                 }}
-                onIncidentComplete={({ loopKey, packId, categoryId, instanceNumber, reason, incidentId, completionReason }) => {
+                onRecapReady={async ({ loopKey, packId, categoryId, instanceNumber, recapText, nextAction, incidentId }) => {
+                  console.log('[V3_RECAP][RECEIVED]', {
+                    loopKey,
+                    packId,
+                    instanceNumber,
+                    promptLen: recapText?.length || 0,
+                    nextAction
+                  });
+                  
+                  // Mark recap as ready (prevents prompt missing logs)
+                  v3RecapReadyRef.current.set(loopKey, { recapText, nextAction });
+                  
+                  // Append recap as allowed system event (NOT a probe prompt)
+                  const { appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
+                  const freshSession = await base44.entities.InterviewSession.get(sessionId);
+                  await appendAssistantMessage(sessionId, freshSession.transcript_snapshot || [], recapText, {
+                    messageType: 'V3_PACK_RECAP',
+                    packId,
+                    categoryId,
+                    instanceNumber,
+                    incidentId,
+                    nextAction,
+                    visibleToCandidate: true
+                  });
+                  
+                  // Refresh transcript
+                  await refreshTranscriptFromDB('v3_recap_appended');
+                  
+                  console.log('[V3_RECAP][APPENDED]', {
+                    loopKey,
+                    packId,
+                    messageType: 'V3_PACK_RECAP',
+                    nextAction
+                  });
+                }}
+                onIncidentComplete={({ loopKey, packId, categoryId, instanceNumber, reason, incidentId, completionReason, hasRecap }) => {
                   console.log('[V3_PROBING][INCIDENT_COMPLETE_NO_PROMPT]', {
                     loopKey,
                     packId,
                     instanceNumber,
-                    reason
+                    reason,
+                    hasRecap
                   });
                   
                   // Route based on pack type
@@ -7362,7 +7427,7 @@ export default function CandidateInterview() {
                       categoryId,
                       completionReason,
                       messages: [],
-                      reason: 'INCIDENT_COMPLETE_NO_PROMPT',
+                      reason: hasRecap ? 'RECAP_COMPLETE' : 'INCIDENT_COMPLETE_NO_PROMPT',
                       shouldOfferAnotherInstance: false,
                       packId,
                       categoryLabel: v3ProbingContext.categoryLabel,

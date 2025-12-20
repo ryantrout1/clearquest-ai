@@ -48,7 +48,8 @@ export default function V3ProbingLoop({
   onAnswerNeeded, // NEW: Callback when ready for user input
   pendingAnswer, // NEW: Answer from parent to consume
   onPromptSet, // NEW: Callback when prompt is committed to state
-  onIncidentComplete // NEW: Callback when incident completes with no further prompts
+  onIncidentComplete, // NEW: Callback when incident completes with no further prompts
+  onRecapReady // NEW: Callback when engine returns RECAP/STOP with completion message
 }) {
   const effectiveTraceId = parentTraceId || `${sessionId}-${Date.now()}`;
   console.log('[V3_PROBING_LOOP][INIT]', { traceId: effectiveTraceId, categoryId, instanceNumber });
@@ -589,6 +590,50 @@ export default function V3ProbingLoop({
           return;
         }
         
+        // RECAP PATH: Engine returned completion message (non-interactive)
+        console.log('[V3_PROBING_LOOP][RECAP_READY]', {
+          loopKey,
+          promptLen: data.nextPrompt?.length || 0,
+          nextAction: data.nextAction
+        });
+        
+        // Notify parent of recap text (parent renders as allowed system event, not probe prompt)
+        if (onRecapReady) {
+          onRecapReady({
+            loopKey,
+            packId: packData?.followup_pack_id,
+            categoryId,
+            instanceNumber,
+            recapText: data.nextPrompt,
+            nextAction: data.nextAction,
+            incidentId: data.incidentId || incidentId
+          });
+        }
+        
+        // Mark complete and trigger routing via onIncidentComplete
+        setIsComplete(true);
+        setCompletionReason(data.nextAction);
+        
+        // Trigger parent routing (multi-instance gate or advance)
+        if (onIncidentComplete) {
+          onIncidentComplete({
+            loopKey,
+            packId: packData?.followup_pack_id,
+            categoryId,
+            instanceNumber,
+            reason: 'RECAP_COMPLETE',
+            incidentId: data.incidentId || incidentId,
+            completionReason: data.nextAction,
+            hasRecap: true
+          });
+        }
+        
+        setIsLoading(false);
+        setIsDeciding(false);
+        engineInFlightRef.current = false;
+        return;
+        
+        // LEGACY PATH BELOW (kept for backwards compatibility if onRecapReady not provided)
         // Probing complete - use centralized completion message
         const completionMessage = data.nextPrompt || getCompletionMessage(data.nextAction, data.stopReason);
 
