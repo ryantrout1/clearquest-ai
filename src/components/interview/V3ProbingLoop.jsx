@@ -520,10 +520,10 @@ export default function V3ProbingLoop({
         }
 
         // UI CONTRACT: V3 probe prompts MUST NOT append to transcript
-        // They are exposed ONLY via onPromptChange callback for placeholder rendering
+        // They are rendered in dedicated "Active Prompt" card above input (parent UI)
         console.log('[V3_UI_CONTRACT]', {
           action: 'PROMPT_RENDER',
-          location: 'ACTIVE_INPUT',
+          location: 'BOTTOM_BAR_ACTIVE_PROMPT',
           categoryId: categoryId || 'unknown',
           packId: currentIncidentId?.split('_')[1] || 'unknown',
           promptPreview: data.nextPrompt.substring(0, 60),
