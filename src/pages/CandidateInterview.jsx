@@ -1283,6 +1283,11 @@ export default function CandidateInterview() {
   
   // PROMPT MISSING DIAGNOSTIC: Ref for de-duped logging (MUST be top-level hook)
   const promptMissingKeyRef = useRef(null);
+  
+  // V3 PROMPT WATCHDOG: Snapshot-based state verification
+  const lastV3PromptSnapshotRef = useRef(null);
+  const handledPromptIdsRef = useRef(new Set());
+  const promptIdCounterRef = useRef(0);
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
@@ -4929,12 +4934,29 @@ export default function CandidateInterview() {
 
   // V3 ATOMIC PROMPT COMMIT: All state changes for activating V3 prompt in bottom bar
   const commitV3PromptToBottomBar = useCallback(({ packId, instanceNumber, loopKey, promptText }) => {
+    // Generate unique prompt ID for watchdog tracking
+    promptIdCounterRef.current++;
+    const promptId = `${loopKey}:${promptIdCounterRef.current}`;
+    
     console.log('[V3_PROMPT_COMMIT]', {
       packId,
       instanceNumber,
       loopKey,
+      promptId,
       preview: promptText?.substring(0, 60)
     });
+
+    // SNAPSHOT: Capture expected state BEFORE atomic update
+    const snapshot = {
+      promptId,
+      loopKey,
+      packId,
+      instanceNumber,
+      promptText,
+      expectedBottomBarMode: 'TEXT_INPUT',
+      committedAt: Date.now()
+    };
+    lastV3PromptSnapshotRef.current = snapshot;
 
     // ATOMIC STATE UPDATE: All V3 prompt activation in one place
     unstable_batchedUpdates(() => {
@@ -4954,6 +4976,8 @@ export default function CandidateInterview() {
         setScreenMode('QUESTION');
       }
     });
+    
+    return promptId;
   }, [v3ProbingActive, screenMode]);
 
   // V3 prompt change handler - routes through atomic commit
@@ -4975,7 +4999,7 @@ export default function CandidateInterview() {
     setV3PendingAnswer(answerText);
   }, []);
 
-  // V3 answer needed handler - stores answer submit capability + watchdog
+  // V3 answer needed handler - stores answer submit capability + snapshot-based watchdog
   const handleV3AnswerNeeded = useCallback((answerContext) => {
     console.log('[V3_ANSWER_NEEDED]', { 
       hasPrompt: !!answerContext?.promptText,
@@ -4985,70 +5009,103 @@ export default function CandidateInterview() {
     // Store context for answer routing
     v3AnswerHandlerRef.current = answerContext;
     
-    // WATCHDOG: Verify UI stabilizes in 1 render cycle
+    // SNAPSHOT: Capture current state BEFORE scheduling watchdog
+    const snapshot = lastV3PromptSnapshotRef.current;
+    if (!snapshot) {
+      console.warn('[V3_PROMPT_WATCHDOG][NO_SNAPSHOT]', { reason: 'Prompt commit did not create snapshot' });
+      return;
+    }
+    
+    const promptId = snapshot.promptId;
+    
+    // IDEMPOTENCY: Skip if already handled
+    if (handledPromptIdsRef.current.has(promptId)) {
+      console.log('[V3_PROMPT_WATCHDOG][SKIP_DUPLICATE]', { promptId, loopKey: snapshot.loopKey });
+      return;
+    }
+    
+    // Mark as handled immediately
+    handledPromptIdsRef.current.add(promptId);
+    
+    // WATCHDOG: Verify UI stabilizes in 1 render cycle (snapshot-based, TDZ-safe)
     requestAnimationFrame(() => {
-      // Derive effectiveItemType locally (avoids TDZ with outer scope variable)
-      const localEffectiveItemType = v3ProbingActive ? 'v3_probing' : currentItemType;
+      // Verify snapshot is still current
+      if (lastV3PromptSnapshotRef.current?.promptId !== promptId) {
+        console.log('[V3_PROMPT_WATCHDOG][SKIP_STALE]', { promptId, currentPromptId: lastV3PromptSnapshotRef.current?.promptId });
+        return;
+      }
       
-      // Check if bottom bar is in stable "answer needed" state
-      const isStable = 
-        v3ProbingActive &&
-        localEffectiveItemType === 'v3_probing' &&
-        !!v3ActivePromptText &&
-        bottomBarMode === 'TEXT_INPUT';
+      // Check UI stability using ONLY safe, contract-aligned signals
+      const isReady = 
+        v3ProbingActive === true &&
+        bottomBarMode === 'TEXT_INPUT' &&
+        v3ActivePromptText &&
+        v3ActivePromptText.trim().length > 0;
       
-      if (!isStable) {
-        console.error('[V3_PROMPT_WATCHDOG][FAILED]', {
-          packId: v3ProbingContext?.packId,
-          instanceNumber: v3ProbingContext?.instanceNumber,
-          loopKey: `${sessionId}:${v3ProbingContext?.categoryId}:${v3ProbingContext?.instanceNumber || 1}`,
-          reason: 'Prompt exists but bottom bar did not stabilize',
-          v3ProbingActive,
-          effectiveItemType: localEffectiveItemType,
-          hasActivePrompt: !!v3ActivePromptText,
-          bottomBarMode
+      if (isReady) {
+        console.log('[V3_PROMPT_WATCHDOG][OK]', {
+          loopKey: snapshot.loopKey,
+          packId: snapshot.packId,
+          instanceNumber: snapshot.instanceNumber,
+          promptId
+        });
+        return;
+      }
+      
+      // FAILED: UI did not stabilize
+      console.error('[V3_PROMPT_WATCHDOG][FAILED]', {
+        promptId,
+        packId: snapshot.packId,
+        instanceNumber: snapshot.instanceNumber,
+        loopKey: snapshot.loopKey,
+        reason: 'Prompt exists but bottom bar did not stabilize',
+        v3ProbingActive,
+        bottomBarMode,
+        hasPrompt: !!v3ActivePromptText
+      });
+      
+      // RECOVERY: Transition to multi-instance gate if pack supports it
+      const packData = v3ProbingContext?.packData;
+      const shouldOfferAnotherInstance = packData?.behavior_type === 'multi_incident' || 
+                                        packData?.followup_multi_instance === true;
+      
+      if (shouldOfferAnotherInstance) {
+        console.log('[V3_UI_CONTRACT][RECOVERY_TO_ANOTHER_INSTANCE]', {
+          packId: snapshot.packId,
+          instanceNumber: snapshot.instanceNumber,
+          loopKey: snapshot.loopKey
         });
         
-        // RECOVERY: Transition to multi-instance gate if pack supports it
-        const packData = v3ProbingContext?.packData;
-        const shouldOfferAnotherInstance = packData?.behavior_type === 'multi_incident' || 
-                                          packData?.followup_multi_instance === true;
+        // Trigger transition to multi-instance gate
+        transitionToAnotherInstanceGate(v3ProbingContext);
+      } else {
+        // Non-multi-instance pack: advance to next question
+        console.log('[V3_PROMPT_WATCHDOG][RECOVERY_ADVANCE]', {
+          packId: snapshot.packId,
+          reason: 'Non-multi-instance pack - advancing to next question'
+        });
         
-        if (shouldOfferAnotherInstance) {
-          console.log('[V3_UI_CONTRACT][RECOVERY_TO_ANOTHER_INSTANCE]', {
-            packId: v3ProbingContext?.packId,
-            instanceNumber: v3ProbingContext?.instanceNumber,
-            loopKey: `${sessionId}:${v3ProbingContext?.categoryId}:${v3ProbingContext?.instanceNumber || 1}`
+        const baseQuestionId = v3BaseQuestionIdRef.current;
+        if (baseQuestionId) {
+          exitV3Once('WATCHDOG_RECOVERY', {
+            incidentId: answerContext?.incidentId,
+            categoryId: v3ProbingContext?.categoryId,
+            completionReason: 'STOP',
+            messages: [],
+            reason: 'WATCHDOG_RECOVERY',
+            shouldOfferAnotherInstance: false,
+            packId: snapshot.packId,
+            categoryLabel: v3ProbingContext?.categoryLabel,
+            instanceNumber: snapshot.instanceNumber,
+            packData
           });
-          
-          // Trigger transition to multi-instance gate
-          transitionToAnotherInstanceGate(v3ProbingContext);
-        } else {
-          // Non-multi-instance pack: advance to next question
-          console.log('[V3_PROMPT_WATCHDOG][RECOVERY_ADVANCE]', {
-            packId: v3ProbingContext?.packId,
-            reason: 'Non-multi-instance pack - advancing to next question'
-          });
-          
-          const baseQuestionId = v3BaseQuestionIdRef.current;
-          if (baseQuestionId) {
-            exitV3Once('WATCHDOG_RECOVERY', {
-              incidentId: answerContext?.incidentId,
-              categoryId: v3ProbingContext?.categoryId,
-              completionReason: 'STOP',
-              messages: [],
-              reason: 'WATCHDOG_RECOVERY',
-              shouldOfferAnotherInstance: false,
-              packId: v3ProbingContext?.packId,
-              categoryLabel: v3ProbingContext?.categoryLabel,
-              instanceNumber: v3ProbingContext?.instanceNumber,
-              packData
-            });
-          }
         }
       }
+      
+      // Release idempotency lock
+      exitV3HandledRef.current = false;
     });
-  }, [v3ProbingActive, effectiveItemType, v3ActivePromptText, bottomBarMode, v3ProbingContext, sessionId, exitV3Once]);
+  }, [v3ProbingActive, bottomBarMode, v3ActivePromptText, v3ProbingContext, sessionId, exitV3Once, transitionToAnotherInstanceGate]);
 
   // Deferred transition handler (fixes React warning)
   useEffect(() => {
