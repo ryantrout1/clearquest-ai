@@ -3395,19 +3395,41 @@ export default function CandidateInterview() {
           openerAnswerLength: value?.length || 0
         });
         
-        setV3ProbingActive(true);
-        setV3ProbingContext({
+        const loopKey = `${sessionId}:${categoryId}:${instanceNumber}`;
+        
+        // ATOMIC STATE TRANSITION: Set probing active + context in one batch
+        unstable_batchedUpdates(() => {
+          setV3ProbingActive(true);
+          setV3ProbingContext({
+            packId,
+            categoryId,
+            categoryLabel,
+            baseQuestionId,
+            questionCode,
+            sectionId,
+            instanceNumber,
+            incidentId: null,
+            packData,
+            openerAnswer: value,
+            traceId
+          });
+        });
+        
+        console.log('[V3_OPENER][SUBMIT_OK]', {
+          sessionId,
+          packId,
+          instanceNumber,
+          traceId,
+          loopKey,
+          openerAnswerLength: value?.length || 0
+        });
+        
+        console.log('[V3_PROBING][START_AFTER_OPENER]', {
           packId,
           categoryId,
-          categoryLabel, // Add categoryLabel to context
-          baseQuestionId,
-          questionCode,
-          sectionId,
           instanceNumber,
-          incidentId: null, // Will be created by decisionEngineV3
-          packData,
-          openerAnswer: value, // Pass opener answer to probing engine
-          traceId // Pass traceId to V3ProbingLoop
+          loopKey,
+          v3ProbingActive: true
         });
 
         await refreshTranscriptFromDB('v3_probing_enter');
@@ -3418,6 +3440,56 @@ export default function CandidateInterview() {
           categoryId,
           baseQuestionId
         });
+        
+        // FAILSAFE: Detect if probing doesn't start within 3s
+        setTimeout(() => {
+          // Check if we're still stuck on opener or have no prompt
+          const stillOnOpener = currentItem?.type === 'v3_pack_opener' && currentItem?.packId === packId;
+          const probingActiveNow = v3ProbingActiveRef.current;
+          const hasPromptNow = !!v3ActivePromptTextRef.current;
+          
+          if (stillOnOpener || (probingActiveNow && !hasPromptNow)) {
+            console.error('[V3_UI_CONTRACT][PROMPT_MISSING_AFTER_OPENER]', {
+              packId,
+              instanceNumber,
+              loopKey,
+              stillOnOpener,
+              probingActiveNow,
+              hasPromptNow,
+              reason: stillOnOpener ? 'Still on opener - probing did not start' : 'Probing started but no prompt received'
+            });
+            
+            // RECOVERY: Check if pack is multi-incident
+            const isMultiIncident = packData?.behavior_type === 'multi_incident' || 
+                                   packData?.followup_multi_instance === true;
+            
+            console.log('[V3_UI_CONTRACT][RECOVERY_FROM_PROMPT_MISSING]', {
+              packId,
+              instanceNumber,
+              action: isMultiIncident ? 'ANOTHER_INSTANCE' : 'ADVANCE',
+              isMultiIncident
+            });
+            
+            if (isMultiIncident) {
+              // Route to "another instance?" gate
+              transitionToAnotherInstanceGate({ packId, categoryId, categoryLabel, instanceNumber, packData });
+            } else {
+              // Exit probing and advance to next question
+              exitV3Once('PROMPT_MISSING_RECOVERY', {
+                incidentId: null,
+                categoryId,
+                completionReason: 'STOP',
+                messages: [],
+                reason: 'PROMPT_MISSING_RECOVERY',
+                shouldOfferAnotherInstance: false,
+                packId,
+                categoryLabel,
+                instanceNumber,
+                packData
+              });
+            }
+          }
+        }, 3000);
 
         setIsCommitting(false);
         setInput("");
@@ -3604,6 +3676,17 @@ export default function CandidateInterview() {
             const { packId, substanceName, isV3Pack } = followUpResult;
 
             console.log(`[FOLLOWUP-TRIGGER] Pack triggered: ${packId}, checking versions...`);
+            
+            // IDEMPOTENCY RELEASE: Q001 routed to V3 pack - release base question lock
+            const baseQuestionKey = `q:${currentItem.id}`;
+            if (submittedKeysRef.current.has(baseQuestionKey)) {
+              submittedKeysRef.current.delete(baseQuestionKey);
+              console.log('[IDEMPOTENCY][RELEASE]', { 
+                lockKey: baseQuestionKey, 
+                packId, 
+                reason: 'Q001_ROUTED_TO_V3_PACK' 
+              });
+            }
 
             // Check pack config flags to determine V3 vs V2
             const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
