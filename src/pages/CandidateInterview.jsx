@@ -3538,14 +3538,19 @@ export default function CandidateInterview() {
         // Track probing start
         v3ProbingStartedRef.current.set(loopKey, true);
 
-        await refreshTranscriptFromDB('v3_probing_enter');
-        await persistStateToDatabase(null, [], {
-          id: `v3-probing-${packId}`,
+        // CRITICAL: Set currentItem to v3_probing type (enables correct bottom bar binding)
+        const probingItem = {
+          id: `v3-probing-${packId}-${instanceNumber}`,
           type: 'v3_probing',
           packId,
           categoryId,
+          instanceNumber,
           baseQuestionId
-        });
+        };
+        setCurrentItem(probingItem);
+
+        await refreshTranscriptFromDB('v3_probing_enter');
+        await persistStateToDatabase(null, [], probingItem);
         
         // FAILSAFE: Detect if probing doesn't start within 3s (token-gated)
         // Capture local copies for closure safety
@@ -8162,6 +8167,17 @@ export default function CandidateInterview() {
                 </Button>
               </div>
             ) : null;
+          })()}
+
+          {/* V3 UI CONTRACT: Log placeholder resolution for probing mode */}
+          {effectiveItemType === 'v3_probing' && (() => {
+            console.log('[V3_UI_CONTRACT][PLACEHOLDER_RESOLVED]', {
+              effectiveItemType,
+              currentItemType: currentItem?.type,
+              hasPrompt: !!v3ActivePromptText,
+              placeholderPreview: v3ActivePromptText?.substring(0, 60) || 'none'
+            });
+            return null;
           })()}
 
           <div className="flex gap-3">
