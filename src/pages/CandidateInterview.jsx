@@ -1288,6 +1288,9 @@ export default function CandidateInterview() {
   const lastV3PromptSnapshotRef = useRef(null);
   const handledPromptIdsRef = useRef(new Set());
   const promptIdCounterRef = useRef(0);
+  
+  // V3 IDEMPOTENCY: Store actual lock key used for submit (for correct release)
+  const lastV3SubmitLockKeyRef = useRef(null);
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
@@ -2521,6 +2524,11 @@ export default function CandidateInterview() {
     if (submitKey) {
       submittedKeysRef.current.add(submitKey);
       console.log(`[IDEMPOTENCY][LOCKED] ${submitKey}`);
+      
+      // CRITICAL: Store actual lock key for v3_pack_opener submits (enables correct release in watchdog)
+      if (currentItem.type === 'v3_pack_opener') {
+        lastV3SubmitLockKeyRef.current = submitKey;
+      }
     }
     
     // EXPLICIT ENTRY LOG: Log which branch we're entering
@@ -5071,6 +5079,24 @@ export default function CandidateInterview() {
         decision: isReady ? 'OK' : 'FAILED'
       });
       
+      // RUNTIME ASSERT: Verify OK decision is correct
+      if (isReady) {
+        // Assert conditions match
+        if (bottomBarMode !== 'TEXT_INPUT' || !promptMatch) {
+          console.error('[V3_PROMPT_WATCHDOG][ASSERT_FAIL_TO_FAILED]', {
+            reason: 'OK decision but conditions invalid',
+            packId: snapshot.packId,
+            instanceNumber: snapshot.instanceNumber,
+            loopKey: snapshot.loopKey,
+            promptId,
+            bottomBarMode,
+            promptMatch
+          });
+          // Force FAILED path
+          isReady = false;
+        }
+      }
+      
       if (isReady) {
         console.log('[V3_PROMPT_WATCHDOG][OK]', {
           loopKey: snapshot.loopKey,
@@ -5079,11 +5105,16 @@ export default function CandidateInterview() {
           promptId
         });
         
-        // IDEMPOTENCY RELEASE: Build lock key and release
-        const lockKey = `v3o:${snapshot.packId}:${snapshot.instanceNumber}`;
-        if (submittedKeysRef.current.has(lockKey)) {
-          submittedKeysRef.current.delete(lockKey);
-          console.log('[IDEMPOTENCY][RELEASE]', { lockKey, reason: 'WATCHDOG_OK' });
+        // IDEMPOTENCY RELEASE: Use stored lock key (guarantees exact match)
+        const lockKey = lastV3SubmitLockKeyRef.current;
+        if (lockKey) {
+          if (submittedKeysRef.current.has(lockKey)) {
+            submittedKeysRef.current.delete(lockKey);
+            console.log('[IDEMPOTENCY][RELEASE]', { lockKey, reason: 'WATCHDOG_OK' });
+          }
+          lastV3SubmitLockKeyRef.current = null;
+        } else {
+          console.warn('[IDEMPOTENCY][RELEASE_MISSING_KEY]', { packId: snapshot.packId, instanceNumber: snapshot.instanceNumber });
         }
         return;
       }
@@ -5106,10 +5137,26 @@ export default function CandidateInterview() {
         promptMatch
       });
       
-      // DETERMINISTIC RECOVERY: For multi-incident packs, ALWAYS show "another instance?" gate
+      // AUTHORITATIVE MULTI-INCIDENT DETECTION: Use pack metadata (no guessing)
       const packData = v3ProbingContext?.packData;
+      
+      // Source of truth: packData fields (DB-first, then static config fallback)
       const isMultiIncident = packData?.behavior_type === 'multi_incident' || 
                               packData?.followup_multi_instance === true;
+      
+      // Derive source for logging
+      const sourceOfTruth = packData?.behavior_type === 'multi_incident' ? 'packMeta.behavior_type' :
+                           packData?.followup_multi_instance === true ? 'packMeta.followup_multi_instance' :
+                           'fallback:false';
+      
+      console.log('[V3_MULTI_INCIDENT][SOURCE_OF_TRUTH]', {
+        packId: snapshot.packId,
+        instanceNumber: snapshot.instanceNumber,
+        result: isMultiIncident,
+        source: sourceOfTruth,
+        packBehavior: packData?.behavior_type || null,
+        packMultiInstance: packData?.followup_multi_instance || null
+      });
       
       if (isMultiIncident) {
         console.log('[V3_UI_CONTRACT][RECOVERY_TO_ANOTHER_INSTANCE]', {
@@ -5147,11 +5194,16 @@ export default function CandidateInterview() {
         }
       }
       
-      // IDEMPOTENCY RELEASE: Build lock key and release
-      const lockKey = `v3o:${snapshot.packId}:${snapshot.instanceNumber}`;
-      if (submittedKeysRef.current.has(lockKey)) {
-        submittedKeysRef.current.delete(lockKey);
-        console.log('[IDEMPOTENCY][RELEASE]', { lockKey, reason: 'WATCHDOG_FAILED_RECOVERY' });
+      // IDEMPOTENCY RELEASE: Use stored lock key (guarantees exact match)
+      const lockKey = lastV3SubmitLockKeyRef.current;
+      if (lockKey) {
+        if (submittedKeysRef.current.has(lockKey)) {
+          submittedKeysRef.current.delete(lockKey);
+          console.log('[IDEMPOTENCY][RELEASE]', { lockKey, reason: 'WATCHDOG_FAILED_RECOVERY' });
+        }
+        lastV3SubmitLockKeyRef.current = null;
+      } else {
+        console.warn('[IDEMPOTENCY][RELEASE_MISSING_KEY]', { packId: snapshot.packId, instanceNumber: snapshot.instanceNumber });
       }
       exitV3HandledRef.current = false;
     });
