@@ -1297,6 +1297,16 @@ export default function CandidateInterview() {
   const v3ActivePromptTextRef = useRef(null);
   const v3ProbingActiveRef = useRef(null);
   const v3ProbingContextRef = useRef(null);
+  
+  // DEV DEBUG: Capture last-seen events for one-click evidence bundle
+  const lastIdempotencyLockedRef = useRef(null);
+  const lastIdempotencyReleasedRef = useRef(null);
+  const lastPromptCommitRef = useRef(null);
+  const lastWatchdogSnapshotRef = useRef(null);
+  const lastWatchdogDecisionRef = useRef(null);
+  const lastWatchdogOutcomeRef = useRef(null);
+  const lastMultiIncidentSourceRef = useRef(null);
+  const lastRecoveryAnotherInstanceRef = useRef(null);
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
@@ -5065,12 +5075,14 @@ export default function CandidateInterview() {
       );
       
       // Snapshot log: prove refs are fresh (no stale closure)
-      console.log('[V3_PROMPT_WATCHDOG][REF_SNAPSHOT]', {
+      const snapshotPayload = {
         promptId,
         bottomBarMode: bottomBarModeRef.current,
         v3ProbingActive: v3ProbingActiveRef.current,
         hasPrompt: !!v3ActivePromptTextRef.current
-      });
+      };
+      console.log('[V3_PROMPT_WATCHDOG][REF_SNAPSHOT]', snapshotPayload);
+      lastWatchdogSnapshotRef.current = snapshotPayload; // DEV: Capture for debug bundle
       
       // Check UI stability using ONLY refs (no stale closures)
       const isReady = 
@@ -5081,7 +5093,7 @@ export default function CandidateInterview() {
         promptMatch;
       
       // CONSOLIDATED DECISION LOG (ref-based, no stale closure)
-      console.log('[V3_PROMPT_WATCHDOG][DECISION]', {
+      const decisionPayload = {
         packId: snapshot.packId,
         instanceNumber: snapshot.instanceNumber,
         loopKey: snapshot.loopKey,
@@ -5091,7 +5103,9 @@ export default function CandidateInterview() {
         hasPrompt: !!v3ActivePromptTextRef.current,
         promptMatch,
         decision: isReady ? 'OK' : 'FAILED'
-      });
+      };
+      console.log('[V3_PROMPT_WATCHDOG][DECISION]', decisionPayload);
+      lastWatchdogDecisionRef.current = decisionPayload; // DEV: Capture for debug bundle
       
       // RUNTIME ASSERT: Verify OK decision is correct (TDZ-safe via ref)
       if (isReady) {
@@ -5139,7 +5153,8 @@ export default function CandidateInterview() {
                            !v3ProbingActiveRef.current ? 'PROBING_NOT_ACTIVE' :
                            'PROMPT_NOT_BOUND';
       
-      console.error('[V3_PROMPT_WATCHDOG][FAILED]', {
+      const failedPayload = {
+        outcome: 'FAILED',
         promptId,
         packId: snapshot.packId,
         instanceNumber: snapshot.instanceNumber,
@@ -5149,7 +5164,9 @@ export default function CandidateInterview() {
         bottomBarMode: bottomBarModeRef.current,
         hasPrompt: !!v3ActivePromptTextRef.current,
         promptMatch
-      });
+      };
+      console.error('[V3_PROMPT_WATCHDOG][FAILED]', failedPayload);
+      lastWatchdogOutcomeRef.current = failedPayload; // DEV: Capture for debug bundle
       
       // AUTHORITATIVE MULTI-INCIDENT DETECTION: Use pack metadata (no guessing)
       const packData = v3ProbingContext?.packData;
