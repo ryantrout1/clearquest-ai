@@ -1547,21 +1547,65 @@ export default function CandidateInterview() {
     const filteredFirst = base.filter(entry => isRenderableTranscriptEntry(entry));
     const deduped = dedupeByStableKey(filteredFirst);
     
-    // STABLE KEY DEDUPE: Preserve insertion order, keep FIRST renderable duplicate
-    const stableKeySet = new Set();
+    // CANONICAL KEY NORMALIZATION: Assign canonical follow-up card keys
+    const normalized = deduped.map(entry => {
+      const messageType = entry.messageType || entry.type;
+      
+      // Normalize follow-up card entries to canonical stableKey format
+      if (messageType === 'FOLLOWUP_CARD_SHOWN') {
+        const packId = entry.meta?.packId || entry.packId;
+        const variant = entry.meta?.variant || entry.variant;
+        const instanceNumber = entry.meta?.instanceNumber || entry.instanceNumber || 1;
+        
+        if (packId && variant) {
+          // Canonical format: followup-card:${packId}:${variant}:${instanceNumber}
+          const canonicalKey = `followup-card:${packId}:${variant}:${instanceNumber}`;
+          return {
+            ...entry,
+            __canonicalKey: canonicalKey // Attach for dedupe (no DB mutation)
+          };
+        }
+      }
+      
+      // Use stableKey or id as canonical for non-followup-card entries
+      return {
+        ...entry,
+        __canonicalKey: entry.stableKey || entry.id
+      };
+    });
+    
+    // DEDUPE BY CANONICAL KEY: Preserve insertion order, keep FIRST occurrence
+    const canonicalKeySet = new Set();
     const finalFiltered = [];
     
-    for (const entry of deduped) {
-      const sk = entry.stableKey;
-      if (!sk) {
+    for (const entry of normalized) {
+      const ck = entry.__canonicalKey;
+      
+      if (!ck) {
         finalFiltered.push(entry);
         continue;
       }
-      if (!stableKeySet.has(sk)) {
-        stableKeySet.add(sk);
+      
+      if (!canonicalKeySet.has(ck)) {
+        canonicalKeySet.add(ck);
         finalFiltered.push(entry);
+      } else {
+        // DUPLICATE DETECTED: Log for V3 opener cards
+        const messageType = entry.messageType || entry.type;
+        if (messageType === 'FOLLOWUP_CARD_SHOWN') {
+          const variant = entry.meta?.variant || entry.variant;
+          if (variant === 'opener') {
+            console.log('[V3_UI_CONTRACT][OPENER_DUPLICATE_BLOCKED]', {
+              packId: entry.meta?.packId || entry.packId,
+              instanceNumber: entry.meta?.instanceNumber || entry.instanceNumber || 1,
+              variant,
+              droppedKey: entry.stableKey || entry.id,
+              canonicalKey: ck
+            });
+          }
+        }
+        // Skip duplicate (keep first renderable occurrence)
       }
-      // If duplicate sk encountered, we SKIP it (keep first renderable one)
     }
     
     // Minimal contract check moved out of render loop below
@@ -1569,6 +1613,7 @@ export default function CandidateInterview() {
     console.log('[TRANSCRIPT_RENDER]', {
       canonicalLen: base.length,
       dedupedLen: deduped.length,
+      normalizedLen: normalized.length,
       filteredLen: finalFiltered.length,
       screenMode,
       currentItemType: currentItem?.type
@@ -7332,6 +7377,20 @@ export default function CandidateInterview() {
             const instanceNumber = currentItem.instanceNumber;
             const categoryLabel = currentItem.categoryLabel;
             
+            // GUARD: Check if transcript already contains this opener card
+            const canonicalKey = `followup-card:${packId}:opener:${instanceNumber}`;
+            const transcriptHasOpener = renderedTranscript.some(e => e.__canonicalKey === canonicalKey);
+            
+            if (transcriptHasOpener) {
+              console.log('[V3_UI_CONTRACT][OPENER_RENDER_SUPPRESSED]', {
+                canonicalKey,
+                packId,
+                instanceNumber,
+                reason: 'Transcript already contains opener card - preventing duplicate'
+              });
+              return null;
+            }
+            
             // FALLBACK: Safe prompt if openerText is missing
             const usingFallback = !openerText || openerText.trim() === '';
             const openerTextToShow = usingFallback 
@@ -7347,13 +7406,21 @@ export default function CandidateInterview() {
               });
             }
             
-            // UI CONTRACT: Log opener prompt visibility
+            // UI CONTRACT: Log opener prompt visibility + render state
             console.log('[V3_OPENER][PROMPT_VISIBLE]', {
               packId,
               instanceNumber,
               hasOpenerText: !!openerText,
               usingFallback,
               preview: openerTextToShow?.substring(0, 60)
+            });
+            
+            console.log('[V3_UI_CONTRACT][OPENER_RENDER_STATE]', {
+              packId,
+              instanceNumber,
+              canonicalKey,
+              transcriptHasOpener,
+              renderedOpenerCount: 1
             });
             
             return (
