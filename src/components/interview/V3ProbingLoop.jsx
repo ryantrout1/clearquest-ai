@@ -49,8 +49,7 @@ export default function V3ProbingLoop({
   pendingAnswer, // NEW: Answer from parent to consume
   onPromptSet, // NEW: Callback when prompt is committed to state
   onIncidentComplete, // NEW: Callback when incident completes with no further prompts
-  onRecapReady, // NEW: Callback when engine returns RECAP/STOP with completion message
-  onProbeQuestionReady // NEW: Callback to append probe question as transcript card
+  onRecapReady // NEW: Callback when engine returns RECAP/STOP with completion message
 }) {
   const effectiveTraceId = parentTraceId || `${sessionId}-${Date.now()}`;
   console.log('[V3_PROBING_LOOP][INIT]', { traceId: effectiveTraceId, categoryId, instanceNumber });
@@ -497,7 +496,7 @@ export default function V3ProbingLoop({
         setActivePromptId(`v3-prompt-${currentIncidentId}-${newProbeCount}`);
         setIsDeciding(false);
 
-        // HEADLESS MODE: Notify parent of new prompt (parent renders UI)
+        // HEADLESS MODE: Notify parent of new prompt (parent renders in prompt lane)
         if (onPromptChange) {
           onPromptChange(data.nextPrompt);
         }
@@ -519,25 +518,12 @@ export default function V3ProbingLoop({
             promptLen: data.nextPrompt?.length || 0
           });
         }
-        
-        // NEW: Notify parent to render probe question as transcript card
-        if (onProbeQuestionReady) {
-          onProbeQuestionReady({
-            loopKey,
-            packId: packData?.followup_pack_id,
-            categoryId,
-            instanceNumber: instanceNumber || 1,
-            promptText: data.nextPrompt,
-            promptId: `v3-probe-${currentIncidentId}-${newProbeCount}`,
-            probeCount: newProbeCount
-          });
-        }
 
         // UI CONTRACT: V3 probe prompts MUST NOT append to transcript
-        // They are rendered in dedicated "Active Prompt" card above input (parent UI)
+        // They are rendered in existing prompt lane (purple AI follow-up card)
         console.log('[V3_UI_CONTRACT]', {
           action: 'PROMPT_RENDER',
-          location: 'BOTTOM_BAR_ACTIVE_PROMPT',
+          location: 'PROMPT_LANE_CARD',
           categoryId: categoryId || 'unknown',
           packId: currentIncidentId?.split('_')[1] || 'unknown',
           promptPreview: data.nextPrompt.substring(0, 60),
