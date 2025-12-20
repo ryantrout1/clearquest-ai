@@ -7216,19 +7216,16 @@ export default function CandidateInterview() {
                 return null;
               })()}
 
-              {/* V3 Recap/Completion Message - ALLOWED system event */}
-              {entry.role === 'assistant' && entry.messageType === 'V3_PACK_RECAP' && (
-                <ContentContainer>
-                  <div className="w-full bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      <span className="text-sm font-medium text-emerald-400">Summary</span>
-                    </div>
-                    <p className="text-white text-sm leading-relaxed">{entry.text}</p>
-                    <p className="text-emerald-300/70 text-xs mt-2">No additional follow-up questions required.</p>
-                  </div>
-                </ContentContainer>
-              )}
+              {/* V3 Recap/Completion Message - SUPPRESSED (scope creep removal) */}
+              {entry.role === 'assistant' && entry.messageType === 'V3_PACK_RECAP' && (() => {
+                console.log('[V3_UI_CONTRACT][RECAP_SUPPRESSED]', {
+                  packId: entry.packId,
+                  instanceNumber: entry.instanceNumber,
+                  loopKey: `${sessionId}:${entry.categoryId}:${entry.instanceNumber}`,
+                  reason: 'Scope creep — recap UI disabled'
+                });
+                return null; // Do not render recap card
+              })()}
 
               {entry.role === 'user' && entry.messageType === 'v3_probe_answer' && (
                 <div style={{ marginBottom: 10 }}>
@@ -7585,57 +7582,18 @@ export default function CandidateInterview() {
                     nextAction
                   });
                   
-                  // UI SIGNAL: Explicit log that no follow-ups are needed
-                  console.log('[V3_RECAP][UI_SIGNAL]', {
+                  // SUPPRESSION: Do not append recap to transcript (scope creep removal)
+                  console.log('[V3_UI_CONTRACT][RECAP_SUPPRESSED]', {
                     packId,
                     instanceNumber,
                     loopKey,
-                    message: 'Engine returned RECAP/STOP — no follow-up questions required'
+                    reason: 'Scope creep — recap UI disabled'
                   });
                   
                   // Mark recap as ready (prevents prompt missing logs)
                   v3RecapReadyRef.current.set(loopKey, { recapText, nextAction });
                   
-                  // Generate stable key for dedupe safety
-                  const recapStableKey = `v3-recap:${packId}:${instanceNumber}:${loopKey}`;
-                  
-                  // GUARD: Prevent duplicate append/refresh for same recap
-                  if (v3RecapAppendedKeysRef.current.has(recapStableKey)) {
-                    console.log('[V3_RECAP][APPEND_SKIP]', {
-                      stableKey: recapStableKey,
-                      reason: 'Already appended - preventing duplicate'
-                    });
-                    return;
-                  }
-                  
-                  // Mark as appended
-                  v3RecapAppendedKeysRef.current.add(recapStableKey);
-                  
-                  // Append recap as allowed system event (NOT a probe prompt)
-                  const { appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
-                  const freshSession = await base44.entities.InterviewSession.get(sessionId);
-                  await appendAssistantMessage(sessionId, freshSession.transcript_snapshot || [], recapText, {
-                    id: `v3-recap-${packId}-${instanceNumber}-${Date.now()}`,
-                    stableKey: recapStableKey,
-                    messageType: 'V3_PACK_RECAP',
-                    packId,
-                    categoryId,
-                    instanceNumber,
-                    incidentId,
-                    nextAction,
-                    visibleToCandidate: true
-                  });
-                  
-                  // Refresh transcript exactly once
-                  await refreshTranscriptFromDB('v3_recap_appended');
-                  
-                  console.log('[V3_RECAP][APPENDED]', {
-                    loopKey,
-                    packId,
-                    stableKey: recapStableKey,
-                    messageType: 'V3_PACK_RECAP',
-                    nextAction
-                  });
+                  // Skip transcript append - routing happens via onIncidentComplete
                 }}
                 onIncidentComplete={({ loopKey, packId, categoryId, instanceNumber, reason, incidentId, completionReason, hasRecap }) => {
                   console.log('[V3_PROBING][INCIDENT_COMPLETE_NO_PROMPT]', {
