@@ -49,7 +49,8 @@ export default function V3ProbingLoop({
   pendingAnswer, // NEW: Answer from parent to consume
   onPromptSet, // NEW: Callback when prompt is committed to state
   onIncidentComplete, // NEW: Callback when incident completes with no further prompts
-  onRecapReady // NEW: Callback when engine returns RECAP/STOP with completion message
+  onRecapReady, // NEW: Callback when engine returns RECAP/STOP with completion message
+  onProbeQuestionReady // NEW: Callback to append probe question as transcript card
 }) {
   const effectiveTraceId = parentTraceId || `${sessionId}-${Date.now()}`;
   console.log('[V3_PROBING_LOOP][INIT]', { traceId: effectiveTraceId, categoryId, instanceNumber });
@@ -516,6 +517,19 @@ export default function V3ProbingLoop({
             loopKey,
             promptPreview: data.nextPrompt?.substring(0, 60) || null,
             promptLen: data.nextPrompt?.length || 0
+          });
+        }
+        
+        // NEW: Notify parent to render probe question as transcript card
+        if (onProbeQuestionReady) {
+          onProbeQuestionReady({
+            loopKey,
+            packId: packData?.followup_pack_id,
+            categoryId,
+            instanceNumber: instanceNumber || 1,
+            promptText: data.nextPrompt,
+            promptId: `v3-probe-${currentIncidentId}-${newProbeCount}`,
+            probeCount: newProbeCount
           });
         }
 

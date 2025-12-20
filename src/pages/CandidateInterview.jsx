@@ -112,15 +112,14 @@ const resetMountTracker = (sid) => {
     'AI_PROBING_CALLED',        // AI probing events
     'AI_PROBING_RESPONSE',
     'V3_PROBE_ASKED',           // V3 probe system events (visibleToCandidate=false)
-    'V3_PROBE_QUESTION',        // V3 UI CONTRACT: Probe questions never in transcript
-    'V3_PROBE_PROMPT',          // V3 UI CONTRACT: Probe prompts never in transcript
+    // REMOVED: 'V3_PROBE_QUESTION' - Now allowed to render as AI_FOLLOWUP_QUESTION cards
+    // REMOVED: 'V3_PROBE_PROMPT' - Now allowed to render as AI_FOLLOWUP_QUESTION cards
     'PROCESSING',               // V3 UI CONTRACT: No processing bubbles during V3
     'REVIEWING',                // V3 UI CONTRACT: No reviewing bubbles during V3
     'AI_THINKING',              // V3 UI CONTRACT: No thinking bubbles during V3
   ]);
 
-  // V3 UI CONTRACT: Hard filter for V3 prompt items (module-scope safe)
-  // NARROW FILTER: Only blocks V3 PROBE prompts (NOT opener prompts)
+  // V3 UI CONTRACT: Allow AI_FOLLOWUP_QUESTION to render as transcript cards
   const isV3PromptTranscriptItem = (msg) => {
     const t = msg?.messageType || msg?.type || msg?.kind;
     const entrySource = msg?.source || msg?.meta?.source || '';
@@ -135,8 +134,12 @@ const resetMountTracker = (sid) => {
       }
     }
     
-    // REGRESSION GUARD: Hard-block V3 probe questions from transcript
-    // These type strings MUST NEVER appear in renderable transcript
+    // ALLOW: AI_FOLLOWUP_QUESTION (V3 probe questions render as chat cards)
+    if (t === "AI_FOLLOWUP_QUESTION") {
+      return false; // DO NOT block - these render as purple AI follow-up cards
+    }
+    
+    // REGRESSION GUARD: Hard-block legacy V3 probe types (deprecated)
     const V3_PROBE_TYPES = [
       "V3_PROBE_ASKED",
       "V3_PROBE_PROMPT", 
@@ -147,21 +150,18 @@ const resetMountTracker = (sid) => {
     ];
     
     if (V3_PROBE_TYPES.includes(t)) {
-      console.log('[V3_UI_CONTRACT][BLOCKED_TRANSCRIPT_APPEND]', {
+      console.log('[V3_UI_CONTRACT][BLOCKED_LEGACY_TYPE]', {
         messageType: t,
         textPreview: msg?.text?.substring(0, 60) || null,
-        reason: 'V3 probe questions must never be in transcript - placeholder only'
+        reason: 'Legacy V3 probe type - use AI_FOLLOWUP_QUESTION instead'
       });
       return true;
     }
     
-    // Additional heuristic blocks
+    // Additional heuristic blocks (legacy only)
     if (t === "ai_probe_question" && entrySource.includes('v3')) return true;
     if (msg?.role === 'assistant' && isProbePrompt && entrySource.includes('v3')) return true;
     if (hasFieldKey && t.includes('probe') && entrySource.includes('v3')) return true;
-    
-    // DO NOT block opener prompts (v3_opener_question, FOLLOWUP_CARD_SHOWN)
-    // Openers are deterministic and must remain in transcript history
     
     return false;
   };
@@ -5528,6 +5528,63 @@ export default function CandidateInterview() {
     setV3PendingAnswer(answerText);
   }, []);
 
+  // V3 probe question ready handler - appends probe as transcript card (purple AI follow-up)
+  const handleV3ProbeQuestionReady = useCallback(async ({ loopKey, packId, categoryId, instanceNumber, promptText, promptId, probeCount }) => {
+    console.log('[V3_PROBE][QUESTION_READY]', {
+      loopKey,
+      packId,
+      instanceNumber,
+      promptId,
+      probeCount,
+      promptPreview: promptText?.substring(0, 60)
+    });
+    
+    // Append probe question as transcript card (AI follow-up style)
+    const stableKey = `v3-probe:${packId}:${instanceNumber}:${promptId}`;
+    
+    try {
+      await appendAndRefresh('assistant', {
+        text: promptText,
+        metadata: {
+          id: `v3-probe-q-${Date.now()}`,
+          stableKey,
+          messageType: 'AI_FOLLOWUP_QUESTION',
+          packId,
+          categoryId,
+          instanceNumber,
+          probeCount,
+          visibleToCandidate: true
+        }
+      }, 'v3_probe_question_shown');
+      
+      console.log('[V3_PROBE][QUESTION_APPENDED]', {
+        stableKey,
+        packId,
+        instanceNumber,
+        promptPreview: promptText?.substring(0, 60)
+      });
+    } catch (err) {
+      console.error('[V3_PROBE][QUESTION_APPEND_ERROR]', {
+        stableKey,
+        error: err.message
+      });
+    }
+    
+    // GUARDRAIL: Verify transcript card was rendered (deferred check)
+    setTimeout(() => {
+      const transcriptHasCard = dbTranscript.some(e => e.stableKey === stableKey || e.messageType === 'AI_FOLLOWUP_QUESTION');
+      if (!transcriptHasCard) {
+        console.error('[V3_UI_CONTRACT][VIOLATION] PROBE_PROMPT_NOT_RENDERED_AS_CARD', {
+          loopKey,
+          packId,
+          instanceNumber,
+          stableKey,
+          reason: 'ASK prompt received but no transcript card appended'
+        });
+      }
+    }, 100);
+  }, [appendAndRefresh, dbTranscript]);
+
   // V3 answer needed handler - stores answer submit capability + snapshot-based watchdog
   const handleV3AnswerNeeded = useCallback((answerContext) => {
     console.log('[V3_ANSWER_NEEDED]', { 
@@ -7417,6 +7474,24 @@ export default function CandidateInterview() {
                 );
               })()}
 
+              {/* V3 AI Follow-Up Questions (purple cards) - ALWAYS show (no answer needed) */}
+              {entry.role === 'assistant' && entry.messageType === 'AI_FOLLOWUP_QUESTION' && (
+                <ContentContainer>
+                  <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
+                      {entry.instanceNumber > 1 && (
+                        <>
+                          <span className="text-xs text-slate-500">•</span>
+                          <span className="text-xs text-slate-400">Instance {entry.instanceNumber}</span>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                  </div>
+                </ContentContainer>
+              )}
+
               {/* AI Probe Questions (including V2 pack cluster opening) - only show if answered */}
               {v3ProbingActive ? null : (entry.type === 'ai_probe_question' && entry.answer && (() => {
                 // V3 UI CONTRACT: Block all AI probe cards during active V3 probing
@@ -7634,6 +7709,7 @@ export default function CandidateInterview() {
                     promptLen
                   });
                 }}
+                onProbeQuestionReady={handleV3ProbeQuestionReady}
                 onRecapReady={async ({ loopKey, packId, categoryId, instanceNumber, recapText, nextAction, incidentId }) => {
                   console.log('[V3_RECAP][RECEIVED]', {
                     loopKey,
@@ -8169,27 +8245,26 @@ export default function CandidateInterview() {
             ) : null;
           })()}
 
-          {/* V3 UI CONTRACT: Active Prompt Card (probe questions render ABOVE input, not in placeholder) */}
-          {effectiveItemType === 'v3_probing' && v3ProbingActive && v3ActivePromptText?.trim() && (
-            <div className="mb-2 bg-purple-900/30 border border-purple-700/50 rounded-lg px-4 py-2.5">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-medium text-purple-400">AI Follow-Up</span>
-              </div>
-              <p className="text-white text-sm leading-relaxed">{v3ActivePromptText}</p>
-            </div>
-          )}
-
           {/* V3 UI CONTRACT: Violation detection (dev-only) */}
           {effectiveItemType === 'v3_probing' && (() => {
             const placeholder = "Type your response here…";
-            const promptInPlaceholder = v3ActivePromptText && placeholder.includes(v3ActivePromptText);
             
-            if (promptInPlaceholder) {
+            // GUARD: Placeholder must NEVER contain probe prompt
+            if (v3ActivePromptText && placeholder.includes(v3ActivePromptText)) {
               console.error('[V3_UI_CONTRACT][VIOLATION] PROBE_PROMPT_IN_PLACEHOLDER', {
-                effectiveItemType,
-                promptPreview: v3ActivePromptText?.substring(0, 60) || 'none',
+                promptPreview: v3ActivePromptText?.substring(0, 60),
                 placeholderPreview: placeholder,
                 reason: 'V3 probe prompts must NEVER appear in input placeholder'
+              });
+            }
+            
+            // GUARD: Input value must NEVER contain probe prompt
+            const inputValue = input || "";
+            if (v3ActivePromptText && inputValue.trim() === v3ActivePromptText.trim() && inputValue.length > 0) {
+              console.error('[V3_UI_CONTRACT][VIOLATION] PROBE_PROMPT_IN_INPUT_VALUE', {
+                promptPreview: v3ActivePromptText?.substring(0, 60),
+                inputPreview: inputValue?.substring(0, 60),
+                reason: 'V3 probe prompts must NEVER appear in input value'
               });
             }
             
@@ -8198,7 +8273,7 @@ export default function CandidateInterview() {
               currentItemType: currentItem?.type,
               hasPrompt: !!v3ActivePromptText,
               placeholderPreview: placeholder,
-              promptRenderedAboveInput: !!v3ActivePromptText
+              promptRenderedInTranscript: !!v3ActivePromptText
             });
             return null;
           })()}
@@ -8305,12 +8380,17 @@ export default function CandidateInterview() {
               });
             }
             
+            const aiFollowUpQuestions = renderedTranscript.filter(e => 
+              e.messageType === 'AI_FOLLOWUP_QUESTION'
+            ).length;
+            
             console.log('[V3_UI_CONTRACT] ENFORCED', {
               v3ProbingActive,
               hasPrompt: !!v3ActivePromptText,
-              promptLocation: v3ActivePromptText ? 'BOTTOM_BAR_ACTIVE_PROMPT' : 'NONE',
+              promptLocation: v3ActivePromptText ? 'TRANSCRIPT_CARD' : 'NONE',
               mainBodyPromptCards: 0,
               transcriptPromptCards,
+              aiFollowUpQuestionCards: aiFollowUpQuestions,
               transcriptLen: transcriptLengthNow
             });
             return null;
