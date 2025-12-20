@@ -2539,7 +2539,8 @@ export default function CandidateInterview() {
     // Lock this submission immediately
     if (submitKey) {
       submittedKeysRef.current.add(submitKey);
-      console.log(`[IDEMPOTENCY][LOCKED] ${submitKey}`);
+      console.log(`[IDEMPOTENCY][LOCKED] ${submitKey}`, { packId: currentItem.packId, instanceNumber: currentItem.instanceNumber, sessionId });
+      lastIdempotencyLockedRef.current = submitKey; // DEV: Capture for debug bundle
       
       // CRITICAL: Store actual lock key for v3_pack_opener submits (enables correct release in watchdog)
       if (currentItem.type === 'v3_pack_opener') {
