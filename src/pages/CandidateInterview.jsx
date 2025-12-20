@@ -3303,6 +3303,15 @@ export default function CandidateInterview() {
         });
         
         const { packId, categoryId, categoryLabel, openerText, baseQuestionId, questionCode, sectionId, instanceNumber, packData } = currentItem;
+        
+        // DEFENSIVE: Log if openerText was missing (fallback used)
+        if (!openerText || openerText.trim() === '') {
+          console.log('[V3_OPENER][FALLBACK_USED_ON_SUBMIT]', {
+            packId,
+            instanceNumber,
+            reason: 'openerText missing - user answered with fallback prompt'
+          });
+        }
 
         // CORRELATION TRACE: Generate traceId for V3 probing session
         const traceId = `${sessionId}-${Date.now()}`;
@@ -6575,9 +6584,13 @@ export default function CandidateInterview() {
                          : null;
     activePromptText = clarifierText || backendText || currentItem.fieldConfig?.label || null;
   }
-  // Priority 3: V3 pack opener
+  // Priority 3: V3 pack opener (with fallback)
   else if (effectiveItemType === 'v3_pack_opener' && currentItem) {
-    activePromptText = currentItem.openerText || null;
+    const openerText = currentItem.openerText;
+    const usingFallback = !openerText || openerText.trim() === '';
+    activePromptText = usingFallback 
+      ? "Please describe the details for this section in your own words."
+      : openerText;
   }
   // Priority 4: Current prompt from getCurrentPrompt()
   else if (currentPrompt?.text) {
@@ -6590,6 +6603,17 @@ export default function CandidateInterview() {
   const needsPrompt = bottomBarMode === 'TEXT_INPUT' || 
                       ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
   const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
+  
+  // V3 OPENER SUBMIT STATE: Log submit affordance for opener
+  if (effectiveItemType === 'v3_pack_opener' && currentItem) {
+    console.log('[V3_OPENER][SUBMIT_STATE]', {
+      packId: currentItem.packId,
+      instanceNumber: currentItem.instanceNumber,
+      disabled: !input || input.trim().length === 0,
+      inputLen: input?.length || 0,
+      hasPrompt
+    });
+  }
   
   // One-time diagnostic log when prompt is missing (no hook - just side effect)
   if (needsPrompt && !hasPrompt && currentItem) {
@@ -7260,17 +7284,6 @@ export default function CandidateInterview() {
             }
             
             if (!isV3OpenerMode) {
-              // Diagnostic log when blocked
-              if (currentItem?.type === 'v3_pack_opener' && v3ProbingActive) {
-                console.log('[V3_UI_CONTRACT] opener_render_blocked_due_to_probing', {
-                  currentItemType: currentItem?.type,
-                  effectiveItemType,
-                  v3ProbingActive,
-                  packId: currentItem?.packId,
-                  instanceNumber: currentItem?.instanceNumber,
-                  reason: 'effectiveItemType forces v3_probing - opener shell never mounts'
-                });
-              }
               return null;
             }
             
@@ -7280,11 +7293,13 @@ export default function CandidateInterview() {
             const instanceNumber = currentItem.instanceNumber;
             const categoryLabel = currentItem.categoryLabel;
             
-            // ACTIVE CARD RENDERER DISABLED: Opener must be transcript-driven only
-            return null;
+            // FALLBACK: Safe prompt if openerText is missing
+            const usingFallback = !openerText || openerText.trim() === '';
+            const openerTextToShow = usingFallback 
+              ? "Please describe the details for this section in your own words."
+              : openerText;
             
-            // REGRESSION GUARD: Fail-loud if missing prompt text
-            if (!openerText || openerText.trim() === '') {
+            if (usingFallback) {
               console.error('[V3_OPENER][MISSING_PROMPT_TEXT]', {
                 packId,
                 instanceNumber,
@@ -7293,14 +7308,13 @@ export default function CandidateInterview() {
               });
             }
             
-            const displayText = openerText || "Please describe your prior application(s) in your own words.";
-            
-            console.log('[V3_OPENER][DETERMINISTIC_RENDER]', {
+            // UI CONTRACT: Log opener prompt visibility
+            console.log('[V3_OPENER][PROMPT_VISIBLE]', {
               packId,
               instanceNumber,
-              categoryLabel,
-              hasExample: !!exampleNarrative,
-              textLength: displayText.length
+              hasOpenerText: !!openerText,
+              usingFallback,
+              preview: openerTextToShow?.substring(0, 60)
             });
             
             return (
@@ -7313,7 +7327,7 @@ export default function CandidateInterview() {
                       </span>
                     </div>
                   )}
-                  <p className="text-white text-sm leading-relaxed">{displayText}</p>
+                  <p className="text-white text-sm leading-relaxed">{openerTextToShow}</p>
                   {exampleNarrative && (
                     <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
                       <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
@@ -7966,36 +7980,37 @@ export default function CandidateInterview() {
                setInput(value);
              }}
              onKeyDown={handleInputKeyDown}
-             placeholder="Type your answer here..."
+             placeholder={effectiveItemType === 'v3_pack_opener' && activePromptText ? activePromptText : "Type your answer here..."}
              aria-label="Answer input"
              className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
              style={{ maxHeight: '120px', overflowY: 'auto' }}
-             disabled={isCommitting || !hasPrompt}
-             autoFocus={hasPrompt}
+             disabled={isCommitting || (effectiveItemType !== 'v3_pack_opener' && !hasPrompt)}
+             autoFocus={hasPrompt || effectiveItemType === 'v3_pack_opener'}
              rows={1}
            />
-            <Button
-              type="button"
-              onClick={() => {
-                console.log("[BOTTOM_BAR_BUTTON][CLICK]", { 
-                  currentItemType: currentItem?.type, 
-                  packId: currentItem?.packId, 
-                  fieldKey: currentItem?.fieldKey,
-                  v3ProbingActive,
-                  hasPrompt 
-                });
-                handleBottomBarSubmit();
-              }}
-              disabled={isBottomBarSubmitDisabled || !hasPrompt}
-              className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5 disabled:opacity-50"
-            >
-              {!hasPrompt ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4 mr-2" />
-              )}
-              Send
-            </Button>
+           <Button
+             type="button"
+             onClick={() => {
+               console.log("[BOTTOM_BAR_BUTTON][CLICK]", { 
+                 currentItemType: currentItem?.type, 
+                 packId: currentItem?.packId, 
+                 fieldKey: currentItem?.fieldKey,
+                 v3ProbingActive,
+                 hasPrompt,
+                 effectiveItemType
+               });
+               handleBottomBarSubmit();
+             }}
+             disabled={isBottomBarSubmitDisabled || (effectiveItemType !== 'v3_pack_opener' && !hasPrompt)}
+             className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5 disabled:opacity-50"
+           >
+             {(effectiveItemType !== 'v3_pack_opener' && !hasPrompt) ? (
+               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+             ) : (
+               <Send className="w-4 h-4 mr-2" />
+             )}
+             Send
+           </Button>
           </div>
           </div>
           ) : null}
