@@ -1405,6 +1405,88 @@ export default function CandidateInterview() {
     ? Math.round((answeredQuestionsAllSections / totalQuestionsAllSections) * 100)
     : 0;
 
+  // DEV DEBUG: Generate and copy evidence bundle
+  const copyV3DebugBundle = useCallback(() => {
+    const lockedKey = lastIdempotencyLockedRef.current;
+    const releasedKey = lastIdempotencyReleasedRef.current;
+    const exactMatch = lockedKey && releasedKey && lockedKey === releasedKey;
+    
+    const outcome = lastWatchdogOutcomeRef.current;
+    const recovery = lastRecoveryAnotherInstanceRef.current;
+    
+    let passFail = 'FAIL';
+    let failReason = null;
+    
+    if (!lockedKey) {
+      failReason = 'Missing idempotency lock';
+    } else if (!releasedKey) {
+      failReason = 'Missing idempotency release';
+    } else if (!exactMatch) {
+      failReason = 'Idempotency key mismatch';
+    } else if (!outcome) {
+      failReason = 'Missing watchdog outcome';
+    } else if (outcome.outcome === 'OK') {
+      passFail = 'PASS';
+    } else if (outcome.outcome === 'FAILED' && recovery) {
+      passFail = 'PASS';
+    } else if (outcome.outcome === 'FAILED' && !recovery) {
+      failReason = 'Watchdog FAILED but no recovery fired';
+    }
+    
+    const bundle = {
+      ts: new Date().toISOString(),
+      sessionId,
+      packId: v3ProbingContext?.packId || null,
+      instanceNumber: v3ProbingContext?.instanceNumber || null,
+      idempotency: {
+        lockedKey,
+        releasedKey,
+        exactMatch
+      },
+      prompt: {
+        commit: lastPromptCommitRef.current,
+        snapshot: lastWatchdogSnapshotRef.current,
+        decision: lastWatchdogDecisionRef.current,
+        outcome: lastWatchdogOutcomeRef.current
+      },
+      multiIncident: {
+        source: lastMultiIncidentSourceRef.current,
+        recovery: lastRecoveryAnotherInstanceRef.current
+      },
+      passFail,
+      failReason
+    };
+    
+    const json = JSON.stringify(bundle, null, 2);
+    console.log('[V3_DEBUG_BUNDLE]', bundle);
+    
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(json).then(() => {
+        alert('V3 Debug Bundle copied to clipboard!');
+      }).catch((err) => {
+        console.error('Failed to copy to clipboard:', err);
+        alert('Failed to copy - check console for [V3_DEBUG_BUNDLE]');
+      });
+    } else {
+      alert('Clipboard not available - check console for [V3_DEBUG_BUNDLE]');
+    }
+  }, [sessionId, v3ProbingContext]);
+  
+  // DEV DEBUG: Keyboard shortcut (Ctrl+Shift+C)
+  useEffect(() => {
+    if (!isV3DebugEnabled) return;
+    
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+        e.preventDefault();
+        copyV3DebugBundle();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isV3DebugEnabled, copyV3DebugBundle]);
+
   // Compute next renderable (dedupe + filter)
   // CRITICAL: This memo MUST NOT trigger component remount
   const nextRenderable = React.useMemo(() => {
