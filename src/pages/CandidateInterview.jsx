@@ -5027,6 +5027,13 @@ export default function CandidateInterview() {
     // Mark as handled immediately
     handledPromptIdsRef.current.add(promptId);
     
+    // MEMORY CLEANUP: Prevent unbounded Set growth
+    if (handledPromptIdsRef.current.size > 200) {
+      const priorSize = handledPromptIdsRef.current.size;
+      handledPromptIdsRef.current.clear();
+      console.log('[V3_PROMPT_WATCHDOG][CLEANUP]', { cleared: true, priorSize });
+    }
+    
     // WATCHDOG: Verify UI stabilizes in 1 render cycle (snapshot-based, TDZ-safe)
     requestAnimationFrame(() => {
       // Verify snapshot is still current
@@ -5035,12 +5042,34 @@ export default function CandidateInterview() {
         return;
       }
       
+      // STRICT CHECK: Verify prompt binding to bottom bar placeholder
+      const promptPreview = snapshot.promptText?.substring(0, 60) || '';
+      const actualPreview = v3ActivePromptText?.substring(0, 60) || '';
+      const promptMatch = v3ActivePromptText && (
+        v3ActivePromptText === snapshot.promptText ||
+        actualPreview === promptPreview
+      );
+      
       // Check UI stability using ONLY safe, contract-aligned signals
       const isReady = 
         v3ProbingActive === true &&
         bottomBarMode === 'TEXT_INPUT' &&
         v3ActivePromptText &&
-        v3ActivePromptText.trim().length > 0;
+        v3ActivePromptText.trim().length > 0 &&
+        promptMatch;
+      
+      // CONSOLIDATED DECISION LOG
+      console.log('[V3_PROMPT_WATCHDOG][DECISION]', {
+        packId: snapshot.packId,
+        instanceNumber: snapshot.instanceNumber,
+        loopKey: snapshot.loopKey,
+        promptId,
+        bottomBarMode,
+        v3ProbingActive,
+        hasPrompt: !!v3ActivePromptText,
+        promptMatch,
+        decision: isReady ? 'OK' : 'FAILED'
+      });
       
       if (isReady) {
         console.log('[V3_PROMPT_WATCHDOG][OK]', {
@@ -5049,39 +5078,55 @@ export default function CandidateInterview() {
           instanceNumber: snapshot.instanceNumber,
           promptId
         });
+        
+        // IDEMPOTENCY RELEASE: Build lock key and release
+        const lockKey = `v3o:${snapshot.packId}:${snapshot.instanceNumber}`;
+        if (submittedKeysRef.current.has(lockKey)) {
+          submittedKeysRef.current.delete(lockKey);
+          console.log('[IDEMPOTENCY][RELEASE]', { lockKey, reason: 'WATCHDOG_OK' });
+        }
         return;
       }
       
       // FAILED: UI did not stabilize
+      const failureReason = !promptMatch ? 'PROMPT_MISMATCH' : 
+                           bottomBarMode !== 'TEXT_INPUT' ? 'WRONG_BOTTOM_BAR_MODE' :
+                           !v3ProbingActive ? 'PROBING_NOT_ACTIVE' :
+                           'PROMPT_NOT_BOUND';
+      
       console.error('[V3_PROMPT_WATCHDOG][FAILED]', {
         promptId,
         packId: snapshot.packId,
         instanceNumber: snapshot.instanceNumber,
         loopKey: snapshot.loopKey,
-        reason: 'Prompt exists but bottom bar did not stabilize',
+        reason: failureReason,
         v3ProbingActive,
         bottomBarMode,
-        hasPrompt: !!v3ActivePromptText
+        hasPrompt: !!v3ActivePromptText,
+        promptMatch
       });
       
-      // RECOVERY: Transition to multi-instance gate if pack supports it
+      // DETERMINISTIC RECOVERY: For multi-incident packs, ALWAYS show "another instance?" gate
       const packData = v3ProbingContext?.packData;
-      const shouldOfferAnotherInstance = packData?.behavior_type === 'multi_incident' || 
-                                        packData?.followup_multi_instance === true;
+      const isMultiIncident = packData?.behavior_type === 'multi_incident' || 
+                              packData?.followup_multi_instance === true;
       
-      if (shouldOfferAnotherInstance) {
+      if (isMultiIncident) {
         console.log('[V3_UI_CONTRACT][RECOVERY_TO_ANOTHER_INSTANCE]', {
           packId: snapshot.packId,
           instanceNumber: snapshot.instanceNumber,
-          loopKey: snapshot.loopKey
+          loopKey: snapshot.loopKey,
+          promptId,
+          reason: failureReason
         });
         
-        // Trigger transition to multi-instance gate
+        // Trigger transition to multi-instance gate (reuses existing gate UI)
         transitionToAnotherInstanceGate(v3ProbingContext);
       } else {
         // Non-multi-instance pack: advance to next question
         console.log('[V3_PROMPT_WATCHDOG][RECOVERY_ADVANCE]', {
           packId: snapshot.packId,
+          instanceNumber: snapshot.instanceNumber,
           reason: 'Non-multi-instance pack - advancing to next question'
         });
         
@@ -5102,7 +5147,12 @@ export default function CandidateInterview() {
         }
       }
       
-      // Release idempotency lock
+      // IDEMPOTENCY RELEASE: Build lock key and release
+      const lockKey = `v3o:${snapshot.packId}:${snapshot.instanceNumber}`;
+      if (submittedKeysRef.current.has(lockKey)) {
+        submittedKeysRef.current.delete(lockKey);
+        console.log('[IDEMPOTENCY][RELEASE]', { lockKey, reason: 'WATCHDOG_FAILED_RECOVERY' });
+      }
       exitV3HandledRef.current = false;
     });
   }, [v3ProbingActive, bottomBarMode, v3ActivePromptText, v3ProbingContext, sessionId, exitV3Once, transitionToAnotherInstanceGate]);
