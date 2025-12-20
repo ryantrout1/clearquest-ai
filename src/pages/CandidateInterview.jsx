@@ -1816,6 +1816,14 @@ export default function CandidateInterview() {
     // Just track the current field - actual logging happens in handleAnswer
   }, [v2PackMode, activeV2Pack, currentItem]);
 
+  // Cleanup V3 recap append guard when sessionId changes (prevent cross-session leakage)
+  useEffect(() => {
+    if (!sessionId) return;
+    
+    console.log('[V3_RECAP][CLEANUP] Clearing recap append guard for session', { sessionId });
+    v3RecapAppendedKeysRef.current.clear();
+  }, [sessionId]);
+
   // STABLE: Single mount per session - track by sessionId (survives remounts)
   const initMapRef = useRef({});
   
