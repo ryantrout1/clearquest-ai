@@ -1170,6 +1170,10 @@ export default function CandidateInterview() {
   const [input, setInput] = useState("");
   const [validationHint, setValidationHint] = useState(null);
   const [isCommitting, setIsCommitting] = useState(false);
+  
+  // V3 OPENER: Dedicated draft state (isolated from shared input state)
+  const [openerDraft, setOpenerDraft] = useState("");
+  const openerDraftChangeCountRef = useRef(0); // Throttle logging
 
   // UX: Typing lock to prevent preview refreshes while user is typing
   const [isUserTyping, setIsUserTyping] = useState(false);
@@ -5841,6 +5845,28 @@ export default function CandidateInterview() {
     const fieldKey = currentItem?.fieldKey || currentItem?.id || null;
     const instanceNumber = currentItem?.instanceNumber || 0;
     const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
+    
+    // V3 OPENER: Use dedicated openerDraft state (isolated from shared input)
+    if (currentItem.type === 'v3_pack_opener') {
+      try {
+        const savedDraft = window.sessionStorage.getItem(draftKey);
+        if (savedDraft != null && savedDraft !== "") {
+          console.log("[UX][DRAFT] Restoring opener draft for", draftKey);
+          setOpenerDraft(savedDraft);
+        } else {
+          setOpenerDraft("");
+        }
+      } catch (e) {
+        console.log("[FORENSIC][STORAGE][READ_BLOCKED_FALLBACK]", { 
+          key: draftKey, 
+          error: e.message,
+          fallbackBehavior: 'Using in-memory draft only'
+        });
+        setOpenerDraft("");
+      }
+      setInput(""); // Clear shared input for opener (uses openerDraft instead)
+      return;
+    }
 
     try {
       const savedDraft = window.sessionStorage.getItem(draftKey);
@@ -6606,12 +6632,16 @@ export default function CandidateInterview() {
   
   // V3 OPENER SUBMIT STATE: Log submit affordance for opener
   if (effectiveItemType === 'v3_pack_opener' && currentItem) {
+    const openerInputValue = openerDraft || "";
+    const openerDisabled = openerInputValue.trim().length === 0;
+    
     console.log('[V3_OPENER][SUBMIT_STATE]', {
       packId: currentItem.packId,
       instanceNumber: currentItem.instanceNumber,
-      disabled: !input || input.trim().length === 0,
-      inputLen: input?.length || 0,
-      hasPrompt
+      disabled: openerDisabled,
+      inputLen: openerInputValue.length,
+      hasPrompt,
+      usingOpenerDraft: true
     });
   }
   
@@ -6683,6 +6713,7 @@ export default function CandidateInterview() {
       instanceNumber: currentItem?.instanceNumber,
       v3ProbingActive,
       inputSnapshot: input?.substring?.(0, 50) || input,
+      effectiveItemType
     });
 
     // ROUTE: V3 probing answer (headless mode)
@@ -6714,9 +6745,11 @@ export default function CandidateInterview() {
       return;
     }
 
-    const trimmed = (input ?? "").trim();
+    // V3 OPENER: Use dedicated openerDraft state
+    const effectiveValue = effectiveItemType === 'v3_pack_opener' ? openerDraft : input;
+    const trimmed = (effectiveValue ?? "").trim();
     if (!trimmed) {
-      console.log("[BOTTOM_BAR_SUBMIT] blocked: empty input");
+      console.log("[BOTTOM_BAR_SUBMIT] blocked: empty input", { effectiveItemType, openerDraftLen: openerDraft?.length, inputLen: input?.length });
       return;
     }
 
@@ -6728,15 +6761,21 @@ export default function CandidateInterview() {
       fieldKey: currentItem.fieldKey,
       instanceNumber: currentItem.instanceNumber,
       answer: trimmed.substring(0, 60),
-      isV2PackField: currentItem.type === 'v2_pack_field'
+      isV2PackField: currentItem.type === 'v2_pack_field',
+      usingOpenerDraft: effectiveItemType === 'v3_pack_opener'
     });
 
     // Call handleAnswer with the answer text - handleAnswer reads currentItem from state
     await handleAnswer(trimmed);
 
     // UX: Clear draft on successful submit
-    clearDraft();
-    setInput("");
+    if (effectiveItemType === 'v3_pack_opener') {
+      setOpenerDraft("");
+      openerDraftChangeCountRef.current = 0;
+    } else {
+      clearDraft();
+      setInput("");
+    }
     };
 
   // Keydown handler for Enter key on bottom bar input
@@ -7972,12 +8011,36 @@ export default function CandidateInterview() {
           <div className="flex gap-3">
            <Textarea
              ref={inputRef}
-             value={input ?? ""}
+             value={effectiveItemType === 'v3_pack_opener' ? (openerDraft ?? "") : (input ?? "")}
              onChange={(e) => {
                const value = e.target.value;
                markUserTyping();
-               saveDraft(value);
-               setInput(value);
+
+               // V3 OPENER: Use dedicated openerDraft state
+               if (effectiveItemType === 'v3_pack_opener') {
+                 setOpenerDraft(value);
+
+                 // FORENSIC: Throttled keystroke capture proof (every 3 chars to avoid spam)
+                 openerDraftChangeCountRef.current++;
+                 if (openerDraftChangeCountRef.current % 3 === 1 || value.length === 0) {
+                   console.log('[V3_OPENER][DRAFT_CHANGE]', {
+                     packId: currentItem?.packId,
+                     instanceNumber: currentItem?.instanceNumber,
+                     len: value.length
+                   });
+                 }
+
+                 // DECOUPLE: Storage write failures must not block state update
+                 try {
+                   const draftKey = buildDraftKey(sessionId, currentItem?.packId, currentItem?.id, currentItem?.instanceNumber || 0);
+                   window.sessionStorage.setItem(draftKey, value);
+                 } catch (e) {
+                   // Silent fallback - in-memory draft is source of truth
+                 }
+               } else {
+                 saveDraft(value);
+                 setInput(value);
+               }
              }}
              onKeyDown={handleInputKeyDown}
              placeholder={effectiveItemType === 'v3_pack_opener' && activePromptText ? activePromptText : "Type your answer here..."}
@@ -7991,17 +8054,19 @@ export default function CandidateInterview() {
            <Button
              type="button"
              onClick={() => {
+               const openerInputValue = effectiveItemType === 'v3_pack_opener' ? openerDraft : input;
                console.log("[BOTTOM_BAR_BUTTON][CLICK]", { 
                  currentItemType: currentItem?.type, 
                  packId: currentItem?.packId, 
                  fieldKey: currentItem?.fieldKey,
                  v3ProbingActive,
                  hasPrompt,
-                 effectiveItemType
+                 effectiveItemType,
+                 openerInputLen: openerInputValue?.length || 0
                });
                handleBottomBarSubmit();
              }}
-             disabled={isBottomBarSubmitDisabled || (effectiveItemType !== 'v3_pack_opener' && !hasPrompt)}
+             disabled={effectiveItemType === 'v3_pack_opener' ? (openerDraft?.trim().length === 0 || isCommitting) : (isBottomBarSubmitDisabled || !hasPrompt)}
              className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5 disabled:opacity-50"
            >
              {(effectiveItemType !== 'v3_pack_opener' && !hasPrompt) ? (
