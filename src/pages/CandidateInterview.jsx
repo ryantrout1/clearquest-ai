@@ -7178,6 +7178,45 @@ export default function CandidateInterview() {
                 onPromptChange={handleV3PromptChange}
                 onAnswerNeeded={handleV3AnswerNeeded}
                 pendingAnswer={v3PendingAnswer}
+                onPromptSet={({ loopKey, promptPreview, promptLen }) => {
+                  console.log('[V3_PROBING][PROMPT_READY]', {
+                    loopKey,
+                    packId: v3ProbingContext.packId,
+                    instanceNumber: v3ProbingContext.instanceNumber,
+                    promptLen
+                  });
+                }}
+                onIncidentComplete={({ loopKey, packId, categoryId, instanceNumber, reason, incidentId, completionReason }) => {
+                  console.log('[V3_PROBING][INCIDENT_COMPLETE_NO_PROMPT]', {
+                    loopKey,
+                    packId,
+                    instanceNumber,
+                    reason
+                  });
+                  
+                  // Route based on pack type
+                  const isMultiIncident = packData?.behavior_type === 'multi_incident' || 
+                                         packData?.followup_multi_instance === true;
+                  
+                  if (isMultiIncident) {
+                    console.log('[V3_INCIDENT_COMPLETE][MULTI] Showing another instance gate');
+                    transitionToAnotherInstanceGate(v3ProbingContext);
+                  } else {
+                    console.log('[V3_INCIDENT_COMPLETE][SINGLE] Exiting V3 and advancing');
+                    exitV3Once('INCIDENT_COMPLETE_NO_PROMPT', {
+                      incidentId,
+                      categoryId,
+                      completionReason,
+                      messages: [],
+                      reason: 'INCIDENT_COMPLETE_NO_PROMPT',
+                      shouldOfferAnotherInstance: false,
+                      packId,
+                      categoryLabel: v3ProbingContext.categoryLabel,
+                      instanceNumber,
+                      packData: v3ProbingContext.packData
+                    });
+                  }
+                }}
               />
             );
           })()}

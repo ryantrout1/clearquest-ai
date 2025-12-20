@@ -46,7 +46,9 @@ export default function V3ProbingLoop({
   traceId: parentTraceId, // NEW: Correlation trace from parent
   onPromptChange, // NEW: Callback to expose active prompt to parent
   onAnswerNeeded, // NEW: Callback when ready for user input
-  pendingAnswer // NEW: Answer from parent to consume
+  pendingAnswer, // NEW: Answer from parent to consume
+  onPromptSet, // NEW: Callback when prompt is committed to state
+  onIncidentComplete // NEW: Callback when incident completes with no further prompts
 }) {
   const effectiveTraceId = parentTraceId || `${sessionId}-${Date.now()}`;
   console.log('[V3_PROBING_LOOP][INIT]', { traceId: effectiveTraceId, categoryId, instanceNumber });
@@ -134,6 +136,9 @@ export default function V3ProbingLoop({
   // INIT-ONCE GUARD: Ensure initialization only runs once per mount
   const initRanRef = useRef(false);
   
+  // INITIAL DECIDE GUARD: Ensure first decide cycle runs exactly once
+  const initialDecideRanRef = useRef(false);
+  
   // IN-FLIGHT GUARD: Prevent concurrent engine calls
   const engineInFlightRef = useRef(false);
   
@@ -209,6 +214,22 @@ export default function V3ProbingLoop({
       initRanRef: initRanRef.current,
       isInitialCall: true
     });
+    
+    // CRITICAL: Trigger initial decide cycle immediately (must run exactly once)
+    if (!initialDecideRanRef.current && openerAnswer) {
+      initialDecideRanRef.current = true;
+      
+      console.log('[V3_PROBING_LOOP][DECIDE_START]', { 
+        loopKey, 
+        reason: 'INIT_DECIDE',
+        openerAnswerLength: openerAnswer.length 
+      });
+      
+      // Schedule initial decide cycle on next tick (after mount completes)
+      setTimeout(() => {
+        handleSubmit(null, openerAnswer, true);
+      }, 0);
+    }
 
     // Cleanup: remove loopKey on unmount
     return () => {
@@ -358,6 +379,14 @@ export default function V3ProbingLoop({
         incidentId: data.incidentId
       });
       
+      console.log('[V3_PROBING_LOOP][DECIDE_END]', {
+        loopKey,
+        hasPrompt: !!data.nextPrompt,
+        promptLen: data.nextPrompt?.length || 0,
+        isComplete: data.nextAction === 'STOP' || data.nextAction === 'RECAP',
+        nextAction: data.nextAction
+      });
+      
       // ENGINE DEBUG VISIBILITY: Log debug object for PRIOR_LE_APPS
       if (data.debug) {
         console.log('[V3_ENGINE_DEBUG]', data.debug);
@@ -479,6 +508,15 @@ export default function V3ProbingLoop({
             probeCount: newProbeCount
           });
         }
+        
+        // HEADLESS MODE: Notify parent that prompt is ready
+        if (onPromptSet) {
+          onPromptSet({
+            loopKey,
+            promptPreview: data.nextPrompt?.substring(0, 60) || null,
+            promptLen: data.nextPrompt?.length || 0
+          });
+        }
 
         // UI CONTRACT: V3 probe prompts MUST NOT append to transcript
         // They are exposed ONLY via onPromptChange callback for placeholder rendering
@@ -520,6 +558,37 @@ export default function V3ProbingLoop({
         setIsDeciding(false);
         setActivePromptText(null);
         setActivePromptId(null);
+        
+        // Check if engine provided no prompt (immediate complete)
+        if (!data.nextPrompt || data.nextPrompt.trim() === '') {
+          console.log('[V3_PROBING_LOOP][COMPLETE_NO_PROMPT]', {
+            loopKey,
+            nextAction: data.nextAction,
+            reason: 'ENGINE_NO_PROMPT_COMPLETE'
+          });
+          
+          setIsComplete(true);
+          setCompletionReason(data.nextAction);
+          
+          // Notify parent immediately (no Continue button)
+          if (onIncidentComplete) {
+            onIncidentComplete({
+              loopKey,
+              packId: packData?.followup_pack_id,
+              categoryId,
+              instanceNumber,
+              reason: 'ENGINE_NO_PROMPT_COMPLETE',
+              incidentId: data.incidentId || incidentId,
+              completionReason: data.nextAction
+            });
+          }
+          
+          setIsLoading(false);
+          setIsDeciding(false);
+          engineInFlightRef.current = false;
+          return;
+        }
+        
         // Probing complete - use centralized completion message
         const completionMessage = data.nextPrompt || getCompletionMessage(data.nextAction, data.stopReason);
 
