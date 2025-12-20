@@ -7384,7 +7384,10 @@ export default function CandidateInterview() {
                   // Append recap as allowed system event (NOT a probe prompt)
                   const { appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
                   const freshSession = await base44.entities.InterviewSession.get(sessionId);
+                  const recapStableKey = `v3-recap:${packId}:${instanceNumber}:${loopKey}`;
                   await appendAssistantMessage(sessionId, freshSession.transcript_snapshot || [], recapText, {
+                    id: `v3-recap-${packId}-${instanceNumber}-${Date.now()}`,
+                    stableKey: recapStableKey,
                     messageType: 'V3_PACK_RECAP',
                     packId,
                     categoryId,
@@ -7400,6 +7403,7 @@ export default function CandidateInterview() {
                   console.log('[V3_RECAP][APPENDED]', {
                     loopKey,
                     packId,
+                    stableKey: recapStableKey,
                     messageType: 'V3_PACK_RECAP',
                     nextAction
                   });
