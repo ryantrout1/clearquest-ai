@@ -5458,33 +5458,38 @@ export default function CandidateInterview() {
 
     // SNAPSHOT: Capture expected state BEFORE atomic update
     const snapshot = {
-      promptId,
-      loopKey,
-      packId,
-      instanceNumber,
-      promptText,
-      expectedBottomBarMode: 'TEXT_INPUT',
-      committedAt: Date.now()
+    promptId,
+    loopKey,
+    packId,
+    instanceNumber,
+    promptText,
+    expectedBottomBarMode: 'TEXT_INPUT',
+    committedAt: Date.now()
     };
     lastV3PromptSnapshotRef.current = snapshot;
 
     // ATOMIC STATE UPDATE: All V3 prompt activation in one place
     unstable_batchedUpdates(() => {
-      // Confirm V3 probing is active
-      if (!v3ProbingActive) {
-        setV3ProbingActive(true);
-      }
-      
-      // Set active prompt text (bottom bar placeholder reads from this)
-      setV3ActivePromptText(promptText);
-      
-      // Clear typing lock (allow user input)
-      setIsUserTyping(false);
-      
-      // Ensure screen mode is QUESTION (not WELCOME)
-      if (screenMode !== 'QUESTION') {
-        setScreenMode('QUESTION');
-      }
+    // Confirm V3 probing is active
+    if (!v3ProbingActive) {
+      setV3ProbingActive(true);
+    }
+
+    // Set active prompt text (bottom bar placeholder reads from this)
+    setV3ActivePromptText(promptText);
+
+    // CRITICAL: Update ref synchronously (watchdog reads from this)
+    v3ActivePromptTextRef.current = promptText;
+
+    console.log('[V3_PROMPT_BIND]', { loopKey, promptLen: promptText?.length || 0 });
+
+    // Clear typing lock (allow user input)
+    setIsUserTyping(false);
+
+    // Ensure screen mode is QUESTION (not WELCOME)
+    if (screenMode !== 'QUESTION') {
+      setScreenMode('QUESTION');
+    }
     });
     
     // FAILSAFE CANCEL: Prompt arrived - cancel opener failsafe
@@ -5569,15 +5574,41 @@ export default function CandidateInterview() {
         actualPreview === promptPreview
       );
       
+      // PROMPT-EXISTS CHECK: Use refs as source of truth
+      const promptExistsNow = !!(v3ActivePromptTextRef?.current && v3ActivePromptTextRef.current.trim().length > 0);
+      
       // Snapshot log: prove refs are fresh (no stale closure)
       const snapshotPayload = {
         promptId,
         bottomBarMode: bottomBarModeRef.current,
         v3ProbingActive: v3ProbingActiveRef.current,
-        hasPrompt: !!v3ActivePromptTextRef.current
+        hasPrompt: !!v3ActivePromptTextRef.current,
+        promptExistsNow
       };
       console.log('[V3_PROMPT_WATCHDOG][REF_SNAPSHOT]', snapshotPayload);
       lastWatchdogSnapshotRef.current = snapshotPayload; // DEV: Capture for debug bundle
+      
+      // FORCE OK: If prompt exists in refs, treat as OK (even if other flags fail)
+      if (promptExistsNow) {
+        console.log('[V3_PROMPT_WATCHDOG][FORCE_OK_PROMPT_EXISTS]', {
+          loopKey: snapshot.loopKey,
+          packId: snapshot.packId,
+          instanceNumber: snapshot.instanceNumber,
+          promptLen: v3ActivePromptTextRef.current?.length || 0
+        });
+        
+        // Release idempotency lock
+        const lockKey = lastV3SubmitLockKeyRef.current;
+        if (lockKey) {
+          if (submittedKeysRef.current.has(lockKey)) {
+            submittedKeysRef.current.delete(lockKey);
+            console.log('[IDEMPOTENCY][RELEASE]', { lockKey, packId: snapshot.packId, instanceNumber: snapshot.instanceNumber, source: 'watchdog_force_ok' });
+            lastIdempotencyReleasedRef.current = lockKey;
+          }
+          lastV3SubmitLockKeyRef.current = null;
+        }
+        return; // Exit early - prompt exists, nothing to do
+      }
       
       // Check UI stability using ONLY refs (no stale closures)
       const isReady = 
@@ -5666,6 +5697,31 @@ export default function CandidateInterview() {
       };
       console.error('[V3_PROMPT_WATCHDOG][FAILED]', failedPayload);
       lastWatchdogOutcomeRef.current = failedPayload; // DEV: Capture for debug bundle
+      
+      // PROMPT-EXISTS GUARD: Recheck refs before running recovery
+      const promptExistsBeforeRecovery = !!(v3ActivePromptTextRef?.current && v3ActivePromptTextRef.current.trim().length > 0);
+      
+      if (promptExistsBeforeRecovery) {
+        console.log('[V3_PROMPT_WATCHDOG][FAILED_SUPPRESSED_PROMPT_EXISTS]', {
+          loopKey: snapshot.loopKey,
+          packId: snapshot.packId,
+          instanceNumber: snapshot.instanceNumber,
+          promptLen: v3ActivePromptTextRef.current?.length || 0,
+          reason: 'Prompt exists in refs - suppressing recovery'
+        });
+        
+        // Release idempotency lock
+        const lockKey = lastV3SubmitLockKeyRef.current;
+        if (lockKey) {
+          if (submittedKeysRef.current.has(lockKey)) {
+            submittedKeysRef.current.delete(lockKey);
+            console.log('[IDEMPOTENCY][RELEASE]', { lockKey, packId: snapshot.packId, instanceNumber: snapshot.instanceNumber, source: 'watchdog_failed_suppressed' });
+            lastIdempotencyReleasedRef.current = lockKey;
+          }
+          lastV3SubmitLockKeyRef.current = null;
+        }
+        return; // Exit - do NOT run recovery
+      }
       
       // AUTHORITATIVE MULTI-INCIDENT DETECTION: Use pack metadata (no guessing)
       const packData = v3ProbingContext?.packData;
