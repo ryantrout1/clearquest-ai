@@ -1216,6 +1216,7 @@ export default function CandidateInterview() {
   const inputRef = useRef(null);
   const yesButtonRef = useRef(null);
   const noButtonRef = useRef(null);
+  const lastFocusedBottomBarModeRef = useRef(null);
   const questionCardRef = useRef(null);
   const [questionCardHeight, setQuestionCardHeight] = useState(0);
   const [textareaRows, setTextareaRows] = useState(1);
@@ -6150,48 +6151,76 @@ export default function CandidateInterview() {
     }
   }, [screenMode, currentItem, v3ProbingActive, dbTranscript]);
 
-  // UX: Auto-focus answer input whenever a new question appears
+  // UX: Auto-focus input after state transitions (Send button → next prompt)
   useEffect(() => {
-    if (!currentItem) return;
-    if (isCommitting || v3ProbingActive || pendingSectionTransition) return;
-
-    const isAnswerable = currentItem.type === 'question' ||
-                         currentItem.type === 'v2_pack_field' ||
-                         currentItem.type === 'v3_pack_opener' ||
-                         currentItem.type === 'followup';
-
-    if (!isAnswerable) return;
-
-    const currentItemType = currentItem.type;
-    const currentItemId = currentItem.id;
-    const packId = currentItem.packId;
-    const fieldKey = currentItem.fieldKey;
-    const instanceNumber = currentItem.instanceNumber;
-
-    console.log("[UX][FOCUS] Auto-focusing answer input for", {
-      currentItemType,
-      currentItemId,
-      packId,
-      fieldKey,
-      instanceNumber
+    // Skip if typing lock active
+    if (isUserTyping) return;
+    
+    // Focus conditions: TEXT_INPUT mode when prompt is ready
+    const shouldFocus = 
+      bottomBarMode === 'TEXT_INPUT' && 
+      (hasPrompt || currentItem?.type === 'v3_pack_opener' || v3ProbingActive);
+    
+    // Prevent redundant focus (only focus on mode transition)
+    if (lastFocusedBottomBarModeRef.current === bottomBarMode && bottomBarMode === 'TEXT_INPUT') {
+      return;
+    }
+    
+    if (!shouldFocus) {
+      lastFocusedBottomBarModeRef.current = bottomBarMode;
+      return;
+    }
+    
+    // Log focus attempt
+    const focusReason = v3ProbingActive ? 'v3_probe_ready' : 
+                       currentItem?.type === 'v3_pack_opener' ? 'opener_ready' :
+                       hasPrompt ? 'prompt_ready' : 'unknown';
+    
+    console.log('[BOTTOM_BAR_FOCUS]', {
+      didFocus: 'pending',
+      reason: focusReason,
+      bottomBarMode,
+      effectiveItemType,
+      v3ProbingActive,
+      hasPrompt
     });
-
-    window.requestAnimationFrame(() => {
-      if (!inputRef.current) return;
-
+    
+    // Defer focus until DOM updates complete
+    const focusTimer = setTimeout(() => {
+      if (!inputRef.current) {
+        console.log('[BOTTOM_BAR_FOCUS]', { didFocus: false, reason: 'inputRef null' });
+        return;
+      }
+      
       try {
         inputRef.current.focus();
-
-        // Put cursor at end of any existing text (desktop + mobile friendly)
+        
+        // Put cursor at end (works on desktop + mobile)
         if (inputRef.current.setSelectionRange) {
-          const len = inputRef.current.value.length;
+          const len = inputRef.current.value?.length || 0;
           inputRef.current.setSelectionRange(len, len);
         }
+        
+        console.log('[BOTTOM_BAR_FOCUS]', {
+          didFocus: true,
+          reason: focusReason,
+          bottomBarMode,
+          effectiveItemType,
+          v3ProbingActive
+        });
+        
+        lastFocusedBottomBarModeRef.current = bottomBarMode;
       } catch (err) {
-        console.warn("[UX][FOCUS] Failed to focus answer input", err);
+        console.log('[BOTTOM_BAR_FOCUS]', {
+          didFocus: false,
+          reason: 'focus error',
+          error: err.message
+        });
       }
-    });
-  }, [currentItem, isCommitting, v3ProbingActive, pendingSectionTransition]);
+    }, 0);
+    
+    return () => clearTimeout(focusTimer);
+  }, [bottomBarMode, hasPrompt, v3ProbingActive, currentItem, isUserTyping]);
 
   // Transcript logging is now handled in answer saving functions where we have Response IDs
   // This prevents logging questions with null responseId
@@ -8344,12 +8373,26 @@ export default function CandidateInterview() {
             return null;
           })()}
 
-          {/* Footer disclaimer - always show except during V3 probing */}
-          {!isV3Gate && !v3ProbingActive && (
-           <p className="text-xs text-slate-400 text-center mt-3">
-             Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
-           </p>
-          )}
+          {/* Footer disclaimer - show during all active interview Q&A states */}
+          {(() => {
+            const shouldRenderFooter = 
+              screenMode === 'QUESTION' && 
+              (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
+            
+            console.log('[BOTTOM_BAR_FOOTER]', {
+              shouldRenderFooter,
+              screenMode,
+              bottomBarMode,
+              effectiveItemType,
+              v3ProbingActive
+            });
+            
+            return shouldRenderFooter ? (
+              <p className="text-xs text-slate-400 text-center mt-3">
+                Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
+              </p>
+            ) : null;
+          })()}
         </div>
       </footer>
 
