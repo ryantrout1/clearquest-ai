@@ -39,6 +39,7 @@ import { getSystemConfig, getEffectiveInterviewMode } from "../components/utils/
 import { getFactModelForCategory, mapPackIdToCategory } from "../components/utils/factModelHelpers";
 import V3ProbingLoop from "../components/interview/V3ProbingLoop";
 import V3DebugPanel from "../components/interview/V3DebugPanel";
+import BottomBarAutoFocusGuard from "../components/interview/BottomBarAutoFocusGuard";
 import { appendQuestionEntry, appendAnswerEntry } from "../components/utils/transcriptLogger";
 import { applySectionGateIfNeeded } from "../components/interview/sectionGateHandler";
 import {
@@ -1216,7 +1217,6 @@ export default function CandidateInterview() {
   const inputRef = useRef(null);
   const yesButtonRef = useRef(null);
   const noButtonRef = useRef(null);
-  const lastFocusedBottomBarModeRef = useRef(null);
   const questionCardRef = useRef(null);
   const [questionCardHeight, setQuestionCardHeight] = useState(0);
   const [textareaRows, setTextareaRows] = useState(1);
@@ -6730,79 +6730,16 @@ export default function CandidateInterview() {
     screenMode === 'QUESTION' && 
     (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
   
-  // UX: Auto-focus input after state transitions (Send button → next prompt)
-  // CRITICAL: Must be AFTER hasPrompt/bottomBarMode computed (TDZ safety)
-  useEffect(() => {
-    // Skip if typing lock active
-    if (isUserTyping) return;
-    
-    // Guard: Must be in QUESTION mode with TEXT_INPUT
-    if (screenMode !== 'QUESTION') return;
-    if (bottomBarMode !== 'TEXT_INPUT') return;
-    
-    // Focus conditions: TEXT_INPUT mode when prompt is ready
-    const shouldFocus = hasPrompt || currentItem?.type === 'v3_pack_opener' || v3ProbingActive;
-    
-    // Prevent redundant focus (only focus on mode transition)
-    if (lastFocusedBottomBarModeRef.current === bottomBarMode && bottomBarMode === 'TEXT_INPUT') {
-      return;
-    }
-    
-    if (!shouldFocus) {
-      lastFocusedBottomBarModeRef.current = bottomBarMode;
-      return;
-    }
-    
-    // Log focus attempt
-    const focusReason = v3ProbingActive ? 'v3_probe_ready' : 
-                       currentItem?.type === 'v3_pack_opener' ? 'opener_ready' :
-                       hasPrompt ? 'prompt_ready' : 'unknown';
-    
-    console.log('[BOTTOM_BAR_FOCUS]', {
-      didFocus: 'pending',
-      reason: focusReason,
-      bottomBarMode,
-      effectiveItemType,
-      v3ProbingActive,
-      hasPrompt
-    });
-    
-    // Defer focus until DOM updates complete
-    const focusTimer = setTimeout(() => {
-      if (!inputRef.current) {
-        console.log('[BOTTOM_BAR_FOCUS]', { didFocus: false, reason: 'inputRef null' });
-        return;
-      }
-      
-      try {
-        inputRef.current.focus();
-        
-        // Put cursor at end (works on desktop + mobile)
-        if (inputRef.current.setSelectionRange) {
-          const len = inputRef.current.value?.length || 0;
-          inputRef.current.setSelectionRange(len, len);
-        }
-        
-        console.log('[BOTTOM_BAR_FOCUS]', {
-          didFocus: true,
-          reason: focusReason,
-          bottomBarMode,
-          effectiveItemType,
-          v3ProbingActive
-        });
-        
-        lastFocusedBottomBarModeRef.current = bottomBarMode;
-      } catch (err) {
-        console.log('[BOTTOM_BAR_FOCUS]', {
-          didFocus: false,
-          reason: 'focus error',
-          error: err.message
-        });
-      }
-    }, 0);
-    
-    return () => clearTimeout(focusTimer);
-  }, [bottomBarMode, hasPrompt, v3ProbingActive, currentItem, isUserTyping, effectiveItemType, screenMode]);
+  // Auto-focus control props (pure values, no hooks)
+  const focusEnabled = screenMode === 'QUESTION';
+  const focusShouldTrigger = focusEnabled && bottomBarMode === 'TEXT_INPUT' && (hasPrompt || v3ProbingActive || currentItem?.type === 'v3_pack_opener');
+  const focusKey = v3ProbingActive 
+    ? `v3:${v3ProbingContext?.packId}:${v3ProbingContext?.instanceNumber}:${v3ActivePromptText?.substring(0, 20)}`
+    : currentItem?.type === 'v3_pack_opener'
+    ? `opener:${currentItem?.id}`
+    : currentItem?.id
+    ? `item:${currentItem.id}:${hasPrompt ? '1' : '0'}`
+    : 'none';
   
   // V3 OPENER SUBMIT STATE: Log submit affordance for opener
   if (effectiveItemType === 'v3_pack_opener' && currentItem) {
@@ -8446,6 +8383,19 @@ export default function CandidateInterview() {
           Copy V3 Debug
         </button>
       )}
+      
+      {/* Auto-focus guard - headless component with stable hook order */}
+      <BottomBarAutoFocusGuard
+        enabled={focusEnabled}
+        shouldFocus={focusShouldTrigger}
+        focusKey={focusKey}
+        isUserTyping={isUserTyping}
+        inputRef={inputRef}
+        bottomBarMode={bottomBarMode}
+        effectiveItemType={effectiveItemType}
+        v3ProbingActive={v3ProbingActive}
+        hasPrompt={hasPrompt}
+      />
       </div>
       );
 }
