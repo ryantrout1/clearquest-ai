@@ -5348,7 +5348,13 @@ export default function CandidateInterview() {
       setV3ProbingContext(null);
       setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
       setUiBlocker(null);
-      
+
+      // Clear UI-only history when exiting to gate
+      setV3ProbeDisplayHistory([]);
+      v3ActiveProbeQuestionRef.current = null;
+      v3ActiveProbeQuestionLoopKeyRef.current = null;
+      console.log('[V3_UI_HISTORY][CLEAR]', { reason: 'TRANSITION_TO_GATE', packId, instanceNumber });
+
       // Set up multi-instance gate as first-class currentItem
       const gateItem = {
         id: gateItemId,
@@ -5560,7 +5566,8 @@ export default function CandidateInterview() {
     console.log('[V3_ANSWER_SUBMIT]', { submitId, answerPreview: answerText?.substring(0, 50), loopKey });
     
     // UI HISTORY: Append probe Q+A to display history (UI-only, not transcript)
-    if (loopKey && answerText?.trim()) {
+    // PHASE GUARD: Only append during active V3 probing (prevents stale appends after gate transition)
+    if (v3ProbingActive && effectiveItemType === 'v3_probing' && loopKey && answerText?.trim()) {
       const questionText = v3ActiveProbeQuestionRef.current || v3ActivePromptText;
       const questionLoopKey = v3ActiveProbeQuestionLoopKeyRef.current || loopKey;
       
@@ -5599,6 +5606,14 @@ export default function CandidateInterview() {
       // Clear active probe question after moving to history
       v3ActiveProbeQuestionRef.current = null;
       v3ActiveProbeQuestionLoopKeyRef.current = null;
+    } else if (!v3ProbingActive || effectiveItemType !== 'v3_probing') {
+      // GUARD: Prevent append after V3 exit
+      console.log('[V3_UI_HISTORY][APPEND_BLOCKED]', {
+        v3ProbingActive,
+        effectiveItemType,
+        loopKey,
+        reason: 'V3 probing not active - skipping history append to prevent out-of-order'
+      });
     }
     
     setV3PendingAnswer(payload);
@@ -5943,6 +5958,12 @@ export default function CandidateInterview() {
           setV3ProbingContext(null);
           setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
           setUiBlocker(null);
+          
+          // Clear UI-only history when exiting to gate
+          setV3ProbeDisplayHistory([]);
+          v3ActiveProbeQuestionRef.current = null;
+          v3ActiveProbeQuestionLoopKeyRef.current = null;
+          console.log('[V3_UI_HISTORY][CLEAR]', { reason: 'TRANSITION_TO_GATE_INLINE', packId, instanceNumber });
 
           // Set up multi-instance gate as first-class currentItem
           const gateItem = {
@@ -6002,6 +6023,12 @@ export default function CandidateInterview() {
         // Clear V3 state
         setV3ProbingActive(false);
         setV3ProbingContext(null);
+        
+        // Clear UI-only history when exiting V3 probing
+        setV3ProbeDisplayHistory([]);
+        v3ActiveProbeQuestionRef.current = null;
+        v3ActiveProbeQuestionLoopKeyRef.current = null;
+        console.log('[V3_UI_HISTORY][CLEAR]', { reason: 'EXIT_V3', loopKey });
 
         // Log pack exited (audit only)
         if (v3ProbingContext?.packId) {
@@ -7945,7 +7972,8 @@ export default function CandidateInterview() {
               )}
 
               {/* V3 UI-ONLY HISTORY: Render probe Q/A for user's chat history perception */}
-              {v3ProbeDisplayHistory.length > 0 && v3ProbeDisplayHistory.map((entry, idx) => {
+              {/* PHASE GUARD: Only show during active V3 probing (prevents out-of-order after gate transition) */}
+              {v3ProbingActive && effectiveItemType === 'v3_probing' && v3ProbeDisplayHistory.length > 0 && v3ProbeDisplayHistory.map((entry, idx) => {
                 const key = `v3-ui-${entry.loopKey}-${entry.kind}-${idx}`;
                 
                 if (entry.kind === 'v3_probe_q') {
