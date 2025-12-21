@@ -1226,6 +1226,7 @@ export default function CandidateInterview() {
   const typingTimeoutRef = useRef(null);
   const aiResponseTimeoutRef = useRef(null);
   const [footerHeightPx, setFooterHeightPx] = useState(120); // Dynamic footer height measurement
+  const [bottomInsetPx, setBottomInsetPx] = useState(132); // V3 LAYOUT: Dynamic bottom inset (bottomBar + buffer)
   
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
 
