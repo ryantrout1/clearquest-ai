@@ -7694,30 +7694,64 @@ export default function CandidateInterview() {
           })()}
 
           {/* V3 PROBE PROMPT LANE: Active prompt card for V3 probing (purple AI follow-up) */}
-          {!activeBlocker && v3ProbingActive && currentPrompt?.type === 'v3_probe' && currentPrompt?.text && (
-           <ContentContainer>
-           <div ref={questionCardRef} className="relative z-20 w-full rounded-xl p-1">
-             <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 shadow-xl">
-               <div className="flex items-center gap-2 mb-1">
-                 <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
-                 {currentPrompt.instanceNumber > 1 && (
-                   <>
-                     <span className="text-xs text-slate-500">•</span>
-                     <span className="text-xs text-slate-400">Instance {currentPrompt.instanceNumber}</span>
-                   </>
-                 )}
-               </div>
-               <p className="text-white text-sm leading-relaxed">{currentPrompt.text}</p>
-             </div>
+          {(() => {
+            // ROBUST GATING: Use state flags directly instead of strict type matching
+            const shouldRenderV3PromptLaneCard = 
+              v3ProbingActive &&
+              effectiveItemType === 'v3_probing' &&
+              v3ActivePromptText &&
+              v3ActivePromptText.trim().length > 0 &&
+              !activeBlocker;
+            
+            // DIAGNOSTIC: Log when prompt exists but render condition fails
+            if (v3ProbingActive && v3ActivePromptText && !shouldRenderV3PromptLaneCard) {
+              console.warn('[V3_PROMPT_LANE_MISSING]', {
+                preview: v3ActivePromptText?.slice(0, 80),
+                effectiveItemType,
+                bottomBarMode,
+                v3ProbingActive,
+                hasActiveBlocker: !!activeBlocker,
+                reason: 'Prompt exists but render condition failed'
+              });
+            }
+            
+            if (!shouldRenderV3PromptLaneCard) {
+              return null;
+            }
+            
+            console.log('[V3_PROMPT_LANE_RENDER]', {
+              preview: v3ActivePromptText?.slice(0, 80),
+              effectiveItemType,
+              bottomBarMode,
+              v3ProbingActive,
+              hasPrompt: !!v3ActivePromptText
+            });
+            
+            return (
+              <ContentContainer>
+                <div ref={questionCardRef} className="relative z-20 w-full rounded-xl p-1">
+                  <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 shadow-xl">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
+                      {v3ProbingContext?.instanceNumber > 1 && (
+                        <>
+                          <span className="text-xs text-slate-500">•</span>
+                          <span className="text-xs text-slate-400">Instance {v3ProbingContext.instanceNumber}</span>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-white text-sm leading-relaxed">{v3ActivePromptText}</p>
+                  </div>
 
-             {validationHint && (
-               <div className="mt-2 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
-                 <p className="text-yellow-200 text-sm">{validationHint}</p>
-               </div>
-             )}
-           </div>
-           </ContentContainer>
-          )}
+                  {validationHint && (
+                    <div className="mt-2 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
+                      <p className="text-yellow-200 text-sm">{validationHint}</p>
+                    </div>
+                  )}
+                </div>
+              </ContentContainer>
+            );
+          })()}
 
           {/* UNIFIED STREAM: Active cards disabled - all content in transcript */}
           {false && !activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
