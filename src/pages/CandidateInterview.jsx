@@ -5542,11 +5542,12 @@ export default function CandidateInterview() {
   }, [v3ProbingContext, sessionId]);
   
   // V3 answer consumed handler - clears pending answer after V3ProbingLoop consumes it
-  const handleV3AnswerConsumed = useCallback(({ loopKey, answerToken, probeCount }) => {
+  const handleV3AnswerConsumed = useCallback(({ loopKey, answerToken, probeCount, submitId }) => {
     console.log('[V3_ANSWER_CONSUMED][CLEAR_PENDING]', {
       loopKey,
       answerToken,
       probeCount,
+      submitId,
       hadValue: !!v3PendingAnswer
     });
     
