@@ -8603,7 +8603,47 @@ export default function CandidateInterview() {
              ref={inputRef}
              value={currentItem?.type === 'v3_pack_opener' ? (openerDraft ?? "") : (input ?? "")}
              onChange={(e) => {
-...
+               const value = e.target.value;
+               markUserTyping();
+
+               // V3 OPENER: Use dedicated openerDraft state
+               if (currentItem?.type === 'v3_pack_opener') {
+                 // GUARD: Never allow prompt text as value
+                 const promptText = currentItem?.openerText || activePromptText || "";
+                 const valueMatchesPrompt = value.trim() === promptText.trim() && value.length > 10;
+
+                 if (valueMatchesPrompt) {
+                   console.error('[V3_UI_CONTRACT][OPENER_DRAFT_SEEDED_BLOCKED]', {
+                     packId: currentItem?.packId,
+                     instanceNumber: currentItem?.instanceNumber,
+                     reason: 'Attempted to seed openerDraft with prompt text - blocking onChange'
+                   });
+                   return; // Block the update
+                 }
+
+                 setOpenerDraft(value);
+
+                 // FORENSIC: Throttled keystroke capture proof (every 3 chars to avoid spam)
+                 openerDraftChangeCountRef.current++;
+                 if (openerDraftChangeCountRef.current % 3 === 1 || value.length === 0) {
+                   console.log('[V3_OPENER][DRAFT_CHANGE]', {
+                     packId: currentItem?.packId,
+                     instanceNumber: currentItem?.instanceNumber,
+                     len: value.length
+                   });
+                 }
+
+                 // DECOUPLE: Storage write failures must not block state update
+                 try {
+                   const draftKey = buildDraftKey(sessionId, currentItem?.packId, currentItem?.id, currentItem?.instanceNumber || 0);
+                   window.sessionStorage.setItem(draftKey, value);
+                 } catch (e) {
+                   // Silent fallback - in-memory draft is source of truth
+                 }
+               } else {
+                 saveDraft(value);
+                 setInput(value);
+               }
              }}
              onKeyDown={handleInputKeyDown}
              placeholder="Type your response here…"
