@@ -7064,7 +7064,7 @@ export default function CandidateInterview() {
           ref={historyRef}
           onScroll={handleTranscriptScroll}
         >
-        <div className="px-4 pt-6 flex flex-col min-h-full justify-end" style={{ paddingBottom: `${footerHeightPx + 16}px` }}>
+        <div className="px-4 pt-6 flex flex-col min-h-full justify-end" style={{ paddingBottom: `${footerHeightPx + 32}px` }}>
           <div className="space-y-2 relative isolate">
           {/* UNIFIED STREAM: Render all transcript messages from canonical source */}
           {(() => {
