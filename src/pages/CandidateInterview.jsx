@@ -1710,18 +1710,21 @@ export default function CandidateInterview() {
       currentItemType: currentItem?.type
     });
     
-    // AUDIT: Verify no synthetic injection (append-only contract)
+    // AUDIT: Verify no synthetic injection (append-only contract) - CORRECTED
+    const renderableDbLen = base.filter(entry => isRenderableTranscriptEntry(entry)).length;
     console.log('[TRANSCRIPT_AUDIT][SOURCE_OF_TRUTH]', {
       dbLen: base.length,
+      renderableDbLen,
       renderedLen: finalFiltered.length,
       syntheticEnabled: ENABLE_SYNTHETIC_TRANSCRIPT
     });
     
-    // DIAGNOSTIC: Detect when filters are hiding items
-    const hiddenCount = base.length - finalFiltered.length;
+    // DIAGNOSTIC: Detect when filters are hiding items - CORRECTED (use renderableDbLen)
+    const hiddenCount = renderableDbLen - finalFiltered.length;
     if (hiddenCount >= 2) {
       console.warn('[TRANSCRIPT_AUDIT][LEN_MISMATCH]', {
         dbLen: base.length,
+        renderableDbLen,
         renderedLen: finalFiltered.length,
         hiddenCount,
         screenMode,
@@ -1733,6 +1736,7 @@ export default function CandidateInterview() {
       
       console.warn('[TRANSCRIPT_AUDIT][MISMATCH_SNAPSHOT]', {
         dbLen: base.length,
+        renderableDbLen,
         renderedLen: finalFiltered.length,
         hiddenCount,
         screenMode,
