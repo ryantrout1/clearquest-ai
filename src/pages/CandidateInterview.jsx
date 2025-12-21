@@ -1355,6 +1355,9 @@ export default function CandidateInterview() {
   const [v3ProbeDisplayHistory, setV3ProbeDisplayHistory] = useState([]);
   const v3ActiveProbeQuestionRef = useRef(null);
   const v3ActiveProbeQuestionLoopKeyRef = useRef(null);
+  
+  // Transcript monotonicity audit (log-only regression detection)
+  const prevRenderedLenRef = useRef(null);
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
