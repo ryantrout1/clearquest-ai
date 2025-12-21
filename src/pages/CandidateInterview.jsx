@@ -7298,9 +7298,10 @@ export default function CandidateInterview() {
           <div className="space-y-2 relative isolate">
           {/* UNIFIED STREAM: Render all transcript messages from canonical source */}
           {(() => {
+            const transcriptToRender = renderedTranscriptSnapshotRef.current || renderedTranscript;
             return (
               <div className="opacity-100">
-                {renderedTranscript.map((entry, index) => {
+                {transcriptToRender.map((entry, index) => {
                   
                   // V3 UI CONTRACT: HARD GUARD - Block ANY V3 probe prompts from main body
                   const mt = (entry.messageType || entry.type || '').toString();
