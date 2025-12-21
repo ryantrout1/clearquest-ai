@@ -7811,7 +7811,7 @@ export default function CandidateInterview() {
             
             return (
               <ContentContainer>
-                <div ref={questionCardRef} className="relative z-20 w-full rounded-xl p-1">
+                <div ref={promptLaneRef} className="relative z-20 w-full rounded-xl p-1">
                   <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 shadow-xl">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
