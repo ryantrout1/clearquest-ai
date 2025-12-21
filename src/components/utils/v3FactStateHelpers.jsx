@@ -289,3 +289,95 @@ export function getIncidentsByCategory(session, categoryId) {
   const incidents = session.incidents || [];
   return incidents.filter(inc => inc.category_id === categoryId);
 }
+
+/**
+ * V3 OUTPUT CONTRACT: Normalize V3 probe questions to enforce Date Rule.
+ * 
+ * SURGICAL FIX: This function runs ONLY at the output boundary when a V3 probe 
+ * question is about to be shown to the candidate. It does NOT change engine logic,
+ * gap computation, or LLM reasoning.
+ * 
+ * DATE RULE: When asking about timing, always ask for month/year (not exact date).
+ * 
+ * @param {string} proposedQuestion - The raw question text from the engine
+ * @param {object} context - Context for determining if this is a timing question
+ * @param {object} context.factModel - FactModel with required_fields array
+ * @param {object} context.session - InterviewSession with fact_state
+ * @param {string} context.incidentId - Current incident identifier
+ * @param {string} [context.packId] - Pack identifier (for logging)
+ * @returns {string} - Normalized question text (unchanged if not timing-related)
+ */
+export function normalizeV3ProbeQuestion(proposedQuestion, context = {}) {
+  // GUARD: Fail open if inputs invalid
+  if (!proposedQuestion || typeof proposedQuestion !== 'string') {
+    return proposedQuestion || '';
+  }
+  
+  const { factModel, session, incidentId, packId } = context;
+  
+  // GUARD: No normalization if we can't determine missing fields
+  if (!factModel || !session || !incidentId) {
+    return proposedQuestion;
+  }
+  
+  // Get missing required fields for this incident
+  const missingFields = getIncompleteRequiredFields(session, incidentId, factModel);
+  
+  // GUARD: If no missing fields, pass through unchanged
+  if (!missingFields || missingFields.length === 0) {
+    return proposedQuestion;
+  }
+  
+  // Check if any missing field is timing-related
+  const timingFieldTypes = ['date', 'month_year', 'datetime'];
+  const hasTimingGap = missingFields.some(f => 
+    timingFieldTypes.includes(f.type) ||
+    f.field_id?.toLowerCase().includes('date') ||
+    f.field_id?.toLowerCase().includes('time') ||
+    f.field_id?.toLowerCase().includes('month') ||
+    f.field_id?.toLowerCase().includes('year') ||
+    f.label?.toLowerCase().includes('when')
+  );
+  
+  // GUARD: If no timing gap, pass through unchanged
+  if (!hasTimingGap) {
+    return proposedQuestion;
+  }
+  
+  // Check if question is asking about timing in a non-compliant way
+  const questionLower = proposedQuestion.toLowerCase();
+  const isAskingTiming = 
+    questionLower.includes('when') ||
+    questionLower.includes('date') ||
+    questionLower.includes('time') ||
+    questionLower.includes('occurred');
+  
+  // GUARD: If not asking about timing, pass through unchanged
+  if (!isAskingTiming) {
+    return proposedQuestion;
+  }
+  
+  // Check if already asks for month/year appropriately
+  const alreadyCompliant = 
+    (questionLower.includes('month') && questionLower.includes('year')) ||
+    questionLower.includes('about what') ||
+    questionLower.includes('approximately');
+  
+  // GUARD: If already compliant, pass through unchanged
+  if (alreadyCompliant) {
+    return proposedQuestion;
+  }
+  
+  // NORMALIZATION: Replace with Date Rule compliant phrasing
+  const normalizedQuestion = "About what month and year was this?";
+  
+  // LOG: Diagnostic for normalization
+  console.log('[V3_OUTPUT_CONTRACT][DATE_RULE_NORMALIZED]', {
+    originalPreview: proposedQuestion.slice(0, 80),
+    normalizedPreview: normalizedQuestion,
+    incidentId,
+    packId: packId || 'unknown'
+  });
+  
+  return normalizedQuestion;
+}
