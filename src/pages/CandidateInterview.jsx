@@ -1347,6 +1347,11 @@ export default function CandidateInterview() {
   
   // V3 SUBMIT COUNTER: Monotonic counter for tokenized pendingAnswer payloads
   const v3SubmitCounterRef = useRef(0);
+  
+  // V3 UI-ONLY HISTORY: Display V3 probe Q/A without polluting transcript
+  const [v3ProbeDisplayHistory, setV3ProbeDisplayHistory] = useState([]);
+  const v3ActiveProbeQuestionRef = useRef(null);
+  const v3ActiveProbeQuestionLoopKeyRef = useRef(null);
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
@@ -1881,6 +1886,9 @@ export default function CandidateInterview() {
     
     console.log('[V3_RECAP][CLEANUP] Clearing recap append guard for session', { sessionId });
     v3RecapAppendedKeysRef.current.clear();
+    
+    // Clear UI-only probe display history on session change
+    setV3ProbeDisplayHistory([]);
   }, [sessionId]);
 
   // STABLE: Single mount per session - track by sessionId (survives remounts)
@@ -5495,6 +5503,10 @@ export default function CandidateInterview() {
 
     // CRITICAL: Update ref synchronously (watchdog reads from this)
     v3ActivePromptTextRef.current = promptText;
+    
+    // UI HISTORY: Store active probe question for display history
+    v3ActiveProbeQuestionRef.current = promptText;
+    v3ActiveProbeQuestionLoopKeyRef.current = loopKey;
 
     console.log('[V3_PROMPT_BIND]', { loopKey, promptLen: promptText?.length || 0 });
 
@@ -5546,8 +5558,51 @@ export default function CandidateInterview() {
     };
     
     console.log('[V3_ANSWER_SUBMIT]', { submitId, answerPreview: answerText?.substring(0, 50), loopKey });
+    
+    // UI HISTORY: Append probe Q+A to display history (UI-only, not transcript)
+    if (loopKey && answerText?.trim()) {
+      const questionText = v3ActiveProbeQuestionRef.current || v3ActivePromptText;
+      const questionLoopKey = v3ActiveProbeQuestionLoopKeyRef.current || loopKey;
+      
+      setV3ProbeDisplayHistory(prev => {
+        // Dedupe: Check if Q already exists for this loopKey+text
+        const qKey = `${questionLoopKey}:${questionText}`;
+        const hasQ = prev.some(e => e.kind === 'v3_probe_q' && e.text === questionText && e.loopKey === questionLoopKey);
+        
+        const newEntries = [];
+        if (!hasQ && questionText) {
+          newEntries.push({
+            kind: 'v3_probe_q',
+            loopKey: questionLoopKey,
+            text: questionText,
+            ts: Date.now()
+          });
+        }
+        newEntries.push({
+          kind: 'v3_probe_a',
+          loopKey,
+          text: answerText,
+          ts: Date.now()
+        });
+        
+        console.log('[V3_UI_HISTORY][APPEND]', { 
+          loopKey, 
+          qPreview: questionText?.substring(0, 50), 
+          aPreview: answerText?.substring(0, 50),
+          appendedQ: !hasQ,
+          appendedA: true
+        });
+        
+        return [...prev, ...newEntries];
+      });
+      
+      // Clear active probe question after moving to history
+      v3ActiveProbeQuestionRef.current = null;
+      v3ActiveProbeQuestionLoopKeyRef.current = null;
+    }
+    
     setV3PendingAnswer(payload);
-  }, [v3ProbingContext, sessionId]);
+  }, [v3ProbingContext, sessionId, v3ActivePromptText]);
   
   // V3 answer consumed handler - clears pending answer after V3ProbingLoop consumes it
   const handleV3AnswerConsumed = useCallback(({ loopKey, answerToken, probeCount, submitId }) => {
@@ -7889,6 +7944,39 @@ export default function CandidateInterview() {
                </ContentContainer>
               )}
 
+              {/* V3 UI-ONLY HISTORY: Render probe Q/A for user's chat history perception */}
+              {v3ProbeDisplayHistory.length > 0 && v3ProbeDisplayHistory.map((entry, idx) => {
+                const key = `v3-ui-${entry.loopKey}-${entry.kind}-${idx}`;
+                
+                if (entry.kind === 'v3_probe_q') {
+                  return (
+                    <div key={key}>
+                      <ContentContainer>
+                        <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
+                          </div>
+                          <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                        </div>
+                      </ContentContainer>
+                    </div>
+                  );
+                } else if (entry.kind === 'v3_probe_a') {
+                  return (
+                    <div key={key} style={{ marginBottom: 10 }}>
+                      <ContentContainer>
+                        <div className="flex justify-end">
+                          <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                            <p className="text-white text-sm">{entry.text}</p>
+                          </div>
+                        </div>
+                      </ContentContainer>
+                    </div>
+                  );
+                }
+                return null;
+              })}
+              
               {/* Bottom anchor - zero-height sentinel for scroll positioning */}
               <div ref={bottomAnchorRef} aria-hidden="true" />
               </div>
