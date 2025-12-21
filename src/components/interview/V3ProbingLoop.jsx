@@ -309,7 +309,8 @@ export default function V3ProbingLoop({
   const handleSubmit = async (e, initialAnswer = null, isInitialCall = false) => {
     e?.preventDefault();
     
-    const answer = isInitialCall ? initialAnswer : input.trim();
+    // Use initialAnswer (from parent's pendingAnswer) if provided, otherwise fall back to local input
+    const answer = initialAnswer || input.trim();
     if (!answer || isLoading || isComplete) return;
     
     // IN-FLIGHT GUARD: Prevent concurrent engine calls
