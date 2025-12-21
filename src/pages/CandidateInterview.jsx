@@ -6083,6 +6083,51 @@ export default function CandidateInterview() {
     }
   }, [currentItem, validationHint]);
 
+  // V3 LAYOUT: Measure bottom bar height dynamically (input + footer combined)
+  // CRITICAL: Placed in early hook section to maintain stable hook order
+  // SAFE: No TDZ - uses empty dependency array, reads mode from refs in logs
+  useEffect(() => {
+    if (!bottomBarRef.current) return;
+    
+    let rafId = null;
+    let pendingMeasurement = false;
+    
+    const measureBottomBar = () => {
+      if (!bottomBarRef.current) return;
+      const rect = bottomBarRef.current.getBoundingClientRect();
+      const measured = Math.round(rect.height || bottomBarRef.current.offsetHeight || 0);
+      const inset = measured + 12; // 12px safety buffer
+      setBottomInsetPx(inset);
+      pendingMeasurement = false;
+      
+      // V3 LAYOUT: Diagnostic log (reads mode from ref to avoid TDZ)
+      console.log('[V3_LAYOUT_INSET]', {
+        bottomInsetPx: inset,
+        bottomBarHeightPx: measured,
+        v3ProbingActive: v3ProbingActiveRef.current,
+        bottomBarMode: bottomBarModeRef.current || null,
+        effectiveItemType: currentItemType || null
+      });
+    };
+    
+    const scheduleUpdate = () => {
+      if (pendingMeasurement) return;
+      pendingMeasurement = true;
+      rafId = requestAnimationFrame(measureBottomBar);
+    };
+    
+    const resizeObserver = new ResizeObserver(scheduleUpdate);
+    resizeObserver.observe(bottomBarRef.current);
+    
+    // Initial measurement
+    scheduleUpdate();
+    
+    return () => {
+      resizeObserver.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, []); // Empty deps - ResizeObserver handles all updates
+
   // Legacy footer measurement (kept for compatibility)
   useEffect(() => {
     if (!footerRef.current) return;
