@@ -186,57 +186,34 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
   
   // MULTI_INSTANCE_GATE_SHOWN: Require exact stableKey match (packId + instanceNumber)
   if (metadata.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
-    // Enforce canonical stableKey format
-    const packId = metadata.packId;
-    const instanceNumber = metadata.instanceNumber;
-    const canonicalStableKey = `mi-gate:${packId}:${instanceNumber}`;
-
-    // OVERRIDE: Force canonical stableKey (ignore incoming if different)
     const incomingStableKey = stableKey || metadata.stableKey;
-    if (incomingStableKey && incomingStableKey !== canonicalStableKey) {
-      console.warn('[TRANSCRIPT][MI_GATE][STABLEKEY_OVERRIDE]', {
-        incoming: incomingStableKey,
-        canonical: canonicalStableKey,
-        reason: 'Forcing canonical format for consistency'
-      });
-    }
-
-    // Use canonical stableKey for all MI gate operations
-    stableKey = canonicalStableKey;
-    metadata.stableKey = canonicalStableKey;
-
-    if (!packId || !instanceNumber) {
+    if (!incomingStableKey) {
       console.error('[TRANSCRIPT][MI_GATE][NO_STABLE_KEY]', {
-        packId,
-        instanceNumber,
-        reason: 'Multi-instance gate MUST have packId and instanceNumber'
+        packId: metadata.packId,
+        instanceNumber: metadata.instanceNumber,
+        reason: 'Multi-instance gate MUST have stableKey mi-gate:{packId}:{instanceNumber}'
       });
     }
 
-    // GLOBAL DEDUPE: Check entire transcript for canonical stableKey (not just last N)
     const foundExisting = existingTranscript.find(e => 
-      e.stableKey === canonicalStableKey || 
-      e.__canonicalKey === canonicalStableKey ||
+      e.stableKey === incomingStableKey || 
       (e.messageType === 'MULTI_INSTANCE_GATE_SHOWN' && 
-       e.meta?.packId === packId && 
-       e.meta?.instanceNumber === instanceNumber)
+       e.meta?.packId === metadata.packId && 
+       e.meta?.instanceNumber === metadata.instanceNumber)
     );
 
     console.log('[TRANSCRIPT][DEDUPED_CHECK][MI_GATE]', {
-      canonicalStableKey,
-      packId,
-      instanceNumber,
-      foundExisting: !!foundExisting,
-      searchedEntries: existingTranscript.length
+      incomingStableKey,
+      packId: metadata.packId,
+      instanceNumber: metadata.instanceNumber,
+      foundExisting: !!foundExisting
     });
 
     if (foundExisting) {
-      console.log('[TRANSCRIPT][DEDUPED_BLOCK][MI_GATE]', {
-        incomingStableKey: canonicalStableKey,
-        foundExisting: true,
-        action: 'SKIP_APPEND',
-        packId,
-        instanceNumber
+      console.log('[TRANSCRIPT][DEDUPED][MI_GATE] Skipping duplicate for same packId+instanceNumber', {
+        packId: metadata.packId,
+        instanceNumber: metadata.instanceNumber,
+        stableKey: incomingStableKey
       });
       return existingTranscript;
     }

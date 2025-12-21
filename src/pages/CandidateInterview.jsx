@@ -1548,27 +1548,6 @@ export default function CandidateInterview() {
   // Loading watchdog state
   const [showLoadingRetry, setShowLoadingRetry] = useState(false);
   
-  // ============================================================================
-  // EFFECTIVE ITEM TYPE DERIVATION - Must be BEFORE renderedTranscript memo
-  // ============================================================================
-  const currentItemType = (v3GateActive ? 'v3_gate' : (v3ProbingActive ? 'v3_probing' : (pendingSectionTransition ? 'section_transition' : currentItem?.type || null)));
-  
-  // UI TRUTH: When V3 probing is active, force effective type to v3_probing
-  // This ensures opener UI never renders during probing (strict contract enforcement)
-  const effectiveItemType = v3ProbingActive ? 'v3_probing' : currentItemType;
-  
-  // Defensive dev-only assertion (log only)
-  if (effectiveItemType === undefined || effectiveItemType === null) {
-    if (screenMode === 'QUESTION') {
-      console.error('[REGRESSION][EFFECTIVE_ITEM_UNDEFINED]', {
-        screenMode,
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-        v3ProbingActive
-      });
-    }
-  }
-  
   // STABLE RENDER LIST: Pure deterministic filtering (no UI-state-dependent shrink/grow)
   const renderedTranscript = useMemo(() => {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
@@ -1620,7 +1599,7 @@ export default function CandidateInterview() {
     
     // ACTIVE GATE FILTER: Remove currently-active gate from transcript render (prevents double-render)
     const activeGateStableKey = (() => {
-      if (effectiveItemType !== 'multi_instance_gate' || !currentItem) return null;
+      if (currentItem?.type !== 'multi_instance_gate') return null;
       const gatePackId = currentItem.packId || multiInstanceGate?.packId;
       const gateInstanceNumber = currentItem.instanceNumber || multiInstanceGate?.instanceNumber;
       if (!gatePackId || !gateInstanceNumber) return null;
@@ -1687,11 +1666,10 @@ export default function CandidateInterview() {
     });
     
     return finalFiltered;
-  }, [dbTranscript, effectiveItemType, currentItem, multiInstanceGate]);
+  }, [dbTranscript, currentItem, multiInstanceGate]);
 
   // Verification instrumentation (moved above early returns)
   const uiContractViolationKeyRef = useRef(null);
-  const lastAppendedGateKeyRef = useRef(null);
   useEffect(() => {
     if (!Array.isArray(renderedTranscript) || renderedTranscript.length === 0) return;
     const last = renderedTranscript[renderedTranscript.length - 1];
@@ -1714,47 +1692,6 @@ export default function CandidateInterview() {
       }
     }
   }, [renderedTranscript, currentItem, v3ProbingActive]);
-  
-  // REGRESSION GUARD: Detect MI gate append-then-disappear
-  useEffect(() => {
-    if (!Array.isArray(dbTranscript) || dbTranscript.length === 0) return;
-    
-    const lastCanonical = dbTranscript[dbTranscript.length - 1];
-    if (!lastCanonical || lastCanonical.messageType !== 'MULTI_INSTANCE_GATE_SHOWN') return;
-    
-    const canonicalKey = lastCanonical.stableKey || lastCanonical.__canonicalKey;
-    if (!canonicalKey) return;
-    
-    // Track if this gate was just appended
-    if (lastAppendedGateKeyRef.current !== canonicalKey) {
-      lastAppendedGateKeyRef.current = canonicalKey;
-      return; // First time seeing this gate - give render a chance
-    }
-    
-    // Check if it disappeared from rendered list (but NOT due to active gate filter)
-    const effectiveType = v3ProbingActive ? 'v3_probing' : (currentItem?.type || null);
-    const isActiveGate = effectiveType === 'multi_instance_gate' && 
-                        currentItem?.packId === lastCanonical.meta?.packId &&
-                        currentItem?.instanceNumber === lastCanonical.meta?.instanceNumber;
-    
-    const inRenderedList = renderedTranscript.some(e => 
-      (e.stableKey === canonicalKey || e.__canonicalKey === canonicalKey) &&
-      e.messageType === 'MULTI_INSTANCE_GATE_SHOWN'
-    );
-    
-    if (!inRenderedList && !isActiveGate) {
-      console.error('[REGRESSION][MI_GATE_DISAPPEAR]', {
-        stableKey: canonicalKey,
-        canonicalLen: dbTranscript.length,
-        filteredLen: renderedTranscript.length,
-        dedupedLen: renderedTranscript.length,
-        reason: 'unexpected_filter_drop',
-        effectiveType,
-        packId: lastCanonical.meta?.packId,
-        instanceNumber: lastCanonical.meta?.instanceNumber
-      });
-    }
-  }, [dbTranscript, renderedTranscript, currentItem, v3ProbingActive, effectiveItemType, multiInstanceGate]);
 
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
@@ -6434,38 +6371,15 @@ export default function CandidateInterview() {
     let effectiveCurrentItem = currentItem;
 
     if (isUserTyping && currentItemRef.current) {
-      // MISMATCH GUARD: Detect stale frozen state (item type changed during typing lock)
-      const typeMismatch = currentItemRef.current?.type !== currentItem?.type;
-      const idMismatch = currentItemRef.current?.id !== currentItem?.id;
-      
-      if (typeMismatch || idMismatch) {
-        console.error('[FORENSIC][TYPING_LOCK_MISMATCH_CLEAR]', {
-          frozenItemType: currentItemRef.current?.type,
-          frozenItemId: currentItemRef.current?.id,
-          effectiveItemType: currentItem?.type,
-          effectiveItemId: currentItem?.id,
-          action: 'CLEAR_AND_FALLBACK_CURRENT_STATE'
-        });
-        
-        // Clear typing lock and use current state
-        setIsUserTyping(false);
-        if (typingLockTimeoutRef.current) {
-          clearTimeout(typingLockTimeoutRef.current);
-          typingLockTimeoutRef.current = null;
-        }
-        currentItemRef.current = currentItem;
-        effectiveCurrentItem = currentItem;
-      } else {
-        console.log('[FORENSIC][TYPING_LOCK]', { 
-          active: true, 
-          frozenItemType: currentItemRef.current?.type,
-          frozenItemId: currentItemRef.current?.id,
-          actualItemType: currentItem?.type,
-          actualItemId: currentItem?.id,
-          promptWillDeriveFrom: 'FROZEN_REF'
-        });
-        effectiveCurrentItem = currentItemRef.current;
-      }
+      console.log('[FORENSIC][TYPING_LOCK]', { 
+        active: true, 
+        frozenItemType: currentItemRef.current?.type,
+        frozenItemId: currentItemRef.current?.id,
+        actualItemType: currentItem?.type,
+        actualItemId: currentItem?.id,
+        promptWillDeriveFrom: 'FROZEN_REF'
+      });
+      effectiveCurrentItem = currentItemRef.current;
     } else {
       console.log('[FORENSIC][TYPING_LOCK]', { active: false, promptWillDeriveFrom: 'CURRENT_STATE' });
       currentItemRef.current = currentItem;
@@ -6843,8 +6757,11 @@ export default function CandidateInterview() {
   // ============================================================================
   // CENTRALIZED BOTTOM BAR MODE SELECTION (Single Decision Point)
   // ============================================================================
-  // NOTE: currentItemType and effectiveItemType now declared ABOVE renderedTranscript memo
-  // to prevent TDZ errors
+  const currentItemType = (v3GateActive ? 'v3_gate' : (v3ProbingActive ? 'v3_probing' : (pendingSectionTransition ? 'section_transition' : currentItem?.type || null)));
+  
+  // UI TRUTH: When V3 probing is active, force effective type to v3_probing
+  // This ensures opener UI never renders during probing (strict contract enforcement)
+  const effectiveItemType = v3ProbingActive ? 'v3_probing' : currentItemType;
   
   const isV3Gate = effectiveItemType === "v3_gate";
   const isMultiInstanceGate = effectiveItemType === "multi_instance_gate";
