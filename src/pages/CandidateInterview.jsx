@@ -1206,6 +1206,8 @@ export default function CandidateInterview() {
   const historyRef = useRef(null);
   const bottomAnchorRef = useRef(null);
   const footerRef = useRef(null);
+  const bottomBarRef = useRef(null); // V3 LAYOUT: Measure fixed bottom bar for inset calculation
+  const promptLaneRef = useRef(null); // V3 LAYOUT: Track prompt card for scroll-into-view
   const autoScrollEnabledRef = useRef(true);
   const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
