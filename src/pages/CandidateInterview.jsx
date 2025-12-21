@@ -5097,6 +5097,135 @@ export default function CandidateInterview() {
 
           await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
         }
+      } else if (currentItem.type === 'multi_instance_gate') {
+        // PART C: Multi-instance gate handler - append Q+A after user answers
+        const normalized = value.trim().toLowerCase();
+        if (normalized !== 'yes' && normalized !== 'no') {
+          setValidationHint('Please answer "Yes" or "No".');
+          setIsCommitting(false);
+          return;
+        }
+
+        const answer = normalized === 'yes' ? 'Yes' : 'No';
+        const gate = multiInstanceGate || currentItem;
+
+        // GUARD: Validate gate context
+        if (!gate || !gate.packId || !gate.instanceNumber) {
+          console.error('[FORENSIC][GATE_HANDLER_MISSING_CONTEXT]', {
+            hasGate: !!gate,
+            packId: gate?.packId,
+            instanceNumber: gate?.instanceNumber
+          });
+          setIsCommitting(false);
+          return;
+        }
+
+        console.log('[MULTI_INSTANCE_GATE][ANSWER]', {
+          packId: gate.packId,
+          instanceNumber: gate.instanceNumber,
+          answer,
+          action: answer === 'Yes' ? 'starting next instance' : 'advancing to next question'
+        });
+
+        // PART C: Append gate Q+A to transcript after user answers
+        const { appendUserMessage, appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
+        const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
+        const currentTranscript = sessionForAnswer.transcript_snapshot || [];
+
+        // Append gate question first
+        const gateQuestionStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:q`;
+        const transcriptAfterQ = await appendAssistantMessage(sessionId, currentTranscript, gate.promptText, {
+          id: `mi-gate-q-${gate.packId}-${gate.instanceNumber}`,
+          stableKey: gateQuestionStableKey,
+          messageType: 'MULTI_INSTANCE_GATE_SHOWN',
+          packId: gate.packId,
+          categoryId: gate.categoryId,
+          instanceNumber: gate.instanceNumber,
+          baseQuestionId: gate.baseQuestionId,
+          isActiveGate: false, // Not active - append is allowed
+          visibleToCandidate: true
+        });
+
+        // Append user's answer
+        const gateAnswerStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:a`;
+        await appendUserMessage(sessionId, transcriptAfterQ, answer, {
+          id: `mi-gate-answer-${gate.packId}-${gate.instanceNumber}-${answer.toLowerCase()}`,
+          stableKey: gateAnswerStableKey,
+          messageType: 'MULTI_INSTANCE_GATE_ANSWER',
+          packId: gate.packId,
+          categoryId: gate.categoryId,
+          instanceNumber: gate.instanceNumber
+        });
+
+        console.log('[MI_GATE][TRANSCRIPT_APPEND_AFTER_ANSWER]', {
+          stableKeyBase: `mi-gate:${gate.packId}:${gate.instanceNumber}`,
+          appendedQ: true,
+          appendedA: true,
+          answer
+        });
+
+        // Reload transcript
+        await refreshTranscriptFromDB(`gate_${answer.toLowerCase()}_answered`);
+
+        // Clear gate state
+        setMultiInstanceGate(null);
+
+        if (answer === 'Yes') {
+          // Re-enter V3 pack with next instance
+          const nextInstanceNumber = (gate.instanceNumber || 1) + 1;
+
+          console.log('[MULTI_INSTANCE_GATE][YES] Re-entering pack', {
+            packId: gate.packId,
+            categoryId: gate.categoryId,
+            instanceNumber: nextInstanceNumber
+          });
+
+          // Log pack re-entered
+          await logPackEntered(sessionId, {
+            packId: gate.packId,
+            instanceNumber: nextInstanceNumber,
+            isV3: true
+          });
+
+          // Get deterministic opener for next instance
+          const { getV3DeterministicOpener } = await import("../components/utils/v3ProbingPrompts");
+          const opener = getV3DeterministicOpener(gate.packData, gate.categoryId, gate.categoryLabel);
+
+          // Set up opener for next instance
+          const openerItem = {
+            id: `v3-opener-${gate.packId}-${nextInstanceNumber}`,
+            type: 'v3_pack_opener',
+            packId: gate.packId,
+            categoryId: gate.categoryId,
+            categoryLabel: gate.categoryLabel,
+            openerText: opener.text,
+            exampleNarrative: opener.example,
+            baseQuestionId: gate.baseQuestionId,
+            questionCode: engine.QById[gate.baseQuestionId]?.question_id,
+            sectionId: engine.QById[gate.baseQuestionId]?.section_id,
+            instanceNumber: nextInstanceNumber,
+            packData: gate.packData
+          };
+
+          setCurrentItem(openerItem);
+          await persistStateToDatabase(null, [], openerItem);
+        } else {
+          // Answer is "No" - log pack exited and advance
+          await logPackExited(sessionId, {
+            packId: gate.packId,
+            instanceNumber: gate.instanceNumber
+          });
+
+          // Advance to next base question
+          if (gate.baseQuestionId) {
+            const freshAfterGateNo = await refreshTranscriptFromDB('gate_no_before_advance');
+            await advanceToNextBaseQuestion(gate.baseQuestionId, freshAfterGateNo);
+          }
+        }
+
+        setIsCommitting(false);
+        setInput("");
+        return;
       } else if (currentItem.type === 'multi_instance') {
         const { questionId, packId, instanceNumber } = currentItem;
 
