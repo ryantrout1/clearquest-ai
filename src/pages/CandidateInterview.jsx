@@ -1667,9 +1667,7 @@ export default function CandidateInterview() {
     console.log('[TRANSCRIPT_AUDIT][SOURCE_OF_TRUTH]', {
       dbLen: base.length,
       renderedLen: finalFiltered.length,
-      injectedCount: 0,
-      injectedTypes: [],
-      sourceOfTruth: 'DB_ONLY'
+      syntheticEnabled: ENABLE_SYNTHETIC_TRANSCRIPT
     });
     
     return finalFiltered;
