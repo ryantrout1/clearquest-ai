@@ -6366,15 +6366,31 @@ export default function CandidateInterview() {
     let effectiveCurrentItem = currentItem;
 
     if (isUserTyping && currentItemRef.current) {
-      console.log('[FORENSIC][TYPING_LOCK]', { 
-        active: true, 
-        frozenItemType: currentItemRef.current?.type,
-        frozenItemId: currentItemRef.current?.id,
-        actualItemType: currentItem?.type,
-        actualItemId: currentItem?.id,
-        promptWillDeriveFrom: 'FROZEN_REF'
-      });
-      effectiveCurrentItem = currentItemRef.current;
+      // MISMATCH CHECK: Detect if frozen state is stale (item changed during typing lock)
+      const frozenType = currentItemRef.current?.type;
+      const frozenId = currentItemRef.current?.id;
+      const currentType = currentItem?.type;
+      const currentId = currentItem?.id;
+      
+      if (frozenType !== currentType || frozenId !== currentId) {
+        console.log('[FORENSIC][TYPING_LOCK_STALE_REF_BYPASS]', {
+          frozenType,
+          frozenId,
+          currentType,
+          currentId
+        });
+        effectiveCurrentItem = currentItem; // Use current for this render
+      } else {
+        console.log('[FORENSIC][TYPING_LOCK]', { 
+          active: true, 
+          frozenItemType: currentItemRef.current?.type,
+          frozenItemId: currentItemRef.current?.id,
+          actualItemType: currentItem?.type,
+          actualItemId: currentItem?.id,
+          promptWillDeriveFrom: 'FROZEN_REF'
+        });
+        effectiveCurrentItem = currentItemRef.current;
+      }
     } else {
       console.log('[FORENSIC][TYPING_LOCK]', { active: false, promptWillDeriveFrom: 'CURRENT_STATE' });
       currentItemRef.current = currentItem;
