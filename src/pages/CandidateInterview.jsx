@@ -6145,12 +6145,9 @@ export default function CandidateInterview() {
     const scrollContainer = historyRef.current;
     if (!scrollContainer) return;
     
-    // Respect user scroll position: only auto-scroll if near bottom
+    // Respect user scroll position: only auto-scroll if user has not scrolled up
     if (!autoScrollEnabledRef.current) return;
     if (isUserTyping) return;
-    
-    // Check if already near bottom
-    if (!isNearBottom(scrollContainer, 80)) return;
     
     // Capture scroll position for diagnostic
     const topBefore = scrollContainer.scrollTop;
@@ -6161,7 +6158,7 @@ export default function CandidateInterview() {
     
     console.log('[V3_PROMPT_VISIBILITY_SCROLL]', {
       preview: v3ActivePromptText.slice(0, 80),
-      reason: 'NEAR_BOTTOM_AUTO_SCROLL',
+      reason: 'AUTO_SCROLL_ENABLED',
       topBefore,
       topAfterTarget
     });
