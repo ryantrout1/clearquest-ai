@@ -5535,12 +5535,14 @@ export default function CandidateInterview() {
       setCurrentItem(gateItem);
     });
     
-    // PART 1: DO NOT append gate to transcript while active (prevents flicker)
-    console.log('[MI_GATE][TRANSCRIPT_SUPPRESSED_WHILE_ACTIVE]', {
+    // PART A: DO NOT append gate to transcript while active (prevents flicker)
+    // Gate renders from currentItem.promptText (PROMPT_LANE source)
+    // Will append Q+A to transcript ONLY after user answers
+    console.log('[MI_GATE][RENDER_SOURCE]', {
+      source: 'PROMPT_LANE',
       stableKey: gateStableKey,
       packId,
-      instanceNumber,
-      reason: 'Gate is active - will append Q+A after user answers'
+      instanceNumber
     });
     
     // State is set - gate will render from currentItem, not transcript
@@ -6139,12 +6141,12 @@ export default function CandidateInterview() {
           setCurrentItem(gateItem);
         });
 
-        // PART 1: DO NOT append gate to transcript while active (append after answer instead)
-        console.log('[MI_GATE][TRANSCRIPT_SUPPRESSED_WHILE_ACTIVE]', {
+        // PART A: DO NOT append gate to transcript while active (append after answer instead)
+        console.log('[MI_GATE][RENDER_SOURCE]', {
+          source: 'PROMPT_LANE',
           stableKey: gateStableKey,
           packId,
-          instanceNumber,
-          reason: 'Gate is active - will append Q+A after user answers'
+          instanceNumber
         });
 
         await forensicCheck('gate_shown');
@@ -8397,13 +8399,13 @@ export default function CandidateInterview() {
 
              setIsCommitting(true);
 
-              // PART 3: Append gate Q+A to transcript ONLY after user answers
+              // PART C: Append gate Q+A to transcript ONLY after user answers
               const { appendUserMessage, appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
               const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
               const currentTranscript = sessionForAnswer.transcript_snapshot || [];
 
-              // Append gate question first
-              const gateQuestionStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:question`;
+              // Append gate question first (isActiveGate: false means "append after answer")
+              const gateQuestionStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:q`;
               const transcriptAfterQ = await appendAssistantMessage(sessionId, currentTranscript, gate.promptText, {
                 id: `mi-gate-q-${gate.packId}-${gate.instanceNumber}`,
                 stableKey: gateQuestionStableKey,
@@ -8412,11 +8414,12 @@ export default function CandidateInterview() {
                 categoryId: gate.categoryId,
                 instanceNumber: gate.instanceNumber,
                 baseQuestionId: gate.baseQuestionId,
+                isActiveGate: false, // Not active - append is allowed
                 visibleToCandidate: true
               });
 
               // Append user's "Yes" answer
-              const gateAnswerStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:answer`;
+              const gateAnswerStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:a`;
               await appendUserMessage(sessionId, transcriptAfterQ, 'Yes', {
                 id: `mi-gate-answer-${gate.packId}-${gate.instanceNumber}-yes`,
                 stableKey: gateAnswerStableKey,
@@ -8503,13 +8506,13 @@ export default function CandidateInterview() {
 
               setIsCommitting(true);
 
-              // PART 3: Append gate Q+A to transcript ONLY after user answers
+              // PART C: Append gate Q+A to transcript ONLY after user answers
               const { appendUserMessage, appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
               const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
               const currentTranscript = sessionForAnswer.transcript_snapshot || [];
               
-              // Append gate question first
-              const gateQuestionStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:question`;
+              // Append gate question first (isActiveGate: false means "append after answer")
+              const gateQuestionStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:q`;
               const transcriptAfterQ = await appendAssistantMessage(sessionId, currentTranscript, gate.promptText, {
                 id: `mi-gate-q-${gate.packId}-${gate.instanceNumber}`,
                 stableKey: gateQuestionStableKey,
@@ -8518,11 +8521,12 @@ export default function CandidateInterview() {
                 categoryId: gate.categoryId,
                 instanceNumber: gate.instanceNumber,
                 baseQuestionId: gate.baseQuestionId,
+                isActiveGate: false, // Not active - append is allowed
                 visibleToCandidate: true
               });
               
               // Append user's "No" answer
-              const gateAnswerStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:answer`;
+              const gateAnswerStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:a`;
               await appendUserMessage(sessionId, transcriptAfterQ, 'No', {
                 id: `mi-gate-answer-${gate.packId}-${gate.instanceNumber}-no`,
                 stableKey: gateAnswerStableKey,

@@ -184,17 +184,32 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
     'MULTI_INSTANCE_GATE_SHOWN'
   ];
   
-  // MULTI_INSTANCE_GATE_SHOWN: Require exact stableKey match (packId + instanceNumber)
+  // PART A: MULTI_INSTANCE_GATE_SHOWN - Block append while gate is active
   if (metadata.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
     const incomingStableKey = stableKey || metadata.stableKey;
     if (!incomingStableKey) {
       console.error('[TRANSCRIPT][MI_GATE][NO_STABLE_KEY]', {
         packId: metadata.packId,
         instanceNumber: metadata.instanceNumber,
-        reason: 'Multi-instance gate MUST have stableKey mi-gate:{packId}:{instanceNumber}'
+        reason: 'Multi-instance gate MUST have stableKey mi-gate:{packId}:{instanceNumber}:q'
       });
     }
 
+    // PART A: Check if this append is for an ACTIVE gate (should be suppressed)
+    // Active gates render from currentItem, not transcript (prevents flicker)
+    const isActiveGateAppend = metadata.isActiveGate === true;
+    
+    if (isActiveGateAppend) {
+      console.log('[MI_GATE][TRANSCRIPT_SUPPRESSED_WHILE_ACTIVE]', {
+        stableKey: incomingStableKey,
+        packId: metadata.packId,
+        instanceNumber: metadata.instanceNumber,
+        reason: 'Gate is active - will append Q+A after user answers'
+      });
+      return existingTranscript; // Block append, no-op
+    }
+
+    // Check for existing entry (dedupe after answer)
     const foundExisting = existingTranscript.find(e => 
       e.stableKey === incomingStableKey || 
       (e.messageType === 'MULTI_INSTANCE_GATE_SHOWN' && 
