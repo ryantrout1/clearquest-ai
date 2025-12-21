@@ -6061,7 +6061,50 @@ export default function CandidateInterview() {
     }
   }, [currentItem, validationHint]);
 
-  // Dynamic footer height measurement (batched to RAF to prevent jitter)
+  // V3 LAYOUT: Measure bottom bar height dynamically (input + footer combined)
+  useEffect(() => {
+    if (!bottomBarRef.current) return;
+    
+    let rafId = null;
+    let pendingMeasurement = false;
+    
+    const measureBottomBar = () => {
+      if (!bottomBarRef.current) return;
+      const rect = bottomBarRef.current.getBoundingClientRect();
+      const measured = Math.round(rect.height || bottomBarRef.current.offsetHeight || 0);
+      const inset = measured + 12; // 12px safety buffer
+      setBottomInsetPx(inset);
+      pendingMeasurement = false;
+      
+      // V3 LAYOUT: Diagnostic log
+      console.log('[V3_LAYOUT_INSET]', {
+        bottomInsetPx: inset,
+        bottomBarHeightPx: measured,
+        v3ProbingActive,
+        bottomBarMode,
+        effectiveItemType
+      });
+    };
+    
+    const scheduleUpdate = () => {
+      if (pendingMeasurement) return;
+      pendingMeasurement = true;
+      rafId = requestAnimationFrame(measureBottomBar);
+    };
+    
+    const resizeObserver = new ResizeObserver(scheduleUpdate);
+    resizeObserver.observe(bottomBarRef.current);
+    
+    // Initial measurement
+    scheduleUpdate();
+    
+    return () => {
+      resizeObserver.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [v3ProbingActive, bottomBarMode, effectiveItemType]);
+
+  // Legacy footer measurement (kept for compatibility)
   useEffect(() => {
     if (!footerRef.current) return;
     
