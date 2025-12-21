@@ -1187,6 +1187,16 @@ async function decisionEngineV3Probe(base44, {
     }, {})
   });
   
+  // LOG: Applied facts to fact model
+  if (Object.keys(extractedFacts).length > 0 && isOpenerNarrative) {
+    console.log('[V3_OPENER_FACTS][APPLIED_TO_FACT_MODEL]', {
+      incidentId,
+      categoryId,
+      extractedFieldsCount: Object.keys(extractedFacts).length,
+      extractedFieldKeys: Object.keys(extractedFacts).join(',')
+    });
+  }
+  
   // EXACT-FIELD SATISFACTION: Force-write extracted values to EXACT missing fieldIds
   // This ensures missing field checks pass for the fields we extracted
   const fieldIdsSatisfiedExact = [];
