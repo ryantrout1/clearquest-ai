@@ -1563,10 +1563,11 @@ export default function CandidateInterview() {
     // REQUIREMENT: Filter first, then dedupe, preserving insertion order
     const filteredFirst = base.filter(entry => isRenderableTranscriptEntry(entry));
     
-    // SCOPED DEDUPE: Only dedupe specific messageTypes, preserve all others
+    // SCOPED DEDUPE: Only dedupe specific messageTypes that can legitimately duplicate
+    // DO NOT dedupe normal Q/A entries - they must render exactly as logged
     const DEDUPE_ALLOWED_TYPES = new Set([
-      'MULTI_INSTANCE_GATE_SHOWN',
-      'FOLLOWUP_CARD_SHOWN'
+      'MULTI_INSTANCE_GATE_SHOWN',  // Gate prompts can log multiple times
+      'FOLLOWUP_CARD_SHOWN'          // Opener cards can log on mount+render
     ]);
     
     const deduped = [];
@@ -1576,16 +1577,24 @@ export default function CandidateInterview() {
       const mt = entry.messageType || entry.type;
       const key = entry.stableKey || entry.id;
       
-      // Only dedupe allowed types
+      // Scoped dedupe: ONLY for allowed types with valid keys
       if (DEDUPE_ALLOWED_TYPES.has(mt) && key) {
-        if (dedupedKeys.has(key)) {
-          // Skip duplicate for allowed types
-          continue;
+        // Additional filter for FOLLOWUP_CARD_SHOWN: only dedupe opener variant
+        if (mt === 'FOLLOWUP_CARD_SHOWN') {
+          const variant = entry.meta?.variant || entry.variant;
+          if (variant === 'opener') {
+            if (dedupedKeys.has(key)) continue; // Skip duplicate opener
+            dedupedKeys.set(key, true);
+          }
+          // Non-opener FOLLOWUP_CARD_SHOWN: always include (no dedupe)
+        } else {
+          // Other allowed types: dedupe by key
+          if (dedupedKeys.has(key)) continue;
+          dedupedKeys.set(key, true);
         }
-        dedupedKeys.set(key, true);
       }
       
-      // Include all entries (dedupe only applies to allowed types)
+      // Include entry (dedupe only applied to specific types above)
       deduped.push(entry);
     }
     
