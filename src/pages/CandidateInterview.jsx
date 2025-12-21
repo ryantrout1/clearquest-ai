@@ -1548,6 +1548,27 @@ export default function CandidateInterview() {
   // Loading watchdog state
   const [showLoadingRetry, setShowLoadingRetry] = useState(false);
   
+  // ============================================================================
+  // EFFECTIVE ITEM TYPE DERIVATION - Must be BEFORE renderedTranscript memo
+  // ============================================================================
+  const currentItemType = (v3GateActive ? 'v3_gate' : (v3ProbingActive ? 'v3_probing' : (pendingSectionTransition ? 'section_transition' : currentItem?.type || null)));
+  
+  // UI TRUTH: When V3 probing is active, force effective type to v3_probing
+  // This ensures opener UI never renders during probing (strict contract enforcement)
+  const effectiveItemType = v3ProbingActive ? 'v3_probing' : currentItemType;
+  
+  // Defensive dev-only assertion (log only)
+  if (effectiveItemType === undefined || effectiveItemType === null) {
+    if (screenMode === 'QUESTION') {
+      console.error('[REGRESSION][EFFECTIVE_ITEM_UNDEFINED]', {
+        screenMode,
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+        v3ProbingActive
+      });
+    }
+  }
+  
   // STABLE RENDER LIST: Pure deterministic filtering (no UI-state-dependent shrink/grow)
   const renderedTranscript = useMemo(() => {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
@@ -6822,11 +6843,8 @@ export default function CandidateInterview() {
   // ============================================================================
   // CENTRALIZED BOTTOM BAR MODE SELECTION (Single Decision Point)
   // ============================================================================
-  const currentItemType = (v3GateActive ? 'v3_gate' : (v3ProbingActive ? 'v3_probing' : (pendingSectionTransition ? 'section_transition' : currentItem?.type || null)));
-  
-  // UI TRUTH: When V3 probing is active, force effective type to v3_probing
-  // This ensures opener UI never renders during probing (strict contract enforcement)
-  const effectiveItemType = v3ProbingActive ? 'v3_probing' : currentItemType;
+  // NOTE: currentItemType and effectiveItemType now declared ABOVE renderedTranscript memo
+  // to prevent TDZ errors
   
   const isV3Gate = effectiveItemType === "v3_gate";
   const isMultiInstanceGate = effectiveItemType === "multi_instance_gate";
