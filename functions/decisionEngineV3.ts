@@ -1644,6 +1644,9 @@ async function decisionEngineV3Probe(base44, {
     categoryId
   }) : false;
   
+  // ENHANCED DEBUG: Include deterministic extraction status
+  const detectedMonthYearNormalized = extractedMonthYearRaw || (isInitialCall ? extractMonthYear(latestAnswerText || '') : null);
+  
   const debugInfo = categoryId === 'PRIOR_LE_APPS' ? {
     categoryId,
     instanceNumber: instanceNumber || 1,
@@ -1651,6 +1654,7 @@ async function decisionEngineV3Probe(base44, {
     isInitialCall: isInitialCall || false,
     openerHasMonthYear,
     extractedMonthYear: extractedMonthYearRaw || null,
+    detectedMonthYearNormalized,
     fieldIdsSatisfiedExact,
     missingFieldIds: missingFieldsAfter.slice(0, 10).map(f => f.field_id),
     chosenMissingFieldId,
