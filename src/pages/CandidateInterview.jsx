@@ -1575,21 +1575,6 @@ export default function CandidateInterview() {
         }
       }
       
-      // Normalize multi-instance gate entries to canonical stableKey format
-      if (messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
-        const packId = entry.meta?.packId || entry.packId;
-        const instanceNumber = entry.meta?.instanceNumber || entry.instanceNumber || 1;
-        
-        if (packId && instanceNumber) {
-          // Canonical format: mi-gate:${packId}:${instanceNumber}
-          const canonicalKey = `mi-gate:${packId}:${instanceNumber}`;
-          return {
-            ...entry,
-            __canonicalKey: canonicalKey // Attach for dedupe (no DB mutation)
-          };
-        }
-      }
-      
       // Use stableKey or id as canonical for non-followup-card entries
       return {
         ...entry,
@@ -1620,15 +1605,25 @@ export default function CandidateInterview() {
       }
       
       // ACTIVE GATE FILTER: Skip currently-active gate to prevent double-render
-      if (activeGateStableKey && ck === activeGateStableKey && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
-        activeGateRemovedCount++;
-        console.log('[TRANSCRIPT_RENDER][ACTIVE_GATE_FILTER]', {
-          activeGateStableKey,
-          packId: entry.meta?.packId || entry.packId,
-          instanceNumber: entry.meta?.instanceNumber || entry.instanceNumber,
-          reason: 'Skipping transcript render - gate is active currentItem'
-        });
-        continue; // Skip this entry
+      if (activeGateStableKey && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
+        const entryPackId = entry.meta?.packId || entry.packId;
+        const entryInstanceNumber = entry.meta?.instanceNumber || entry.instanceNumber;
+        const gatePackId = currentItem?.packId || multiInstanceGate?.packId;
+        const gateInstanceNumber = currentItem?.instanceNumber || multiInstanceGate?.instanceNumber;
+        
+        const matchesActiveGate = (entry.stableKey === activeGateStableKey) ||
+                                 (entryPackId === gatePackId && entryInstanceNumber === gateInstanceNumber);
+        
+        if (matchesActiveGate) {
+          activeGateRemovedCount++;
+          console.log('[TRANSCRIPT_RENDER][ACTIVE_GATE_FILTER]', {
+            activeGateStableKey,
+            packId: entryPackId,
+            instanceNumber: entryInstanceNumber,
+            reason: 'Skipping transcript render - gate is active currentItem'
+          });
+          continue; // Skip this entry
+        }
       }
       
       if (!canonicalKeySet.has(ck)) {
