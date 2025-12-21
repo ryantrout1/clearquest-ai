@@ -669,15 +669,17 @@ export default function V3ProbingLoop({
           
           // Notify parent immediately (no Continue button)
           if (onIncidentComplete) {
+            const safePackId = packData?.followup_pack_id || categoryId || null;
             onIncidentComplete({
               loopKey,
-              packId: packData?.followup_pack_id,
+              packId: safePackId,
               categoryId,
               instanceNumber,
               reason: 'ENGINE_NO_PROMPT_COMPLETE',
               incidentId: data.incidentId || incidentId,
               completionReason: data.nextAction
             });
+            console.log('[V3_INCIDENT_COMPLETE][CALLBACK]', { loopKey, packId: safePackId, instanceNumber, nextAction: data.nextAction });
           }
           
           setIsLoading(false);
@@ -694,10 +696,11 @@ export default function V3ProbingLoop({
         });
         
         // Notify parent of recap text (parent renders as allowed system event, not probe prompt)
+        const safePackId = packData?.followup_pack_id || categoryId || null;
         if (onRecapReady) {
           onRecapReady({
             loopKey,
-            packId: packData?.followup_pack_id,
+            packId: safePackId,
             categoryId,
             instanceNumber,
             recapText: data.nextPrompt,
@@ -714,7 +717,7 @@ export default function V3ProbingLoop({
         if (onIncidentComplete) {
           onIncidentComplete({
             loopKey,
-            packId: packData?.followup_pack_id,
+            packId: safePackId,
             categoryId,
             instanceNumber,
             reason: 'RECAP_COMPLETE',
@@ -722,6 +725,7 @@ export default function V3ProbingLoop({
             completionReason: data.nextAction,
             hasRecap: true
           });
+          console.log('[V3_INCIDENT_COMPLETE][CALLBACK]', { loopKey, packId: safePackId, instanceNumber, nextAction: data.nextAction });
         }
         
         setIsLoading(false);
@@ -894,6 +898,7 @@ export default function V3ProbingLoop({
   const handleContinue = () => {
     console.log('[V3_PROBING_LOOP][EXIT_REQUESTED] handleContinue clicked');
 
+    const safePackId = packData?.followup_pack_id || categoryId || null;
     setExitRequested(true);
     setExitPayload({
       incidentId,
@@ -902,7 +907,7 @@ export default function V3ProbingLoop({
       messages,
       reason: 'CONTINUE_BUTTON',
       shouldOfferAnotherInstance: false, // Single-instance packs only
-      packId: packData?.followup_pack_id,
+      packId: safePackId,
       categoryLabel,
       instanceNumber,
       packData

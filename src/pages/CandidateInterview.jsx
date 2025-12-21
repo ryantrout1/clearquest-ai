@@ -7710,9 +7710,10 @@ export default function CandidateInterview() {
                     hasRecap
                   });
                   
-                  // Route based on pack type
-                  const isMultiIncident = packData?.behavior_type === 'multi_incident' || 
-                                         packData?.followup_multi_instance === true;
+                  // Route based on pack type (TDZ-safe)
+                  const safePackData = v3ProbingContext?.packData || null;
+                  const isMultiIncident = safePackData?.behavior_type === 'multi_incident' || 
+                                         safePackData?.followup_multi_instance === true;
                   
                   if (isMultiIncident) {
                     console.log('[V3_INCIDENT_COMPLETE][MULTI] Showing another instance gate');
@@ -7727,11 +7728,13 @@ export default function CandidateInterview() {
                       reason: hasRecap ? 'RECAP_COMPLETE' : 'INCIDENT_COMPLETE_NO_PROMPT',
                       shouldOfferAnotherInstance: false,
                       packId,
-                      categoryLabel: v3ProbingContext.categoryLabel,
+                      categoryLabel: v3ProbingContext?.categoryLabel || categoryId,
                       instanceNumber,
-                      packData: v3ProbingContext.packData
+                      packData: safePackData
                     });
                   }
+                  
+                  console.log('[V3_INCIDENT_COMPLETE][ADVANCE]', { loopKey, packId, instanceNumber, nextAction: completionReason, recapSuppressed: true });
                 }}
               />
             );
