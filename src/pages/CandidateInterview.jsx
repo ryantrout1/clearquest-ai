@@ -6996,7 +6996,7 @@ export default function CandidateInterview() {
   const isBottomBarSubmitDisabled = !currentItem || isCommitting || !(input ?? "").trim();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col relative overflow-hidden">
+    <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
       <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-2">
