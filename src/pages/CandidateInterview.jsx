@@ -1689,6 +1689,16 @@ export default function CandidateInterview() {
         v3GateActive,
         pendingSectionTransition
       });
+      
+      console.warn('[TRANSCRIPT_AUDIT][MISMATCH_SNAPSHOT]', {
+        dbLen: base.length,
+        renderedLen: finalFiltered.length,
+        hiddenCount,
+        screenMode,
+        currentItemType: currentItem?.type,
+        lastCanonical: base.slice(-8).map(e => ({ t: e.messageType || e.type, k: e.stableKey || e.id })),
+        lastRendered: finalFiltered.slice(-8).map(e => ({ t: e.messageType || e.type, k: e.stableKey || e.id }))
+      });
     }
     
     return finalFiltered;
