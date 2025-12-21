@@ -6136,6 +6136,37 @@ export default function CandidateInterview() {
     }
   }, [dbTranscript.length, isUserTyping, scrollToBottomSafely]);
 
+  // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
+  useEffect(() => {
+    // Trigger: V3 probing active with prompt available
+    if (!v3ProbingActive || !v3ActivePromptText || effectiveItemType !== 'v3_probing') return;
+    if (bottomBarMode !== 'TEXT_INPUT') return;
+    
+    const scrollContainer = historyRef.current;
+    if (!scrollContainer) return;
+    
+    // Respect user scroll position: only auto-scroll if near bottom
+    if (!autoScrollEnabledRef.current) return;
+    if (isUserTyping) return;
+    
+    // Check if already near bottom
+    if (!isNearBottom(scrollContainer, 80)) return;
+    
+    // Capture scroll position for diagnostic
+    const topBefore = scrollContainer.scrollTop;
+    const topAfterTarget = scrollContainer.scrollHeight;
+    
+    // Auto-scroll to reveal prompt lane
+    scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' });
+    
+    console.log('[V3_PROMPT_VISIBILITY_SCROLL]', {
+      preview: v3ActivePromptText.slice(0, 80),
+      reason: 'NEAR_BOTTOM_AUTO_SCROLL',
+      topBefore,
+      topAfterTarget
+    });
+  }, [v3ProbingActive, v3ActivePromptText, effectiveItemType, bottomBarMode, isUserTyping]);
+
   // UX: Auto-resize textarea based on content (max 5 lines)
   useEffect(() => {
     if (!inputRef.current) return;
