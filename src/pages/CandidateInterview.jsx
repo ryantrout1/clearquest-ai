@@ -8458,7 +8458,7 @@ export default function CandidateInterview() {
             });
             
             return shouldRenderFooter ? (
-              <p className="text-xs text-slate-400 text-center mt-3">
+              <p ref={footerRef} className="text-xs text-slate-400 text-center mt-3">
                 Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
               </p>
             ) : null;
