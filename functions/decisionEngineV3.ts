@@ -1197,6 +1197,34 @@ async function decisionEngineV3Probe(base44, {
     });
   }
   
+  // PART 3: If month/year detected on initial call, write to ALL month/year required keys
+  const detectedMonthYearNormalized = isInitialCall ? extractMonthYear(latestAnswerText || '') : null;
+  
+  if (detectedMonthYearNormalized && isInitialCall) {
+    // Find ALL month/year required fields and write detected value to them
+    const monthYearRequiredFields = (factModel.required_fields || []).filter(f => {
+      const typeMatch = f.type === 'date' || f.type === 'month_year';
+      const idMatch = ['date', 'month', 'year', 'when', 'time', 'approx'].some(kw => 
+        canon(f.field_id || '').includes(kw)
+      );
+      return typeMatch || idMatch;
+    });
+    
+    const requiredKeysWritten = [];
+    for (const field of monthYearRequiredFields) {
+      incident.facts[field.field_id] = detectedMonthYearNormalized;
+      requiredKeysWritten.push(field.field_id);
+    }
+    
+    if (requiredKeysWritten.length > 0) {
+      console.log('[V3_MONTH_YEAR_KEYS][APPLIED]', {
+        requiredKeysWritten,
+        normalized: detectedMonthYearNormalized,
+        incidentId
+      });
+    }
+  }
+  
   // EXACT-FIELD SATISFACTION: Force-write extracted values to EXACT missing fieldIds
   // This ensures missing field checks pass for the fields we extracted
   const fieldIdsSatisfiedExact = [];
@@ -1243,6 +1271,35 @@ async function decisionEngineV3Probe(base44, {
   );
   const extractedMonthYearRaw = extractedMonthYearKey ? extractedFacts[extractedMonthYearKey] : null;
   const openerHasMonthYear = isInitialCall && hasMonthYear(latestAnswerText || '');
+  
+  // DETERMINISTIC DETECTION: Extract month/year from opener (overrides fact extraction)
+  const detectedMonthYearNormalized = isInitialCall ? extractMonthYear(latestAnswerText || '') : null;
+  
+  // PART 1: DIAGNOSTIC - Show which keys engine checks for month/year + their current values
+  if (isInitialCall && categoryId === 'PRIOR_LE_APPS') {
+    // Find all date-ish required fields the engine will check
+    const dateRequiredFields = (factModel.required_fields || []).filter(f => {
+      const typeMatch = f.type === 'date' || f.type === 'month_year';
+      const idMatch = ['date', 'month', 'year', 'when', 'time', 'approx'].some(kw => 
+        canon(f.field_id || '').includes(kw)
+      );
+      return typeMatch || idMatch;
+    });
+    
+    const requiredKeys = dateRequiredFields.map(f => f.field_id);
+    const valuesByKey = {};
+    for (const key of requiredKeys) {
+      valuesByKey[key] = incident.facts[key] || null;
+    }
+    
+    console.log('[V3_MONTH_YEAR_KEYS][AUDIT]', {
+      categoryId,
+      requiredKeys,
+      valuesByKey,
+      detectedMonthYearNormalized,
+      openerPreview: (latestAnswerText || '').substring(0, 80)
+    });
+  }
   
   if (isInitialCall) {
     console.log(`[V3_OPENER_EXTRACT][INITIAL_CALL] categoryId=${categoryId} packId=${factModel?.linked_pack_ids?.[0] || 'N/A'} incidentId=${incidentId} extractedMonthYear=${extractedMonthYearRaw || 'null'} fieldIdsSatisfiedByExtraction=[${fieldIdsSatisfiedExact.join(',')}] missingFieldsCount=${missingFieldsAfter.length} missingFieldIds=[${missingFieldsAfter.map(f=>f.field_id).slice(0,10).join(',')}]`);
@@ -1360,8 +1417,8 @@ async function decisionEngineV3Probe(base44, {
         continue;
       }
       
-      // INSTANCE-AWARE SAFETY GATE: PRIOR_LE_APPS date suppression
-      if (categoryId === 'PRIOR_LE_APPS' && isInitialCall && openerHasMonthYear) {
+      // PART 2: HARD GATE - If month/year detected in opener, skip all month/year questions
+      if (isInitialCall && detectedMonthYearNormalized) {
         const potentialPrompt = generateV3ProbeQuestion(field, incident.facts);
         const isDateIntent = isDateApplyOccurIntent({
           promptText: potentialPrompt,
@@ -1372,8 +1429,33 @@ async function decisionEngineV3Probe(base44, {
         if (isDateIntent) {
           suppressedCount++;
           
-          // DEFINITIVE GATE FIRED LOG
           console.warn(`[V3_DATE_GATE][FIRED]`, {
+            categoryId,
+            instanceNumber: instanceNumber || 1,
+            detectedMonthYearNormalized,
+            blockedFieldId: field.field_id,
+            blockedPromptPreview: potentialPrompt?.substring(0, 60) || null,
+            nextActionBeforeBlock: 'ASK',
+            reason: 'Deterministic month/year detected in opener - date question suppressed'
+          });
+          
+          continue;
+        }
+      }
+      
+      // LEGACY: INSTANCE-AWARE SAFETY GATE (kept as fallback)
+      if (categoryId === 'PRIOR_LE_APPS' && isInitialCall && openerHasMonthYear && !detectedMonthYearNormalized) {
+        const potentialPrompt = generateV3ProbeQuestion(field, incident.facts);
+        const isDateIntent = isDateApplyOccurIntent({
+          promptText: potentialPrompt,
+          missingFieldId: field.field_id,
+          categoryId
+        });
+        
+        if (isDateIntent) {
+          suppressedCount++;
+          
+          console.warn(`[V3_DATE_GATE][FIRED_LEGACY]`, {
             categoryId,
             instanceNumber: instanceNumber || 1,
             openerHasMonthYear: true,
@@ -1381,7 +1463,7 @@ async function decisionEngineV3Probe(base44, {
             blockedFieldId: field.field_id,
             blockedPromptPreview: potentialPrompt?.substring(0, 60) || null,
             nextActionBeforeBlock: 'ASK',
-            reason: 'Opener contains month/year - date/apply/occur question suppressed'
+            reason: 'Opener contains month/year (legacy pattern detection) - date question suppressed'
           });
           
           continue;
@@ -1571,11 +1653,11 @@ async function decisionEngineV3Probe(base44, {
     openingPrompt = getOpeningPrompt(categoryId, factModel.category_label);
   }
 
-  // HARD FAIL-SAFE: PRIOR_LE_APPS openerHasMonthYear=true MUST NOT ask date/apply/occur questions
+  // PART 2: HARD FAIL-SAFE - If month/year detected in opener, MUST NOT ask date questions
   let gateStatus = 'NOT_APPLICABLE';
   let blockedFieldIdFailsafe = null;
   
-  if (categoryId === 'PRIOR_LE_APPS' && openerHasMonthYear && nextAction === 'ASK' && nextPrompt) {
+  if (isInitialCall && detectedMonthYearNormalized && nextAction === 'ASK' && nextPrompt) {
     // Use shared detection helper for consistent classification
     const chosenFieldId = missingFieldsAfter.length > 0 ? missingFieldsAfter[0]?.field_id : null;
     const isAskingDateQuestion = isDateApplyOccurIntent({
@@ -1606,13 +1688,12 @@ async function decisionEngineV3Probe(base44, {
         console.warn(`[V3_DATE_GATE][FAILSAFE]`, {
           categoryId,
           instanceNumber: instanceNumber || 1,
-          openerHasMonthYear: true,
-          extractedMonthYear: extractedMonthYearRaw || 'detected_via_hasMonthYear',
+          detectedMonthYearNormalized,
           blockedFieldId: blockedFieldIdFailsafe,
           blockedPromptPreview: nextPrompt.substring(0, 60),
           overrideToFieldId: nonDateField.field_id,
           overridePromptPreview: nextPrompt?.substring(0, 60) || null,
-          reason: 'Date question slipped through gate - fail-safe override applied'
+          reason: 'Deterministic month/year detected - date question suppressed by hard gate'
         });
       } else {
         // No non-date fields remain - force RECAP
@@ -1625,12 +1706,64 @@ async function decisionEngineV3Probe(base44, {
         console.warn(`[V3_DATE_GATE][FAILSAFE]`, {
           categoryId,
           instanceNumber: instanceNumber || 1,
-          openerHasMonthYear: true,
-          extractedMonthYear: extractedMonthYearRaw || 'detected_via_hasMonthYear',
+          detectedMonthYearNormalized,
           blockedFieldId: blockedFieldIdFailsafe,
           blockedPromptPreview: nextPrompt.substring(0, 60),
           overrideAction: 'RECAP',
-          reason: 'Date question slipped through gate - no non-date fields remain - forcing RECAP'
+          reason: 'Deterministic month/year detected - no non-date fields remain - forcing RECAP'
+        });
+      }
+    }
+  }
+  
+  // LEGACY FAIL-SAFE: Keep existing pattern-based gate as backup
+  if (categoryId === 'PRIOR_LE_APPS' && openerHasMonthYear && nextAction === 'ASK' && nextPrompt && !detectedMonthYearNormalized) {
+    const chosenFieldId = missingFieldsAfter.length > 0 ? missingFieldsAfter[0]?.field_id : null;
+    const isAskingDateQuestion = isDateApplyOccurIntent({
+      promptText: nextPrompt,
+      missingFieldId: chosenFieldId,
+      categoryId
+    });
+    
+    if (isAskingDateQuestion) {
+      blockedFieldIdFailsafe = chosenFieldId;
+      
+      const nonDateField = missingFieldsAfter.find(f => {
+        const potentialPrompt = generateV3ProbeQuestion(f, incident.facts);
+        return !isDateApplyOccurIntent({
+          promptText: potentialPrompt,
+          missingFieldId: f.field_id,
+          categoryId
+        });
+      });
+      
+      if (nonDateField) {
+        nextPrompt = generateV3ProbeQuestion(nonDateField, incident.facts);
+        nextAction = 'ASK';
+        gateStatus = 'FAILSAFE_LEGACY';
+        
+        console.warn(`[V3_DATE_GATE][FAILSAFE_LEGACY]`, {
+          categoryId,
+          instanceNumber: instanceNumber || 1,
+          openerHasMonthYear: true,
+          extractedMonthYear: extractedMonthYearRaw || 'detected_via_hasMonthYear',
+          blockedFieldId: blockedFieldIdFailsafe,
+          overrideToFieldId: nonDateField.field_id,
+          reason: 'Legacy pattern gate - deterministic extraction failed but pattern detected'
+        });
+      } else {
+        nextAction = 'RECAP';
+        nextPrompt = getCompletionMessage('RECAP', null);
+        stopReason = 'REQUIRED_FIELDS_COMPLETE';
+        legacyFactState.completion_status = 'complete';
+        gateStatus = 'FAILSAFE_LEGACY';
+        
+        console.warn(`[V3_DATE_GATE][FAILSAFE_LEGACY]`, {
+          categoryId,
+          instanceNumber: instanceNumber || 1,
+          openerHasMonthYear: true,
+          overrideAction: 'RECAP',
+          reason: 'Legacy pattern gate - no non-date fields remain'
         });
       }
     }
