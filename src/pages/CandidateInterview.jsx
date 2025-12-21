@@ -1676,6 +1676,25 @@ export default function CandidateInterview() {
     return finalFiltered;
   }, [dbTranscript, currentItem, multiInstanceGate]);
 
+  // Monotonicity audit (log-only regression detection)
+  useEffect(() => {
+    const prevRenderedLen = prevRenderedLenRef.current;
+    const nextRenderedLen = renderedTranscript.length;
+    const shrinkDetected = prevRenderedLen !== null && nextRenderedLen < prevRenderedLen;
+    
+    if (shrinkDetected) {
+      console.error('[REGRESSION][TRANSCRIPT_SHRINK]', {
+        prevLen: prevRenderedLen,
+        nextLen: nextRenderedLen,
+        delta: prevRenderedLen - nextRenderedLen,
+        screenMode,
+        currentItemType: currentItem?.type
+      });
+    }
+    
+    prevRenderedLenRef.current = nextRenderedLen;
+  }, [renderedTranscript, screenMode, currentItem]);
+
   // Verification instrumentation (moved above early returns)
   const uiContractViolationKeyRef = useRef(null);
   useEffect(() => {
