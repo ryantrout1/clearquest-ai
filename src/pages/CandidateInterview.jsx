@@ -5526,9 +5526,20 @@ export default function CandidateInterview() {
 
   // V3 answer submit handler - routes answer to V3ProbingLoop
   const handleV3AnswerSubmit = useCallback((answerText) => {
-    console.log('[V3_ANSWER_SUBMIT]', { answerPreview: answerText?.substring(0, 50) });
-    setV3PendingAnswer(answerText);
-  }, []);
+    v3SubmitCounterRef.current++;
+    const submitId = v3SubmitCounterRef.current;
+    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+    
+    const payload = {
+      text: answerText,
+      submitId,
+      loopKey,
+      createdAt: Date.now()
+    };
+    
+    console.log('[V3_ANSWER_SUBMIT]', { submitId, answerPreview: answerText?.substring(0, 50), loopKey });
+    setV3PendingAnswer(payload);
+  }, [v3ProbingContext, sessionId]);
   
   // V3 answer consumed handler - clears pending answer after V3ProbingLoop consumes it
   const handleV3AnswerConsumed = useCallback(({ loopKey, answerToken, probeCount }) => {
