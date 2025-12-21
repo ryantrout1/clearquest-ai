@@ -6947,17 +6947,28 @@ export default function CandidateInterview() {
     bottomBarMode = "YES_NO";
     isQuestion = true;
   }
-  // V3 probing active (show TEXT_INPUT - parent owns UI, not V3ProbingLoop)
+  // V3 probing active (show TEXT_INPUT ONLY if prompt is ready - prevent blank probing UI)
   else if (v3ProbingActive && !isV3Gate && !isMultiInstanceGate) {
-    bottomBarMode = "TEXT_INPUT";
-    isQuestion = true;
-    console.log('[V3_UI_CONTRACT]', {
-      action: 'TEXT_INPUT_DURING_PROBING',
-      reason: 'Parent owns UI - V3ProbingLoop is headless',
-      v3ProbingActive,
-      effectiveItemType,
-      hasActivePrompt: !!v3ActivePromptText
-    });
+    // GUARD: Block text input if V3 probing active but no prompt yet (prevent blank UI state)
+    if (!v3ActivePromptText || v3ActivePromptText.trim().length === 0) {
+      bottomBarMode = "DISABLED";
+      console.log('[V3_UI_CONTRACT][PROMPT_AWAIT]', {
+        loopKey: `${sessionId}:${v3ProbingContext?.categoryId}:${v3ProbingContext?.instanceNumber || 1}`,
+        v3ProbingActive: true,
+        hasPrompt: false,
+        reason: 'Waiting for first probe prompt - preventing blank input state'
+      });
+    } else {
+      bottomBarMode = "TEXT_INPUT";
+      isQuestion = true;
+      console.log('[V3_UI_CONTRACT]', {
+        action: 'TEXT_INPUT_DURING_PROBING',
+        reason: 'Parent owns UI - V3ProbingLoop is headless',
+        v3ProbingActive,
+        effectiveItemType,
+        hasActivePrompt: !!v3ActivePromptText
+      });
+    }
   }
   // Normal yes/no questions
   else if (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop) {
