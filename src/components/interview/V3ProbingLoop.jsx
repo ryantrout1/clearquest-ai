@@ -47,6 +47,7 @@ export default function V3ProbingLoop({
   onPromptChange, // NEW: Callback to expose active prompt to parent
   onAnswerNeeded, // NEW: Callback when ready for user input
   pendingAnswer, // NEW: Answer from parent to consume
+  onAnswerConsumed, // NEW: Callback to clear pending answer after consumption
   onPromptSet, // NEW: Callback when prompt is committed to state
   onIncidentComplete, // NEW: Callback when incident completes with no further prompts
   onRecapReady // NEW: Callback when engine returns RECAP/STOP with completion message
@@ -145,6 +146,9 @@ export default function V3ProbingLoop({
   
   // LOOP-KEY GUARD: Prevent re-initialization for same loopKey during active session
   const activeLoopKeysRef = useRef(new Set());
+  
+  // IDEMPOTENCY GUARD: Track last consumed answer to prevent duplicate processing
+  const lastConsumedAnswerRef = useRef(null);
 
   // RENDER TRUTH: Diagnostic logging for prompt card visibility
   const shouldShowPromptCard = !!activePromptText && !isComplete;
@@ -242,14 +246,60 @@ export default function V3ProbingLoop({
   useEffect(() => {
     if (!pendingAnswer || isComplete) return;
     
+    // IDEMPOTENCY: Generate stable token for this answer
+    const answerToken = `${loopKey}:${probeCount}:${pendingAnswer?.substring(0, 50)}`;
+    
+    // DEDUPE: Skip if we already consumed this exact answer
+    if (lastConsumedAnswerRef.current === answerToken) {
+      console.log('[V3_PROBING_LOOP][CONSUME_ANSWER_DEDUPED]', {
+        answerToken,
+        loopKey,
+        probeCount,
+        reason: 'Same answer already processed - skipping'
+      });
+      return;
+    }
+    
     console.log('[V3_PROBING_LOOP][CONSUME_ANSWER]', { 
       answerPreview: pendingAnswer?.substring(0, 50),
+      answerToken,
+      loopKey,
+      probeCount,
       isComplete 
+    });
+    
+    // Mark as consumed BEFORE processing (prevents race conditions)
+    lastConsumedAnswerRef.current = answerToken;
+    
+    console.log('[V3_PROBING_LOOP][DECIDE_START]', {
+      loopKey,
+      reason: 'ANSWER_SUBMITTED',
+      answerPreview: pendingAnswer?.substring(0, 50),
+      probeCount
     });
     
     // Process the answer through decision engine
     handleSubmit(null, pendingAnswer, false);
-  }, [pendingAnswer, isComplete]);
+    
+    // CRITICAL: Clear parent's pending answer after consumption
+    // This MUST happen to prevent stall (parent won't trigger again otherwise)
+    if (onAnswerConsumed) {
+      console.log('[V3_PROBING_LOOP][ANSWER_CONSUMED_ACK]', {
+        answerToken,
+        loopKey,
+        probeCount
+      });
+      
+      // Defer clearing to avoid state update during render
+      setTimeout(() => {
+        onAnswerConsumed({
+          loopKey,
+          answerToken,
+          probeCount
+        });
+      }, 0);
+    }
+  }, [pendingAnswer, isComplete, loopKey, probeCount, onAnswerConsumed]);
 
   // Auto-scroll to bottom
   useEffect(() => {
