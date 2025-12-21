@@ -1343,6 +1343,9 @@ export default function CandidateInterview() {
   
   // V3 RECAP APPEND GUARD: Prevent duplicate refresh calls (per stableKey)
   const v3RecapAppendedKeysRef = useRef(new Set()); // Set<stableKey>
+  
+  // V3 SUBMIT COUNTER: Monotonic counter for tokenized pendingAnswer payloads
+  const v3SubmitCounterRef = useRef(0);
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
