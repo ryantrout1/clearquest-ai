@@ -188,6 +188,13 @@ const resetMountTracker = (sid) => {
       return false;
     }
     
+    // FOLLOWUP_CARD_SHOWN: Always render unless explicitly blocked
+    if (mt === 'FOLLOWUP_CARD_SHOWN') {
+      // Block only if explicitly invisible or denylisted
+      if (t.visibleToCandidate === false) return false;
+      return true; // Render opener/field cards by default
+    }
+    
     // V3 UI CONTRACT: Block V3 probe prompts from transcript (narrow type-based filter)
     if (isV3PromptTranscriptItem(t)) {
       return false;
