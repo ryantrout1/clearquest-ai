@@ -7048,9 +7048,8 @@ export default function CandidateInterview() {
           className="absolute inset-0 overflow-y-auto cq-scroll scrollbar-thin" 
           ref={historyRef}
           onScroll={handleTranscriptScroll}
-          style={{ bottom: Math.max(0, (footerHeightPx || 0) + 8) }}
         >
-        <div className="px-4 pb-2 pt-6 flex flex-col min-h-full justify-end">
+        <div className="px-4 pt-6 flex flex-col min-h-full justify-end" style={{ paddingBottom: `${footerHeightPx + 16}px` }}>
           <div className="space-y-2 relative isolate">
           {/* UNIFIED STREAM: Render all transcript messages from canonical source */}
           {(() => {
