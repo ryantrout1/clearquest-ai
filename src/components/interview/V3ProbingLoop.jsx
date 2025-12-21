@@ -246,57 +246,72 @@ export default function V3ProbingLoop({
   // HEADLESS MODE: Consume pending answer from parent
   useEffect(() => {
     if (!pendingAnswer || isComplete) return;
-    
-    // IDEMPOTENCY: Generate stable token for this answer
-    const answerToken = `${loopKey}:${probeCount}:${pendingAnswer?.substring(0, 50)}`;
-    
+
+    // TOKENIZED PAYLOAD: Support both string (legacy) and object (new)
+    const answerText = typeof pendingAnswer === 'string' ? pendingAnswer : pendingAnswer?.text;
+    const submitId = typeof pendingAnswer === 'object' ? pendingAnswer?.submitId : null;
+
+    console.log('[V3_PENDING_ANSWER_SEEN]', {
+      hasPending: !!pendingAnswer,
+      submitId,
+      answerPreview: answerText?.substring(0, 40)
+    });
+
+    // IDEMPOTENCY: Generate stable token for this answer (use submitId if present)
+    const answerToken = submitId ? `${loopKey}:${submitId}` : `${loopKey}:${probeCount}:${answerText?.substring(0, 50)}`;
+
     // DEDUPE: Skip if we already consumed this exact answer
     if (lastConsumedAnswerRef.current === answerToken) {
       console.log('[V3_PROBING_LOOP][CONSUME_ANSWER_DEDUPED]', {
         answerToken,
         loopKey,
         probeCount,
+        submitId,
         reason: 'Same answer already processed - skipping'
       });
       return;
     }
-    
+
     console.log('[V3_PROBING_LOOP][CONSUME_ANSWER]', { 
-      answerPreview: pendingAnswer?.substring(0, 50),
+      answerPreview: answerText?.substring(0, 50),
       answerToken,
       loopKey,
       probeCount,
+      submitId,
       isComplete 
     });
-    
+
     // Mark as consumed BEFORE processing (prevents race conditions)
     lastConsumedAnswerRef.current = answerToken;
-    
+
     console.log('[V3_PROBING_LOOP][DECIDE_START]', {
       loopKey,
       reason: 'ANSWER_SUBMITTED',
-      answerPreview: pendingAnswer?.substring(0, 50),
-      probeCount
+      answerPreview: answerText?.substring(0, 50),
+      probeCount,
+      submitId
     });
-    
+
     // Process the answer through decision engine
-    handleSubmit(null, pendingAnswer, false);
-    
+    handleSubmit(null, answerText, false);
+
     // CRITICAL: Clear parent's pending answer after consumption
     // This MUST happen to prevent stall (parent won't trigger again otherwise)
     if (onAnswerConsumed) {
       console.log('[V3_PROBING_LOOP][ANSWER_CONSUMED_ACK]', {
         answerToken,
         loopKey,
-        probeCount
+        probeCount,
+        submitId
       });
-      
+
       // Defer clearing to avoid state update during render
       setTimeout(() => {
         onAnswerConsumed({
           loopKey,
           answerToken,
-          probeCount
+          probeCount,
+          submitId
         });
       }, 0);
     }
