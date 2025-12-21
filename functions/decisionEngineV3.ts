@@ -352,6 +352,89 @@ function resolveFieldId(factModel, semanticKey) {
   return null;
 }
 
+// ========== DETERMINISTIC MONTH/YEAR EXTRACTION ==========
+
+/**
+ * Extract month and year from text (deterministic)
+ * Supports patterns: "June 2019", "Jun 2019", "06/2019", "2019-06", etc.
+ * @returns {string|null} Normalized "Month YYYY" or null if not found
+ */
+function extractMonthYear(text) {
+  if (!text || typeof text !== 'string' || text.length < 8) return null;
+  
+  const normalized = text.trim();
+  
+  const datePatterns = [
+    // "In March 2022", "In Oct 2019", "during March 2022"
+    /(?:in|during|around)\s+(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+(?:of\s+)?(\d{4})/i,
+    // "March 2022", "Oct 2019"
+    /(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+(?:of\s+)?(\d{4})/i,
+    // "2022 March" (year first)
+    /(\d{4})\s+(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?/i,
+    // "3/2022", "03/2022"
+    /\b(\d{1,2})\/(\d{4})\b/,
+    // "2022-03", "2022/03"
+    /\b(\d{4})[-\/](\d{1,2})\b/
+  ];
+  
+  for (const pattern of datePatterns) {
+    const match = normalized.match(pattern);
+    if (match) {
+      let monthStr, yearStr;
+      
+      // Handle month-name patterns (groups: month, year OR year, month)
+      if (match[1] && match[2]) {
+        if (/^\d{4}$/.test(match[1])) {
+          // "2022 March" format
+          yearStr = match[1];
+          monthStr = match[2];
+        } else if (/^\d{4}$/.test(match[2])) {
+          // "March 2022" format
+          monthStr = match[1];
+          yearStr = match[2];
+        } else if (/^\d{1,2}$/.test(match[1])) {
+          // "3/2022" format
+          monthStr = match[1];
+          yearStr = match[2];
+        } else if (/^\d{1,2}$/.test(match[2])) {
+          // "2022/03" format
+          yearStr = match[1];
+          monthStr = match[2];
+        }
+      }
+      
+      if (monthStr && yearStr) {
+        // Normalize month to full name for consistent storage
+        const monthMap = {
+          'jan': 'January', 'feb': 'February', 'mar': 'March', 'apr': 'April',
+          'may': 'May', 'jun': 'June', 'jul': 'July', 'aug': 'August',
+          'sep': 'September', 'sept': 'September', 'oct': 'October', 'nov': 'November', 'dec': 'December'
+        };
+        
+        let finalMonth = monthStr;
+        
+        // Convert numeric month to name
+        if (/^\d{1,2}$/.test(monthStr)) {
+          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                              'July', 'August', 'September', 'October', 'November', 'December'];
+          const monthNum = parseInt(monthStr, 10);
+          if (monthNum >= 1 && monthNum <= 12) {
+            finalMonth = monthNames[monthNum - 1];
+          }
+        } else if (monthStr.length <= 4) {
+          // Expand abbreviated month (Mar → March, Oct → October)
+          const abbrev = monthStr.toLowerCase().replace('.', '');
+          finalMonth = monthMap[abbrev] || monthStr;
+        }
+        
+        return `${finalMonth} ${yearStr}`;
+      }
+    }
+  }
+  
+  return null;
+}
+
 // ========== OPENER NARRATIVE EXTRACTION ==========
 
 /**
@@ -390,85 +473,26 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
   });
   
   if (dateFields.length > 0) {
-    // Enhanced date patterns with short month abbreviations and numeric formats
-    const datePatterns = [
-      // "In March 2022", "In Oct 2019", "during March 2022"
-      /(?:in|during|around)\s+(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+(?:of\s+)?(\d{4})/i,
-      // "March 2022", "Oct 2019"
-      /(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+(?:of\s+)?(\d{4})/i,
-      // "2022 March" (year first)
-      /(\d{4})\s+(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?/i,
-      // "3/2022", "03/2022"
-      /\b(\d{1,2})\/(\d{4})\b/,
-      // "2022-03", "2022/03"
-      /\b(\d{4})[-\/](\d{1,2})\b/
-    ];
+    // DETERMINISTIC EXTRACTION: Use new helper function
+    const extractedDate = extractMonthYear(openerText);
     
-    for (const pattern of datePatterns) {
-      const match = normalized.match(pattern);
-      if (match) {
-        let monthStr, yearStr;
-        
-        // Handle month-name patterns (groups: month, year OR year, month)
-        if (match[1] && match[2]) {
-          if (/^\d{4}$/.test(match[1])) {
-            // "2022 March" format
-            yearStr = match[1];
-            monthStr = match[2];
-          } else if (/^\d{4}$/.test(match[2])) {
-            // "March 2022" format
-            monthStr = match[1];
-            yearStr = match[2];
-          } else if (/^\d{1,2}$/.test(match[1])) {
-            // "3/2022" format
-            monthStr = match[1];
-            yearStr = match[2];
-          } else if (/^\d{1,2}$/.test(match[2])) {
-            // "2022/03" format
-            yearStr = match[1];
-            monthStr = match[2];
-          }
-        }
-        
-        if (monthStr && yearStr) {
-          // Normalize month to full name for consistent storage
-          const monthMap = {
-            'jan': 'January', 'feb': 'February', 'mar': 'March', 'apr': 'April',
-            'may': 'May', 'jun': 'June', 'jul': 'July', 'aug': 'August',
-            'sep': 'September', 'sept': 'September', 'oct': 'October', 'nov': 'November', 'dec': 'December'
-          };
-          
-          let finalMonth = monthStr;
-          
-          // Convert numeric month to name
-          if (/^\d{1,2}$/.test(monthStr)) {
-            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                                'July', 'August', 'September', 'October', 'November', 'December'];
-            const monthNum = parseInt(monthStr, 10);
-            if (monthNum >= 1 && monthNum <= 12) {
-              finalMonth = monthNames[monthNum - 1];
-            }
-          } else if (monthStr.length <= 4) {
-            // Expand abbreviated month (Mar → March, Oct → October)
-            const abbrev = monthStr.toLowerCase().replace('.', '');
-            finalMonth = monthMap[abbrev] || monthStr;
-          }
-          
-          const dateValue = `${finalMonth} ${yearStr}`;
-          
-          // Map to ALL matching date fields in FactModel
-          for (const dateField of dateFields) {
-            extracted[dateField.field_id] = dateValue;
-          }
-          
-          console.log('[V3_FACTMODEL_INGEST][DATE]', {
-            extractedValue: dateValue,
-            mappedToFields: dateFields.map(f => f.field_id).join(','),
-            rawMatch: `${monthStr} ${yearStr}`
-          });
-          break;
-        }
+    if (extractedDate) {
+      // Map to ALL matching date fields in FactModel
+      for (const dateField of dateFields) {
+        extracted[dateField.field_id] = extractedDate;
       }
+      
+      console.log('[V3_OPENER_FACTS][MONTH_YEAR_DETECTED]', {
+        detected: true,
+        normalized: extractedDate,
+        preview: openerText.substring(0, 80),
+        mappedToFields: dateFields.map(f => f.field_id).join(',')
+      });
+    } else {
+      console.log('[V3_OPENER_FACTS][MONTH_YEAR_DETECTED]', {
+        detected: false,
+        preview: openerText.substring(0, 80)
+      });
     }
   }
   
