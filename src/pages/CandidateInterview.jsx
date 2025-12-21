@@ -1562,7 +1562,32 @@ export default function CandidateInterview() {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
     // REQUIREMENT: Filter first, then dedupe, preserving insertion order
     const filteredFirst = base.filter(entry => isRenderableTranscriptEntry(entry));
-    const deduped = dedupeByStableKey(filteredFirst);
+    
+    // SCOPED DEDUPE: Only dedupe specific messageTypes, preserve all others
+    const DEDUPE_ALLOWED_TYPES = new Set([
+      'MULTI_INSTANCE_GATE_SHOWN',
+      'FOLLOWUP_CARD_SHOWN'
+    ]);
+    
+    const deduped = [];
+    const dedupedKeys = new Map();
+    
+    for (const entry of filteredFirst) {
+      const mt = entry.messageType || entry.type;
+      const key = entry.stableKey || entry.id;
+      
+      // Only dedupe allowed types
+      if (DEDUPE_ALLOWED_TYPES.has(mt) && key) {
+        if (dedupedKeys.has(key)) {
+          // Skip duplicate for allowed types
+          continue;
+        }
+        dedupedKeys.set(key, true);
+      }
+      
+      // Include all entries (dedupe only applies to allowed types)
+      deduped.push(entry);
+    }
     
     // CANONICAL KEY NORMALIZATION: Assign canonical follow-up card keys
     const normalized = deduped.map(entry => {
