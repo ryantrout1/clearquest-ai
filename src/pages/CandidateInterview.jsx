@@ -210,11 +210,11 @@ const resetMountTracker = (sid) => {
     // Apply denylist
     if (TRANSCRIPT_DENYLIST.has(mt)) return false;
 
-    // Only show candidate-visible messages
-    if (t.visibleToCandidate !== true) return false;
+    // Block explicitly hidden messages (stable denylist, not allowlist)
+    if (t.visibleToCandidate === false) return false;
 
     return true;
-  };
+    };
 
   // Helper: Dedupe by stableKey (prefer visibleToCandidate=true)
   const dedupeByStableKey = (arr) => {
