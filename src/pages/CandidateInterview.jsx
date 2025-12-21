@@ -1698,6 +1698,13 @@ export default function CandidateInterview() {
     return s.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[?.!]+$/, '');
   };
 
+  // UX: Check if scroll container is near bottom
+  const isNearBottom = (el, thresholdPx = 80) => {
+    if (!el) return false;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    return distanceFromBottom <= thresholdPx;
+  };
+
   // STABLE KEY HELPER: Deterministic key for each transcript entry
   const getTranscriptEntryKey = useCallback((entry) => {
     if (!entry) return 'fallback-null-entry';
