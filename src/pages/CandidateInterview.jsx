@@ -265,6 +265,9 @@ const ENABLE_V3_PROBING = true;
 // Feature flag: Enable chat virtualization for long interviews
 const ENABLE_CHAT_VIRTUALIZATION = false;
 
+// UI CONTRACT: Disable synthetic transcript injection (must use append-only DB transcript)
+const ENABLE_SYNTHETIC_TRANSCRIPT = false;
+
 // Removed anchor-based gating diagnostic helpers - V2 now uses field-based gating only
 
 // File revision: 2025-12-02 - Cleaned and validated
@@ -1658,6 +1661,15 @@ export default function CandidateInterview() {
       activeGateRemovedCount,
       screenMode,
       currentItemType: currentItem?.type
+    });
+    
+    // AUDIT: Verify no synthetic injection (append-only contract)
+    console.log('[TRANSCRIPT_AUDIT][SOURCE_OF_TRUTH]', {
+      dbLen: base.length,
+      renderedLen: finalFiltered.length,
+      injectedCount: 0,
+      injectedTypes: [],
+      sourceOfTruth: 'DB_ONLY'
     });
     
     return finalFiltered;
@@ -7660,8 +7672,8 @@ export default function CandidateInterview() {
             );
           })()}
 
-          {/* V3 Pack Opener Card - DETERMINISTIC RENDER (not transcript-dependent) */}
-          {(() => {
+          {/* V3 Pack Opener Card - SYNTHETIC RENDER (disabled by ENABLE_SYNTHETIC_TRANSCRIPT) */}
+          {ENABLE_SYNTHETIC_TRANSCRIPT && (() => {
             // UI CONTRACT: Use effectiveItemType (never render opener during probing)
             const isV3OpenerMode = effectiveItemType === 'v3_pack_opener';
             
