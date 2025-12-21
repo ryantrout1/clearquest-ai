@@ -5523,29 +5523,7 @@ export default function CandidateInterview() {
     
     // ATOMIC COMMIT: All state changes in one place
     commitV3PromptToBottomBar({ packId, instanceNumber, loopKey, promptText });
-    
-    // V3 LAYOUT: Scroll prompt card into view after brief delay (allows DOM update)
-    setTimeout(() => {
-      if (!promptLaneRef.current || !historyRef.current) return;
-      
-      console.log('[V3_LAYOUT_SCROLL_PROMPT_INTO_VIEW]', {
-        preview: promptText?.slice(0, 80),
-        bottomInsetPx
-      });
-      
-      // Scroll prompt card to bottom of viewport (end alignment)
-      promptLaneRef.current.scrollIntoView({ block: 'end', behavior: 'smooth' });
-      
-      // Apply upward adjustment to avoid flush-against-bottom-bar
-      requestAnimationFrame(() => {
-        if (historyRef.current && bottomInsetPx > 8) {
-          const currentScroll = historyRef.current.scrollTop;
-          const adjustment = Math.min(bottomInsetPx - 8, 100); // Cap at 100px upward
-          historyRef.current.scrollTop = currentScroll - adjustment;
-        }
-      });
-    }, 150);
-  }, [commitV3PromptToBottomBar, v3ProbingContext, currentItem, sessionId, bottomInsetPx]);
+  }, [commitV3PromptToBottomBar, v3ProbingContext, currentItem, sessionId]);
 
   // V3 answer submit handler - routes answer to V3ProbingLoop
   const handleV3AnswerSubmit = useCallback((answerText) => {
