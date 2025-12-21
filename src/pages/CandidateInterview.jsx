@@ -7059,13 +7059,8 @@ export default function CandidateInterview() {
         `}
       </style>
 
-      <main className="flex-1 relative overflow-hidden isolate">
-        <div 
-          className="absolute inset-0 overflow-y-auto cq-scroll scrollbar-thin" 
-          ref={historyRef}
-          onScroll={handleTranscriptScroll}
-        >
-        <div className="px-4 pt-6 flex flex-col min-h-full justify-end" style={{ paddingBottom: `${bottomInsetPx}px` }}>
+      <main className="flex-1 overflow-y-auto cq-scroll scrollbar-thin" ref={historyRef} onScroll={handleTranscriptScroll}>
+        <div className="px-4 pt-6 pb-6 flex flex-col min-h-full justify-end">
           <div className="space-y-2 relative isolate">
           {/* UNIFIED STREAM: Render all transcript messages from canonical source */}
           {(() => {
