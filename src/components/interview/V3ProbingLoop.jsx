@@ -13,6 +13,7 @@ import {
   logIncidentCompleted,
   logProbingStopped 
 } from "../utils/v3TranscriptLogger";
+import { normalizeV3ProbeQuestion } from "../utils/v3FactStateHelpers";
 
 // GLOBAL V3 LOOP REGISTRY: Prevent duplicate mounts
 const __v3LoopRegistry = globalThis.__cqV3LoopRegistry || (globalThis.__cqV3LoopRegistry = new Map());
