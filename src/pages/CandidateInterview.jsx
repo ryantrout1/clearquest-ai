@@ -6217,6 +6217,18 @@ export default function CandidateInterview() {
     executePendingTransition();
   }, [pendingTransition, dbTranscript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId, v3ProbingContext, multiInstanceGate, engine, refreshTranscriptFromDB]);
 
+  // Force-reset isCommitting when currentItem changes to prevent stuck disabled state
+  useEffect(() => {
+    if (currentItem?.type === 'v3_pack_opener' && isCommitting) {
+      console.log('[V3_OPENER][FORCE_ENABLED]', {
+        packId: currentItem.packId,
+        instanceNumber: currentItem.instanceNumber,
+        reason: 'entered_opener_not_submitting'
+      });
+      setIsCommitting(false);
+    }
+  }, [currentItem, isCommitting]);
+
   // UX: Restore draft when currentItem changes
   useEffect(() => {
     if (!currentItem || !sessionId) return;
