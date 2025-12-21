@@ -1692,6 +1692,15 @@ export default function CandidateInterview() {
       });
     }
     
+    // Log success when monotonic growth occurs
+    if (prevRenderedLen !== null && !shrinkDetected && nextRenderedLen > prevRenderedLen) {
+      console.log('[TRANSCRIPT_AUDIT][MONOTONIC_OK]', {
+        prevLen: prevRenderedLen,
+        nextLen: nextRenderedLen,
+        delta: nextRenderedLen - prevRenderedLen
+      });
+    }
+    
     prevRenderedLenRef.current = nextRenderedLen;
   }, [renderedTranscript, screenMode, currentItem]);
 
