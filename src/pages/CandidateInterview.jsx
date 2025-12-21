@@ -188,13 +188,6 @@ const resetMountTracker = (sid) => {
       return false;
     }
     
-    // FOLLOWUP_CARD_SHOWN: Always render unless explicitly blocked
-    if (mt === 'FOLLOWUP_CARD_SHOWN') {
-      // Block only if explicitly invisible or denylisted
-      if (t.visibleToCandidate === false) return false;
-      return true; // Render opener/field cards by default
-    }
-    
     // V3 UI CONTRACT: Block V3 probe prompts from transcript (narrow type-based filter)
     if (isV3PromptTranscriptItem(t)) {
       return false;
@@ -214,11 +207,17 @@ const resetMountTracker = (sid) => {
       mt === 'AI_THINKING'
     ) return false;
 
-    // Apply denylist
+    // Apply denylist FIRST (primary contract enforcement)
     if (TRANSCRIPT_DENYLIST.has(mt)) return false;
 
     // Block explicitly hidden messages (stable denylist, not allowlist)
     if (t.visibleToCandidate === false) return false;
+    
+    // FOLLOWUP_CARD_SHOWN: Always render unless blocked by denylist or visibleToCandidate
+    // (This special case is redundant now - already passed above checks, but kept for clarity)
+    if (mt === 'FOLLOWUP_CARD_SHOWN') {
+      return true; // Render opener/field cards (already passed denylist + visibility checks)
+    }
 
     return true;
     };
@@ -3583,6 +3582,14 @@ export default function CandidateInterview() {
         });
         console.log("[V3_OPENER][TRANSCRIPT_AFTER_A]", { length: transcriptAfterAnswer.length });
 
+        // ITEM-SCOPED COMMIT: Clear committing item ID after successful submission
+        committingItemIdRef.current = null;
+        console.log('[V3_OPENER][COMMIT_CLEAR]', {
+          reason: 'submission_complete',
+          packId,
+          instanceNumber
+        });
+
         // Refresh from DB after opener answer
         await refreshTranscriptFromDB('v3_opener_answered');
 
@@ -3657,6 +3664,15 @@ export default function CandidateInterview() {
         });
         
         const loopKey = `${sessionId}:${categoryId}:${instanceNumber}`;
+        
+        // ITEM-SCOPED COMMIT: Mark this specific opener item as committing
+        committingItemIdRef.current = currentItem.id;
+        console.log('[V3_OPENER][COMMIT_START]', {
+          currentItemId: currentItem.id,
+          packId,
+          instanceNumber,
+          loopKey
+        });
         
         // FAILSAFE: Clear any existing timer before starting new one
         if (v3OpenerFailsafeTimerRef.current) {
@@ -6217,17 +6233,8 @@ export default function CandidateInterview() {
     executePendingTransition();
   }, [pendingTransition, dbTranscript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId, v3ProbingContext, multiInstanceGate, engine, refreshTranscriptFromDB]);
 
-  // Force-reset isCommitting when currentItem changes to prevent stuck disabled state
-  useEffect(() => {
-    if (currentItem?.type === 'v3_pack_opener' && isCommitting) {
-      console.log('[V3_OPENER][FORCE_ENABLED]', {
-        packId: currentItem.packId,
-        instanceNumber: currentItem.instanceNumber,
-        reason: 'entered_opener_not_submitting'
-      });
-      setIsCommitting(false);
-    }
-  }, [currentItem, isCommitting]);
+  // ITEM-SCOPED COMMIT TRACKING: Track which item is being submitted
+  const committingItemIdRef = useRef(null);
 
   // UX: Restore draft when currentItem changes
   useEffect(() => {
@@ -7074,7 +7081,18 @@ export default function CandidateInterview() {
   // V3 OPENER SUBMIT STATE: Log submit affordance for opener
   if (effectiveItemType === 'v3_pack_opener' && currentItem) {
     const openerInputValue = openerDraft || "";
-    const openerDisabled = openerInputValue.trim().length === 0;
+    const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem.id;
+    const openerDisabled = openerInputValue.trim().length === 0 || isCurrentItemCommitting;
+    
+    // DIAGNOSTIC: Log when item-scoped disabling happens
+    if (isCurrentItemCommitting) {
+      console.log('[V3_OPENER][DISABLED_BY_COMMIT]', {
+        currentItemId: currentItem.id,
+        committingItemId: committingItemIdRef.current,
+        packId: currentItem.packId,
+        instanceNumber: currentItem.instanceNumber
+      });
+    }
     
     // SANITY CHECK: If openerDraft contains prompt text, clear it immediately
     const promptText = activePromptText || currentItem.openerText || "";
@@ -7098,7 +7116,9 @@ export default function CandidateInterview() {
       inputLen: openerInputValue.length,
       hasPrompt,
       usingOpenerDraft: true,
-      valueMatchesPrompt
+      valueMatchesPrompt,
+      isCurrentItemCommitting,
+      committingItemId: committingItemIdRef.current
     });
     
     // VERIFICATION: Log placeholder vs value state
@@ -8583,54 +8603,14 @@ export default function CandidateInterview() {
              ref={inputRef}
              value={currentItem?.type === 'v3_pack_opener' ? (openerDraft ?? "") : (input ?? "")}
              onChange={(e) => {
-               const value = e.target.value;
-               markUserTyping();
-
-               // V3 OPENER: Use dedicated openerDraft state
-               if (currentItem?.type === 'v3_pack_opener') {
-                 // GUARD: Never allow prompt text as value
-                 const promptText = currentItem?.openerText || activePromptText || "";
-                 const valueMatchesPrompt = value.trim() === promptText.trim() && value.length > 10;
-
-                 if (valueMatchesPrompt) {
-                   console.error('[V3_UI_CONTRACT][OPENER_DRAFT_SEEDED_BLOCKED]', {
-                     packId: currentItem?.packId,
-                     instanceNumber: currentItem?.instanceNumber,
-                     reason: 'Attempted to seed openerDraft with prompt text - blocking onChange'
-                   });
-                   return; // Block the update
-                 }
-
-                 setOpenerDraft(value);
-
-                 // FORENSIC: Throttled keystroke capture proof (every 3 chars to avoid spam)
-                 openerDraftChangeCountRef.current++;
-                 if (openerDraftChangeCountRef.current % 3 === 1 || value.length === 0) {
-                   console.log('[V3_OPENER][DRAFT_CHANGE]', {
-                     packId: currentItem?.packId,
-                     instanceNumber: currentItem?.instanceNumber,
-                     len: value.length
-                   });
-                 }
-
-                 // DECOUPLE: Storage write failures must not block state update
-                 try {
-                   const draftKey = buildDraftKey(sessionId, currentItem?.packId, currentItem?.id, currentItem?.instanceNumber || 0);
-                   window.sessionStorage.setItem(draftKey, value);
-                 } catch (e) {
-                   // Silent fallback - in-memory draft is source of truth
-                 }
-               } else {
-                 saveDraft(value);
-                 setInput(value);
-               }
+...
              }}
              onKeyDown={handleInputKeyDown}
              placeholder="Type your response here…"
              aria-label="Answer input"
              className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
              style={{ maxHeight: '120px', overflowY: 'auto' }}
-             disabled={isCommitting}
+             disabled={currentItem?.type === 'v3_pack_opener' ? (isCommitting && committingItemIdRef.current === currentItem.id) : isCommitting}
              autoFocus={hasPrompt || currentItem?.type === 'v3_pack_opener'}
              rows={1}
              />
@@ -8670,7 +8650,7 @@ export default function CandidateInterview() {
                });
                handleBottomBarSubmit();
              }}
-             disabled={currentItem?.type === 'v3_pack_opener' ? (openerDraft?.trim().length === 0 || isCommitting) : (isBottomBarSubmitDisabled || !hasPrompt)}
+             disabled={currentItem?.type === 'v3_pack_opener' ? (openerDraft?.trim().length === 0 || (isCommitting && committingItemIdRef.current === currentItem.id)) : (isBottomBarSubmitDisabled || !hasPrompt)}
              className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5 disabled:opacity-50"
            >
              {(currentItem?.type !== 'v3_pack_opener' && !hasPrompt) ? (
