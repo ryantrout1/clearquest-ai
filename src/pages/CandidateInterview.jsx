@@ -1673,6 +1673,21 @@ export default function CandidateInterview() {
       syntheticEnabled: ENABLE_SYNTHETIC_TRANSCRIPT
     });
     
+    // DIAGNOSTIC: Detect when filters are hiding items
+    const hiddenCount = base.length - finalFiltered.length;
+    if (hiddenCount >= 2) {
+      console.warn('[TRANSCRIPT_AUDIT][LEN_MISMATCH]', {
+        dbLen: base.length,
+        renderedLen: finalFiltered.length,
+        hiddenCount,
+        screenMode,
+        currentItemType: currentItem?.type,
+        v3ProbingActive,
+        v3GateActive,
+        pendingSectionTransition
+      });
+    }
+    
     return finalFiltered;
   }, [dbTranscript, currentItem, multiInstanceGate]);
 
