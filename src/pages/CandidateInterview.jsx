@@ -1631,7 +1631,9 @@ export default function CandidateInterview() {
       };
     });
     
-    // ACTIVE GATE FILTER: Remove currently-active gate from transcript render (prevents double-render)
+    // PART 4: ACTIVE GATE FILTER - Removed (no longer needed)
+    // Gate questions now append ONLY after answer, so no double-render conflict
+    // Keep activeGateStableKey for compatibility but don't filter
     const activeGateStableKey = (() => {
       if (currentItem?.type !== 'multi_instance_gate') return null;
       const gatePackId = currentItem.packId || multiInstanceGate?.packId;
@@ -1643,7 +1645,7 @@ export default function CandidateInterview() {
     // DEDUPE BY CANONICAL KEY: Preserve insertion order, keep FIRST occurrence
     const canonicalKeySet = new Set();
     const finalFiltered = [];
-    let activeGateRemovedCount = 0;
+    let activeGateRemovedCount = 0; // Keep counter but should be 0 now
     
     for (const entry of normalized) {
       const ck = entry.__canonicalKey;
@@ -1653,27 +1655,7 @@ export default function CandidateInterview() {
         continue;
       }
       
-      // ACTIVE GATE FILTER: Skip currently-active gate to prevent double-render
-      if (activeGateStableKey && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
-        const entryPackId = entry.meta?.packId || entry.packId;
-        const entryInstanceNumber = entry.meta?.instanceNumber || entry.instanceNumber;
-        const gatePackId = currentItem?.packId || multiInstanceGate?.packId;
-        const gateInstanceNumber = currentItem?.instanceNumber || multiInstanceGate?.instanceNumber;
-        
-        const matchesActiveGate = (entry.stableKey === activeGateStableKey) ||
-                                 (entryPackId === gatePackId && entryInstanceNumber === gateInstanceNumber);
-        
-        if (matchesActiveGate) {
-          activeGateRemovedCount++;
-          console.log('[TRANSCRIPT_RENDER][ACTIVE_GATE_FILTER]', {
-            activeGateStableKey,
-            packId: entryPackId,
-            instanceNumber: entryInstanceNumber,
-            reason: 'Skipping transcript render - gate is active currentItem'
-          });
-          continue; // Skip this entry
-        }
-      }
+      // PART 4: ACTIVE_GATE_FILTER removed - gates append after answer only (no conflict)
       
       if (!canonicalKeySet.has(ck)) {
         canonicalKeySet.add(ck);
@@ -5553,27 +5535,21 @@ export default function CandidateInterview() {
       setCurrentItem(gateItem);
     });
     
-    // Append gate prompt via canonical helper AFTER state switch
-    await appendAndRefresh('assistant', {
-      text: gatePromptText,
-      metadata: {
-        id: `mi-gate-${packId}-${instanceNumber}`,
-        stableKey: gateStableKey,
-        messageType: 'MULTI_INSTANCE_GATE_SHOWN',
-        packId,
-        categoryId,
-        instanceNumber,
-        baseQuestionId,
-        visibleToCandidate: true
-      }
-    }, 'gate_shown');
+    // PART 1: DO NOT append gate to transcript while active (prevents flicker)
+    console.log('[MI_GATE][TRANSCRIPT_SUPPRESSED_WHILE_ACTIVE]', {
+      stableKey: gateStableKey,
+      packId,
+      instanceNumber,
+      reason: 'Gate is active - will append Q+A after user answers'
+    });
     
+    // State is set - gate will render from currentItem, not transcript
     await persistStateToDatabase(null, [], {
       id: gateItemId,
       type: 'multi_instance_gate',
       packId
     });
-  }, [v3ProbingContext, sessionId, appendAndRefresh, persistStateToDatabase]);
+  }, [v3ProbingContext, sessionId, persistStateToDatabase]);
 
   // V3 EXIT: Idempotent exit function (only runs once)
   const exitV3Once = useCallback((reason, payload) => {
@@ -6163,20 +6139,13 @@ export default function CandidateInterview() {
           setCurrentItem(gateItem);
         });
 
-        // Append gate prompt via canonical helper AFTER state switch (prevents footer TEXT_INPUT frame)
-        await appendAndRefresh('assistant', {
-          text: gatePromptText,
-          metadata: {
-            id: `mi-gate-${packId}-${instanceNumber}`,
-            stableKey: gateStableKey,
-            messageType: 'MULTI_INSTANCE_GATE_SHOWN',
-            packId,
-            categoryId,
-            instanceNumber,
-            baseQuestionId,
-            visibleToCandidate: true
-          }
-        }, 'gate_shown');
+        // PART 1: DO NOT append gate to transcript while active (append after answer instead)
+        console.log('[MI_GATE][TRANSCRIPT_SUPPRESSED_WHILE_ACTIVE]', {
+          stableKey: gateStableKey,
+          packId,
+          instanceNumber,
+          reason: 'Gate is active - will append Q+A after user answers'
+        });
 
         await forensicCheck('gate_shown');
 
@@ -6661,6 +6630,13 @@ export default function CandidateInterview() {
     if (effectiveCurrentItem.type === 'multi_instance_gate') {
       const gatePackId = effectiveCurrentItem.packId;
       const gateInstanceNumber = effectiveCurrentItem.instanceNumber;
+      const gatePromptText = effectiveCurrentItem.promptText;
+      const gateCategoryLabel = effectiveCurrentItem.categoryLabel;
+      
+      // PART 2: Derive prompt text deterministically if missing
+      const effectivePromptText = gatePromptText || 
+        (gateCategoryLabel ? `Do you have another ${gateCategoryLabel} to report?` : null) ||
+        `Do you have another incident to report?`;
       
       // GUARD: Validate gate context
       if (!gatePackId || !gateInstanceNumber) {
@@ -6679,17 +6655,24 @@ export default function CandidateInterview() {
         return {
           type: 'multi_instance_gate',
           id: effectiveCurrentItem.id,
-          text: effectiveCurrentItem.promptText || `Do you have another incident to report?`,
+          text: effectivePromptText,
           responseType: 'yes_no',
           packId: derivedPackId,
           instanceNumber: derivedInstanceNumber
         };
       }
       
+      // PART 2: Log prompt binding for diagnostics
+      console.log('[MI_GATE][PROMPT_BIND]', {
+        stableKey: `mi-gate:${gatePackId}:${gateInstanceNumber}`,
+        hasPromptText: !!effectivePromptText,
+        promptPreview: effectivePromptText?.substring(0, 60)
+      });
+      
       return {
         type: 'multi_instance_gate',
         id: effectiveCurrentItem.id,
-        text: effectiveCurrentItem.promptText,
+        text: effectivePromptText,
         responseType: 'yes_no',
         packId: gatePackId,
         categoryId: effectiveCurrentItem.categoryId,
@@ -6937,10 +6920,23 @@ export default function CandidateInterview() {
   else if (pendingSectionTransition && currentItem?.type === 'section_transition') {
      bottomBarMode = "CTA"; // "Begin Next Section" button
    }
-  // Multi-instance gate (ALWAYS YES_NO)
+  // Multi-instance gate (ALWAYS YES_NO) - PART 2: Guard against missing prompt
   else if (isMultiInstanceGate) {
-    bottomBarMode = "YES_NO";
-    isQuestion = true; // Treat as question for semantic styling
+    // PART 2: Hard guard - never show YES/NO without question text
+    const gatePromptText = currentItem?.promptText || multiInstanceGate?.promptText;
+    
+    if (!gatePromptText || gatePromptText.trim().length === 0) {
+      bottomBarMode = "DISABLED";
+      console.log('[MI_GATE][PROMPT_MISSING_BLOCKED]', {
+        stableKey: `mi-gate:${currentItem?.packId}:${currentItem?.instanceNumber}`,
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+        reason: 'Gate active but no prompt text - preventing YES/NO without question'
+      });
+    } else {
+      bottomBarMode = "YES_NO";
+      isQuestion = true; // Treat as question for semantic styling
+    }
   }
   // V3 gate (fallback YES_NO)
   else if (isV3Gate) {
@@ -7470,8 +7466,13 @@ export default function CandidateInterview() {
               );
             }
 
-            // Multi-instance gate prompt shown
+            // Multi-instance gate prompt shown (PART 3: Now only appears after answer)
             if (entry.role === 'assistant' && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
+              console.log('[MI_GATE][RENDER_SOURCE]', {
+                source: 'TRANSCRIPT',
+                stableKey: entry.stableKey || entry.id
+              });
+
               return (
                 <div key={entry.id}>
                   <ContentContainer>
@@ -8379,36 +8380,61 @@ export default function CandidateInterview() {
           ) : bottomBarMode === "YES_NO" && isMultiInstanceGate ? (
           <div className="flex gap-3">
           <Button
-            onClick={async () => {
-              if (isCommitting) return;
-              console.log('[MULTI_INSTANCE_GATE][YES] Starting next instance');
-              const gate = multiInstanceGate;
-              
-              // GUARD: Validate gate context
-              if (!gate || !gate.packId || !gate.instanceNumber) {
-                console.error('[FORENSIC][GATE_HANDLER_MISSING_CONTEXT]', {
-                  hasGate: !!gate,
-                  packId: gate?.packId,
-                  instanceNumber: gate?.instanceNumber
-                });
-                return;
-              }
-              
-              setIsCommitting(true);
+           onClick={async () => {
+             if (isCommitting) return;
+             console.log('[MULTI_INSTANCE_GATE][YES] Starting next instance');
+             const gate = multiInstanceGate;
 
-               // Append user's "Yes" answer to transcript
-               const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
-               const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
-               await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], 'Yes', {
-                 id: `mi-gate-answer-${gate.packId}-${gate.instanceNumber}-yes`,
-                 messageType: 'MULTI_INSTANCE_GATE_ANSWER',
-                 packId: gate.packId,
-                 categoryId: gate.categoryId,
-                 instanceNumber: gate.instanceNumber
+             // GUARD: Validate gate context
+             if (!gate || !gate.packId || !gate.instanceNumber) {
+               console.error('[FORENSIC][GATE_HANDLER_MISSING_CONTEXT]', {
+                 hasGate: !!gate,
+                 packId: gate?.packId,
+                 instanceNumber: gate?.instanceNumber
                });
+               return;
+             }
 
-               // Reload transcript
-               await refreshTranscriptFromDB('gate_yes_answered');
+             setIsCommitting(true);
+
+              // PART 3: Append gate Q+A to transcript ONLY after user answers
+              const { appendUserMessage, appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
+              const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
+              const currentTranscript = sessionForAnswer.transcript_snapshot || [];
+
+              // Append gate question first
+              const gateQuestionStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:question`;
+              const transcriptAfterQ = await appendAssistantMessage(sessionId, currentTranscript, gate.promptText, {
+                id: `mi-gate-q-${gate.packId}-${gate.instanceNumber}`,
+                stableKey: gateQuestionStableKey,
+                messageType: 'MULTI_INSTANCE_GATE_SHOWN',
+                packId: gate.packId,
+                categoryId: gate.categoryId,
+                instanceNumber: gate.instanceNumber,
+                baseQuestionId: gate.baseQuestionId,
+                visibleToCandidate: true
+              });
+
+              // Append user's "Yes" answer
+              const gateAnswerStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:answer`;
+              await appendUserMessage(sessionId, transcriptAfterQ, 'Yes', {
+                id: `mi-gate-answer-${gate.packId}-${gate.instanceNumber}-yes`,
+                stableKey: gateAnswerStableKey,
+                messageType: 'MULTI_INSTANCE_GATE_ANSWER',
+                packId: gate.packId,
+                categoryId: gate.categoryId,
+                instanceNumber: gate.instanceNumber
+              });
+
+              console.log('[MI_GATE][TRANSCRIPT_APPEND_AFTER_ANSWER]', {
+                stableKeyBase: `mi-gate:${gate.packId}:${gate.instanceNumber}`,
+                appendedQ: true,
+                appendedA: true,
+                answer: 'Yes'
+              });
+
+              // Reload transcript
+              await refreshTranscriptFromDB('gate_yes_answered');
 
                // Clear gate
                setMultiInstanceGate(null);
@@ -8477,15 +8503,40 @@ export default function CandidateInterview() {
 
               setIsCommitting(true);
 
-              // Append user's "No" answer to transcript
-              const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
+              // PART 3: Append gate Q+A to transcript ONLY after user answers
+              const { appendUserMessage, appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
               const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
-              await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], 'No', {
+              const currentTranscript = sessionForAnswer.transcript_snapshot || [];
+              
+              // Append gate question first
+              const gateQuestionStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:question`;
+              const transcriptAfterQ = await appendAssistantMessage(sessionId, currentTranscript, gate.promptText, {
+                id: `mi-gate-q-${gate.packId}-${gate.instanceNumber}`,
+                stableKey: gateQuestionStableKey,
+                messageType: 'MULTI_INSTANCE_GATE_SHOWN',
+                packId: gate.packId,
+                categoryId: gate.categoryId,
+                instanceNumber: gate.instanceNumber,
+                baseQuestionId: gate.baseQuestionId,
+                visibleToCandidate: true
+              });
+              
+              // Append user's "No" answer
+              const gateAnswerStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:answer`;
+              await appendUserMessage(sessionId, transcriptAfterQ, 'No', {
                 id: `mi-gate-answer-${gate.packId}-${gate.instanceNumber}-no`,
+                stableKey: gateAnswerStableKey,
                 messageType: 'MULTI_INSTANCE_GATE_ANSWER',
                 packId: gate.packId,
                 categoryId: gate.categoryId,
                 instanceNumber: gate.instanceNumber
+              });
+              
+              console.log('[MI_GATE][TRANSCRIPT_APPEND_AFTER_ANSWER]', {
+                stableKeyBase: `mi-gate:${gate.packId}:${gate.instanceNumber}`,
+                appendedQ: true,
+                appendedA: true,
+                answer: 'No'
               });
 
               // Reload transcript
