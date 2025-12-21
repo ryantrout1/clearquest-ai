@@ -1667,34 +1667,14 @@ export default function CandidateInterview() {
     });
     
     // AUDIT: Verify no synthetic injection (append-only contract)
-    const prevRenderedLen = prevRenderedLenRef.current;
-    const nextRenderedLen = finalFiltered.length;
-    const shrinkDetected = prevRenderedLen !== null && nextRenderedLen < prevRenderedLen;
-    
     console.log('[TRANSCRIPT_AUDIT][SOURCE_OF_TRUTH]', {
       dbLen: base.length,
-      renderedLen: nextRenderedLen,
-      prevRenderedLen,
-      shrinkDetected,
+      renderedLen: finalFiltered.length,
       syntheticEnabled: ENABLE_SYNTHETIC_TRANSCRIPT
     });
     
-    // REGRESSION DETECTION: Log if rendered history shrinks
-    if (shrinkDetected) {
-      console.error('[REGRESSION][TRANSCRIPT_SHRINK]', {
-        prevLen: prevRenderedLen,
-        nextLen: nextRenderedLen,
-        delta: prevRenderedLen - nextRenderedLen,
-        screenMode,
-        currentItemType: currentItem?.type
-      });
-    }
-    
-    // Update ref for next render
-    prevRenderedLenRef.current = nextRenderedLen;
-    
     return finalFiltered;
-  }, [dbTranscript, currentItem, multiInstanceGate, screenMode]);
+  }, [dbTranscript, currentItem, multiInstanceGate]);
 
   // Verification instrumentation (moved above early returns)
   const uiContractViolationKeyRef = useRef(null);
