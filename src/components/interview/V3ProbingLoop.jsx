@@ -535,22 +535,51 @@ export default function V3ProbingLoop({
         // Update hash reference only for genuinely new prompts
         lastPromptHashRef.current = promptHash;
 
+        // OUTPUT BOUNDARY: Normalize probe question to enforce Date Rule
+        // This is the ONLY normalization layer - runs before setting state
+        const normalizedPrompt = await (async () => {
+          try {
+            // Fetch session and factModel for normalization context
+            const [sessionData, allFactModels] = await Promise.all([
+              base44.entities.InterviewSession.get(sessionId),
+              base44.entities.FactModel.list()
+            ]);
+
+            // Find the FactModel for this category
+            const factModel = allFactModels.find(fm => fm.category_id === categoryId);
+
+            return normalizeV3ProbeQuestion(data.nextPrompt, {
+              factModel,
+              session: sessionData,
+              incidentId: currentIncidentId,
+              packId: packData?.followup_pack_id
+            });
+          } catch (err) {
+            console.warn('[V3_OUTPUT_CONTRACT][NORMALIZATION_SKIP]', {
+              reason: 'Failed to fetch context for normalization',
+              error: err.message
+            });
+            // Fail open: return original prompt if normalization fails
+            return data.nextPrompt;
+          }
+        })();
+
         // Log prompt set for render-truth tracking
         console.log('[V3_SET_PROMPT]', {
           loopKey,
-          activePromptLen: data.nextPrompt?.length || 0,
-          preview: data.nextPrompt?.substring(0, 60) || null
+          activePromptLen: normalizedPrompt?.length || 0,
+          preview: normalizedPrompt?.substring(0, 60) || null
         });
 
         // UI CONTRACT: SINGLE SOURCE OF TRUTH - only set activePromptText
         // Do NOT add to messages array (prevents duplicate rendering)
-        setActivePromptText(data.nextPrompt);
+        setActivePromptText(normalizedPrompt);
         setActivePromptId(`v3-prompt-${currentIncidentId}-${newProbeCount}`);
         setIsDeciding(false);
 
         // HEADLESS MODE: Notify parent of new prompt (parent renders in prompt lane)
         if (onPromptChange) {
-          onPromptChange(data.nextPrompt);
+          onPromptChange(normalizedPrompt);
         }
 
         // HEADLESS MODE: Signal parent that answer is needed
