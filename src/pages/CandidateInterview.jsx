@@ -1358,6 +1358,9 @@ export default function CandidateInterview() {
   
   // Transcript monotonicity audit (log-only regression detection)
   const prevRenderedLenRef = useRef(null);
+  
+  // Render-time freeze: Snapshot transcript while typing to prevent flicker
+  const renderedTranscriptSnapshotRef = useRef(null);
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
