@@ -6573,7 +6573,7 @@ export default function CandidateInterview() {
       v3ProbingActive,
       activeBlocker: activeBlocker?.type,
       canonicalLen: dbTranscript?.length || 0,
-      renderLen: renderTranscript?.length || 0
+      renderLen: renderedTranscript?.length || 0
     };
     console.error('[FORENSIC][PROMPT_NULL_GUARD]', snapshot);
   }
