@@ -1694,6 +1694,16 @@ export default function CandidateInterview() {
     return finalFiltered;
   }, [dbTranscript, currentItem, multiInstanceGate]);
 
+  // Render-time freeze: Capture/clear snapshot based on isUserTyping
+  useEffect(() => {
+    if (isUserTyping && !renderedTranscriptSnapshotRef.current) {
+      renderedTranscriptSnapshotRef.current = renderedTranscript;
+      console.log('[TRANSCRIPT_RENDER][FROZEN_DURING_TYPING]', { len: renderedTranscript.length });
+    } else if (!isUserTyping && renderedTranscriptSnapshotRef.current) {
+      renderedTranscriptSnapshotRef.current = null;
+    }
+  }, [isUserTyping, renderedTranscript]);
+
   // Monotonicity audit (log-only regression detection)
   useEffect(() => {
     const prevRenderedLen = prevRenderedLenRef.current;
