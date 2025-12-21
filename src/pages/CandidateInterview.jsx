@@ -6139,8 +6139,7 @@ export default function CandidateInterview() {
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
   useEffect(() => {
     // Trigger: V3 probing active with prompt available
-    if (!v3ProbingActive || !v3ActivePromptText || effectiveItemType !== 'v3_probing') return;
-    if (bottomBarMode !== 'TEXT_INPUT') return;
+    if (!v3ProbingActive || !v3ActivePromptText) return;
     
     const scrollContainer = historyRef.current;
     if (!scrollContainer) return;
@@ -6162,7 +6161,7 @@ export default function CandidateInterview() {
       topBefore,
       topAfterTarget
     });
-  }, [v3ProbingActive, v3ActivePromptText, effectiveItemType, bottomBarMode, isUserTyping]);
+  }, [v3ProbingActive, v3ActivePromptText, isUserTyping]);
 
   // UX: Auto-resize textarea based on content (max 5 lines)
   useEffect(() => {
