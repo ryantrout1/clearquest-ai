@@ -7856,10 +7856,9 @@ export default function CandidateInterview() {
               <div ref={bottomAnchorRef} aria-hidden="true" />
               </div>
               </div>
-              </div>
               </main>
 
-              <footer ref={bottomBarRef} className="fixed bottom-0 left-0 right-0 z-50 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4" style={{height: 'auto'}}>
+              <footer className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
         <div className="max-w-5xl mx-auto">
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
           {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarMode guard above */}
