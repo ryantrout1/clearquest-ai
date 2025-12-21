@@ -5526,6 +5526,19 @@ export default function CandidateInterview() {
     console.log('[V3_ANSWER_SUBMIT]', { answerPreview: answerText?.substring(0, 50) });
     setV3PendingAnswer(answerText);
   }, []);
+  
+  // V3 answer consumed handler - clears pending answer after V3ProbingLoop consumes it
+  const handleV3AnswerConsumed = useCallback(({ loopKey, answerToken, probeCount }) => {
+    console.log('[V3_ANSWER_CONSUMED][CLEAR_PENDING]', {
+      loopKey,
+      answerToken,
+      probeCount,
+      hadValue: !!v3PendingAnswer
+    });
+    
+    // Clear pending answer immediately (prevents stall)
+    setV3PendingAnswer(null);
+  }, [v3PendingAnswer]);
 
   // V3 answer needed handler - stores answer submit capability + snapshot-based watchdog
   const handleV3AnswerNeeded = useCallback((answerContext) => {
@@ -6877,8 +6890,8 @@ export default function CandidateInterview() {
       handleV3AnswerSubmit(trimmed);
       setInput(""); // Clear input immediately
       
-      // Clear pending after brief delay (allows V3ProbingLoop to consume)
-      setTimeout(() => setV3PendingAnswer(null), 100);
+      // NOTE: V3ProbingLoop will call handleV3AnswerConsumed to clear pendingAnswer
+      // Do NOT clear here - let the loop control the lifecycle
       return;
     }
 
@@ -7613,6 +7626,7 @@ export default function CandidateInterview() {
                 onPromptChange={handleV3PromptChange}
                 onAnswerNeeded={handleV3AnswerNeeded}
                 pendingAnswer={v3PendingAnswer}
+                onAnswerConsumed={handleV3AnswerConsumed}
                 onPromptSet={({ loopKey, promptPreview, promptLen }) => {
                   console.log('[V3_PROBING][PROMPT_READY]', {
                     loopKey,
