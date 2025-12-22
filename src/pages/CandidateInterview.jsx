@@ -7802,10 +7802,29 @@ export default function CandidateInterview() {
     promptMissingKeyRef.current = null;
   }
 
+  // RENDER DISCRIMINATOR: Use footerController to determine what UI to render (NOT currentItemType)
+  // This ensures V3_PROMPT controller always renders V3 input UI, even when currentItemType is MI gate
+  const bottomBarRenderType = 
+    footerControllerLocal === "V3_PROMPT" ? "v3_probing" :
+    effectiveItemType || currentItemType;
+  
+  // CONTRACT ASSERT: Verify render type matches controller intent
+  if (footerControllerLocal === "V3_PROMPT" && bottomBarRenderType !== "v3_probing") {
+    console.error('[V3_UI_CONTRACT][RENDER_VIOLATION]', {
+      footerControllerLocal,
+      bottomBarRenderType,
+      currentItemType,
+      effectiveItemType,
+      reason: 'V3_PROMPT controller but render type not v3_probing'
+    });
+  }
+  
   // Debug log: confirm which bottom bar path is rendering
   console.log("[BOTTOM_BAR_RENDER]", {
     currentItemType,
     effectiveItemType,
+    bottomBarRenderType,
+    footerControllerLocal,
     currentItemId: currentItem?.id,
     packId: currentItem?.packId,
     fieldKey: currentItem?.fieldKey,
@@ -9022,7 +9041,7 @@ export default function CandidateInterview() {
                No
              </Button>
            </div>
-          ) : bottomBarMode === "YES_NO" && isMultiInstanceGate ? (
+          ) : bottomBarMode === "YES_NO" && (bottomBarRenderType === "multi_instance_gate" || isMultiInstanceGate) ? (
           <div className="flex gap-3">
           <Button
            onClick={async () => {
@@ -9256,7 +9275,7 @@ export default function CandidateInterview() {
              No
            </Button>
           </div>
-          ) : bottomBarMode === "YES_NO" ? (
+          ) : bottomBarMode === "YES_NO" && bottomBarRenderType !== "v3_probing" ? (
           <div className="flex gap-3">
             <Button
               ref={yesButtonRef}
