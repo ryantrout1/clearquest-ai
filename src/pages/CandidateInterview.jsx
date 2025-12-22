@@ -6870,88 +6870,10 @@ export default function CandidateInterview() {
 
   // Transcript logging is now handled in answer saving functions where we have Response IDs
   // This prevents logging questions with null responseId
-
-  // ============================================================================
-  // V3 PROMPT DETECTION + ACTIVE UI ITEM RESOLVER (TDZ-safe placement)
-  // ============================================================================
-  // CRITICAL: Placed after all hooks but before any usage in render/logs
-  // Multi-signal detection: V3 prompt is active if ANY of these signals are present
-  const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
-  const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
-  const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
-  const hasActiveV3Prompt = hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey;
-
-  // CANONICAL ACTIVE UI ITEM RESOLVER - Single source of truth
-  // Determines what UI should be shown based on strict precedence:
-  // V3_PROMPT > V3_OPENER > MI_GATE > DEFAULT
-  const resolveActiveUiItem = () => {
-    // Priority 1: V3 prompt active (multi-signal detection)
-    if (hasActiveV3Prompt) {
-      return {
-        kind: "V3_PROMPT",
-        packId: v3ProbingContext?.packId || currentItem?.packId,
-        categoryId: v3ProbingContext?.categoryId || currentItem?.categoryId,
-        instanceNumber: v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1,
-        promptText: v3ActivePromptText || v3ActiveProbeQuestionRef.current || "",
-        loopKey: v3ActiveProbeQuestionLoopKeyRef.current,
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id
-      };
-    }
-    
-    // Priority 2: V3 pack opener
-    if (currentItem?.type === 'v3_pack_opener') {
-      return {
-        kind: "V3_OPENER",
-        packId: currentItem.packId,
-        categoryId: currentItem.categoryId,
-        instanceNumber: currentItem.instanceNumber || 1,
-        promptText: currentItem.openerText || "",
-        currentItemType: currentItem.type,
-        currentItemId: currentItem.id
-      };
-    }
-    
-    // Priority 3: Multi-instance gate
-    if (currentItem?.type === 'multi_instance_gate') {
-      return {
-        kind: "MI_GATE",
-        packId: currentItem.packId,
-        categoryId: currentItem.categoryId,
-        instanceNumber: currentItem.instanceNumber || 1,
-        promptText: currentItem.promptText || multiInstanceGate?.promptText || "",
-        currentItemType: currentItem.type,
-        currentItemId: currentItem.id
-      };
-    }
-    
-    // Priority 4: Default (regular questions, v2 pack fields, etc.)
-    return {
-      kind: "DEFAULT",
-      currentItemType: currentItem?.type,
-      currentItemId: currentItem?.id,
-      promptText: null
-    };
-  };
   
-  const activeUiItem = resolveActiveUiItem();
-
   // ============================================================================
-  // BOTTOM BAR RENDER TYPE - Single source of truth (TDZ-safe early declaration)
+  // Derived state and resolver section moved to line 1472 (TDZ-safe early placement)
   // ============================================================================
-  // CRITICAL: Declare BEFORE any usage in logs, conditions, or helpers
-  // Derived from activeUiItem.kind to ensure controller/render alignment
-  const bottomBarRenderType = activeUiItem.kind === "V3_PROMPT" ? "v3_probing" :
-                              activeUiItem.kind === "V3_OPENER" ? "v3_pack_opener" :
-                              activeUiItem.kind === "MI_GATE" ? "multi_instance_gate" :
-                              "default"; // Computed from kind only (no circular deps)
-  
-  // SINGLE SOURCE OF TRUTH: Log render type immediately after computation
-  console.log('[BOTTOM_BAR_RENDER_TYPE][SOT]', {
-    activeUiItemKind: activeUiItem.kind,
-    bottomBarRenderType,
-    currentItemType: currentItem?.type
-  });
 
   const getCurrentPrompt = () => {
     // PRIORITY 1: V3 prompt active - use hasActiveV3Prompt (TDZ-safe minimal check)
