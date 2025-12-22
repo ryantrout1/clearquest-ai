@@ -7610,30 +7610,44 @@ export default function CandidateInterview() {
     ? `item:${currentItem.id}:${hasPrompt ? '1' : '0'}`
     : 'none';
   
-  // V3 OPENER SUBMIT STATE: Log submit affordance for opener
-  if (effectiveItemType === 'v3_pack_opener' && currentItem) {
+  // V3 OPENER SUBMIT STATE: Log submit affordance for opener (use currentItem.type directly)
+  if (currentItem?.type === 'v3_pack_opener') {
     const openerInputValue = openerDraft || "";
+    const openerTextTrimmed = openerInputValue.trim();
+    const openerTextTrimmedLen = openerTextTrimmed.length;
     const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem.id;
-    const openerDisabled = openerInputValue.trim().length === 0 || isCurrentItemCommitting;
+    
+    // SOURCE OF TRUTH: Single disabled calculation
+    const textareaDisabled = isCurrentItemCommitting;
+    const submitDisabled = openerTextTrimmedLen === 0 || isCurrentItemCommitting;
+    
+    // ENABLEMENT SOURCE OF TRUTH: Forensic log for debugging
+    console.log('[V3_OPENER][ENABLEMENT_SOT]', {
+      openerTextTrimmedLen,
+      isCurrentItemCommitting,
+      textareaDisabled,
+      submitDisabled,
+      bottomBarMode,
+      effectiveItemType,
+      packId: currentItem.packId,
+      instanceNumber: currentItem.instanceNumber
+    });
     
     // V3 OPENER DISABLED AUDIT: Log all factors affecting disabled state
-    const textareaDisabled = isCommitting && committingItemIdRef.current === currentItem.id;
-    const buttonDisabled = openerDraft?.trim().length === 0 || (isCommitting && committingItemIdRef.current === currentItem.id);
-    
     console.log('[V3_OPENER][DISABLED_AUDIT]', {
       effectiveItemType,
-      currentItemType: currentItem?.type,
-      packId: currentItem?.packId,
-      instanceNumber: currentItem?.instanceNumber,
+      currentItemType: currentItem.type,
+      packId: currentItem.packId,
+      instanceNumber: currentItem.instanceNumber,
       textareaDisabled,
-      buttonDisabled,
+      buttonDisabled: submitDisabled,
       reasons: {
         isCommitting,
         committingItemId: committingItemIdRef.current,
         currentItemId: currentItem.id,
         isCurrentItemCommitting,
         openerDraftLen: openerDraft?.length || 0,
-        openerDraftTrimLen: openerDraft?.trim().length || 0,
+        openerDraftTrimLen: openerTextTrimmedLen,
         hasPrompt
       }
     });
@@ -7685,8 +7699,8 @@ export default function CandidateInterview() {
     console.log('[V3_OPENER][SUBMIT_STATE]', {
       packId: currentItem.packId,
       instanceNumber: currentItem.instanceNumber,
-      disabled: openerDisabled,
-      inputLen: openerInputValue.length,
+      disabled: submitDisabled,
+      inputLen: openerTextTrimmedLen,
       hasPrompt,
       usingOpenerDraft: true,
       valueMatchesPrompt,
@@ -7710,8 +7724,8 @@ export default function CandidateInterview() {
     console.log('[V3_OPENER][VALUE_STATE]', {
       packId: currentItem.packId,
       instanceNumber: currentItem.instanceNumber,
-      valueLen: openerInputValue.length,
-      disabled: openerDisabled
+      valueLen: openerTextTrimmedLen,
+      disabled: submitDisabled
     });
   }
   
@@ -9306,61 +9320,63 @@ export default function CandidateInterview() {
           })()}
 
           <div className="flex gap-3">
-           <Textarea
-             ref={inputRef}
-             value={currentItem?.type === 'v3_pack_opener' ? (openerDraft ?? "") : (input ?? "")}
-             onChange={(e) => {
-               const value = e.target.value;
-               markUserTyping();
+          <Textarea
+            ref={inputRef}
+            value={currentItem?.type === 'v3_pack_opener' ? (openerDraft ?? "") : (input ?? "")}
+            onChange={(e) => {
+              const value = e.target.value;
+              markUserTyping();
 
-               // V3 OPENER: Use dedicated openerDraft state
-               if (currentItem?.type === 'v3_pack_opener') {
-                 // GUARD: Never allow prompt text as value
-                 const promptText = currentItem?.openerText || activePromptText || "";
-                 const valueMatchesPrompt = value.trim() === promptText.trim() && value.length > 10;
+              // V3 OPENER: Use dedicated openerDraft state (ALWAYS allow updates - no v3ProbingActive gate)
+              if (currentItem?.type === 'v3_pack_opener') {
+                // GUARD: Never allow prompt text as value
+                const promptText = currentItem?.openerText || activePromptText || "";
+                const valueMatchesPrompt = value.trim() === promptText.trim() && value.length > 10;
 
-                 if (valueMatchesPrompt) {
-                   console.error('[V3_UI_CONTRACT][OPENER_DRAFT_SEEDED_BLOCKED]', {
-                     packId: currentItem?.packId,
-                     instanceNumber: currentItem?.instanceNumber,
-                     reason: 'Attempted to seed openerDraft with prompt text - blocking onChange'
-                   });
-                   return; // Block the update
-                 }
+                if (valueMatchesPrompt) {
+                  console.error('[V3_UI_CONTRACT][OPENER_DRAFT_SEEDED_BLOCKED]', {
+                    packId: currentItem?.packId,
+                    instanceNumber: currentItem?.instanceNumber,
+                    reason: 'Attempted to seed openerDraft with prompt text - blocking onChange'
+                  });
+                  return; // Block the update
+                }
 
-                 setOpenerDraft(value);
+                // CRITICAL: Update openerDraft state unconditionally (no v3ProbingActive gate)
+                setOpenerDraft(value);
 
-                 // FORENSIC: Throttled keystroke capture proof (every 3 chars to avoid spam)
-                 openerDraftChangeCountRef.current++;
-                 if (openerDraftChangeCountRef.current % 3 === 1 || value.length === 0) {
-                   console.log('[V3_OPENER][DRAFT_CHANGE]', {
-                     packId: currentItem?.packId,
-                     instanceNumber: currentItem?.instanceNumber,
-                     len: value.length
-                   });
-                 }
+                // FORENSIC: Throttled keystroke capture proof (every 3 chars to avoid spam)
+                openerDraftChangeCountRef.current++;
+                if (openerDraftChangeCountRef.current % 3 === 1 || value.length === 0) {
+                  console.log('[V3_OPENER][DRAFT_CHANGE]', {
+                    packId: currentItem?.packId,
+                    instanceNumber: currentItem?.instanceNumber,
+                    len: value.length,
+                    v3ProbingActive
+                  });
+                }
 
-                 // DECOUPLE: Storage write failures must not block state update
-                 try {
-                   const draftKey = buildDraftKey(sessionId, currentItem?.packId, currentItem?.id, currentItem?.instanceNumber || 0);
-                   window.sessionStorage.setItem(draftKey, value);
-                 } catch (e) {
-                   // Silent fallback - in-memory draft is source of truth
-                 }
-               } else {
-                 saveDraft(value);
-                 setInput(value);
-               }
-             }}
-             onKeyDown={handleInputKeyDown}
-             placeholder="Type your response here…"
-             aria-label="Answer input"
-             className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
-             style={{ maxHeight: '120px', overflowY: 'auto' }}
-             disabled={currentItem?.type === 'v3_pack_opener' ? (isCommitting && committingItemIdRef.current === currentItem.id) : isCommitting}
-             autoFocus={hasPrompt || currentItem?.type === 'v3_pack_opener'}
-             rows={1}
-             />
+                // DECOUPLE: Storage write failures must not block state update
+                try {
+                  const draftKey = buildDraftKey(sessionId, currentItem?.packId, currentItem?.id, currentItem?.instanceNumber || 0);
+                  window.sessionStorage.setItem(draftKey, value);
+                } catch (e) {
+                  // Silent fallback - in-memory draft is source of truth
+                }
+              } else {
+                saveDraft(value);
+                setInput(value);
+              }
+            }}
+            onKeyDown={handleInputKeyDown}
+            placeholder="Type your response here…"
+            aria-label="Answer input"
+            className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
+            style={{ maxHeight: '120px', overflowY: 'auto' }}
+            disabled={currentItem?.type === 'v3_pack_opener' ? (isCommitting && committingItemIdRef.current === currentItem.id) : isCommitting}
+            autoFocus={hasPrompt || currentItem?.type === 'v3_pack_opener'}
+            rows={1}
+            />
              {/* V3 UI CONTRACT: Violation detection */}
              {(() => {
              const placeholder = "Type your response here…";
@@ -9398,27 +9414,30 @@ export default function CandidateInterview() {
                handleBottomBarSubmit();
              }}
              disabled={(() => {
-               // PART B: Surgical override for v3_pack_opener (use effectiveItemType, not currentItem.type)
-               if (effectiveItemType === 'v3_pack_opener') {
-                 const inputLen = (openerDraft ?? "").trim().length;
-                 const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem.id;
-                 const submitDisabled = inputLen === 0 || isCurrentItemCommitting;
+                // CRITICAL FIX: Use currentItem.type directly (not effectiveItemType) to prevent mismatch
+                if (currentItem?.type === 'v3_pack_opener') {
+                  const openerText = openerDraft || "";
+                  const openerTextTrimmed = openerText.trim();
+                  const inputLen = openerTextTrimmed.length;
+                  const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem.id;
+                  const submitDisabled = inputLen === 0 || isCurrentItemCommitting;
 
-                 console.log('[V3_OPENER][SUBMIT_ENABLE_CHECK]', {
-                   packId: currentItem?.packId,
-                   instanceNumber: currentItem?.instanceNumber,
-                   inputLen,
-                   isCurrentItemCommitting,
-                   submitDisabled,
-                   effectiveItemType
-                 });
+                  console.log('[V3_OPENER][SUBMIT_ENABLE_CHECK]', {
+                    packId: currentItem.packId,
+                    instanceNumber: currentItem.instanceNumber,
+                    inputLen,
+                    isCurrentItemCommitting,
+                    submitDisabled,
+                    currentItemType: currentItem.type,
+                    effectiveItemType
+                  });
 
-                 return submitDisabled;
-               }
+                  return submitDisabled;
+                }
 
-               // For all other types: use standard logic
-               return isBottomBarSubmitDisabled || !hasPrompt;
-             })()}
+                // For all other types: use standard logic
+                return isBottomBarSubmitDisabled || !hasPrompt;
+              })()}
              className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5 disabled:opacity-50"
            >
              {(currentItem?.type !== 'v3_pack_opener' && !hasPrompt) ? (
