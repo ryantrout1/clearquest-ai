@@ -5934,6 +5934,9 @@ export default function CandidateInterview() {
 
   // V3 answer submit handler - routes answer to V3ProbingLoop
   const handleV3AnswerSubmit = useCallback((answerText) => {
+    // TDZ FIX: Compute effectiveItemType locally (not from closure deps)
+    const localEffectiveItemType = v3ProbingActive ? 'v3_probing' : currentItem?.type;
+    
     v3SubmitCounterRef.current++;
     const submitId = v3SubmitCounterRef.current;
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
@@ -5954,7 +5957,7 @@ export default function CandidateInterview() {
         lastUiItemsPreview: prev.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
         transcriptLen: dbTranscript.length,
         v3ProbingActive,
-        effectiveItemType,
+        effectiveItemType: localEffectiveItemType,
         loopKey
       });
       return prev; // No mutation - just logging
@@ -5962,7 +5965,7 @@ export default function CandidateInterview() {
     
     // UI HISTORY: Append probe Q+A to display history (UI-only, not transcript)
     // PHASE GUARD: Only append during active V3 probing (prevents stale appends after gate transition)
-    if (v3ProbingActive && effectiveItemType === 'v3_probing' && loopKey && answerText?.trim()) {
+    if (v3ProbingActive && localEffectiveItemType === 'v3_probing' && loopKey && answerText?.trim()) {
       const questionText = v3ActiveProbeQuestionRef.current || v3ActivePromptText;
       const questionLoopKey = v3ActiveProbeQuestionLoopKeyRef.current || loopKey;
       
@@ -6019,18 +6022,18 @@ export default function CandidateInterview() {
       // Clear active probe question after moving to history
       v3ActiveProbeQuestionRef.current = null;
       v3ActiveProbeQuestionLoopKeyRef.current = null;
-    } else if (!v3ProbingActive || effectiveItemType !== 'v3_probing') {
+    } else if (!v3ProbingActive || localEffectiveItemType !== 'v3_probing') {
       // GUARD: Prevent append after V3 exit
       console.log('[V3_UI_HISTORY][APPEND_BLOCKED]', {
         v3ProbingActive,
-        effectiveItemType,
+        effectiveItemType: localEffectiveItemType,
         loopKey,
         reason: 'V3 probing not active - skipping history append to prevent out-of-order'
       });
     }
     
     setV3PendingAnswer(payload);
-  }, [v3ProbingContext, sessionId, v3ActivePromptText, effectiveItemType]);
+  }, [v3ProbingContext, sessionId, v3ActivePromptText, currentItem]);
   
   // V3 answer consumed handler - clears pending answer after V3ProbingLoop consumes it
   const handleV3AnswerConsumed = useCallback(({ loopKey, answerToken, probeCount, submitId }) => {
