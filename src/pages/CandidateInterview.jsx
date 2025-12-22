@@ -7430,6 +7430,25 @@ export default function CandidateInterview() {
     inputSnapshot: input
   });
 
+  // Unified YES/NO click handler - routes to handleAnswer with trace logging
+  const handleYesNoClick = useCallback((answer) => {
+    // MI_GATE TRACE A: YES/NO button click entry
+    console.log('[MI_GATE][TRACE][YESNO_CLICK]', {
+      clicked: answer,
+      effectiveItemType,
+      currentItemType: currentItem?.type,
+      currentItemId: currentItem?.id,
+      packId: currentItem?.packId,
+      instanceNumber: currentItem?.instanceNumber,
+      bottomBarMode
+    });
+    
+    // Route to handleAnswer (same path as all other answer types)
+    if (!isCommitting) {
+      handleAnswer(answer);
+    }
+  }, [effectiveItemType, currentItem, bottomBarMode, isCommitting, handleAnswer]);
+  
   // Unified bottom bar submit handler for question, v2_pack_field, followup, and V3 probing
   const handleBottomBarSubmit = async () => {
     console.log("[BOTTOM_BAR_SUBMIT][CLICK]", {
@@ -7443,21 +7462,6 @@ export default function CandidateInterview() {
       inputSnapshot: input?.substring?.(0, 50) || input,
       effectiveItemType
     });
-    
-    // MI_GATE TRACE 2: Submit click audit
-    if (effectiveItemType === 'multi_instance_gate' || currentItem?.type === 'multi_instance_gate') {
-      console.log('[MI_GATE][TRACE][SUBMIT_CLICK]', {
-        effectiveItemType,
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-        packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber,
-        bottomBarMode,
-        isMultiInstanceGate,
-        v3ProbingActive,
-        inputValue: input?.substring?.(0, 30)
-      });
-    }
 
     // ROUTE: V3 probing answer (headless mode)
     if (v3ProbingActive) {
@@ -8854,24 +8858,7 @@ export default function CandidateInterview() {
           <div className="flex gap-3">
             <Button
               ref={yesButtonRef}
-              onClick={() => {
-                if (isCommitting) return;
-
-                // MI_GATE TRACE 3: Regular YES button click
-                if (effectiveItemType === 'multi_instance_gate' || currentItem?.type === 'multi_instance_gate') {
-                  console.log('[MI_GATE][TRACE][REGULAR_BUTTON_YES]', {
-                    effectiveItemType,
-                    currentItemType: currentItem?.type,
-                    currentItemId: currentItem?.id,
-                    packId: currentItem?.packId,
-                    instanceNumber: currentItem?.instanceNumber,
-                    source: 'regular_yes_button',
-                    willRoute: 'handleAnswer'
-                  });
-                }
-
-                handleAnswer("Yes");
-              }}
+              onClick={() => handleYesNoClick("Yes")}
               disabled={isCommitting}
               className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -8880,24 +8867,7 @@ export default function CandidateInterview() {
             </Button>
             <Button
               ref={noButtonRef}
-              onClick={() => {
-                if (isCommitting) return;
-
-                // MI_GATE TRACE 3: Regular NO button click
-                if (effectiveItemType === 'multi_instance_gate' || currentItem?.type === 'multi_instance_gate') {
-                  console.log('[MI_GATE][TRACE][REGULAR_BUTTON_NO]', {
-                    effectiveItemType,
-                    currentItemType: currentItem?.type,
-                    currentItemId: currentItem?.id,
-                    packId: currentItem?.packId,
-                    instanceNumber: currentItem?.instanceNumber,
-                    source: 'regular_no_button',
-                    willRoute: 'handleAnswer'
-                  });
-                }
-
-                handleAnswer("No");
-              }}
+              onClick={() => handleYesNoClick("No")}
               disabled={isCommitting}
               className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
