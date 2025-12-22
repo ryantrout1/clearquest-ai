@@ -5098,6 +5098,15 @@ export default function CandidateInterview() {
           await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
         }
       } else if (currentItem.type === 'multi_instance_gate') {
+        // MI_GATE TRACE 3: Handler entry audit
+        console.log('[MI_GATE][TRACE][HANDLER_ENTER]', {
+          currentItemId: currentItem.id,
+          packId: currentItem.packId,
+          instanceNumber: currentItem.instanceNumber,
+          answer: value,
+          source: 'handleAnswer'
+        });
+        
         // PART C: Multi-instance gate handler - append Q+A after user answers
         const normalized = value.trim().toLowerCase();
         if (normalized !== 'yes' && normalized !== 'no') {
@@ -5131,6 +5140,8 @@ export default function CandidateInterview() {
         const { appendUserMessage, appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
         const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
         const currentTranscript = sessionForAnswer.transcript_snapshot || [];
+        
+        const transcriptLenBefore = currentTranscript.length;
 
         // Append gate question first
         const gateQuestionStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:q`;
@@ -5148,13 +5159,26 @@ export default function CandidateInterview() {
 
         // Append user's answer
         const gateAnswerStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:a`;
-        await appendUserMessage(sessionId, transcriptAfterQ, answer, {
+        const transcriptAfterA = await appendUserMessage(sessionId, transcriptAfterQ, answer, {
           id: `mi-gate-answer-${gate.packId}-${gate.instanceNumber}-${answer.toLowerCase()}`,
           stableKey: gateAnswerStableKey,
           messageType: 'MULTI_INSTANCE_GATE_ANSWER',
           packId: gate.packId,
           categoryId: gate.categoryId,
           instanceNumber: gate.instanceNumber
+        });
+        
+        const transcriptLenAfter = transcriptAfterA.length;
+
+        // MI_GATE TRACE 4: Append result audit
+        console.log('[MI_GATE][TRACE][APPEND_RESULT]', {
+          appendedQ: transcriptAfterQ.length > currentTranscript.length,
+          appendedA: transcriptAfterA.length > transcriptAfterQ.length,
+          qKey: gateQuestionStableKey,
+          aKey: gateAnswerStableKey,
+          transcriptLenBefore,
+          transcriptLenAfter,
+          delta: transcriptLenAfter - transcriptLenBefore
         });
 
         console.log('[MI_GATE][TRANSCRIPT_APPEND_AFTER_ANSWER]', {
@@ -7122,6 +7146,22 @@ export default function CandidateInterview() {
     isQuestion = true;
   }
   
+  // MI_GATE TRACE 1: Mode derivation audit
+  if (effectiveItemType === 'multi_instance_gate' || currentItemType === 'multi_instance_gate' || isMultiInstanceGate) {
+    console.log('[MI_GATE][TRACE][MODE]', {
+      effectiveItemType,
+      currentItemType,
+      bottomBarMode,
+      isMultiInstanceGate,
+      currentItemId: currentItem?.id,
+      packId: currentItem?.packId,
+      instanceNumber: currentItem?.instanceNumber,
+      v3GateActive,
+      v3ProbingActive,
+      pendingSectionTransition: !!pendingSectionTransition
+    });
+  }
+  
   // Log final mode selection
   console.log('[BOTTOM_BAR_MODE]', { currentItemType, effectiveItemType, bottomBarMode, isQuestion, screenMode });
   
@@ -7350,6 +7390,21 @@ export default function CandidateInterview() {
       inputSnapshot: input?.substring?.(0, 50) || input,
       effectiveItemType
     });
+    
+    // MI_GATE TRACE 2: Submit click audit
+    if (effectiveItemType === 'multi_instance_gate' || currentItem?.type === 'multi_instance_gate') {
+      console.log('[MI_GATE][TRACE][SUBMIT_CLICK]', {
+        effectiveItemType,
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+        bottomBarMode,
+        isMultiInstanceGate,
+        v3ProbingActive,
+        inputValue: input?.substring?.(0, 30)
+      });
+    }
 
     // ROUTE: V3 probing answer (headless mode)
     if (v3ProbingActive) {
@@ -8513,6 +8568,15 @@ export default function CandidateInterview() {
           <Button
            onClick={async () => {
              if (isCommitting) return;
+
+             // MI_GATE TRACE 3: Custom button YES click
+             console.log('[MI_GATE][TRACE][CUSTOM_BUTTON_YES]', {
+               packId: multiInstanceGate?.packId,
+               instanceNumber: multiInstanceGate?.instanceNumber,
+               currentItemId: currentItem?.id,
+               source: 'custom_gate_button'
+             });
+
              console.log('[MULTI_INSTANCE_GATE][YES] Starting next instance');
              const gate = multiInstanceGate;
 
@@ -8558,6 +8622,19 @@ export default function CandidateInterview() {
                 instanceNumber: gate.instanceNumber
               });
 
+              // MI_GATE TRACE 4: Append result audit (custom button YES)
+              const transcriptLenAfter = (await base44.entities.InterviewSession.get(sessionId)).transcript_snapshot?.length || 0;
+              console.log('[MI_GATE][TRACE][APPEND_RESULT]', {
+                appendedQ: true,
+                appendedA: true,
+                qKey: gateQuestionStableKey,
+                aKey: gateAnswerStableKey,
+                transcriptLenBefore: currentTranscript.length,
+                transcriptLenAfter,
+                delta: transcriptLenAfter - currentTranscript.length,
+                source: 'custom_button_yes'
+              });
+              
               console.log('[MI_GATE][TRANSCRIPT_APPEND_AFTER_ANSWER]', {
                 stableKeyBase: `mi-gate:${gate.packId}:${gate.instanceNumber}`,
                 appendedQ: true,
@@ -8620,6 +8697,15 @@ export default function CandidateInterview() {
            <Button
             onClick={async () => {
               if (isCommitting) return;
+              
+              // MI_GATE TRACE 3: Custom button NO click
+              console.log('[MI_GATE][TRACE][CUSTOM_BUTTON_NO]', {
+                packId: multiInstanceGate?.packId,
+                instanceNumber: multiInstanceGate?.instanceNumber,
+                currentItemId: currentItem?.id,
+                source: 'custom_gate_button'
+              });
+              
               console.log('[MULTI_INSTANCE_GATE][NO] Advancing to next question');
               const gate = multiInstanceGate;
 
@@ -8665,6 +8751,19 @@ export default function CandidateInterview() {
                 instanceNumber: gate.instanceNumber
               });
               
+              // MI_GATE TRACE 4: Append result audit (custom button NO)
+              const transcriptLenAfter = (await base44.entities.InterviewSession.get(sessionId)).transcript_snapshot?.length || 0;
+              console.log('[MI_GATE][TRACE][APPEND_RESULT]', {
+                appendedQ: true,
+                appendedA: true,
+                qKey: gateQuestionStableKey,
+                aKey: gateAnswerStableKey,
+                transcriptLenBefore: currentTranscript.length,
+                transcriptLenAfter,
+                delta: transcriptLenAfter - currentTranscript.length,
+                source: 'custom_button_no'
+              });
+              
               console.log('[MI_GATE][TRANSCRIPT_APPEND_AFTER_ANSWER]', {
                 stableKeyBase: `mi-gate:${gate.packId}:${gate.instanceNumber}`,
                 appendedQ: true,
@@ -8699,26 +8798,60 @@ export default function CandidateInterview() {
            </Button>
           </div>
           ) : bottomBarMode === "YES_NO" ? (
-           <div className="flex gap-3">
-             <Button
-               ref={yesButtonRef}
-               onClick={() => !isCommitting && handleAnswer("Yes")}
-               disabled={isCommitting}
-               className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-             >
-               <Check className="w-5 h-5 mr-2" />
-               Yes
-             </Button>
-             <Button
-               ref={noButtonRef}
-               onClick={() => !isCommitting && handleAnswer("No")}
-               disabled={isCommitting}
-               className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-             >
-               <X className="w-5 h-5 mr-2" />
-               No
-             </Button>
-           </div>
+          <div className="flex gap-3">
+            <Button
+              ref={yesButtonRef}
+              onClick={() => {
+                if (isCommitting) return;
+
+                // MI_GATE TRACE 3: Regular YES button click
+                if (effectiveItemType === 'multi_instance_gate' || currentItem?.type === 'multi_instance_gate') {
+                  console.log('[MI_GATE][TRACE][REGULAR_BUTTON_YES]', {
+                    effectiveItemType,
+                    currentItemType: currentItem?.type,
+                    currentItemId: currentItem?.id,
+                    packId: currentItem?.packId,
+                    instanceNumber: currentItem?.instanceNumber,
+                    source: 'regular_yes_button',
+                    willRoute: 'handleAnswer'
+                  });
+                }
+
+                handleAnswer("Yes");
+              }}
+              disabled={isCommitting}
+              className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Check className="w-5 h-5 mr-2" />
+              Yes
+            </Button>
+            <Button
+              ref={noButtonRef}
+              onClick={() => {
+                if (isCommitting) return;
+
+                // MI_GATE TRACE 3: Regular NO button click
+                if (effectiveItemType === 'multi_instance_gate' || currentItem?.type === 'multi_instance_gate') {
+                  console.log('[MI_GATE][TRACE][REGULAR_BUTTON_NO]', {
+                    effectiveItemType,
+                    currentItemType: currentItem?.type,
+                    currentItemId: currentItem?.id,
+                    packId: currentItem?.packId,
+                    instanceNumber: currentItem?.instanceNumber,
+                    source: 'regular_no_button',
+                    willRoute: 'handleAnswer'
+                  });
+                }
+
+                handleAnswer("No");
+              }}
+              disabled={isCommitting}
+              className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <X className="w-5 h-5 mr-2" />
+              No
+            </Button>
+          </div>
           ) : bottomBarMode === "DISABLED" ? (
            <div className="space-y-2">
              <div className="flex gap-3">
