@@ -5365,10 +5365,16 @@ export default function CandidateInterview() {
       setIsCommitting(false);
       setInput("");
     } finally {
-      // SAFETY: Always reset isCommitting after the handler completes
+      // SAFETY: Always reset isCommitting AND committingItemId after handler completes
       // This prevents the interview from getting stuck if any path forgets to reset
       setTimeout(() => {
         setIsCommitting(false);
+        committingItemIdRef.current = null; // CRITICAL: Clear item-scoped commit ID
+        console.log('[HANDLE_ANSWER][FINALLY_RESET]', {
+          isCommittingCleared: true,
+          committingItemIdCleared: true,
+          source: 'finally_safety_timeout'
+        });
       }, 100);
     }
     }, [currentItem, engine, queue, dbTranscript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, sectionCompletionMessage, activeV2Pack, v2PackMode, aiFollowupCounts, aiProbingEnabled, aiProbingDisabledForSession, refreshTranscriptFromDB]);
@@ -7286,6 +7292,28 @@ export default function CandidateInterview() {
     const openerInputValue = openerDraft || "";
     const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem.id;
     const openerDisabled = openerInputValue.trim().length === 0 || isCurrentItemCommitting;
+    
+    // V3 OPENER DISABLED AUDIT: Log all factors affecting disabled state
+    const textareaDisabled = isCommitting && committingItemIdRef.current === currentItem.id;
+    const buttonDisabled = openerDraft?.trim().length === 0 || (isCommitting && committingItemIdRef.current === currentItem.id);
+    
+    console.log('[V3_OPENER][DISABLED_AUDIT]', {
+      effectiveItemType,
+      currentItemType: currentItem?.type,
+      packId: currentItem?.packId,
+      instanceNumber: currentItem?.instanceNumber,
+      textareaDisabled,
+      buttonDisabled,
+      reasons: {
+        isCommitting,
+        committingItemId: committingItemIdRef.current,
+        currentItemId: currentItem.id,
+        isCurrentItemCommitting,
+        openerDraftLen: openerDraft?.length || 0,
+        openerDraftTrimLen: openerDraft?.trim().length || 0,
+        hasPrompt
+      }
+    });
     
     // DIAGNOSTIC: Log when item-scoped disabling happens
     if (isCurrentItemCommitting) {
