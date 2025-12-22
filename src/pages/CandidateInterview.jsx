@@ -1970,7 +1970,17 @@ export default function CandidateInterview() {
       const isFirstScroll = lastAutoScrollLenRef.current === currentLen && !didInitialSnapRef.current;
       const behavior = isFirstScroll ? 'auto' : 'smooth';
       
-      // Scroll to bottom anchor
+      // Log footer-safe padding application
+      const appliedPaddingPx = shouldRenderFooter ? 128 : 24;
+      console.log('[UI][FOOTER_SAFE_PADDING]', {
+        shouldRenderFooter,
+        bottomBarMode,
+        effectiveItemType,
+        appliedPaddingPx,
+        footerHeightPx
+      });
+      
+      // Scroll to bottom anchor (footer-safe padding already applied via className)
       bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior });
       
       // Clear programmatic flag after scroll completes
@@ -1978,7 +1988,7 @@ export default function CandidateInterview() {
         isProgrammaticScrollRef.current = false;
       });
     });
-  }, [footerHeightPx, dbTranscript]);
+  }, [footerHeightPx, dbTranscript, shouldRenderFooter, bottomBarMode, effectiveItemType]);
 
   const autoScrollToBottom = useCallback(() => {
     if (isUserTyping) return;
@@ -6674,18 +6684,23 @@ export default function CandidateInterview() {
     
     // Capture scroll position for diagnostic
     const topBefore = scrollContainer.scrollTop;
-    const topAfterTarget = scrollContainer.scrollHeight;
     
-    // Auto-scroll to reveal prompt lane
-    scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' });
+    // Footer-safe scroll: account for footer height to prevent card obscurement
+    const footerHeight = shouldRenderFooter ? footerHeightPx : 0;
+    const targetScrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+    
+    // Auto-scroll to reveal prompt lane (footer-safe)
+    scrollContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
     
     console.log('[V3_PROMPT_VISIBILITY_SCROLL]', {
       preview: v3ActivePromptText.slice(0, 80),
       reason: 'AUTO_SCROLL_ENABLED',
       topBefore,
-      topAfterTarget
+      targetScrollTop,
+      footerHeight,
+      footerSafeOffsetApplied: footerHeight > 0
     });
-  }, [v3ProbingActive, v3ActivePromptText, isUserTyping]);
+  }, [v3ProbingActive, v3ActivePromptText, isUserTyping, shouldRenderFooter, footerHeightPx]);
 
   // UX: Auto-resize textarea based on content (max 5 lines)
   useEffect(() => {
@@ -7773,7 +7788,7 @@ export default function CandidateInterview() {
       </style>
 
       <main className="flex-1 overflow-y-auto cq-scroll scrollbar-thin" ref={historyRef} onScroll={handleTranscriptScroll}>
-        <div className="px-4 pt-6 pb-6 flex flex-col min-h-full justify-end">
+        <div className={`px-4 pt-6 flex flex-col min-h-full justify-end ${shouldRenderFooter ? 'pb-32' : 'pb-6'}`}>
           <div className="space-y-2 relative isolate">
           {/* UNIFIED STREAM: Render all transcript messages from canonical source */}
           {(() => {
