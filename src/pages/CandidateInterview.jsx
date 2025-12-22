@@ -6630,7 +6630,20 @@ export default function CandidateInterview() {
     if (!el) return;
     
     const computeOverflow = () => {
-      const overflows = el.scrollHeight > el.clientHeight + 4; // 4px threshold for rounding
+      // SCROLL REF AUDIT: Confirm ref is attached to actual scroll container
+      console.log('[UI][SCROLL_REF_AUDIT]', {
+        hasEl: !!el,
+        overflowY: getComputedStyle(el).overflowY,
+        clientHeight: el.clientHeight,
+        scrollHeight: el.scrollHeight
+      });
+      
+      // FIX: Exclude paddingBottom from scrollHeight to prevent self-referential loop
+      // scrollHeight includes padding, which creates feedback where large padding causes overflow=true forever
+      const pb = parseFloat(getComputedStyle(el).paddingBottom || "0") || 0;
+      const contentHeight = el.scrollHeight - pb;
+      const overflows = contentHeight > el.clientHeight + 4; // 4px threshold for rounding
+      
       setContentOverflows(overflows);
       
       console.log('[UI][DYNAMIC_FOOTER_PADDING]', {
@@ -6638,6 +6651,8 @@ export default function CandidateInterview() {
         footerMeasuredHeightPx: footerHeightPx,
         footerSafePaddingPx,
         dynamicBottomPaddingPx: overflows ? footerSafePaddingPx : COMPACT_GAP_PX,
+        paddingBottomPx: pb,
+        contentHeightExcludingPadding: contentHeight,
         scrollHeight: el.scrollHeight,
         clientHeight: el.clientHeight
       });
