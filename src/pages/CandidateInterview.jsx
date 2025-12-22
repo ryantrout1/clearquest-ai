@@ -1355,6 +1355,11 @@ export default function CandidateInterview() {
   // Track V3-enabled packs: Map<packId, { isV3: boolean, factModelReady: boolean }>
   const [v3EnabledPacks, setV3EnabledPacks] = useState({});
   
+  // V3 PROMPT LIFECYCLE: Track prompt phase to prevent stale prompt rendering
+  // "IDLE" = no prompt, "ANSWER_NEEDED" = prompt active waiting for answer, "PROCESSING" = answer submitted
+  const [v3PromptPhase, setV3PromptPhase] = useState("IDLE");
+  const lastV3PromptPhaseRef = useRef("IDLE");
+  
   // FOOTER CONTROLLER TRACE: Track last seen values for change detection
   const lastFooterControllerRef = useRef(null);
   const lastBottomBarModeRef = useRef(null);
@@ -1478,7 +1483,10 @@ export default function CandidateInterview() {
   const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
   const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
   const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
-  const hasActiveV3Prompt = hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey;
+  
+  // LIFECYCLE-AWARE: Prompt is ONLY active when waiting for answer, NOT during processing
+  const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && 
+                            v3PromptPhase === "ANSWER_NEEDED";
 
   // CANONICAL ACTIVE UI ITEM RESOLVER - Single source of truth
   // Determines what UI should be shown based on strict precedence:
@@ -1547,8 +1555,28 @@ export default function CandidateInterview() {
   // Sanity log: confirm variable exists before render
   console.log("[BOTTOM_BAR_RENDER_TYPE][SOT_TOP]", { 
     activeUiItemKind: activeUiItem?.kind, 
-    bottomBarRenderTypeSOT 
+    bottomBarRenderTypeSOT,
+    v3PromptPhase,
+    hasV3PromptText,
+    hasActiveV3Prompt
   });
+  
+  // V3 PROMPT PHASE CHANGE TRACKER (unconditional hook)
+  useEffect(() => {
+    if (v3PromptPhase !== lastV3PromptPhaseRef.current) {
+      console.log('[V3_PROMPT_PHASE]', {
+        prev: lastV3PromptPhaseRef.current,
+        next: v3PromptPhase,
+        promptTextPreview: v3ActivePromptText?.substring(0, 40) || null,
+        hasV3PromptText,
+        hasActiveV3Prompt,
+        activeUiItemKind: activeUiItem?.kind,
+        loopKeyPreview: v3ActiveProbeQuestionLoopKeyRef.current || null,
+        promptIdPreview: lastV3PromptSnapshotRef.current?.promptId || null
+      });
+      lastV3PromptPhaseRef.current = v3PromptPhase;
+    }
+  }, [v3PromptPhase, v3ActivePromptText, hasV3PromptText, hasActiveV3Prompt, activeUiItem]);
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
@@ -5870,6 +5898,9 @@ export default function CandidateInterview() {
       setV3ProbingContext(null);
       setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
       setUiBlocker(null);
+      
+      // LIFECYCLE: Reset phase to IDLE on gate transition
+      setV3PromptPhase("IDLE");
 
       // PART B FIX: NEVER clear UI-only history during transition to gate
       // UI history must persist so user can see their V3 probe Q/A in chat
@@ -6048,6 +6079,9 @@ export default function CandidateInterview() {
 
     console.log('[V3_PROMPT_BIND]', { loopKey, promptLen: promptText?.length || 0 });
 
+    // LIFECYCLE: Set phase to ANSWER_NEEDED (prompt is now active)
+    setV3PromptPhase("ANSWER_NEEDED");
+
     // Clear typing lock (allow user input)
     setIsUserTyping(false);
 
@@ -6099,6 +6133,20 @@ export default function CandidateInterview() {
     };
     
     console.log('[V3_ANSWER_SUBMIT]', { submitId, answerPreview: answerText?.substring(0, 50), loopKey });
+    
+    // LIFECYCLE: Clear active prompt text immediately to prevent stale rendering
+    // This makes hasV3PromptText false so the prompt doesn't continue to render
+    setV3ActivePromptText("");
+    v3ActivePromptTextRef.current = "";
+    setV3PromptPhase("PROCESSING");
+    
+    console.log('[V3_PROMPT_CLEAR_ON_SUBMIT]', {
+      submitId,
+      answerPreview: answerText?.substring(0, 50),
+      phaseNow: "PROCESSING",
+      clearedPromptText: true,
+      loopKey
+    });
     
     // PART A: FORENSIC SNAPSHOT - Before append (deferred via state to avoid TDZ)
     setV3ProbeDisplayHistory(prev => {
@@ -6525,6 +6573,9 @@ export default function CandidateInterview() {
           setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
           setUiBlocker(null);
           
+          // LIFECYCLE: Reset phase to IDLE on inline gate transition
+          setV3PromptPhase("IDLE");
+          
           // PART B FIX: NEVER clear UI-only history during inline gate transition
           // UI history must persist across instances (user should see all V3 Q/A)
           // TDZ FIX: Read state via functional update (not direct reference during batch)
@@ -6595,6 +6646,9 @@ export default function CandidateInterview() {
         // Clear V3 state
         setV3ProbingActive(false);
         setV3ProbingContext(null);
+        
+        // LIFECYCLE: Reset phase to IDLE on exit
+        setV3PromptPhase("IDLE");
         
         // PART B FIX: NEVER clear UI-only history when exiting V3 to next question
         // User should see their entire V3 probe history across all incidents
@@ -8766,11 +8820,13 @@ export default function CandidateInterview() {
           {/* V3 PROBE PROMPT LANE: Active prompt card for V3 probing (purple AI follow-up) */}
           {(() => {
             // ROBUST GATING: Use state flags directly instead of strict type matching
+            // LIFECYCLE: Only render active prompt when phase is ANSWER_NEEDED (not PROCESSING)
             const shouldRenderV3PromptLaneCard = 
               v3ProbingActive &&
               effectiveItemType === 'v3_probing' &&
               v3ActivePromptText &&
               v3ActivePromptText.trim().length > 0 &&
+              v3PromptPhase === "ANSWER_NEEDED" &&
               !activeBlocker;
             
             // DIAGNOSTIC: Log when prompt exists but render condition fails
