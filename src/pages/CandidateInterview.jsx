@@ -6801,6 +6801,29 @@ export default function CandidateInterview() {
   // Transcript logging is now handled in answer saving functions where we have Response IDs
   // This prevents logging questions with null responseId
 
+  // ============================================================================
+  // FOOTER CONTROLLER - MOVED BEFORE getCurrentPrompt (TDZ FIX)
+  // ============================================================================
+  // V3 PROMPT PRECEDENCE FIX: Check ONLY if prompt text exists (NOT v3ProbingActive)
+  // This is the SINGLE SOURCE OF TRUTH for "does V3 have an active prompt"
+  const hasActiveV3Prompt = Boolean(
+    v3ActivePromptText && 
+    v3ActivePromptText.trim().length > 0
+  );
+  
+  const currentItemType = (v3GateActive ? 'v3_gate' : (v3ProbingActive ? 'v3_probing' : (pendingSectionTransition ? 'section_transition' : currentItem?.type || null)));
+  
+  // FOOTER CONTROLLER: Single deterministic priority system
+  // V3_PROMPT > MI_GATE > DEFAULT (in strict precedence order)
+  const footerController = hasActiveV3Prompt ? "V3_PROMPT" : 
+                          currentItemType === "multi_instance_gate" ? "MI_GATE" : 
+                          "DEFAULT";
+  
+  // UI TRUTH: effectiveItemType MUST align with footerController (prevents stale ref bypass)
+  const effectiveItemType = footerController === "V3_PROMPT" ? 'v3_probing' : 
+                           footerController === "MI_GATE" ? 'multi_instance_gate' :
+                           (v3ProbingActive ? 'v3_probing' : currentItemType);
+
   const getCurrentPrompt = () => {
     // PRIORITY 1: V3 probing active - show probe prompt in existing prompt lane
     if (v3ProbingActive && v3ActivePromptText) {
@@ -7276,26 +7299,7 @@ export default function CandidateInterview() {
   // ============================================================================
   // CENTRALIZED BOTTOM BAR MODE SELECTION (Single Decision Point)
   // ============================================================================
-  
-  // V3 PROMPT PRECEDENCE FIX: Check ONLY if prompt text exists (NOT v3ProbingActive)
-  // This is the SINGLE SOURCE OF TRUTH for "does V3 have an active prompt"
-  const hasActiveV3Prompt = Boolean(
-    v3ActivePromptText && 
-    v3ActivePromptText.trim().length > 0
-  );
-  
-  const currentItemType = (v3GateActive ? 'v3_gate' : (v3ProbingActive ? 'v3_probing' : (pendingSectionTransition ? 'section_transition' : currentItem?.type || null)));
-  
-  // FOOTER CONTROLLER: Single deterministic priority system
-  // V3_PROMPT > MI_GATE > DEFAULT (in strict precedence order)
-  const footerController = hasActiveV3Prompt ? "V3_PROMPT" : 
-                          currentItemType === "multi_instance_gate" ? "MI_GATE" : 
-                          "DEFAULT";
-  
-  // UI TRUTH: effectiveItemType MUST align with footerController (prevents stale ref bypass)
-  const effectiveItemType = footerController === "V3_PROMPT" ? 'v3_probing' : 
-                           footerController === "MI_GATE" ? 'multi_instance_gate' :
-                           (v3ProbingActive ? 'v3_probing' : currentItemType);
+  // NOTE: footerController + derived variables moved BEFORE getCurrentPrompt (TDZ fix)
   
   const isV3Gate = effectiveItemType === "v3_gate";
   const isMultiInstanceGate = effectiveItemType === "multi_instance_gate";
