@@ -7629,12 +7629,6 @@ export default function CandidateInterview() {
   v3ProbingActiveRef.current = v3ProbingActive;
   v3ProbingContextRef.current = v3ProbingContext;
   
-  // ACTIVE UI ITEM CHANGE TRACE: Sync to ref (hook declared at top-level)
-  // This updates the ref but the logging happens in the unconditional useEffect above
-  if (activeUiItem?.kind && activeUiItem.kind !== lastActiveUiItemKindRef.current) {
-    lastActiveUiItemKindRef.current = activeUiItem.kind;
-  }
-  
   // FRAME TRACE: Log footer controller changes (change-detection only)
   if (footerControllerLocal !== lastFooterControllerRef.current ||
       bottomBarMode !== lastBottomBarModeRef.current ||
