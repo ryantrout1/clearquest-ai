@@ -7430,8 +7430,8 @@ export default function CandidateInterview() {
     inputSnapshot: input
   });
 
-  // Unified YES/NO click handler - routes to handleAnswer with trace logging
-  const handleYesNoClick = useCallback((answer) => {
+  // Unified YES/NO click handler - routes to handleAnswer with trace logging (plain function, no hooks)
+  const handleYesNoClick = (answer) => {
     // MI_GATE TRACE A: YES/NO button click entry
     console.log('[MI_GATE][TRACE][YESNO_CLICK]', {
       clicked: answer,
@@ -7447,7 +7447,7 @@ export default function CandidateInterview() {
     if (!isCommitting) {
       handleAnswer(answer);
     }
-  }, [effectiveItemType, currentItem, bottomBarMode, isCommitting, handleAnswer]);
+  };
   
   // Unified bottom bar submit handler for question, v2_pack_field, followup, and V3 probing
   const handleBottomBarSubmit = async () => {
