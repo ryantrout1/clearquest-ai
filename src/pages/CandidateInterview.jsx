@@ -7716,12 +7716,26 @@ export default function CandidateInterview() {
               );
             }
 
-            // Multi-instance gate prompt shown (PART 3: Now only appears after answer)
+            // Multi-instance gate prompt shown (PART C: Only appears after answer, never filtered)
             if (entry.role === 'assistant' && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
-              console.log('[MI_GATE][RENDER_SOURCE]', {
-                source: 'TRANSCRIPT',
-                stableKey: entry.stableKey || entry.id
-              });
+              // PART C: Ensure gate Q/A items are NEVER filtered once appended
+              const stableKey = entry.stableKey || entry.id;
+              const isMiGateQA = stableKey && (stableKey.startsWith('mi-gate:') && (stableKey.endsWith(':q') || stableKey.endsWith(':a')));
+              
+              if (isMiGateQA) {
+                console.log('[MI_GATE][RENDER_PERSISTED]', {
+                  stableKey,
+                  packId: entry.packId,
+                  instanceNumber: entry.instanceNumber,
+                  source: 'TRANSCRIPT',
+                  reason: 'Appended after answer - must persist'
+                });
+              } else {
+                console.log('[MI_GATE][RENDER_SOURCE]', {
+                  source: 'TRANSCRIPT',
+                  stableKey: entry.stableKey || entry.id
+                });
+              }
 
               return (
                 <div key={entry.id}>
