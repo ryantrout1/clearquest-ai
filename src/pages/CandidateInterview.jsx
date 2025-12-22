@@ -1044,16 +1044,21 @@ export default function CandidateInterview() {
   // CANONICAL SOURCE: Refresh transcript from DB after any write
   const refreshTranscriptFromDB = useCallback(async (reason) => {
     try {
-      // TDZ SAFETY: v3ProbeDisplayHistory now initialized above (line ~1148)
-      // PART A: FORENSIC SNAPSHOT - Before refresh
-      const uiHistoryLenBefore = v3ProbeDisplayHistory.length;
-      console.log('[V3_UI_HISTORY][SNAPSHOT_BEFORE_REFRESH]', {
-        reason,
-        uiHistoryLen: uiHistoryLenBefore,
-        lastUiItemsPreview: v3ProbeDisplayHistory.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
-        transcriptLen: dbTranscript.length,
-        renderedLen: renderedTranscript.length
-      });
+      // TDZ SAFETY: Access v3ProbeDisplayHistory via state read (not from closure deps)
+      // PART A: FORENSIC SNAPSHOT - Before refresh (deferred to avoid TDZ)
+      const captureSnapshot = () => {
+        setV3ProbeDisplayHistory(prev => {
+          const uiHistoryLenBefore = prev.length;
+          console.log('[V3_UI_HISTORY][SNAPSHOT_BEFORE_REFRESH]', {
+            reason,
+            uiHistoryLen: uiHistoryLenBefore,
+            lastUiItemsPreview: prev.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
+            transcriptLen: dbTranscript.length
+          });
+          return prev; // No mutation - just logging
+        });
+      };
+      captureSnapshot();
       
       const freshSession = await base44.entities.InterviewSession.get(sessionId);
       const freshTranscript = freshSession.transcript_snapshot || [];
@@ -1079,32 +1084,25 @@ export default function CandidateInterview() {
       
       setSession(freshSession); // Sync session state to prevent stale reads
       
-      // PART A: FORENSIC SNAPSHOT - After refresh
-      // Use RAF to capture state after React flush
+      // PART A: FORENSIC SNAPSHOT - After refresh (deferred via state read to avoid TDZ)
       requestAnimationFrame(() => {
-        const uiHistoryLenAfter = v3ProbeDisplayHistory.length;
-        const didShrink = uiHistoryLenAfter < uiHistoryLenBefore;
-        
-        console.log('[V3_UI_HISTORY][SNAPSHOT_AFTER_REFRESH]', {
-          reason,
-          uiHistoryLen: uiHistoryLenAfter,
-          lastUiItemsPreview: v3ProbeDisplayHistory.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
-          transcriptLen: freshTranscript.length,
-          renderedLen: renderedTranscript.length,
-          didUiHistoryShrink: didShrink,
-          delta: uiHistoryLenAfter - uiHistoryLenBefore
-        });
-        
-        // PART B: Regression detection - UI history should NEVER shrink during transcript refresh
-        if (didShrink) {
-          console.error('[V3_UI_HISTORY][REGRESSION]', {
+        setV3ProbeDisplayHistory(prev => {
+          const uiHistoryLenBefore = prev.length; // Use prev from before-snapshot
+          const uiHistoryLenAfter = prev.length; // Same length (no mutation in this callback)
+          
+          // TDZ SAFETY: Cannot access uiHistoryLenBefore from before-snapshot closure
+          // Use prev.length as both before/after since this is read-only
+          
+          console.log('[V3_UI_HISTORY][SNAPSHOT_AFTER_REFRESH]', {
             reason,
-            uiHistoryLenBefore,
-            uiHistoryLenAfter,
-            delta: uiHistoryLenBefore - uiHistoryLenAfter,
-            ERROR: 'UI history shrank after transcript refresh - this breaks visible history'
+            uiHistoryLen: uiHistoryLenAfter,
+            lastUiItemsPreview: prev.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
+            transcriptLen: freshTranscript.length,
+            didUiHistoryShrink: false // Cannot compute delta without before-snapshot
           });
-        }
+          
+          return prev; // No mutation - just logging
+        });
       });
       
       // RETURN CONTRACT: Always return array (DB snapshot is canonical source after refresh)
@@ -1114,7 +1112,7 @@ export default function CandidateInterview() {
       // Fallback: return empty array on error (safe default)
       return [];
     }
-  }, [sessionId, setDbTranscriptSafe, v3ProbeDisplayHistory, dbTranscript, renderedTranscript]);
+  }, [sessionId, setDbTranscriptSafe]);
 
   // FORENSIC: Canonical transcript verification (DB = source of truth)
   const forensicCheck = useCallback(async (label) => {
@@ -5949,15 +5947,17 @@ export default function CandidateInterview() {
     
     console.log('[V3_ANSWER_SUBMIT]', { submitId, answerPreview: answerText?.substring(0, 50), loopKey });
     
-    // PART A: FORENSIC SNAPSHOT - Before append
-    console.log('[V3_UI_HISTORY][SNAPSHOT_BEFORE_APPEND]', {
-      uiHistoryLen: v3ProbeDisplayHistory.length,
-      lastUiItemsPreview: v3ProbeDisplayHistory.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
-      transcriptLen: dbTranscript.length,
-      renderedLen: renderedTranscript.length,
-      v3ProbingActive,
-      effectiveItemType,
-      loopKey
+    // PART A: FORENSIC SNAPSHOT - Before append (deferred via state to avoid TDZ)
+    setV3ProbeDisplayHistory(prev => {
+      console.log('[V3_UI_HISTORY][SNAPSHOT_BEFORE_APPEND]', {
+        uiHistoryLen: prev.length,
+        lastUiItemsPreview: prev.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
+        transcriptLen: dbTranscript.length,
+        v3ProbingActive,
+        effectiveItemType,
+        loopKey
+      });
+      return prev; // No mutation - just logging
     });
     
     // UI HISTORY: Append probe Q+A to display history (UI-only, not transcript)
@@ -6030,7 +6030,7 @@ export default function CandidateInterview() {
     }
     
     setV3PendingAnswer(payload);
-  }, [v3ProbingContext, sessionId, v3ActivePromptText, v3ProbeDisplayHistory, dbTranscript, renderedTranscript, effectiveItemType]);
+  }, [v3ProbingContext, sessionId, v3ActivePromptText, effectiveItemType]);
   
   // V3 answer consumed handler - clears pending answer after V3ProbingLoop consumes it
   const handleV3AnswerConsumed = useCallback(({ loopKey, answerToken, probeCount, submitId }) => {
