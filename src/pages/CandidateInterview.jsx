@@ -1470,6 +1470,71 @@ export default function CandidateInterview() {
   // Render-time freeze: Snapshot transcript while typing to prevent flicker
   const renderedTranscriptSnapshotRef = useRef(null);
 
+  // ============================================================================
+  // V3 PROMPT DETECTION + ACTIVE UI ITEM RESOLVER (TDZ-safe early placement)
+  // ============================================================================
+  // CRITICAL: These must be declared BEFORE useEffect that depends on activeUiItem
+  // Multi-signal detection: V3 prompt is active if ANY of these signals are present
+  const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
+  const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
+  const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
+  const hasActiveV3Prompt = hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey;
+
+  // CANONICAL ACTIVE UI ITEM RESOLVER - Single source of truth
+  // Determines what UI should be shown based on strict precedence:
+  // V3_PROMPT > V3_OPENER > MI_GATE > DEFAULT
+  const resolveActiveUiItem = () => {
+    // Priority 1: V3 prompt active (multi-signal detection)
+    if (hasActiveV3Prompt) {
+      return {
+        kind: "V3_PROMPT",
+        packId: v3ProbingContext?.packId || currentItem?.packId,
+        categoryId: v3ProbingContext?.categoryId || currentItem?.categoryId,
+        instanceNumber: v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1,
+        promptText: v3ActivePromptText || v3ActiveProbeQuestionRef.current || "",
+        loopKey: v3ActiveProbeQuestionLoopKeyRef.current,
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id
+      };
+    }
+    
+    // Priority 2: V3 pack opener
+    if (currentItem?.type === 'v3_pack_opener') {
+      return {
+        kind: "V3_OPENER",
+        packId: currentItem.packId,
+        categoryId: currentItem.categoryId,
+        instanceNumber: currentItem.instanceNumber || 1,
+        promptText: currentItem.openerText || "",
+        currentItemType: currentItem.type,
+        currentItemId: currentItem.id
+      };
+    }
+    
+    // Priority 3: Multi-instance gate
+    if (currentItem?.type === 'multi_instance_gate') {
+      return {
+        kind: "MI_GATE",
+        packId: currentItem.packId,
+        categoryId: currentItem.categoryId,
+        instanceNumber: currentItem.instanceNumber || 1,
+        promptText: currentItem.promptText || multiInstanceGate?.promptText || "",
+        currentItemType: currentItem.type,
+        currentItemId: currentItem.id
+      };
+    }
+    
+    // Priority 4: Default (regular questions, v2 pack fields, etc.)
+    return {
+      kind: "DEFAULT",
+      currentItemType: currentItem?.type,
+      currentItemId: currentItem?.id,
+      promptText: null
+    };
+  };
+  
+  const activeUiItem = resolveActiveUiItem();
+
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
     if (!v3Gate.active && v3Gate.promptText) {
@@ -2134,25 +2199,8 @@ export default function CandidateInterview() {
     console.log('[V3_UI_HISTORY][INIT_OK]', { len: 0, reason: 'session_change_cleanup' });
   }, [sessionId]);
 
-  // ACTIVE UI ITEM CHANGE TRACE: Log when activeUiItem.kind changes (must be unconditional)
-  // Dependencies computed after activeUiItem resolver, but hook must be declared here
-  useEffect(() => {
-    // GUARD: Skip if no active UI item available yet (early in component lifecycle)
-    if (!activeUiItem?.kind) return;
-    
-    if (activeUiItem.kind !== lastActiveUiItemKindRef.current) {
-      console.log('[ACTIVE_UI_ITEM][TRACE]', {
-        prevKind: lastActiveUiItemKindRef.current,
-        nextKind: activeUiItem.kind,
-        hasActiveV3Prompt: hasActiveV3Prompt || false,
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-        promptIdPreview: activeUiItem.promptText?.substring(0, 40) || null,
-        loopKeyPreview: activeUiItem.loopKey || null
-      });
-      lastActiveUiItemKindRef.current = activeUiItem.kind;
-    }
-  }, [activeUiItem?.kind, hasActiveV3Prompt, currentItem?.type, currentItem?.id]);
+  // ACTIVE UI ITEM CHANGE TRACE: Moved to render section (after activeUiItem is initialized)
+  // This avoids TDZ error while keeping hook order consistent
 
   // STABLE: Single mount per session - track by sessionId (survives remounts)
   const initMapRef = useRef({});
@@ -6824,18 +6872,16 @@ export default function CandidateInterview() {
   // This prevents logging questions with null responseId
 
   // ============================================================================
-  // V3 PROMPT DETECTION - MINIMAL BLOCK (TDZ-safe for getCurrentPrompt)
+  // V3 PROMPT DETECTION + ACTIVE UI ITEM RESOLVER (TDZ-safe placement)
   // ============================================================================
+  // CRITICAL: Placed after all hooks but before any usage in render/logs
   // Multi-signal detection: V3 prompt is active if ANY of these signals are present
-  // This prevents MI gate from stealing footer during prompt state transitions
   const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
   const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
   const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
   const hasActiveV3Prompt = hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey;
 
-  // ============================================================================
   // CANONICAL ACTIVE UI ITEM RESOLVER - Single source of truth
-  // ============================================================================
   // Determines what UI should be shown based on strict precedence:
   // V3_PROMPT > V3_OPENER > MI_GATE > DEFAULT
   const resolveActiveUiItem = () => {
