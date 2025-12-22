@@ -1044,6 +1044,16 @@ export default function CandidateInterview() {
   // CANONICAL SOURCE: Refresh transcript from DB after any write
   const refreshTranscriptFromDB = useCallback(async (reason) => {
     try {
+      // PART A: FORENSIC SNAPSHOT - Before refresh
+      const uiHistoryLenBefore = v3ProbeDisplayHistory.length;
+      console.log('[V3_UI_HISTORY][SNAPSHOT_BEFORE_REFRESH]', {
+        reason,
+        uiHistoryLen: uiHistoryLenBefore,
+        lastUiItemsPreview: v3ProbeDisplayHistory.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
+        transcriptLen: dbTranscript.length,
+        renderedLen: renderedTranscript.length
+      });
+      
       const freshSession = await base44.entities.InterviewSession.get(sessionId);
       const freshTranscript = freshSession.transcript_snapshot || [];
       
@@ -1068,6 +1078,34 @@ export default function CandidateInterview() {
       
       setSession(freshSession); // Sync session state to prevent stale reads
       
+      // PART A: FORENSIC SNAPSHOT - After refresh
+      // Use RAF to capture state after React flush
+      requestAnimationFrame(() => {
+        const uiHistoryLenAfter = v3ProbeDisplayHistory.length;
+        const didShrink = uiHistoryLenAfter < uiHistoryLenBefore;
+        
+        console.log('[V3_UI_HISTORY][SNAPSHOT_AFTER_REFRESH]', {
+          reason,
+          uiHistoryLen: uiHistoryLenAfter,
+          lastUiItemsPreview: v3ProbeDisplayHistory.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
+          transcriptLen: freshTranscript.length,
+          renderedLen: renderedTranscript.length,
+          didUiHistoryShrink: didShrink,
+          delta: uiHistoryLenAfter - uiHistoryLenBefore
+        });
+        
+        // PART B: Regression detection - UI history should NEVER shrink during transcript refresh
+        if (didShrink) {
+          console.error('[V3_UI_HISTORY][REGRESSION]', {
+            reason,
+            uiHistoryLenBefore,
+            uiHistoryLenAfter,
+            delta: uiHistoryLenBefore - uiHistoryLenAfter,
+            ERROR: 'UI history shrank after transcript refresh - this breaks visible history'
+          });
+        }
+      });
+      
       // RETURN CONTRACT: Always return array (DB snapshot is canonical source after refresh)
       return freshTranscript;
     } catch (err) {
@@ -1075,7 +1113,7 @@ export default function CandidateInterview() {
       // Fallback: return empty array on error (safe default)
       return [];
     }
-  }, [sessionId, setDbTranscriptSafe]);
+  }, [sessionId, setDbTranscriptSafe, v3ProbeDisplayHistory, dbTranscript, renderedTranscript]);
 
   // FORENSIC: Canonical transcript verification (DB = source of truth)
   const forensicCheck = useCallback(async (label) => {
@@ -5683,11 +5721,20 @@ export default function CandidateInterview() {
       setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
       setUiBlocker(null);
 
-      // Clear UI-only history when exiting to gate
-      setV3ProbeDisplayHistory([]);
+      // PART B FIX: NEVER clear UI-only history during transition to gate
+      // UI history must persist so user can see their V3 probe Q/A in chat
+      // Only clear on explicit session end or new session start
+      console.log('[V3_UI_HISTORY][PRESERVE_ON_GATE]', { 
+        reason: 'TRANSITION_TO_GATE', 
+        packId, 
+        instanceNumber,
+        uiHistoryLen: v3ProbeDisplayHistory.length,
+        action: 'PRESERVE (not clearing)'
+      });
+
+      // Clear active probe refs (but not history state)
       v3ActiveProbeQuestionRef.current = null;
       v3ActiveProbeQuestionLoopKeyRef.current = null;
-      console.log('[V3_UI_HISTORY][CLEAR]', { reason: 'TRANSITION_TO_GATE', packId, instanceNumber });
 
       // Set up multi-instance gate as first-class currentItem
       const gateItem = {
@@ -5895,6 +5942,17 @@ export default function CandidateInterview() {
     
     console.log('[V3_ANSWER_SUBMIT]', { submitId, answerPreview: answerText?.substring(0, 50), loopKey });
     
+    // PART A: FORENSIC SNAPSHOT - Before append
+    console.log('[V3_UI_HISTORY][SNAPSHOT_BEFORE_APPEND]', {
+      uiHistoryLen: v3ProbeDisplayHistory.length,
+      lastUiItemsPreview: v3ProbeDisplayHistory.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
+      transcriptLen: dbTranscript.length,
+      renderedLen: renderedTranscript.length,
+      v3ProbingActive,
+      effectiveItemType,
+      loopKey
+    });
+    
     // UI HISTORY: Append probe Q+A to display history (UI-only, not transcript)
     // PHASE GUARD: Only append during active V3 probing (prevents stale appends after gate transition)
     if (v3ProbingActive && effectiveItemType === 'v3_probing' && loopKey && answerText?.trim()) {
@@ -5902,9 +5960,14 @@ export default function CandidateInterview() {
       const questionLoopKey = v3ActiveProbeQuestionLoopKeyRef.current || loopKey;
       
       setV3ProbeDisplayHistory(prev => {
-        // Dedupe: Check if Q already exists for this loopKey+text
-        const qKey = `${questionLoopKey}:${questionText}`;
-        const hasQ = prev.some(e => e.kind === 'v3_probe_q' && e.text === questionText && e.loopKey === questionLoopKey);
+        // PART C: Stable key dedupe (prevents double-insert)
+        const promptSequence = submitId; // Use submitId as sequence number
+        const qStableKey = `v3-ui:${questionLoopKey}:${promptSequence}:q`;
+        const aStableKey = `v3-ui:${loopKey}:${promptSequence}:a`;
+        
+        // Check if Q already exists by stable key
+        const hasQ = prev.some(e => e.stableKey === qStableKey);
+        const hasA = prev.some(e => e.stableKey === aStableKey);
         
         const newEntries = [];
         if (!hasQ && questionText) {
@@ -5912,25 +5975,38 @@ export default function CandidateInterview() {
             kind: 'v3_probe_q',
             loopKey: questionLoopKey,
             text: questionText,
-            ts: Date.now()
+            ts: Date.now(),
+            stableKey: qStableKey
           });
+          console.log('[V3_UI_HISTORY][APPEND_Q]', { stableKey: qStableKey, qPreview: questionText?.substring(0, 50) });
+        } else if (hasQ) {
+          console.log('[V3_UI_HISTORY][DEDUPED]', { stableKey: qStableKey, type: 'q' });
         }
-        newEntries.push({
-          kind: 'v3_probe_a',
-          loopKey,
-          text: answerText,
-          ts: Date.now()
+        
+        if (!hasA) {
+          newEntries.push({
+            kind: 'v3_probe_a',
+            loopKey,
+            text: answerText,
+            ts: Date.now(),
+            stableKey: aStableKey
+          });
+          console.log('[V3_UI_HISTORY][APPEND_A]', { stableKey: aStableKey, aPreview: answerText?.substring(0, 50) });
+        } else {
+          console.log('[V3_UI_HISTORY][DEDUPED]', { stableKey: aStableKey, type: 'a' });
+        }
+        
+        // PART A: FORENSIC SNAPSHOT - After append (before state update)
+        const nextHistory = [...prev, ...newEntries];
+        console.log('[V3_UI_HISTORY][SNAPSHOT_AFTER_APPEND]', {
+          uiHistoryLenBefore: prev.length,
+          uiHistoryLenAfter: nextHistory.length,
+          delta: newEntries.length,
+          appendedQ: !hasQ && questionText,
+          appendedA: !hasA
         });
         
-        console.log('[V3_UI_HISTORY][APPEND]', { 
-          loopKey, 
-          qPreview: questionText?.substring(0, 50), 
-          aPreview: answerText?.substring(0, 50),
-          appendedQ: !hasQ,
-          appendedA: true
-        });
-        
-        return [...prev, ...newEntries];
+        return nextHistory;
       });
       
       // Clear active probe question after moving to history
@@ -5947,7 +6023,7 @@ export default function CandidateInterview() {
     }
     
     setV3PendingAnswer(payload);
-  }, [v3ProbingContext, sessionId, v3ActivePromptText]);
+  }, [v3ProbingContext, sessionId, v3ActivePromptText, v3ProbeDisplayHistory, dbTranscript, renderedTranscript, effectiveItemType]);
   
   // V3 answer consumed handler - clears pending answer after V3ProbingLoop consumes it
   const handleV3AnswerConsumed = useCallback(({ loopKey, answerToken, probeCount, submitId }) => {
@@ -6289,11 +6365,19 @@ export default function CandidateInterview() {
           setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
           setUiBlocker(null);
           
-          // Clear UI-only history when exiting to gate
-          setV3ProbeDisplayHistory([]);
+          // PART B FIX: NEVER clear UI-only history during inline gate transition
+          // UI history must persist across instances (user should see all V3 Q/A)
+          console.log('[V3_UI_HISTORY][PRESERVE_ON_GATE_INLINE]', { 
+            reason: 'TRANSITION_TO_GATE_INLINE', 
+            packId, 
+            instanceNumber,
+            uiHistoryLen: v3ProbeDisplayHistory.length,
+            action: 'PRESERVE (not clearing)'
+          });
+          
+          // Clear active probe refs (but not history state)
           v3ActiveProbeQuestionRef.current = null;
           v3ActiveProbeQuestionLoopKeyRef.current = null;
-          console.log('[V3_UI_HISTORY][CLEAR]', { reason: 'TRANSITION_TO_GATE_INLINE', packId, instanceNumber });
 
           // Set up multi-instance gate as first-class currentItem
           const gateItem = {
@@ -6347,11 +6431,18 @@ export default function CandidateInterview() {
         setV3ProbingActive(false);
         setV3ProbingContext(null);
         
-        // Clear UI-only history when exiting V3 probing
-        setV3ProbeDisplayHistory([]);
+        // PART B FIX: NEVER clear UI-only history when exiting V3 to next question
+        // User should see their entire V3 probe history across all incidents
+        console.log('[V3_UI_HISTORY][PRESERVE_ON_EXIT]', { 
+          reason: 'EXIT_V3', 
+          loopKey,
+          uiHistoryLen: v3ProbeDisplayHistory.length,
+          action: 'PRESERVE (not clearing)'
+        });
+        
+        // Clear active probe refs (but not history state)
         v3ActiveProbeQuestionRef.current = null;
         v3ActiveProbeQuestionLoopKeyRef.current = null;
-        console.log('[V3_UI_HISTORY][CLEAR]', { reason: 'EXIT_V3', loopKey });
 
         // Log pack exited (audit only)
         if (v3ProbingContext?.packId) {
@@ -8454,8 +8545,8 @@ export default function CandidateInterview() {
               )}
 
               {/* V3 UI-ONLY HISTORY: Render probe Q/A for user's chat history perception */}
-              {/* PHASE GUARD: Only show during active V3 probing (prevents out-of-order after gate transition) */}
-              {v3ProbingActive && effectiveItemType === 'v3_probing' && v3ProbeDisplayHistory.length > 0 && v3ProbeDisplayHistory.map((entry, idx) => {
+              {/* PART D: ALWAYS render UI history (not just during active probing - persists across transitions) */}
+              {v3ProbeDisplayHistory.length > 0 && v3ProbeDisplayHistory.map((entry, idx) => {
                 const key = `v3-ui-${entry.loopKey}-${entry.kind}-${idx}`;
                 
                 if (entry.kind === 'v3_probe_q') {
