@@ -7653,7 +7653,7 @@ export default function CandidateInterview() {
     });
     
     // PART A: Comprehensive submit disabled reason breakdown
-    const inputLen = openerInputValue.trim().length;
+    const inputLen = openerTextTrimmedLen; // Use already-computed trimmed length
     const hasIdempotencyLock = submittedKeysRef.current.has(`v3o:${currentItem.packId}:${currentItem.instanceNumber || 0}`);
     
     console.log('[V3_OPENER][SUBMIT_DISABLED_REASONS]', {
@@ -7668,7 +7668,7 @@ export default function CandidateInterview() {
       currentItemId: currentItem.id,
       hasIdempotencyLock,
       openerDraftValue: openerDraft?.substring(0, 30) || '(empty)',
-      computedDisabled: buttonDisabled
+      computedDisabled: submitDisabled
     });
     
     // DIAGNOSTIC: Log when item-scoped disabling happens
