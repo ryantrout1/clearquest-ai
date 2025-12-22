@@ -7399,13 +7399,20 @@ export default function CandidateInterview() {
     screenMode === 'QUESTION' && 
     (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
   
-  // TDZ FIX: Log footer-safe padding AFTER shouldRenderFooter is declared
+  // DYNAMIC FOOTER-SAFE PADDING: Compute after shouldRenderFooter is declared
+  const SAFETY_MARGIN_PX = 8;
+  const MIN_FOOTER_FALLBACK_PX = 80; // Conservative fallback until measured
+  const footerSafePaddingPx = shouldRenderFooter 
+    ? (footerHeightPx > 0 ? footerHeightPx : MIN_FOOTER_FALLBACK_PX) + SAFETY_MARGIN_PX
+    : 0;
+  
   console.log('[UI][FOOTER_SAFE_PADDING]', {
     shouldRenderFooter,
     bottomBarMode,
     effectiveItemType,
-    appliedPaddingPx: shouldRenderFooter ? 128 : 24,
-    footerHeightPx
+    footerMeasuredHeightPx: footerHeightPx,
+    footerSafePaddingPx,
+    usingFallback: shouldRenderFooter && footerHeightPx === 0
   });
   
   // Auto-focus control props (pure values, no hooks)
@@ -7782,7 +7789,7 @@ export default function CandidateInterview() {
       </style>
 
       <main className="flex-1 overflow-y-auto cq-scroll scrollbar-thin" ref={historyRef} onScroll={handleTranscriptScroll}>
-        <div className={`px-4 pt-6 flex flex-col min-h-full justify-end ${shouldRenderFooter ? 'pb-32' : 'pb-6'}`}>
+        <div className="px-4 pt-6 flex flex-col min-h-full justify-end" style={{ paddingBottom: `${24 + footerSafePaddingPx}px` }}>
           <div className="space-y-2 relative isolate">
           {/* UNIFIED STREAM: Render all transcript messages from canonical source */}
           {(() => {
