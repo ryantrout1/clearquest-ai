@@ -1277,6 +1277,60 @@ export default function CandidateInterview() {
   const [contentOverflows, setContentOverflows] = useState(false); // Track if scroll container overflows
   
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
+  
+  // HOOK ORDER FIX: Overflow detection MUST be top-level (before early returns)
+  // Computes if scroll container content exceeds viewport - drives dynamic footer padding
+  React.useLayoutEffect(() => {
+    const el = historyRef.current;
+    if (!el) return;
+    
+    const computeOverflow = () => {
+      // SCROLL REF AUDIT: Confirm ref is attached to actual scroll container
+      console.log('[UI][SCROLL_REF_AUDIT]', {
+        hasEl: !!el,
+        overflowY: getComputedStyle(el).overflowY,
+        clientHeight: el.clientHeight,
+        scrollHeight: el.scrollHeight
+      });
+      
+      // FIX: Exclude paddingBottom from scrollHeight to prevent self-referential loop
+      // scrollHeight includes padding, which creates feedback where large padding causes overflow=true forever
+      const pb = parseFloat(getComputedStyle(el).paddingBottom || "0") || 0;
+      const contentHeight = el.scrollHeight - pb;
+      const overflows = contentHeight > el.clientHeight + 4; // 4px threshold for rounding
+      
+      // Only update state if changed (prevents thrash)
+      setContentOverflows(prev => {
+        if (prev === overflows) return prev;
+        
+        console.log('[UI][DYNAMIC_FOOTER_PADDING]', {
+          contentOverflows: overflows,
+          paddingBottomPx: pb,
+          contentHeightExcludingPadding: contentHeight,
+          scrollHeight: el.scrollHeight,
+          clientHeight: el.clientHeight,
+          transitioned: prev !== overflows ? `${prev} → ${overflows}` : 'no change'
+        });
+        
+        return overflows;
+      });
+    };
+    
+    // Compute on mount and when dependencies change
+    computeOverflow();
+    
+    // Recompute on window resize
+    const handleResize = () => computeOverflow();
+    window.addEventListener('resize', handleResize);
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, [
+    dbTranscript?.length ?? 0,
+    v3ProbeDisplayHistory?.length ?? 0,
+    currentItem?.type,
+    currentItem?.id,
+    footerHeightPx
+  ]);
 
   const [interviewMode, setInterviewMode] = useState("DETERMINISTIC");
   const [ideEnabled, setIdeEnabled] = useState(false);
@@ -7421,58 +7475,6 @@ export default function CandidateInterview() {
     dynamicBottomPaddingPx,
     usingFallback: shouldRenderFooter && footerHeightPx === 0
   });
-  
-  // TDZ FIX: Compute content overflow state AFTER effectiveItemType is declared
-  // Determines if full footer padding is needed (prevents self-referential measurement loop)
-  React.useLayoutEffect(() => {
-    const el = historyRef.current;
-    if (!el) return;
-    
-    const computeOverflow = () => {
-      // SCROLL REF AUDIT: Confirm ref is attached to actual scroll container
-      console.log('[UI][SCROLL_REF_AUDIT]', {
-        hasEl: !!el,
-        overflowY: getComputedStyle(el).overflowY,
-        clientHeight: el.clientHeight,
-        scrollHeight: el.scrollHeight
-      });
-      
-      // FIX: Exclude paddingBottom from scrollHeight to prevent self-referential loop
-      // scrollHeight includes padding, which creates feedback where large padding causes overflow=true forever
-      const pb = parseFloat(getComputedStyle(el).paddingBottom || "0") || 0;
-      const contentHeight = el.scrollHeight - pb;
-      const overflows = contentHeight > el.clientHeight + 4; // 4px threshold for rounding
-      
-      setContentOverflows(overflows);
-      
-      console.log('[UI][DYNAMIC_FOOTER_PADDING]', {
-        contentOverflows: overflows,
-        footerMeasuredHeightPx: footerHeightPx,
-        footerSafePaddingPx,
-        dynamicBottomPaddingPx: overflows ? footerSafePaddingPx : COMPACT_GAP_PX,
-        paddingBottomPx: pb,
-        contentHeightExcludingPadding: contentHeight,
-        scrollHeight: el.scrollHeight,
-        clientHeight: el.clientHeight
-      });
-    };
-    
-    // Compute on mount and when dependencies change
-    computeOverflow();
-    
-    // Recompute on window resize
-    const handleResize = () => computeOverflow();
-    window.addEventListener('resize', handleResize);
-    
-    return () => window.removeEventListener('resize', handleResize);
-  }, [
-    dbTranscript.length,
-    v3ProbeDisplayHistory.length,
-    effectiveItemType,
-    currentItem?.id,
-    footerHeightPx,
-    footerSafePaddingPx
-  ]);
   
   // Auto-focus control props (pure values, no hooks)
   const focusEnabled = screenMode === 'QUESTION';
