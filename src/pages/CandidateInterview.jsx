@@ -6812,8 +6812,8 @@ export default function CandidateInterview() {
   );
 
   const getCurrentPrompt = () => {
-    // PRIORITY 1: V3 probing active - show probe prompt in existing prompt lane
-    if (v3ProbingActive && v3ActivePromptText) {
+    // PRIORITY 1: V3 prompt active - use hasActiveV3Prompt (TDZ-safe minimal check)
+    if (hasActiveV3Prompt && v3ActivePromptText) {
       const packConfig = FOLLOWUP_PACK_CONFIGS[v3ProbingContext?.packId];
       const packLabel = packConfig?.instancesLabel || v3ProbingContext?.categoryLabel || 'AI Follow-Up';
       
@@ -7308,6 +7308,17 @@ export default function CandidateInterview() {
     v3PromptPreview: v3ActivePromptText?.substring(0, 40) || null
   });
   
+  // HARD GUARD: Force TEXT_INPUT if V3 prompt exists (prevents MI_GATE from stealing footer)
+  // This is the FINAL enforcement point - if hasActiveV3Prompt is true, bottomBarMode MUST be TEXT_INPUT
+  if (hasActiveV3Prompt) {
+    console.log('[FOOTER_CONTROLLER_GUARD]', {
+      hasActiveV3Prompt: true,
+      footerControllerLocal,
+      action: 'FORCE_TEXT_INPUT_BEFORE_MODE_SELECTION',
+      reason: 'Hard guard - V3 prompt takes absolute precedence over all other modes'
+    });
+  }
+  
   const isV3Gate = effectiveItemType === "v3_gate";
   const isMultiInstanceGate = effectiveItemType === "multi_instance_gate";
   
@@ -7329,7 +7340,24 @@ export default function CandidateInterview() {
      bottomBarMode = "CTA"; // "Begin Next Section" button
    }
   // FOOTER CONTROLLER ENFORCEMENT: V3_PROMPT controller takes absolute precedence
-  if (footerControllerLocal === "V3_PROMPT") {
+  // HARD GUARD: Double-check hasActiveV3Prompt and force TEXT_INPUT unconditionally
+  if (hasActiveV3Prompt) {
+    bottomBarMode = "TEXT_INPUT";
+    isQuestion = true;
+    console.log('[V3_MI_GATE_PRECEDENCE][HARD_GUARD]', {
+      footerControllerLocal,
+      hasActiveV3Prompt: true,
+      v3PromptPreview: v3ActivePromptText?.substring(0, 40),
+      currentItemType: currentItem?.type,
+      effectiveItemType,
+      bottomBarMode,
+      packId: currentItem?.packId || v3ProbingContext?.packId,
+      instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
+      reason: 'HARD GUARD - V3 prompt exists, forcing TEXT_INPUT (absolute precedence over MI_GATE)'
+    });
+  }
+  // V3_PROMPT controller via footerControllerLocal (secondary check)
+  else if (footerControllerLocal === "V3_PROMPT") {
     bottomBarMode = "TEXT_INPUT";
     isQuestion = true;
     console.log('[V3_MI_GATE_PRECEDENCE]', {
@@ -7345,7 +7373,7 @@ export default function CandidateInterview() {
     });
   }
   // MI_GATE controller (only when V3 prompt is NOT active)
-  else if (footerControllerLocal === "MI_GATE" && isMultiInstanceGate) {
+  else if (footerControllerLocal === "MI_GATE" && isMultiInstanceGate && !hasActiveV3Prompt) {
     // PART 2: Hard guard - never show YES/NO without question text
     const gatePromptText = currentItem?.promptText || multiInstanceGate?.promptText;
     
