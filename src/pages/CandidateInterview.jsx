@@ -7438,6 +7438,25 @@ export default function CandidateInterview() {
       }
     });
     
+    // PART A: Comprehensive submit disabled reason breakdown
+    const inputLen = openerInputValue.trim().length;
+    const hasIdempotencyLock = submittedKeysRef.current.has(`v3o:${currentItem.packId}:${currentItem.instanceNumber || 0}`);
+    
+    console.log('[V3_OPENER][SUBMIT_DISABLED_REASONS]', {
+      packId: currentItem.packId,
+      instanceNumber: currentItem.instanceNumber,
+      inputLen,
+      hasPrompt,
+      v3ProbingActive,
+      typingLockActive: isUserTyping,
+      isCurrentItemCommitting,
+      committingItemId: committingItemIdRef.current,
+      currentItemId: currentItem.id,
+      hasIdempotencyLock,
+      openerDraftValue: openerDraft?.substring(0, 30) || '(empty)',
+      computedDisabled: buttonDisabled
+    });
+    
     // DIAGNOSTIC: Log when item-scoped disabling happens
     if (isCurrentItemCommitting) {
       console.log('[V3_OPENER][DISABLED_BY_COMMIT]', {
@@ -9178,7 +9197,28 @@ export default function CandidateInterview() {
                });
                handleBottomBarSubmit();
              }}
-             disabled={currentItem?.type === 'v3_pack_opener' ? (openerDraft?.trim().length === 0 || (isCommitting && committingItemIdRef.current === currentItem.id)) : (isBottomBarSubmitDisabled || !hasPrompt)}
+             disabled={(() => {
+               // PART B: Surgical override for v3_pack_opener (use effectiveItemType, not currentItem.type)
+               if (effectiveItemType === 'v3_pack_opener') {
+                 const inputLen = (openerDraft ?? "").trim().length;
+                 const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem.id;
+                 const submitDisabled = inputLen === 0 || isCurrentItemCommitting;
+
+                 console.log('[V3_OPENER][SUBMIT_ENABLE_CHECK]', {
+                   packId: currentItem?.packId,
+                   instanceNumber: currentItem?.instanceNumber,
+                   inputLen,
+                   isCurrentItemCommitting,
+                   submitDisabled,
+                   effectiveItemType
+                 });
+
+                 return submitDisabled;
+               }
+
+               // For all other types: use standard logic
+               return isBottomBarSubmitDisabled || !hasPrompt;
+             })()}
              className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5 disabled:opacity-50"
            >
              {(currentItem?.type !== 'v3_pack_opener' && !hasPrompt) ? (
