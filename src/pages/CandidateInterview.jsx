@@ -1044,6 +1044,7 @@ export default function CandidateInterview() {
   // CANONICAL SOURCE: Refresh transcript from DB after any write
   const refreshTranscriptFromDB = useCallback(async (reason) => {
     try {
+      // TDZ SAFETY: v3ProbeDisplayHistory now initialized above (line ~1148)
       // PART A: FORENSIC SNAPSHOT - Before refresh
       const uiHistoryLenBefore = v3ProbeDisplayHistory.length;
       console.log('[V3_UI_HISTORY][SNAPSHOT_BEFORE_REFRESH]', {
@@ -1182,6 +1183,9 @@ export default function CandidateInterview() {
   }, [sessionId, setDbTranscriptSafe]);
 
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
+  
+  // V3 UI-ONLY HISTORY: Moved here to prevent TDZ error (used in refreshTranscriptFromDB below)
+  const [v3ProbeDisplayHistory, setV3ProbeDisplayHistory] = useState([]);
 
   const [aiSessionId, setAiSessionId] = useState(null);
   const [aiProbingPackInstanceKey, setAiProbingPackInstanceKey] = useState(null);
@@ -1396,7 +1400,7 @@ export default function CandidateInterview() {
   const v3SubmitCounterRef = useRef(0);
   
   // V3 UI-ONLY HISTORY: Display V3 probe Q/A without polluting transcript
-  const [v3ProbeDisplayHistory, setV3ProbeDisplayHistory] = useState([]);
+  // MOVED UP: Must be declared before refreshTranscriptFromDB (TDZ fix)
   const v3ActiveProbeQuestionRef = useRef(null);
   const v3ActiveProbeQuestionLoopKeyRef = useRef(null);
   
@@ -2065,6 +2069,9 @@ export default function CandidateInterview() {
     
     // Clear UI-only probe display history on session change
     setV3ProbeDisplayHistory([]);
+    
+    // Diagnostic: Confirm init after state change
+    console.log('[V3_UI_HISTORY][INIT_OK]', { len: 0, reason: 'session_change_cleanup' });
   }, [sessionId]);
 
   // STABLE: Single mount per session - track by sessionId (survives remounts)
