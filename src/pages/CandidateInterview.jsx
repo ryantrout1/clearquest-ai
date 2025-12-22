@@ -6804,12 +6804,12 @@ export default function CandidateInterview() {
   // ============================================================================
   // V3 PROMPT DETECTION - MINIMAL BLOCK (TDZ-safe for getCurrentPrompt)
   // ============================================================================
-  // Check ONLY if V3 prompt text exists (NOT v3ProbingActive)
-  // This is the SINGLE SOURCE OF TRUTH for "does V3 have an active prompt"
-  const hasActiveV3Prompt = Boolean(
-    v3ActivePromptText && 
-    v3ActivePromptText.trim().length > 0
-  );
+  // Multi-signal detection: V3 prompt is active if ANY of these signals are present
+  // This prevents MI gate from stealing footer during prompt state transitions
+  const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
+  const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
+  const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
+  const hasActiveV3Prompt = hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey;
 
   const getCurrentPrompt = () => {
     // PRIORITY 1: V3 prompt active - use hasActiveV3Prompt (TDZ-safe minimal check)
@@ -7291,9 +7291,35 @@ export default function CandidateInterview() {
   
   // FOOTER CONTROLLER: Single deterministic priority system (FULL version with all branches)
   // V3_PROMPT > MI_GATE > DEFAULT (in strict precedence order)
-  const footerControllerLocal = hasActiveV3Prompt ? "V3_PROMPT" : 
-                                currentItemType === "multi_instance_gate" ? "MI_GATE" : 
-                                "DEFAULT";
+  let footerControllerLocal = hasActiveV3Prompt ? "V3_PROMPT" : 
+                               currentItemType === "multi_instance_gate" ? "MI_GATE" : 
+                               "DEFAULT";
+  
+  // CONTRACT GUARD: Prevent MI_GATE from stealing footer when ANY V3 signal is active
+  if (footerControllerLocal === "MI_GATE" && (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey)) {
+    console.error('[V3_UI_CONTRACT][VIOLATION] MI_GATE stole footer while V3 prompt active', {
+      hasV3PromptText,
+      hasV3ProbeQuestion,
+      hasV3LoopKey,
+      v3ActivePromptPreview: v3ActivePromptText?.substring(0, 60) || null,
+      v3ProbeQuestionPreview: v3ActiveProbeQuestionRef.current?.substring(0, 60) || null,
+      v3LoopKey: v3ActiveProbeQuestionLoopKeyRef.current,
+      currentItemType,
+      action: 'FORCING_V3_PROMPT_CONTROLLER'
+    });
+    footerControllerLocal = "V3_PROMPT";
+  }
+  
+  // CONTRACT VERIFICATION: Log multi-signal state
+  console.log('[V3_UI_CONTRACT][FOOTER_PRECEDENCE]', {
+    hasV3PromptText,
+    hasV3ProbeQuestion,
+    hasV3LoopKey,
+    hasActiveV3Prompt,
+    footerControllerLocal,
+    currentItemType,
+    v3ProbingActive
+  });
   
   // UI TRUTH: effectiveItemType MUST align with footerController (prevents stale ref bypass)
   const effectiveItemType = footerControllerLocal === "V3_PROMPT" ? 'v3_probing' : 
@@ -7303,6 +7329,9 @@ export default function CandidateInterview() {
   console.log('[FOOTER_CONTROLLER_LOCAL]', {
     footerControllerLocal,
     hasActiveV3Prompt,
+    hasV3PromptText,
+    hasV3ProbeQuestion,
+    hasV3LoopKey,
     currentItemType,
     effectiveItemType,
     v3PromptPreview: v3ActivePromptText?.substring(0, 40) || null
@@ -7468,6 +7497,9 @@ export default function CandidateInterview() {
     isQuestion, 
     screenMode,
     hasActiveV3Prompt,
+    hasV3PromptText,
+    hasV3ProbeQuestion,
+    hasV3LoopKey,
     v3ProbingActive
   });
   
