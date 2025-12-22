@@ -7258,11 +7258,20 @@ export default function CandidateInterview() {
   // ============================================================================
   // CENTRALIZED BOTTOM BAR MODE SELECTION (Single Decision Point)
   // ============================================================================
+  
+  // V3 PROMPT PRECEDENCE: Check if V3 probe prompt is active
+  const hasActiveV3Prompt = Boolean(
+    v3ProbingActive && 
+    v3ActivePromptText && 
+    v3ActivePromptText.trim().length > 0
+  );
+  
   const currentItemType = (v3GateActive ? 'v3_gate' : (v3ProbingActive ? 'v3_probing' : (pendingSectionTransition ? 'section_transition' : currentItem?.type || null)));
   
   // UI TRUTH: When V3 probing is active, force effective type to v3_probing
   // This ensures opener UI never renders during probing (strict contract enforcement)
-  const effectiveItemType = v3ProbingActive ? 'v3_probing' : currentItemType;
+  // PRECEDENCE FIX: Override MI_GATE when V3 prompt is active
+  const effectiveItemType = hasActiveV3Prompt ? 'v3_probing' : (v3ProbingActive ? 'v3_probing' : currentItemType);
   
   const isV3Gate = effectiveItemType === "v3_gate";
   const isMultiInstanceGate = effectiveItemType === "multi_instance_gate";
@@ -7284,6 +7293,21 @@ export default function CandidateInterview() {
   else if (pendingSectionTransition && currentItem?.type === 'section_transition') {
      bottomBarMode = "CTA"; // "Begin Next Section" button
    }
+  // V3 PROMPT PRECEDENCE FIX: Override MI_GATE when V3 probe prompt is active
+  else if (hasActiveV3Prompt) {
+    bottomBarMode = "TEXT_INPUT";
+    isQuestion = true;
+    console.log('[V3_MI_GATE_PRECEDENCE]', {
+      hasActiveV3Prompt: true,
+      v3PromptPreview: v3ActivePromptText?.substring(0, 40),
+      currentItemType: currentItem?.type,
+      effectiveItemType,
+      bottomBarMode,
+      packId: currentItem?.packId || v3ProbingContext?.packId,
+      instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
+      reason: 'V3 prompt active - forcing TEXT_INPUT (overrides MI_GATE)'
+    });
+  }
   // Multi-instance gate (ALWAYS YES_NO) - PART 2: Guard against missing prompt
   else if (isMultiInstanceGate) {
     // PART 2: Hard guard - never show YES/NO without question text
@@ -7373,6 +7397,19 @@ export default function CandidateInterview() {
   
   // Log final mode selection
   console.log('[BOTTOM_BAR_MODE]', { currentItemType, effectiveItemType, bottomBarMode, isQuestion, screenMode });
+  
+  // V3 PRECEDENCE VERIFICATION: Log when precedence override is applied
+  if (hasActiveV3Prompt && isMultiInstanceGate) {
+    console.log('[V3_MI_GATE_PRECEDENCE][OVERRIDE_APPLIED]', {
+      hasActiveV3Prompt: true,
+      v3PromptPreview: v3ActivePromptText?.substring(0, 40),
+      originalItemType: currentItem?.type,
+      effectiveItemTypeAfterOverride: effectiveItemType,
+      bottomBarModeAfterOverride: bottomBarMode,
+      packId: currentItem?.packId || v3ProbingContext?.packId,
+      instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber
+    });
+  }
   
   // WATCHDOG FRESHNESS: Sync all watchdog-critical state to refs (no stale closures)
   bottomBarModeRef.current = bottomBarMode;
