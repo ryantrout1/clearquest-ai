@@ -7535,7 +7535,7 @@ export default function CandidateInterview() {
     currentItemType, 
     effectiveItemType, 
     bottomBarMode, 
-    bottomBarRenderType,
+    bottomBarRenderTypeSOT,
     isQuestion, 
     screenMode,
     hasActiveV3Prompt,
@@ -7564,7 +7564,7 @@ export default function CandidateInterview() {
       currentItemType,
       effectiveItemType,
       bottomBarMode,
-      bottomBarRenderType,
+      bottomBarRenderTypeSOT,
       packId: currentItem?.packId || v3ProbingContext?.packId,
       instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
       changed: {
@@ -7847,12 +7847,12 @@ export default function CandidateInterview() {
   }
 
   // CONTRACT INVARIANT: Verify V3 prompt always renders as v3_probing
-  // bottomBarRenderType already declared above (TDZ-safe)
-  if (hasActiveV3Prompt && (bottomBarRenderType !== "v3_probing" || bottomBarMode !== "TEXT_INPUT")) {
+  // bottomBarRenderTypeSOT already declared above (TDZ-safe)
+  if (hasActiveV3Prompt && (bottomBarRenderTypeSOT !== "v3_probing" || bottomBarMode !== "TEXT_INPUT")) {
     console.error('[V3_UI_CONTRACT][VIOLATION_ACTIVE_ITEM]', {
       hasActiveV3Prompt,
       activeUiItemKind: activeUiItem.kind,
-      bottomBarRenderType,
+      bottomBarRenderTypeSOT,
       bottomBarMode,
       currentItemType,
       currentItemId: currentItem?.id,
@@ -7867,7 +7867,7 @@ export default function CandidateInterview() {
     activeUiItemKind: activeUiItem.kind,
     currentItemType,
     effectiveItemType,
-    bottomBarRenderType,
+    bottomBarRenderTypeSOT,
     footerControllerLocal,
     currentItemId: currentItem?.id,
     packId: currentItem?.packId,
@@ -9085,7 +9085,7 @@ export default function CandidateInterview() {
                No
              </Button>
            </div>
-          ) : bottomBarMode === "YES_NO" && (bottomBarRenderType === "multi_instance_gate" || isMultiInstanceGate) ? (
+          ) : bottomBarMode === "YES_NO" && (bottomBarRenderTypeSOT === "multi_instance_gate" || isMultiInstanceGate) ? (
           <div className="flex gap-3">
           <Button
            onClick={async () => {
@@ -9319,7 +9319,7 @@ export default function CandidateInterview() {
              No
            </Button>
           </div>
-          ) : bottomBarMode === "YES_NO" && bottomBarRenderType !== "v3_probing" ? (
+          ) : bottomBarMode === "YES_NO" && bottomBarRenderTypeSOT !== "v3_probing" ? (
           <div className="flex gap-3">
             <Button
               ref={yesButtonRef}
