@@ -1274,6 +1274,7 @@ export default function CandidateInterview() {
   const typingTimeoutRef = useRef(null);
   const aiResponseTimeoutRef = useRef(null);
   const [footerHeightPx, setFooterHeightPx] = useState(120); // Dynamic footer height measurement
+  const [contentOverflows, setContentOverflows] = useState(false); // Track if scroll container overflows
   
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
 
@@ -6623,6 +6624,42 @@ export default function CandidateInterview() {
     };
   }, []);
 
+  // Compute content overflow state - determines if full footer padding is needed
+  React.useLayoutEffect(() => {
+    const el = historyRef.current;
+    if (!el) return;
+    
+    const computeOverflow = () => {
+      const overflows = el.scrollHeight > el.clientHeight + 4; // 4px threshold for rounding
+      setContentOverflows(overflows);
+      
+      console.log('[UI][DYNAMIC_FOOTER_PADDING]', {
+        contentOverflows: overflows,
+        footerMeasuredHeightPx: footerHeightPx,
+        footerSafePaddingPx,
+        dynamicBottomPaddingPx: overflows ? footerSafePaddingPx : COMPACT_GAP_PX,
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight
+      });
+    };
+    
+    // Compute on mount and when dependencies change
+    computeOverflow();
+    
+    // Recompute on window resize
+    const handleResize = () => computeOverflow();
+    window.addEventListener('resize', handleResize);
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, [
+    dbTranscript.length,
+    v3ProbeDisplayHistory.length,
+    effectiveItemType,
+    currentItem?.id,
+    footerHeightPx,
+    footerSafePaddingPx
+  ]);
+
   // Re-anchor bottom on footer height changes when auto-scroll is enabled
   useEffect(() => {
     if (!historyRef.current) return;
@@ -7402,9 +7439,13 @@ export default function CandidateInterview() {
   // DYNAMIC FOOTER-SAFE PADDING: Compute after shouldRenderFooter is declared
   const SAFETY_MARGIN_PX = 8;
   const MIN_FOOTER_FALLBACK_PX = 80; // Conservative fallback until measured
+  const COMPACT_GAP_PX = 16; // Small gap when content doesn't overflow
   const footerSafePaddingPx = shouldRenderFooter 
     ? (footerHeightPx > 0 ? footerHeightPx : MIN_FOOTER_FALLBACK_PX) + SAFETY_MARGIN_PX
     : 0;
+  
+  // OVERFLOW-AWARE: Apply full padding only when content overflows, otherwise use compact gap
+  const dynamicBottomPaddingPx = contentOverflows ? footerSafePaddingPx : COMPACT_GAP_PX;
   
   console.log('[UI][FOOTER_SAFE_PADDING]', {
     shouldRenderFooter,
@@ -7412,6 +7453,8 @@ export default function CandidateInterview() {
     effectiveItemType,
     footerMeasuredHeightPx: footerHeightPx,
     footerSafePaddingPx,
+    contentOverflows,
+    dynamicBottomPaddingPx,
     usingFallback: shouldRenderFooter && footerHeightPx === 0
   });
   
@@ -7789,7 +7832,7 @@ export default function CandidateInterview() {
       </style>
 
       <main className="flex-1 overflow-y-auto cq-scroll scrollbar-thin" ref={historyRef} onScroll={handleTranscriptScroll}>
-        <div className="px-4 pt-6 flex flex-col min-h-full justify-end" style={{ paddingBottom: `${24 + footerSafePaddingPx}px` }}>
+        <div className="px-4 pt-6 flex flex-col min-h-full justify-end" style={{ paddingBottom: `${24 + dynamicBottomPaddingPx}px` }}>
           <div className="space-y-2 relative isolate">
           {/* UNIFIED STREAM: Render all transcript messages from canonical source */}
           {(() => {
