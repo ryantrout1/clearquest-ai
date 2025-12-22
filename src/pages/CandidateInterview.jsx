@@ -6811,6 +6811,63 @@ export default function CandidateInterview() {
   const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
   const hasActiveV3Prompt = hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey;
 
+  // ============================================================================
+  // CANONICAL ACTIVE UI ITEM RESOLVER - Single source of truth
+  // ============================================================================
+  // Determines what UI should be shown based on strict precedence:
+  // V3_PROMPT > V3_OPENER > MI_GATE > DEFAULT
+  const resolveActiveUiItem = () => {
+    // Priority 1: V3 prompt active (multi-signal detection)
+    if (hasActiveV3Prompt) {
+      return {
+        kind: "V3_PROMPT",
+        packId: v3ProbingContext?.packId || currentItem?.packId,
+        categoryId: v3ProbingContext?.categoryId || currentItem?.categoryId,
+        instanceNumber: v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1,
+        promptText: v3ActivePromptText || v3ActiveProbeQuestionRef.current || "",
+        loopKey: v3ActiveProbeQuestionLoopKeyRef.current,
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id
+      };
+    }
+    
+    // Priority 2: V3 pack opener
+    if (currentItem?.type === 'v3_pack_opener') {
+      return {
+        kind: "V3_OPENER",
+        packId: currentItem.packId,
+        categoryId: currentItem.categoryId,
+        instanceNumber: currentItem.instanceNumber || 1,
+        promptText: currentItem.openerText || "",
+        currentItemType: currentItem.type,
+        currentItemId: currentItem.id
+      };
+    }
+    
+    // Priority 3: Multi-instance gate
+    if (currentItem?.type === 'multi_instance_gate') {
+      return {
+        kind: "MI_GATE",
+        packId: currentItem.packId,
+        categoryId: currentItem.categoryId,
+        instanceNumber: currentItem.instanceNumber || 1,
+        promptText: currentItem.promptText || multiInstanceGate?.promptText || "",
+        currentItemType: currentItem.type,
+        currentItemId: currentItem.id
+      };
+    }
+    
+    // Priority 4: Default (regular questions, v2 pack fields, etc.)
+    return {
+      kind: "DEFAULT",
+      currentItemType: currentItem?.type,
+      currentItemId: currentItem?.id,
+      promptText: null
+    };
+  };
+  
+  const activeUiItem = resolveActiveUiItem();
+
   const getCurrentPrompt = () => {
     // PRIORITY 1: V3 prompt active - use hasActiveV3Prompt (TDZ-safe minimal check)
     if (hasActiveV3Prompt && v3ActivePromptText) {
@@ -7289,44 +7346,34 @@ export default function CandidateInterview() {
   // Compute currentItemType (base type before precedence)
   const currentItemType = (v3GateActive ? 'v3_gate' : (v3ProbingActive ? 'v3_probing' : (pendingSectionTransition ? 'section_transition' : currentItem?.type || null)));
   
-  // FOOTER CONTROLLER: Single deterministic priority system (FULL version with all branches)
-  // V3_PROMPT > MI_GATE > DEFAULT (in strict precedence order)
-  let footerControllerLocal = hasActiveV3Prompt ? "V3_PROMPT" : 
-                               currentItemType === "multi_instance_gate" ? "MI_GATE" : 
-                               "DEFAULT";
+  // CANONICAL ROUTING: Use activeUiItem.kind to determine ALL UI rendering
+  const footerControllerLocal = activeUiItem.kind === "V3_PROMPT" ? "V3_PROMPT" :
+                                activeUiItem.kind === "V3_OPENER" ? "V3_OPENER" :
+                                activeUiItem.kind === "MI_GATE" ? "MI_GATE" :
+                                "DEFAULT";
   
-  // CONTRACT GUARD: Prevent MI_GATE from stealing footer when ANY V3 signal is active
-  if (footerControllerLocal === "MI_GATE" && (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey)) {
-    console.error('[V3_UI_CONTRACT][VIOLATION] MI_GATE stole footer while V3 prompt active', {
-      hasV3PromptText,
-      hasV3ProbeQuestion,
-      hasV3LoopKey,
-      v3ActivePromptPreview: v3ActivePromptText?.substring(0, 60) || null,
-      v3ProbeQuestionPreview: v3ActiveProbeQuestionRef.current?.substring(0, 60) || null,
-      v3LoopKey: v3ActiveProbeQuestionLoopKeyRef.current,
-      currentItemType,
-      action: 'FORCING_V3_PROMPT_CONTROLLER'
-    });
-    footerControllerLocal = "V3_PROMPT";
-  }
+  // UI TRUTH: effectiveItemType derived from activeUiItem.kind (single source)
+  const effectiveItemType = activeUiItem.kind === "V3_PROMPT" ? 'v3_probing' : 
+                           activeUiItem.kind === "V3_OPENER" ? 'v3_pack_opener' :
+                           activeUiItem.kind === "MI_GATE" ? 'multi_instance_gate' :
+                           (v3ProbingActive ? 'v3_probing' : currentItemType);
   
-  // CONTRACT VERIFICATION: Log multi-signal state
-  console.log('[V3_UI_CONTRACT][FOOTER_PRECEDENCE]', {
+  // CONTRACT VERIFICATION: Log canonical UI item resolution
+  console.log('[V3_UI_CONTRACT][ACTIVE_UI_ITEM]', {
+    kind: activeUiItem.kind,
     hasV3PromptText,
     hasV3ProbeQuestion,
     hasV3LoopKey,
     hasActiveV3Prompt,
-    footerControllerLocal,
     currentItemType,
+    effectiveItemType,
+    footerControllerLocal,
     v3ProbingActive
   });
   
-  // UI TRUTH: effectiveItemType MUST align with footerController (prevents stale ref bypass)
-  const effectiveItemType = footerControllerLocal === "V3_PROMPT" ? 'v3_probing' : 
-                           footerControllerLocal === "MI_GATE" ? 'multi_instance_gate' :
-                           (v3ProbingActive ? 'v3_probing' : currentItemType);
-  
+  // CANONICAL ROUTING: Log footer controller derived from activeUiItem
   console.log('[FOOTER_CONTROLLER_LOCAL]', {
+    activeUiItemKind: activeUiItem.kind,
     footerControllerLocal,
     hasActiveV3Prompt,
     hasV3PromptText,
@@ -7336,17 +7383,6 @@ export default function CandidateInterview() {
     effectiveItemType,
     v3PromptPreview: v3ActivePromptText?.substring(0, 40) || null
   });
-  
-  // HARD GUARD: Force TEXT_INPUT if V3 prompt exists (prevents MI_GATE from stealing footer)
-  // This is the FINAL enforcement point - if hasActiveV3Prompt is true, bottomBarMode MUST be TEXT_INPUT
-  if (hasActiveV3Prompt) {
-    console.log('[FOOTER_CONTROLLER_GUARD]', {
-      hasActiveV3Prompt: true,
-      footerControllerLocal,
-      action: 'FORCE_TEXT_INPUT_BEFORE_MODE_SELECTION',
-      reason: 'Hard guard - V3 prompt takes absolute precedence over all other modes'
-    });
-  }
   
   const isV3Gate = effectiveItemType === "v3_gate";
   const isMultiInstanceGate = effectiveItemType === "multi_instance_gate";
@@ -7368,55 +7404,51 @@ export default function CandidateInterview() {
   else if (pendingSectionTransition && currentItem?.type === 'section_transition') {
      bottomBarMode = "CTA"; // "Begin Next Section" button
    }
-  // FOOTER CONTROLLER ENFORCEMENT: V3_PROMPT controller takes absolute precedence
-  // HARD GUARD: Double-check hasActiveV3Prompt and force TEXT_INPUT unconditionally
-  if (hasActiveV3Prompt) {
+  // FOOTER MODE ENFORCEMENT: Driven by activeUiItem.kind (canonical routing)
+  if (activeUiItem.kind === "V3_PROMPT") {
     bottomBarMode = "TEXT_INPUT";
     isQuestion = true;
-    console.log('[V3_MI_GATE_PRECEDENCE][HARD_GUARD]', {
-      footerControllerLocal,
+    console.log('[V3_FOOTER_MODE]', {
+      activeUiItemKind: "V3_PROMPT",
       hasActiveV3Prompt: true,
-      v3PromptPreview: v3ActivePromptText?.substring(0, 40),
-      currentItemType: currentItem?.type,
-      effectiveItemType,
       bottomBarMode,
-      packId: currentItem?.packId || v3ProbingContext?.packId,
-      instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
-      reason: 'HARD GUARD - V3 prompt exists, forcing TEXT_INPUT (absolute precedence over MI_GATE)'
+      effectiveItemType,
+      packId: activeUiItem.packId,
+      instanceNumber: activeUiItem.instanceNumber,
+      reason: 'V3_PROMPT canonical item - TEXT_INPUT enforced'
     });
   }
-  // V3_PROMPT controller via footerControllerLocal (secondary check)
-  else if (footerControllerLocal === "V3_PROMPT") {
+  else if (activeUiItem.kind === "V3_OPENER") {
     bottomBarMode = "TEXT_INPUT";
     isQuestion = true;
-    console.log('[V3_MI_GATE_PRECEDENCE]', {
-      footerControllerLocal: "V3_PROMPT",
-      hasActiveV3Prompt: true,
-      v3PromptPreview: v3ActivePromptText?.substring(0, 40),
-      currentItemType: currentItem?.type,
-      effectiveItemType,
+    console.log('[V3_OPENER_MODE]', {
+      activeUiItemKind: "V3_OPENER",
       bottomBarMode,
-      packId: currentItem?.packId || v3ProbingContext?.packId,
-      instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
-      reason: 'V3_PROMPT controller active - forcing TEXT_INPUT (overrides MI_GATE)'
+      packId: activeUiItem.packId,
+      instanceNumber: activeUiItem.instanceNumber
     });
   }
-  // MI_GATE controller (only when V3 prompt is NOT active)
-  else if (footerControllerLocal === "MI_GATE" && isMultiInstanceGate && !hasActiveV3Prompt) {
+  else if (activeUiItem.kind === "MI_GATE") {
     // PART 2: Hard guard - never show YES/NO without question text
-    const gatePromptText = currentItem?.promptText || multiInstanceGate?.promptText;
+    const gatePromptText = activeUiItem.promptText || currentItem?.promptText || multiInstanceGate?.promptText;
     
     if (!gatePromptText || gatePromptText.trim().length === 0) {
       bottomBarMode = "DISABLED";
       console.log('[MI_GATE][PROMPT_MISSING_BLOCKED]', {
-        stableKey: `mi-gate:${currentItem?.packId}:${currentItem?.instanceNumber}`,
-        packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber,
+        activeUiItemKind: "MI_GATE",
+        packId: activeUiItem.packId,
+        instanceNumber: activeUiItem.instanceNumber,
         reason: 'Gate active but no prompt text - preventing YES/NO without question'
       });
     } else {
       bottomBarMode = "YES_NO";
       isQuestion = true; // Treat as question for semantic styling
+      console.log('[MI_GATE_MODE]', {
+        activeUiItemKind: "MI_GATE",
+        bottomBarMode,
+        packId: activeUiItem.packId,
+        instanceNumber: activeUiItem.instanceNumber
+      });
     }
   }
   // V3 gate (fallback YES_NO)
@@ -7490,10 +7522,12 @@ export default function CandidateInterview() {
   
   // Log final mode selection
   console.log('[BOTTOM_BAR_MODE]', { 
+    activeUiItemKind: activeUiItem.kind,
     footerControllerLocal, 
     currentItemType, 
     effectiveItemType, 
     bottomBarMode, 
+    bottomBarRenderType,
     isQuestion, 
     screenMode,
     hasActiveV3Prompt,
@@ -7509,18 +7543,38 @@ export default function CandidateInterview() {
   v3ProbingActiveRef.current = v3ProbingActive;
   v3ProbingContextRef.current = v3ProbingContext;
   
+  // ACTIVE UI ITEM CHANGE TRACE: Log only when kind changes
+  const lastActiveUiItemKindRef = React.useRef(null);
+  
+  React.useEffect(() => {
+    if (activeUiItem.kind !== lastActiveUiItemKindRef.current) {
+      console.log('[ACTIVE_UI_ITEM][TRACE]', {
+        prevKind: lastActiveUiItemKindRef.current,
+        nextKind: activeUiItem.kind,
+        hasActiveV3Prompt,
+        currentItemType,
+        currentItemId: currentItem?.id,
+        promptIdPreview: activeUiItem.promptText?.substring(0, 40) || null,
+        loopKeyPreview: activeUiItem.loopKey || null
+      });
+      lastActiveUiItemKindRef.current = activeUiItem.kind;
+    }
+  }, [activeUiItem.kind]);
+  
   // FRAME TRACE: Log footer controller changes (change-detection only)
   if (footerControllerLocal !== lastFooterControllerRef.current ||
       bottomBarMode !== lastBottomBarModeRef.current ||
       effectiveItemType !== lastEffectiveItemTypeRef.current) {
     
     console.log('[FRAME_TRACE][FOOTER_CONTROLLER]', {
+      activeUiItemKind: activeUiItem.kind,
       footerController: footerControllerLocal,
       hasActiveV3Prompt,
       v3PromptPreview: v3ActivePromptText?.substring(0, 40) || null,
       currentItemType,
       effectiveItemType,
       bottomBarMode,
+      bottomBarRenderType,
       packId: currentItem?.packId || v3ProbingContext?.packId,
       instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
       changed: {
@@ -7802,25 +7856,30 @@ export default function CandidateInterview() {
     promptMissingKeyRef.current = null;
   }
 
-  // RENDER DISCRIMINATOR: Use footerController to determine what UI to render (NOT currentItemType)
-  // This ensures V3_PROMPT controller always renders V3 input UI, even when currentItemType is MI gate
-  const bottomBarRenderType = 
-    footerControllerLocal === "V3_PROMPT" ? "v3_probing" :
-    effectiveItemType || currentItemType;
+  // RENDER DISCRIMINATOR: Derived from activeUiItem.kind (single source of truth)
+  const bottomBarRenderType = activeUiItem.kind === "V3_PROMPT" ? "v3_probing" :
+                              activeUiItem.kind === "V3_OPENER" ? "v3_pack_opener" :
+                              activeUiItem.kind === "MI_GATE" ? "multi_instance_gate" :
+                              effectiveItemType || currentItemType;
   
-  // CONTRACT ASSERT: Verify render type matches controller intent
-  if (footerControllerLocal === "V3_PROMPT" && bottomBarRenderType !== "v3_probing") {
-    console.error('[V3_UI_CONTRACT][RENDER_VIOLATION]', {
-      footerControllerLocal,
+  // CONTRACT INVARIANT: Verify V3 prompt always renders as v3_probing
+  if (hasActiveV3Prompt && (bottomBarRenderType !== "v3_probing" || bottomBarMode !== "TEXT_INPUT")) {
+    console.error('[V3_UI_CONTRACT][VIOLATION_ACTIVE_ITEM]', {
+      hasActiveV3Prompt,
+      activeUiItemKind: activeUiItem.kind,
       bottomBarRenderType,
+      bottomBarMode,
       currentItemType,
-      effectiveItemType,
-      reason: 'V3_PROMPT controller but render type not v3_probing'
+      currentItemId: currentItem?.id,
+      promptIdPreview: activeUiItem.promptText?.substring(0, 40) || null,
+      loopKeyPreview: activeUiItem.loopKey || null,
+      reason: 'hasActiveV3Prompt=true but render/mode not V3'
     });
   }
   
   // Debug log: confirm which bottom bar path is rendering
   console.log("[BOTTOM_BAR_RENDER]", {
+    activeUiItemKind: activeUiItem.kind,
     currentItemType,
     effectiveItemType,
     bottomBarRenderType,
