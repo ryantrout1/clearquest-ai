@@ -2876,6 +2876,20 @@ export default function CandidateInterview() {
       }
     }
     
+    // MI_GATE TRACE 2: handleAnswer entry audit (CORRECT LOCATION - YES/NO calls this directly)
+    if (currentItem?.type === 'multi_instance_gate' || effectiveItemType === 'multi_instance_gate') {
+      console.log('[MI_GATE][TRACE][SUBMIT_CLICK]', {
+        effectiveItemType,
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+        bottomBarMode,
+        answer: value,
+        source: 'handleAnswer_direct_call'
+      });
+    }
+    
     // EXPLICIT ENTRY LOG: Log which branch we're entering
     console.log(`[HANDLE_ANSWER][ENTRY] ========== ANSWER HANDLER INVOKED ==========`);
     console.log(`[HANDLE_ANSWER][ENTRY]`, {
@@ -2902,6 +2916,17 @@ export default function CandidateInterview() {
         baseQuestionId: currentItem.baseQuestionId,
         answer: value?.substring?.(0, 80) || value,
         hasActiveV2Pack: !!activeV2Pack
+      });
+    }
+    
+    // EXPLICIT MULTI_INSTANCE_GATE ENTRY LOG - confirm we're hitting this branch
+    if (currentItem?.type === 'multi_instance_gate') {
+      console.log(`[HANDLE_ANSWER][MULTI_INSTANCE_GATE] >>>>>>>>>> MULTI_INSTANCE_GATE DETECTED <<<<<<<<<<`);
+      console.log(`[HANDLE_ANSWER][MULTI_INSTANCE_GATE]`, {
+        packId: currentItem.packId,
+        instanceNumber: currentItem.instanceNumber,
+        answer: value?.substring?.(0, 80) || value,
+        hasMultiInstanceGate: !!multiInstanceGate
       });
     }
 
