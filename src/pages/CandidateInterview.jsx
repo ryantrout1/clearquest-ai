@@ -2806,20 +2806,15 @@ export default function CandidateInterview() {
         const multiInstancePrompt = question.multi_instance_prompt ||
           'Do you have another instance we should discuss for this question?';
 
-        // Append multi-instance gate question via canonical helper
-        const freshGate = await appendAndRefresh('assistant', {
-          text: multiInstancePrompt,
-          metadata: {
-            id: `mi-q-${Date.now()}`,
-            stableKey: `multi-instance-gate:${packId}:${currentInstanceCount + 1}`,
-            messageType: 'MULTI_INSTANCE_GATE_SHOWN',
-            packId,
-            questionId: baseQuestionId,
-            instanceNumber: currentInstanceCount + 1,
-            maxInstances,
-            visibleToCandidate: true
-          }
-        }, 'multi_instance_gate_question');
+        // PART A: DO NOT append gate to transcript while active (prevents flicker)
+        // Gate renders from currentItem.promptText - will append Q+A ONLY after user answers
+        const gateStableKey = `mi-gate:${packId}:${currentInstanceCount + 1}`;
+        console.log('[MI_GATE][TRANSCRIPT_SUPPRESS_ON_SHOW]', {
+          stableKey: gateStableKey,
+          packId,
+          instanceNumber: currentInstanceCount + 1,
+          reason: 'Gate active - will append Q+A after answer only (prevents flicker)'
+        });
 
         setCurrentItem({
           id: `multi-instance-${baseQuestionId}-${packId}`,
@@ -6819,7 +6814,7 @@ export default function CandidateInterview() {
       const gatePromptText = effectiveCurrentItem.promptText;
       const gateCategoryLabel = effectiveCurrentItem.categoryLabel;
       
-      // PART 2: Derive prompt text deterministically if missing
+      // PART B: HARD GUARD - derive prompt from currentItem ONLY (never from transcript)
       const effectivePromptText = gatePromptText || 
         (gateCategoryLabel ? `Do you have another ${gateCategoryLabel} to report?` : null) ||
         `Do you have another incident to report?`;
@@ -6848,11 +6843,23 @@ export default function CandidateInterview() {
         };
       }
       
+      // PART B: Hard guard - block YES/NO if no prompt text
+      if (!effectivePromptText || effectivePromptText.trim().length === 0) {
+        console.error('[MI_GATE][PROMPT_MISSING_BLOCKED]', {
+          stableKey: `mi-gate:${gatePackId}:${gateInstanceNumber}`,
+          packId: gatePackId,
+          instanceNumber: gateInstanceNumber,
+          reason: 'Gate active but no prompt text available - cannot render YES/NO'
+        });
+        return null; // Force disabled mode (bottomBarMode will be DISABLED)
+      }
+      
       // PART 2: Log prompt binding for diagnostics
       console.log('[MI_GATE][PROMPT_BIND]', {
         stableKey: `mi-gate:${gatePackId}:${gateInstanceNumber}`,
         hasPromptText: !!effectivePromptText,
-        promptPreview: effectivePromptText?.substring(0, 60)
+        promptPreview: effectivePromptText?.substring(0, 60),
+        source: 'currentItem.promptText'
       });
       
       return {
