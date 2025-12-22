@@ -6868,6 +6868,23 @@ export default function CandidateInterview() {
   
   const activeUiItem = resolveActiveUiItem();
 
+  // ============================================================================
+  // BOTTOM BAR RENDER TYPE - Single source of truth (TDZ-safe early declaration)
+  // ============================================================================
+  // CRITICAL: Declare BEFORE any usage in logs, conditions, or helpers
+  // Derived from activeUiItem.kind to ensure controller/render alignment
+  const bottomBarRenderType = activeUiItem.kind === "V3_PROMPT" ? "v3_probing" :
+                              activeUiItem.kind === "V3_OPENER" ? "v3_pack_opener" :
+                              activeUiItem.kind === "MI_GATE" ? "multi_instance_gate" :
+                              "default"; // Computed from kind only (no circular deps)
+  
+  // SINGLE SOURCE OF TRUTH: Log render type immediately after computation
+  console.log('[BOTTOM_BAR_RENDER_TYPE][SOT]', {
+    activeUiItemKind: activeUiItem.kind,
+    bottomBarRenderType,
+    currentItemType: currentItem?.type
+  });
+
   const getCurrentPrompt = () => {
     // PRIORITY 1: V3 prompt active - use hasActiveV3Prompt (TDZ-safe minimal check)
     if (hasActiveV3Prompt && v3ActivePromptText) {
@@ -7353,6 +7370,7 @@ export default function CandidateInterview() {
                                 "DEFAULT";
   
   // UI TRUTH: effectiveItemType derived from activeUiItem.kind (single source)
+  // Also used as fallback in bottomBarRenderType declaration above
   const effectiveItemType = activeUiItem.kind === "V3_PROMPT" ? 'v3_probing' : 
                            activeUiItem.kind === "V3_OPENER" ? 'v3_pack_opener' :
                            activeUiItem.kind === "MI_GATE" ? 'multi_instance_gate' :
@@ -7856,13 +7874,8 @@ export default function CandidateInterview() {
     promptMissingKeyRef.current = null;
   }
 
-  // RENDER DISCRIMINATOR: Derived from activeUiItem.kind (single source of truth)
-  const bottomBarRenderType = activeUiItem.kind === "V3_PROMPT" ? "v3_probing" :
-                              activeUiItem.kind === "V3_OPENER" ? "v3_pack_opener" :
-                              activeUiItem.kind === "MI_GATE" ? "multi_instance_gate" :
-                              effectiveItemType || currentItemType;
-  
   // CONTRACT INVARIANT: Verify V3 prompt always renders as v3_probing
+  // bottomBarRenderType already declared above (TDZ-safe)
   if (hasActiveV3Prompt && (bottomBarRenderType !== "v3_probing" || bottomBarMode !== "TEXT_INPUT")) {
     console.error('[V3_UI_CONTRACT][VIOLATION_ACTIVE_ITEM]', {
       hasActiveV3Prompt,
