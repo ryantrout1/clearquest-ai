@@ -1535,6 +1535,21 @@ export default function CandidateInterview() {
   
   const activeUiItem = resolveActiveUiItem();
 
+  // ============================================================================
+  // BOTTOM BAR RENDER TYPE - Single source of truth (top-level component scope)
+  // ============================================================================
+  // CRITICAL: Declared at top-level so ALL render code can access it
+  const bottomBarRenderTypeSOT = activeUiItem?.kind === "V3_PROMPT" ? "v3_probing" :
+                                  activeUiItem?.kind === "V3_OPENER" ? "v3_pack_opener" :
+                                  activeUiItem?.kind === "MI_GATE" ? "multi_instance_gate" :
+                                  "default";
+  
+  // Sanity log: confirm variable exists before render
+  console.log("[BOTTOM_BAR_RENDER_TYPE][SOT_TOP]", { 
+    activeUiItemKind: activeUiItem?.kind, 
+    bottomBarRenderTypeSOT 
+  });
+
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
     if (!v3Gate.active && v3Gate.promptText) {
