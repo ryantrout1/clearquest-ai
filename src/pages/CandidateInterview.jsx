@@ -1359,6 +1359,8 @@ export default function CandidateInterview() {
   const lastFooterControllerRef = useRef(null);
   const lastBottomBarModeRef = useRef(null);
   const lastEffectiveItemTypeRef = useRef(null);
+  // ACTIVE UI ITEM TRACE: Track kind changes (must be top-level hook)
+  const lastActiveUiItemKindRef = useRef(null);
   // V3 Debug mode
   const [v3DebugEnabled, setV3DebugEnabled] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(false);
@@ -2131,6 +2133,26 @@ export default function CandidateInterview() {
     // Diagnostic: Confirm init after state change
     console.log('[V3_UI_HISTORY][INIT_OK]', { len: 0, reason: 'session_change_cleanup' });
   }, [sessionId]);
+
+  // ACTIVE UI ITEM CHANGE TRACE: Log when activeUiItem.kind changes (must be unconditional)
+  // Dependencies computed after activeUiItem resolver, but hook must be declared here
+  useEffect(() => {
+    // GUARD: Skip if no active UI item available yet (early in component lifecycle)
+    if (!activeUiItem?.kind) return;
+    
+    if (activeUiItem.kind !== lastActiveUiItemKindRef.current) {
+      console.log('[ACTIVE_UI_ITEM][TRACE]', {
+        prevKind: lastActiveUiItemKindRef.current,
+        nextKind: activeUiItem.kind,
+        hasActiveV3Prompt: hasActiveV3Prompt || false,
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+        promptIdPreview: activeUiItem.promptText?.substring(0, 40) || null,
+        loopKeyPreview: activeUiItem.loopKey || null
+      });
+      lastActiveUiItemKindRef.current = activeUiItem.kind;
+    }
+  }, [activeUiItem?.kind, hasActiveV3Prompt, currentItem?.type, currentItem?.id]);
 
   // STABLE: Single mount per session - track by sessionId (survives remounts)
   const initMapRef = useRef({});
@@ -7561,23 +7583,11 @@ export default function CandidateInterview() {
   v3ProbingActiveRef.current = v3ProbingActive;
   v3ProbingContextRef.current = v3ProbingContext;
   
-  // ACTIVE UI ITEM CHANGE TRACE: Log only when kind changes
-  const lastActiveUiItemKindRef = React.useRef(null);
-  
-  React.useEffect(() => {
-    if (activeUiItem.kind !== lastActiveUiItemKindRef.current) {
-      console.log('[ACTIVE_UI_ITEM][TRACE]', {
-        prevKind: lastActiveUiItemKindRef.current,
-        nextKind: activeUiItem.kind,
-        hasActiveV3Prompt,
-        currentItemType,
-        currentItemId: currentItem?.id,
-        promptIdPreview: activeUiItem.promptText?.substring(0, 40) || null,
-        loopKeyPreview: activeUiItem.loopKey || null
-      });
-      lastActiveUiItemKindRef.current = activeUiItem.kind;
-    }
-  }, [activeUiItem.kind]);
+  // ACTIVE UI ITEM CHANGE TRACE: Sync to ref (hook declared at top-level)
+  // This updates the ref but the logging happens in the unconditional useEffect above
+  if (activeUiItem?.kind && activeUiItem.kind !== lastActiveUiItemKindRef.current) {
+    lastActiveUiItemKindRef.current = activeUiItem.kind;
+  }
   
   // FRAME TRACE: Log footer controller changes (change-detection only)
   if (footerControllerLocal !== lastFooterControllerRef.current ||
