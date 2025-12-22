@@ -5729,12 +5729,17 @@ export default function CandidateInterview() {
       // PART B FIX: NEVER clear UI-only history during transition to gate
       // UI history must persist so user can see their V3 probe Q/A in chat
       // Only clear on explicit session end or new session start
-      console.log('[V3_UI_HISTORY][PRESERVE_ON_GATE]', { 
-        reason: 'TRANSITION_TO_GATE', 
-        packId, 
-        instanceNumber,
-        uiHistoryLen: v3ProbeDisplayHistory.length,
-        action: 'PRESERVE (not clearing)'
+      // TDZ FIX: Read state via functional update (not direct reference during batch)
+      setV3ProbeDisplayHistory(prev => {
+        console.log('[V3_UI_HISTORY][PRESERVE_ON_GATE]', { 
+          reason: 'TRANSITION_TO_GATE', 
+          packId, 
+          instanceNumber,
+          uiHistoryLen: prev.length,
+          lastItemsPreview: prev.slice(-2).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
+          action: 'PRESERVE (not clearing)'
+        });
+        return prev; // No mutation - just logging fresh state
       });
 
       // Clear active probe refs (but not history state)
@@ -6377,12 +6382,17 @@ export default function CandidateInterview() {
           
           // PART B FIX: NEVER clear UI-only history during inline gate transition
           // UI history must persist across instances (user should see all V3 Q/A)
-          console.log('[V3_UI_HISTORY][PRESERVE_ON_GATE_INLINE]', { 
-            reason: 'TRANSITION_TO_GATE_INLINE', 
-            packId, 
-            instanceNumber,
-            uiHistoryLen: v3ProbeDisplayHistory.length,
-            action: 'PRESERVE (not clearing)'
+          // TDZ FIX: Read state via functional update (not direct reference during batch)
+          setV3ProbeDisplayHistory(prev => {
+            console.log('[V3_UI_HISTORY][PRESERVE_ON_GATE_INLINE]', { 
+              reason: 'TRANSITION_TO_GATE_INLINE', 
+              packId, 
+              instanceNumber,
+              uiHistoryLen: prev.length,
+              lastItemsPreview: prev.slice(-2).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
+              action: 'PRESERVE (not clearing)'
+            });
+            return prev; // No mutation - just logging fresh state
           });
           
           // Clear active probe refs (but not history state)
@@ -6443,11 +6453,16 @@ export default function CandidateInterview() {
         
         // PART B FIX: NEVER clear UI-only history when exiting V3 to next question
         // User should see their entire V3 probe history across all incidents
-        console.log('[V3_UI_HISTORY][PRESERVE_ON_EXIT]', { 
-          reason: 'EXIT_V3', 
-          loopKey,
-          uiHistoryLen: v3ProbeDisplayHistory.length,
-          action: 'PRESERVE (not clearing)'
+        // TDZ FIX: Read state via functional update (not direct reference)
+        setV3ProbeDisplayHistory(prev => {
+          console.log('[V3_UI_HISTORY][PRESERVE_ON_EXIT]', { 
+            reason: 'EXIT_V3', 
+            loopKey,
+            uiHistoryLen: prev.length,
+            lastItemsPreview: prev.slice(-2).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
+            action: 'PRESERVE (not clearing)'
+          });
+          return prev; // No mutation - just logging fresh state
         });
         
         // Clear active probe refs (but not history state)
