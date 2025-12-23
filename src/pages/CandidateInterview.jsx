@@ -9849,40 +9849,58 @@ export default function CandidateInterview() {
             className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
             style={{ maxHeight: '120px', overflowY: 'auto' }}
             disabled={(() => {
-              // V3 OPENER: Item-scoped committing ONLY
-              if (currentItem?.type === 'v3_pack_opener') {
-                const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem.id;
-                const shouldDisable = isCurrentItemCommitting || v3ProbingActive;
+              // V3 OPENER: Item-scoped committing ONLY (use effectiveItemType for canonical routing)
+              const isV3Opener = effectiveItemType === 'v3_pack_opener';
+              
+              if (isV3Opener) {
+                const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem?.id;
+                const inputDisabled = isCurrentItemCommitting || v3ProbingActive;
                 
-                // FAIL-SAFE UNHANG: If disabled but shouldn't be, force enable
-                if (shouldDisable && !isCurrentItemCommitting && !v3ProbingActive) {
+                // FAIL-SAFE UNHANG: Detect stuck disabled state and force enable
+                if (inputDisabled && !isCurrentItemCommitting && !v3ProbingActive) {
                   console.warn('[V3_OPENER][UNHANG_OVERRIDE]', {
-                    currentItemId: currentItem.id,
-                    packId: currentItem.packId,
-                    instanceNumber: currentItem.instanceNumber,
+                    currentItemId: currentItem?.id,
+                    packId: currentItem?.packId,
+                    instanceNumber: currentItem?.instanceNumber,
                     reason: 'disabled_true_while_not_committing',
                     isCommitting,
                     committingItemId: committingItemIdRef.current,
-                    v3ProbingActive
+                    v3ProbingActive,
+                    action: 'forcing enabled'
                   });
                   return false; // Force enable
                 }
                 
+                // ADDITIONAL UNHANG: Detect global isCommitting leak
+                if (!inputDisabled && isCommitting && !isCurrentItemCommitting) {
+                  console.warn('[V3_OPENER][UNHANG_GLOBAL_LEAK]', {
+                    currentItemId: currentItem?.id,
+                    packId: currentItem?.packId,
+                    instanceNumber: currentItem?.instanceNumber,
+                    globalIsCommitting: isCommitting,
+                    isCurrentItemCommitting,
+                    committingItemId: committingItemIdRef.current,
+                    reason: 'Global isCommitting true but not for this opener - preventing leak',
+                    action: 'keeping enabled'
+                  });
+                  // Return inputDisabled (false) - do NOT leak global isCommitting
+                }
+                
                 console.log('[V3_OPENER][DISABLED_REASON]', {
-                  currentItemId: currentItem.id,
-                  packId: currentItem.packId,
-                  instanceNumber: currentItem.instanceNumber,
+                  currentItemId: currentItem?.id,
+                  packId: currentItem?.packId,
+                  instanceNumber: currentItem?.instanceNumber,
                   isCurrentItemCommitting,
                   v3ProbingActive,
-                  computedDisabled: shouldDisable,
+                  computedDisabled: inputDisabled,
                   sourceFlags: {
-                    isCommitting,
+                    globalIsCommitting: isCommitting,
                     committingItemId: committingItemIdRef.current,
-                    matchesCurrentItem: committingItemIdRef.current === currentItem.id
+                    matchesCurrentItem: committingItemIdRef.current === currentItem?.id
                   }
                 });
                 
-                return shouldDisable;
+                return inputDisabled;
               }
               
               // All other types: global isCommitting only
