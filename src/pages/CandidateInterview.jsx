@@ -9341,45 +9341,16 @@ export default function CandidateInterview() {
 
 
 
-          {/* V3 PROBE PROMPT LANE: LEGACY BLOCK - Suppressed (V3_PROMPT ACTIVE CARD handles rendering) */}
+          {/* LEGACY BLOCK: V3 PROBE PROMPT LANE - Removed (canonical stream handles all rendering) */}
           {(() => {
-            // SUPPRESSION: Canonical V3_PROMPT ACTIVE CARD (lines 9217-9257) now handles all V3 prompt rendering
-            // This legacy block is redundant and causes duplicate cards
-            
-            // HARDENED: Suppress while MI_GATE active (keep for diagnostics)
-            const isMiGateActive = 
-              activeUiItem?.kind === "MI_GATE" &&
-              bottomBarMode === "YES_NO";
-            
-            if (isMiGateActive) {
-              console.log('[MI_GATE][FOLLOWUP_SUPPRESSED]', {
-                reason: 'MI_GATE_ACTIVE',
-                suppressedType: 'v3_probe',
-                packId: currentItem?.packId,
-                instanceNumber: currentItem?.instanceNumber
-              });
-            }
-            
-            // LEGACY SUPPRESSION: V3_PROMPT canonical block handles rendering (prevents duplicate)
+            // DIAGNOSTIC: This block should never fire - canonical stream owns all rendering
             if (activeUiItem?.kind === "V3_PROMPT") {
-              console.log('[V3_PROMPT][LEGACY_BLOCK_SUPPRESSED]', {
-                reason: 'V3_PROMPT_ACTIVE_CARD_HANDLES_RENDERING',
+              console.error('[V3_PROMPT][LEGACY_BLOCK_REACHED]', {
                 activeUiItemKind: activeUiItem.kind,
-                packId: v3ProbingContext?.packId,
-                instanceNumber: v3ProbingContext?.instanceNumber,
-                note: 'Legacy V3 PROBE PROMPT LANE suppressed to prevent duplicate'
+                reason: 'should_be_impossible_after_canonical_stream',
+                note: 'All V3 prompts should render via canonical stream at lines 8942-8985'
               });
-              return null;
             }
-            
-            // SAFETY: Should never reach here if canonical routing works correctly
-            console.warn('[V3_PROMPT][LEGACY_BLOCK_REACHED]', {
-              activeUiItemKind: activeUiItem?.kind,
-              v3ProbingActive,
-              hasActiveV3Prompt,
-              reason: 'Canonical V3_PROMPT block should have rendered - this is a fallback path'
-            });
-            
             return null;
           })()}
 
