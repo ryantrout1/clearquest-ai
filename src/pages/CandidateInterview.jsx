@@ -8070,99 +8070,13 @@ export default function CandidateInterview() {
       instanceNumber: currentItem.instanceNumber
     });
     
-    // V3 OPENER DISABLED AUDIT: Log all factors affecting disabled state
-    console.log('[V3_OPENER][DISABLED_AUDIT]', {
-      effectiveItemType,
-      currentItemType: currentItem.type,
-      packId: currentItem.packId,
-      instanceNumber: currentItem.instanceNumber,
-      textareaDisabled,
-      buttonDisabled: submitDisabled,
-      reasons: {
-        isCommitting,
-        committingItemId: committingItemIdRef.current,
-        currentItemId: currentItem.id,
-        isCurrentItemCommitting,
-        openerDraftLen: openerDraft?.length || 0,
-        openerDraftTrimLen: openerTextTrimmedLen,
-        hasPrompt
-      }
-    });
-    
-    // PART A: Comprehensive submit disabled reason breakdown
-    const inputLen = openerTextTrimmedLen; // Use already-computed trimmed length
-    const hasIdempotencyLock = submittedKeysRef.current.has(`v3o:${currentItem.packId}:${currentItem.instanceNumber || 0}`);
-    
-    console.log('[V3_OPENER][SUBMIT_DISABLED_REASONS]', {
-      packId: currentItem.packId,
-      instanceNumber: currentItem.instanceNumber,
-      inputLen,
-      hasPrompt,
-      v3ProbingActive,
-      typingLockActive: isUserTyping,
-      isCurrentItemCommitting,
-      committingItemId: committingItemIdRef.current,
-      currentItemId: currentItem.id,
-      hasIdempotencyLock,
-      openerDraftValue: openerDraft?.substring(0, 30) || '(empty)',
-      computedDisabled: submitDisabled
-    });
-    
-    // DIAGNOSTIC: Log when item-scoped disabling happens
-    if (isCurrentItemCommitting) {
-      console.log('[V3_OPENER][DISABLED_BY_COMMIT]', {
-        currentItemId: currentItem.id,
-        committingItemId: committingItemIdRef.current,
-        packId: currentItem.packId,
-        instanceNumber: currentItem.instanceNumber
-      });
-    }
-    
-    // SANITY CHECK: If openerDraft contains prompt text, clear it immediately
-    const promptText = activePromptText || currentItem.openerText || "";
-    const valueMatchesPrompt = openerInputValue.trim() === promptText.trim() && openerInputValue.length > 0;
-    
-    if (valueMatchesPrompt) {
-      console.error('[V3_UI_CONTRACT][OPENER_VALUE_WAS_PROMPT_CLEARED]', {
-        packId: currentItem.packId,
-        instanceNumber: currentItem.instanceNumber,
-        valueLen: openerInputValue.length,
-        promptLen: promptText.length,
-        reason: 'Prompt text found in textarea value - clearing to enforce contract'
-      });
-      setOpenerDraft(""); // CRITICAL FIX: Clear prompt from value
-    }
-    
-    console.log('[V3_OPENER][SUBMIT_STATE]', {
-      packId: currentItem.packId,
-      instanceNumber: currentItem.instanceNumber,
-      disabled: submitDisabled,
-      inputLen: openerTextTrimmedLen,
-      hasPrompt,
-      usingOpenerDraft: true,
-      valueMatchesPrompt,
-      isCurrentItemCommitting,
-      committingItemId: committingItemIdRef.current
-    });
-    
-    // VERIFICATION: Log placeholder vs value state
-    console.log('[V3_OPENER][PLACEHOLDER_MODE]', {
-      packId: currentItem.packId,
-      instanceNumber: currentItem.instanceNumber,
-      placeholder: 'generic'
-    });
-    
-    console.log('[V3_OPENER][PLACEHOLDER_STATE]', {
-      packId: currentItem.packId,
-      instanceNumber: currentItem.instanceNumber,
-      placeholderPreview: 'Type your response here…'
-    });
-    
+    // TASK D: Updated logs - output FINAL values that match actual render
     console.log('[V3_OPENER][VALUE_STATE]', {
       packId: currentItem.packId,
       instanceNumber: currentItem.instanceNumber,
       valueLen: openerTextTrimmedLen,
-      disabled: submitDisabled
+      disabledRaw: textareaDisabledRaw,
+      disabled: textareaDisabledFinal
     });
   }
   
