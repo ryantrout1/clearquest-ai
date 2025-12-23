@@ -7743,10 +7743,10 @@ export default function CandidateInterview() {
               return;
             }
             
-            const { footerWired, historySuppressed } = finalTracker;
+            const { footerWired, activeGateSuppressed } = finalTracker;
             
-            // TASK 4: Self-test requires footer wired AND active gate suppressed (or no leak found)
-            const passCondition = footerWired && historySuppressed;
+            // TASK 3: Self-test requires footer wired AND active gate suppressed
+            const passCondition = footerWired && activeGateSuppressed;
             
             if (passCondition) {
               console.log('[MI_GATE][UI_CONTRACT_PASS]', {
@@ -7762,8 +7762,9 @@ export default function CandidateInterview() {
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
                 footerWiredSeen: footerWired,
-                activeGateSuppressedSeen: historySuppressed,
-                reason: !footerWired ? 'Footer prompt not wired' : 'Active gate not suppressed from transcript'
+                activeGateSuppressedSeen: activeGateSuppressed,
+                reason: !footerWired ? 'Footer prompt not wired' : 'Active gate not suppressed from main pane',
+                diagnosticHint: 'Check [MI_GATE][MAIN_PANE_FINAL_LIST] for leak candidates'
               });
             }
           } catch (testError) {
