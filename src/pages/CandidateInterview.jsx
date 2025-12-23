@@ -9993,13 +9993,17 @@ export default function CandidateInterview() {
               });
             }
             
+            // TASK D: Fix mainBodyPromptCards to count active V3 prompt card if present
+            const mainBodyPromptCards = activeUiItem.kind === "V3_PROMPT" && activeCard ? 1 : 0;
+            
             console.log('[V3_UI_CONTRACT] ENFORCED', {
               v3ProbingActive,
               hasPrompt: !!v3ActivePromptText,
               promptLocation: v3ActivePromptText ? 'PROMPT_LANE_CARD' : 'NONE',
-              mainBodyPromptCards: 0,
+              mainBodyPromptCards,
               transcriptPromptCards,
-              transcriptLen: transcriptLengthNow
+              transcriptLen: transcriptLengthNow,
+              activeCardKind: activeCard?.kind || null
             });
             return null;
           })()}
