@@ -7198,8 +7198,14 @@ export default function CandidateInterview() {
         
         const scrollTopAfter = scrollContainer.scrollTop;
         
-        console.log('[SCROLL][AUTO_SCROLL]', {
-          trigger: 'transcript_or_state_change',
+        // FIX B: Enhanced logging for MI_GATE activation
+        const didScroll = Math.abs(scrollTopAfter - scrollTopBefore) > 1;
+        const logLabel = activeUiItem?.kind === "MI_GATE" ? '[SCROLL][PIN_ON_MI_GATE]' : '[SCROLL][AUTO_SCROLL]';
+        
+        console.log(logLabel, {
+          trigger: activeUiItem?.kind === "MI_GATE" ? 'mi_gate_activation' : 'transcript_or_state_change',
+          didScroll,
+          shouldAutoScroll: shouldAutoScrollRef.current,
           scrollTopBefore: Math.round(scrollTopBefore),
           targetScrollTop: Math.round(targetScrollTop),
           scrollTopAfter: Math.round(scrollTopAfter),
@@ -7826,14 +7832,9 @@ export default function CandidateInterview() {
     const miGatePrompt = currentItem?.promptText || multiInstanceGate?.promptText || `Do you have another incident to report?`;
     const stableKey = `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`;
     
-    // DEDUPE: Check if gate already in transcriptRenderable
-    const alreadyInStream = transcriptRenderable.some(e => 
-      e.stableKey === stableKey || 
-      e.stableKey === `${stableKey}:q` ||
-      (e.messageType === 'MULTI_INSTANCE_GATE_SHOWN' && e.meta?.packId === currentItem.packId && e.meta?.instanceNumber === currentItem.instanceNumber)
-    );
-    
-    if (!alreadyInStream && miGatePrompt && !v3HasVisiblePromptCard) {
+    // FIX A: ALWAYS render active MI_GATE card (no dedupe skip)
+    // The active gate MUST be visible as the current question in main pane
+    if (miGatePrompt) {
       activeCard = {
         __activeCard: true,
         kind: "multi_instance_gate",
@@ -7842,16 +7843,56 @@ export default function CandidateInterview() {
         packId: currentItem.packId,
         instanceNumber: currentItem.instanceNumber
       };
-    } else if (alreadyInStream) {
-      console.log("[STREAM][ACTIVE_CARD_DEDUPED]", { kind: "MI_GATE", reason: "already_in_transcriptRenderable" });
-    } else if (v3HasVisiblePromptCard) {
-      console.log("[STREAM][ACTIVE_CARD_DEDUPED]", { kind: "MI_GATE", reason: "v3_visible_prompt_card_precedence" });
+      
+      console.log("[MI_GATE][ACTIVE_CARD_ADDED]", {
+        packId: currentItem.packId,
+        instanceNumber: currentItem.instanceNumber,
+        stableKey,
+        promptPreview: miGatePrompt.substring(0, 60)
+      });
     }
   }
   
-  // Build final stream: transcript + v3UI + activeCard
+  // FIX B: Filter transcript-derived MI_GATE entries that match active gate
+  // This prevents duplicate MI_GATE cards when active gate is added
+  let filteredTranscriptRenderable = transcriptRenderable;
+  let removedCount = 0;
+  
+  if (activeCard?.kind === "multi_instance_gate") {
+    const activeGateId = currentItem?.id;
+    const activeStableKeyBase = `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`;
+    
+    filteredTranscriptRenderable = transcriptRenderable.filter(e => {
+      // Keep non-gate entries
+      if (e.messageType !== 'MULTI_INSTANCE_GATE_SHOWN') return true;
+      
+      // Filter out transcript entries that match active gate
+      const matchesActiveGate = 
+        e.id === activeGateId ||
+        e.stableKey === activeStableKeyBase ||
+        e.stableKey === `${activeStableKeyBase}:q` ||
+        (e.meta?.packId === currentItem.packId && e.meta?.instanceNumber === currentItem.instanceNumber);
+      
+      if (matchesActiveGate) {
+        removedCount++;
+        return false; // Remove duplicate
+      }
+      
+      return true; // Keep non-matching gates
+    });
+    
+    if (removedCount > 0) {
+      console.log('[MI_GATE][STREAM_FILTER_ACTIVE_FROM_TRANSCRIPT]', {
+        removedCount,
+        activeGateId,
+        activeStableKeyBase
+      });
+    }
+  }
+  
+  // Build final stream: filtered transcript + v3UI + activeCard
   const renderStream = [
-    ...transcriptRenderable,
+    ...filteredTranscriptRenderable,
     ...v3UiRenderable,
     ...(activeCard ? [activeCard] : [])
   ];
