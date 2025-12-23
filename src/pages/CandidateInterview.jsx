@@ -7692,7 +7692,7 @@ export default function CandidateInterview() {
     // REGRESSION SUMMARY: Single log per gate activation (once per itemId)
     const itemId = currentItem?.id;
     if (itemId) {
-      const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, historySuppressed: false, testStarted: false };
+      const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, activeGateSuppressed: false, testStarted: false };
       
       if (!tracker.testStarted) {
         // Log regression summary on first activation
@@ -7700,7 +7700,7 @@ export default function CandidateInterview() {
           itemId,
           packId: currentItem?.packId,
           instanceNumber: currentItem?.instanceNumber,
-          mainPaneBlockRemoved: true,
+          mainPaneListFilterEnabled: true,
           footerPromptEnabled: true,
           selfTestEnabled: ENABLE_MI_GATE_UI_CONTRACT_SELFTEST
         });
