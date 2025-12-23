@@ -9301,11 +9301,36 @@ export default function CandidateInterview() {
              </Button>
            </div>
           ) : bottomBarMode === "YES_NO" && (bottomBarRenderTypeSOT === "multi_instance_gate" || isMultiInstanceGate) ? (
-          <div className="flex gap-3">
+          <div className="space-y-3">
+            {/* MI_GATE FOOTER PROMPT: Question text above Yes/No buttons */}
+            {(() => {
+              const miGatePrompt = 
+                currentItem?.promptText || 
+                multiInstanceGate?.promptText ||
+                currentItem?.openerText ||
+                (currentItem?.categoryLabel ? `Do you have another ${currentItem.categoryLabel} to report?` : null) ||
+                `Do you have another incident to report?`;
+              
+              console.log('[MI_GATE][FOOTER_PROMPT_WIRED]', {
+                currentItemId: currentItem?.id,
+                packId: currentItem?.packId || multiInstanceGate?.packId,
+                instanceNumber: currentItem?.instanceNumber || multiInstanceGate?.instanceNumber,
+                derivedPromptLen: miGatePrompt?.length || 0,
+                derivedPromptPreview: miGatePrompt?.slice(0, 80)
+              });
+              
+              return (
+                <div className="bg-purple-900/30 border border-purple-700/50 rounded-lg px-4 py-3">
+                  <p className="text-white text-sm leading-relaxed">{miGatePrompt}</p>
+                </div>
+              );
+            })()}
+            
+            <div className="flex gap-3">
           <Button
            onClick={async () => {
              try {
-               const gate = multiInstanceGate;
+               const gate = multiInstanceGate || currentItem;
 
                if (!gate || !gate.packId || !gate.instanceNumber) {
                  console.error('[MI_GATE][GUARD_BLOCKED]', {
@@ -9341,7 +9366,7 @@ export default function CandidateInterview() {
            <Button
             onClick={async () => {
               try {
-                const gate = multiInstanceGate;
+                const gate = multiInstanceGate || currentItem;
 
                 if (!gate || !gate.packId || !gate.instanceNumber) {
                   console.error('[MI_GATE][GUARD_BLOCKED]', {
@@ -9374,6 +9399,7 @@ export default function CandidateInterview() {
              <X className="w-5 h-5 mr-2" />
              No
            </Button>
+          </div>
           </div>
           ) : bottomBarMode === "YES_NO" && bottomBarRenderTypeSOT !== "v3_probing" ? (
           <div className="flex gap-3">
