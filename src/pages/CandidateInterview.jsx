@@ -7689,9 +7689,26 @@ export default function CandidateInterview() {
       pendingSectionTransition: !!pendingSectionTransition
     });
     
-    // UI CONTRACT SELF-TEST: Start test when MI_GATE becomes active (once per itemId)
+    // REGRESSION SUMMARY: Single log per gate activation (once per itemId)
     const itemId = currentItem?.id;
     if (itemId) {
+      const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, historySuppressed: false, testStarted: false };
+      
+      if (!tracker.testStarted) {
+        // Log regression summary on first activation
+        console.log('[MI_GATE][REGRESSION_SUMMARY]', {
+          itemId,
+          packId: currentItem?.packId,
+          instanceNumber: currentItem?.instanceNumber,
+          mainHistorySuppressed: true,
+          footerPromptEnabled: true,
+          selfTestEnabled: ENABLE_MI_GATE_UI_CONTRACT_SELFTEST
+        });
+      }
+    }
+    
+    // UI CONTRACT SELF-TEST: Start test when MI_GATE becomes active (once per itemId)
+    if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && itemId) {
       const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, historySuppressed: false, testStarted: false };
       
       if (!tracker.testStarted) {
@@ -7709,43 +7726,53 @@ export default function CandidateInterview() {
           clearTimeout(miGateTestTimeoutRef.current);
         }
         
-        // Schedule self-test after 250ms
+        // Schedule self-test after 250ms (LOG-ONLY, non-blocking)
         miGateTestTimeoutRef.current = setTimeout(() => {
-          const finalTracker = miGateTestTrackerRef.current.get(itemId);
-          
-          if (!finalTracker) {
-            console.warn('[MI_GATE][UI_CONTRACT_TEST]', {
+          // SAFETY: Self-test is log-only, never throws or blocks
+          try {
+            const finalTracker = miGateTestTrackerRef.current.get(itemId);
+            
+            if (!finalTracker) {
+              console.warn('[MI_GATE][UI_CONTRACT_TEST]', {
+                itemId,
+                packId: currentItem?.packId,
+                instanceNumber: currentItem?.instanceNumber,
+                result: 'NO_TRACKER',
+                reason: 'Tracker was cleared or never created'
+              });
+              return;
+            }
+            
+            const { footerWired, historySuppressed } = finalTracker;
+            
+            if (footerWired && historySuppressed) {
+              console.log('[MI_GATE][UI_CONTRACT_PASS]', {
+                itemId,
+                packId: currentItem?.packId,
+                instanceNumber: currentItem?.instanceNumber,
+                footerWiredSeen: true,
+                historySuppressedSeen: true
+              });
+            } else {
+              console.error('[MI_GATE][UI_CONTRACT_FAIL]', {
+                itemId,
+                packId: currentItem?.packId,
+                instanceNumber: currentItem?.instanceNumber,
+                footerWiredSeen: footerWired,
+                historySuppressedSeen: historySuppressed,
+                reason: !footerWired ? 'Footer prompt not wired' : 'History render not suppressed'
+              });
+            }
+          } catch (testError) {
+            // SAFETY: Self-test errors must never crash the app
+            console.warn('[MI_GATE][UI_CONTRACT_TEST_ERROR]', {
               itemId,
-              packId: currentItem?.packId,
-              instanceNumber: currentItem?.instanceNumber,
-              result: 'NO_TRACKER',
-              reason: 'Tracker was cleared or never created'
+              error: testError.message,
+              reason: 'Self-test failed safely - interview continues'
             });
-            return;
+          } finally {
+            miGateTestTimeoutRef.current = null;
           }
-          
-          const { footerWired, historySuppressed } = finalTracker;
-          
-          if (footerWired && historySuppressed) {
-            console.log('[MI_GATE][UI_CONTRACT_PASS]', {
-              itemId,
-              packId: currentItem?.packId,
-              instanceNumber: currentItem?.instanceNumber,
-              footerWiredSeen: true,
-              historySuppressedSeen: true
-            });
-          } else {
-            console.error('[MI_GATE][UI_CONTRACT_FAIL]', {
-              itemId,
-              packId: currentItem?.packId,
-              instanceNumber: currentItem?.instanceNumber,
-              footerWiredSeen: footerWired,
-              historySuppressedSeen: historySuppressed,
-              reason: !footerWired ? 'Footer prompt not wired' : 'History render not suppressed'
-            });
-          }
-          
-          miGateTestTimeoutRef.current = null;
         }, 250);
       }
     }
