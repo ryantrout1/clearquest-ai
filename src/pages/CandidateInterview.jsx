@@ -9255,12 +9255,12 @@ export default function CandidateInterview() {
 
           {/* V3_PROMPT ACTIVE CARD: Active V3 prompt renders in main pane (above footer) */}
           {(() => {
-            // UI CONTRACT: V3_PROMPT active card renders in main content area when V3 prompt is active
+            // TASK D: UI CONTRACT: V3_PROMPT active card renders when V3 prompt is active OR visible in UI history
             // PRECEDENCE GUARD: V3_PROMPT > MI_GATE (even if MI_GATE exists in currentItem)
             const shouldRenderActiveV3Prompt = 
               activeUiItem?.kind === "V3_PROMPT" &&
               effectiveItemType === "v3_probing" &&
-              hasActiveV3Prompt === true;
+              (hasActiveV3Prompt === true || v3HasVisiblePromptCard === true);
             
             if (!shouldRenderActiveV3Prompt) {
               return null;
