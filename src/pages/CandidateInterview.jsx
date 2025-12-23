@@ -7709,7 +7709,7 @@ export default function CandidateInterview() {
     
     // UI CONTRACT SELF-TEST: Start test when MI_GATE becomes active (once per itemId)
     if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && itemId) {
-      const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, historySuppressed: false, testStarted: false };
+      const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, activeGateSuppressed: false, testStarted: false };
       
       if (!tracker.testStarted) {
         tracker.testStarted = true;
