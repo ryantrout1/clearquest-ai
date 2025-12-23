@@ -8902,6 +8902,54 @@ export default function CandidateInterview() {
             );
           })()}
 
+          {/* MI_GATE PROMPT LANE: Active gate question card (purple) */}
+          {(() => {
+            const shouldRenderMiGatePromptLane = 
+              effectiveItemType === 'multi_instance_gate' && 
+              currentItem?.type === 'multi_instance_gate' &&
+              !v3ProbingActive &&
+              !pendingSectionTransition &&
+              !activeBlocker;
+            
+            if (!shouldRenderMiGatePromptLane) {
+              return null;
+            }
+            
+            // Derive MI_GATE prompt text from currentItem (single source of truth)
+            const miGatePrompt = 
+              currentItem.promptText || 
+              multiInstanceGate?.promptText ||
+              currentItem.openerText ||
+              (currentItem.categoryLabel ? `Do you have another ${currentItem.categoryLabel} to report?` : null) ||
+              `Do you have another incident to report?`;
+            
+            const packId = currentItem.packId;
+            const instanceNumber = currentItem.instanceNumber;
+            
+            console.log('[MI_GATE][PROMPT_RENDER]', {
+              currentItemId: currentItem.id,
+              packId,
+              instanceNumber,
+              derivedPromptLen: miGatePrompt?.length || 0,
+              derivedPromptPreview: miGatePrompt?.slice(0, 80),
+              renderType: bottomBarRenderTypeSOT,
+              bottomBarMode,
+              source: currentItem.promptText ? 'currentItem.promptText' : 
+                      multiInstanceGate?.promptText ? 'multiInstanceGate.promptText' :
+                      'fallback'
+            });
+            
+            return (
+              <ContentContainer>
+                <div className="relative z-20 w-full rounded-xl p-1">
+                  <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 shadow-xl">
+                    <p className="text-white text-base leading-relaxed">{miGatePrompt}</p>
+                  </div>
+                </div>
+              </ContentContainer>
+            );
+          })()}
+
           {/* V3 PROBE PROMPT LANE: Active prompt card for V3 probing (purple AI follow-up) */}
           {(() => {
             // ROBUST GATING: Use state flags directly instead of strict type matching
