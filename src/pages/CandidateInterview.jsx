@@ -5364,6 +5364,19 @@ export default function CandidateInterview() {
           setIsCommitting(false);
           return;
         }
+        
+        // Forensic log: MI_GATE submission
+        const nextInstanceNumber = answer === 'Yes' ? (gate.instanceNumber || 1) + 1 : null;
+        const nextStableKey = answer === 'Yes' ? `v3-opener-${gate.packId}-${nextInstanceNumber}` : null;
+        
+        console.log('[MI_GATE][ANSWER]', {
+          packId: gate.packId,
+          instanceNumber: gate.instanceNumber,
+          answerYesNo: answer,
+          activeUiItemKind: activeUiItem?.kind,
+          currentItemId: currentItem?.id,
+          stableKey: `mi-gate:${gate.packId}:${gate.instanceNumber}`
+        });
 
         console.log('[MULTI_INSTANCE_GATE][ANSWER]', {
           packId: gate.packId,
@@ -5434,6 +5447,14 @@ export default function CandidateInterview() {
           // Re-enter V3 pack with next instance
           const nextInstanceNumber = (gate.instanceNumber || 1) + 1;
 
+          console.log('[MI_GATE][ADVANCE_NEXT_INSTANCE]', {
+            packId: gate.packId,
+            fromInstanceNumber: gate.instanceNumber,
+            toInstanceNumber: nextInstanceNumber,
+            nextStableKey: `v3-opener-${gate.packId}-${nextInstanceNumber}`,
+            nextItemKindOrType: 'v3_pack_opener'
+          });
+
           console.log('[MULTI_INSTANCE_GATE][YES] Re-entering pack', {
             packId: gate.packId,
             categoryId: gate.categoryId,
@@ -5469,7 +5490,36 @@ export default function CandidateInterview() {
 
           setCurrentItem(openerItem);
           await persistStateToDatabase(null, [], openerItem);
+          
+          // REGRESSION CHECK: Verify advancement succeeded
+          setTimeout(async () => {
+            const checkSession = await base44.entities.InterviewSession.get(sessionId);
+            const checkCurrentItem = checkSession.current_item_snapshot;
+            
+            if (!checkCurrentItem || checkCurrentItem.type !== 'v3_pack_opener' || checkCurrentItem.instanceNumber !== nextInstanceNumber) {
+              console.error('[MI_GATE][ADVANCE_FAILED]', {
+                packId: gate.packId,
+                expectedInstanceNumber: nextInstanceNumber,
+                actualItemType: checkCurrentItem?.type,
+                actualInstanceNumber: checkCurrentItem?.instanceNumber,
+                actualItemId: checkCurrentItem?.id
+              });
+            } else {
+              console.log('[MI_GATE][ADVANCE_VERIFIED]', {
+                packId: gate.packId,
+                toInstanceNumber: nextInstanceNumber,
+                currentItemType: checkCurrentItem.type
+              });
+            }
+          }, 200);
         } else {
+          console.log('[MI_GATE][EXIT_LOOP]', {
+            packId: gate.packId,
+            instanceNumber: gate.instanceNumber,
+            reason: "NO",
+            nextItemKindOrType: 'question'
+          });
+          
           // Answer is "No" - log pack exited and advance
           await logPackExited(sessionId, {
             packId: gate.packId,
@@ -9163,6 +9213,10 @@ export default function CandidateInterview() {
              if (isCommitting) return;
 
              // MI_GATE TRACE 3: Custom button YES click
+             const gate = multiInstanceGate;
+             const nextInstanceNumber = (gate.instanceNumber || 1) + 1;
+             const nextStableKey = `v3-opener-${gate.packId}-${nextInstanceNumber}`;
+
              console.log('[MI_GATE][TRACE][CUSTOM_BUTTON_YES]', {
                packId: multiInstanceGate?.packId,
                instanceNumber: multiInstanceGate?.instanceNumber,
@@ -9170,8 +9224,16 @@ export default function CandidateInterview() {
                source: 'custom_gate_button'
              });
 
+             console.log('[MI_GATE][ANSWER]', {
+               packId: gate.packId,
+               instanceNumber: gate.instanceNumber,
+               answerYesNo: 'Yes',
+               activeUiItemKind: activeUiItem?.kind,
+               currentItemId: currentItem?.id,
+               stableKey: `mi-gate:${gate.packId}:${gate.instanceNumber}`
+             });
+
              console.log('[MULTI_INSTANCE_GATE][YES] Starting next instance');
-             const gate = multiInstanceGate;
 
              // GUARD: Validate gate context
              if (!gate || !gate.packId || !gate.instanceNumber) {
@@ -9242,7 +9304,13 @@ export default function CandidateInterview() {
                setMultiInstanceGate(null);
 
                // Re-enter V3 pack with incremented instance number
-               const nextInstanceNumber = (gate.instanceNumber || 1) + 1;
+               console.log('[MI_GATE][ADVANCE_NEXT_INSTANCE]', {
+                 packId: gate.packId,
+                 fromInstanceNumber: gate.instanceNumber,
+                 toInstanceNumber: nextInstanceNumber,
+                 nextStableKey,
+                 nextItemKindOrType: 'v3_pack_opener'
+               });
 
                console.log('[MULTI_INSTANCE_GATE][YES] Re-entering pack', {
                  packId: gate.packId,
@@ -9279,6 +9347,29 @@ export default function CandidateInterview() {
 
                setCurrentItem(openerItem);
                await persistStateToDatabase(null, [], openerItem);
+               
+               // REGRESSION CHECK: Verify advancement succeeded
+               setTimeout(async () => {
+                 const checkSession = await base44.entities.InterviewSession.get(sessionId);
+                 const checkCurrentItem = checkSession.current_item_snapshot;
+                 
+                 if (!checkCurrentItem || checkCurrentItem.type !== 'v3_pack_opener' || checkCurrentItem.instanceNumber !== nextInstanceNumber) {
+                   console.error('[MI_GATE][ADVANCE_FAILED]', {
+                     packId: gate.packId,
+                     expectedInstanceNumber: nextInstanceNumber,
+                     actualItemType: checkCurrentItem?.type,
+                     actualInstanceNumber: checkCurrentItem?.instanceNumber,
+                     actualItemId: checkCurrentItem?.id
+                   });
+                 } else {
+                   console.log('[MI_GATE][ADVANCE_VERIFIED]', {
+                     packId: gate.packId,
+                     toInstanceNumber: nextInstanceNumber,
+                     currentItemType: checkCurrentItem.type
+                   });
+                 }
+               }, 200);
+               
                setIsCommitting(false);
              }}
              disabled={isCommitting}
@@ -9290,17 +9381,34 @@ export default function CandidateInterview() {
            <Button
             onClick={async () => {
               if (isCommitting) return;
-              
+
               // MI_GATE TRACE 3: Custom button NO click
+              const gate = multiInstanceGate;
+
               console.log('[MI_GATE][TRACE][CUSTOM_BUTTON_NO]', {
                 packId: multiInstanceGate?.packId,
                 instanceNumber: multiInstanceGate?.instanceNumber,
                 currentItemId: currentItem?.id,
                 source: 'custom_gate_button'
               });
-              
+
+              console.log('[MI_GATE][ANSWER]', {
+                packId: gate.packId,
+                instanceNumber: gate.instanceNumber,
+                answerYesNo: 'No',
+                activeUiItemKind: activeUiItem?.kind,
+                currentItemId: currentItem?.id,
+                stableKey: `mi-gate:${gate.packId}:${gate.instanceNumber}`
+              });
+
+              console.log('[MI_GATE][EXIT_LOOP]', {
+                packId: gate.packId,
+                instanceNumber: gate.instanceNumber,
+                reason: "NO",
+                nextItemKindOrType: 'question'
+              });
+
               console.log('[MULTI_INSTANCE_GATE][NO] Advancing to next question');
-              const gate = multiInstanceGate;
 
               // GUARD: Validate gate context
               if (!gate || !gate.packId || !gate.instanceNumber) {
