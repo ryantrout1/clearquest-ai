@@ -9106,7 +9106,23 @@ export default function CandidateInterview() {
           })()}
 
           {/* V3 PROBE PROMPT LANE: Active prompt card for V3 probing (purple AI follow-up) */}
+          {/* SUPPRESSION GUARD: While MI_GATE is active, suppress AI follow-up cards to prevent stacking */}
           {(() => {
+            // HARDENED: Suppress AI follow-up cards while MI_GATE is active (display only)
+            const isMiGateActive = 
+              activeUiItem?.kind === "MI_GATE" &&
+              bottomBarMode === "YES_NO";
+            
+            if (isMiGateActive) {
+              console.log('[MI_GATE][FOLLOWUP_SUPPRESSED]', {
+                reason: 'MI_GATE_ACTIVE',
+                suppressedType: 'v3_probe',
+                packId: currentItem?.packId,
+                instanceNumber: currentItem?.instanceNumber
+              });
+              return null; // Suppress AI follow-up cards while MI_GATE decision pending
+            }
+            
             // ROBUST GATING: Use state flags directly instead of strict type matching
             // LIFECYCLE: Only render active prompt when phase is ANSWER_NEEDED (not PROCESSING)
             const shouldRenderV3PromptLaneCard = 
