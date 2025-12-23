@@ -9044,66 +9044,11 @@ export default function CandidateInterview() {
             );
           })()}
 
-          {/* MI_GATE: Suppressed from main history - renders in footer only per ClearQuest UI contract */}
-          {/* UI CONTRACT EXPLANATION: Active prompts MUST render ONLY in footer. */}
-          {/* This block existed previously as MI_GATE_PROMPT_LANE_BLOCK and rendered a big card. */}
-          {/* Root cause: Footer lacked prompt text initially, so main pane showed it instead. */}
-          {/* Fix: Permanent suppression with triple-gate hardening. */}
-          {(() => {
-            // HARDENED: Triple-gate check (active MI_GATE only)
-            const isMiGateActive = 
-              effectiveItemType === 'multi_instance_gate' && 
-              currentItem?.type === 'multi_instance_gate' &&
-              activeUiItem?.kind === "MI_GATE" &&
-              bottomBarMode === "YES_NO";
-            
-            if (isMiGateActive) {
-              // REGRESSION GUARD: Log if this code path is ever reached
-              console.error('[MI_GATE][UI_CONTRACT_BREACH]', {
-                source: 'MAIN_PANE_RENDER_ATTEMPT',
-                itemId: currentItem?.id,
-                packId: currentItem?.packId,
-                instanceNumber: currentItem?.instanceNumber,
-                renderPath: 'MI_GATE_PROMPT_LANE_BLOCK',
-                action: 'SUPPRESSED_PER_UI_CONTRACT'
-              });
-              
-              console.warn('[MI_GATE][WHY_CONTRACT_WAS_BREACHED]', {
-                explanation: 'A main-pane MI_GATE prompt renderer existed (MI_GATE_PROMPT_LANE_BLOCK). Active prompts must be footer-only.',
-                renderPath: 'MI_GATE_PROMPT_LANE_BLOCK',
-                itemId: currentItem?.id,
-                packId: currentItem?.packId,
-                instanceNumber: currentItem?.instanceNumber,
-                rootCause: 'Footer originally lacked prompt text, so main pane showed it as big card',
-                fix: 'Permanent suppression - this block now returns null always'
-              });
-              
-              console.log('[MI_GATE][HISTORY_SUPPRESSED]', {
-                itemId: currentItem?.id,
-                packId: currentItem?.packId,
-                instanceNumber: currentItem?.instanceNumber,
-                reason: 'MI_GATE_RENDERS_IN_FOOTER_ONLY'
-              });
-              
-              // UI CONTRACT SELF-TEST: Track history suppressed event (main area block)
-              if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST) {
-                const itemId = currentItem?.id;
-                if (itemId) {
-                  const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, historySuppressed: false, testStarted: false };
-                  tracker.historySuppressed = true;
-                  miGateTestTrackerRef.current.set(itemId, tracker);
-                  
-                  console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
-                    itemId,
-                    event: 'HISTORY_SUPPRESSED_MAIN',
-                    tracker
-                  });
-                }
-              }
-            }
-            
-            return null; // MI_GATE PERMANENT SUPPRESSION - never renders in main history
-          })()}
+          {/* MI_GATE UI CONTRACT: Active gates render ONLY in footer - no main pane block */}
+          {/* REMOVED: MI_GATE_PROMPT_LANE_BLOCK - caused UI contract breach */}
+          {/* Root cause: Block ran checks and logged, even though it returned null */}
+          {/* Fix: Complete removal - main pane has ZERO active MI_GATE logic */}
+          {/* Historical gates still render via transcript loop (MULTI_INSTANCE_GATE_SHOWN) */}
 
           {/* V3 PROBE PROMPT LANE: Active prompt card for V3 probing (purple AI follow-up) */}
           {/* SUPPRESSION GUARD: While MI_GATE is active, suppress AI follow-up cards to prevent stacking */}
