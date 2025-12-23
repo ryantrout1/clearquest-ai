@@ -7757,10 +7757,11 @@ export default function CandidateInterview() {
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
                 footerWiredSeen: true,
-                activeGateSuppressed: true
+                activeGateSuppressed: activeGateSuppressed || suppressedSeenViaLog,
+                suppressionSource: activeGateSuppressed ? 'tracker_flag' : suppressedSeenViaLog ? 'log_detected' : 'unknown'
               });
             } else {
-              // TASK D: Enhanced failure diagnostics with final render list snapshot
+              // TASK D: Enhanced failure diagnostics with canonical field extraction
               const finalRenderList = renderedTranscriptSnapshotRef.current || renderedTranscript;
               const last10Items = finalRenderList.slice(-10);
               
@@ -7769,17 +7770,18 @@ export default function CandidateInterview() {
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
                 footerWiredSeen: footerWired,
-                activeGateSuppressedSeen: activeGateSuppressed,
+                activeGateSuppressedSeen: activeGateSuppressed || suppressedSeenViaLog,
+                suppressedSeenViaLog,
                 reason: !footerWired ? 'Footer prompt not wired' : 'Active gate not suppressed from main pane',
                 diagnosticSnapshot: {
                   finalRenderListLen: finalRenderList.length,
-                  last10Ids: last10Items.map(i => i.id),
-                  last10Types: last10Items.map(i => i.messageType || i.type),
-                  last10StableKeys: last10Items.map(i => i.stableKey),
-                  last10HasGateText: last10Items.map(i => {
-                    const t = (i.text || "").toLowerCase();
-                    return t.includes("do you have another");
-                  })
+                  last10Canonical: last10Items.map(it => ({
+                    id: getItemId(it),
+                    stableKey: getItemStableKey(it),
+                    type: it.messageType || it.type || it.kind,
+                    textPreview: getItemText(it).slice(0, 120),
+                    hasAnotherKeyword: normalizeTextForMatch(getItemText(it)).includes("do you have another")
+                  }))
                 }
               });
             }
