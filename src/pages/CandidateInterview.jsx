@@ -7757,6 +7757,10 @@ export default function CandidateInterview() {
                 activeGateSuppressed: true
               });
             } else {
+              // TASK D: Enhanced failure diagnostics with final render list snapshot
+              const finalRenderList = renderedTranscriptSnapshotRef.current || renderedTranscript;
+              const last10Items = finalRenderList.slice(-10);
+              
               console.error('[MI_GATE][UI_CONTRACT_FAIL]', {
                 itemId,
                 packId: currentItem?.packId,
@@ -7764,7 +7768,16 @@ export default function CandidateInterview() {
                 footerWiredSeen: footerWired,
                 activeGateSuppressedSeen: activeGateSuppressed,
                 reason: !footerWired ? 'Footer prompt not wired' : 'Active gate not suppressed from main pane',
-                diagnosticHint: 'Check [MI_GATE][MAIN_PANE_FINAL_LIST] for leak candidates'
+                diagnosticSnapshot: {
+                  finalRenderListLen: finalRenderList.length,
+                  last10Ids: last10Items.map(i => i.id),
+                  last10Types: last10Items.map(i => i.messageType || i.type),
+                  last10StableKeys: last10Items.map(i => i.stableKey),
+                  last10HasGateText: last10Items.map(i => {
+                    const t = (i.text || "").toLowerCase();
+                    return t.includes("do you have another");
+                  })
+                }
               });
             }
           } catch (testError) {
