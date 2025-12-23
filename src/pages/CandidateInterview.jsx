@@ -1464,6 +1464,10 @@ export default function CandidateInterview() {
   // V3 SUBMIT COUNTER: Monotonic counter for tokenized pendingAnswer payloads
   const v3SubmitCounterRef = useRef(0);
   
+  // MI_GATE UI CONTRACT SELF-TEST: Track footer wired + history suppressed per itemId
+  const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { footerWired: bool, historySuppressed: bool, testStarted: bool }>
+  const miGateTestTimeoutRef = useRef(null);
+  
   // V3 UI-ONLY HISTORY: Display V3 probe Q/A without polluting transcript
   // MOVED UP: Must be declared before refreshTranscriptFromDB (TDZ fix)
   const v3ActiveProbeQuestionRef = useRef(null);
