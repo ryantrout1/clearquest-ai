@@ -8609,8 +8609,108 @@ export default function CandidateInterview() {
             return (
               <div className="opacity-100">
                 {finalList.map((entry, index) => {
+                  // CANONICAL STREAM: Handle both transcript entries AND active cards
+                  const isActiveCard = entry.__activeCard === true;
                   
-                  // V3 UI CONTRACT: HARD GUARD - Block ANY V3 probe prompts from main body
+                  // Render active cards from stream (V3_PROMPT, V3_OPENER, MI_GATE)
+                  if (isActiveCard) {
+                    const cardKind = entry.kind;
+                    const cardKey = entry.stableKey || `active-${cardKind}-${index}`;
+                    
+                    if (cardKind === "v3_probe_q") {
+                      return (
+                        <div key={cardKey}>
+                          <ContentContainer>
+                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
+                                {entry.instanceNumber > 1 && (
+                                  <>
+                                    <span className="text-xs text-slate-500">•</span>
+                                    <span className="text-xs text-slate-400">Instance {entry.instanceNumber}</span>
+                                  </>
+                                )}
+                              </div>
+                              <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                            </div>
+                          </ContentContainer>
+                        </div>
+                      );
+                    } else if (cardKind === "v3_pack_opener") {
+                      return (
+                        <div key={cardKey}>
+                          <ContentContainer>
+                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                              {entry.categoryLabel && (
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="text-sm font-medium text-purple-400">
+                                    {entry.categoryLabel}{entry.instanceNumber > 1 ? ` — Instance ${entry.instanceNumber}` : ''}
+                                  </span>
+                                </div>
+                              )}
+                              <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                              {entry.exampleNarrative && (
+                                <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
+                                  <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
+                                  <p className="text-slate-300 text-xs italic">{entry.exampleNarrative}</p>
+                                </div>
+                              )}
+                            </div>
+                          </ContentContainer>
+                        </div>
+                      );
+                    } else if (cardKind === "multi_instance_gate") {
+                      // UI CONTRACT SELF-TEST: Track main pane render
+                      if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
+                        const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
+                        tracker.mainPaneRendered = true;
+                        miGateTestTrackerRef.current.set(currentItem.id, tracker);
+                      }
+                      
+                      return (
+                        <div key={cardKey}>
+                          <ContentContainer>
+                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
+                              <p className="text-white text-base leading-relaxed">{entry.text}</p>
+                            </div>
+                          </ContentContainer>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }
+                  
+                  // V3 UI history cards (v3_probe_q / v3_probe_a)
+                  if (entry.kind === 'v3_probe_q') {
+                    return (
+                      <div key={entry.stableKey || `v3-q-${index}`}>
+                        <ContentContainer>
+                          <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
+                            </div>
+                            <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                          </div>
+                        </ContentContainer>
+                      </div>
+                    );
+                  }
+                  
+                  if (entry.kind === 'v3_probe_a') {
+                    return (
+                      <div key={entry.stableKey || `v3-a-${index}`} style={{ marginBottom: 10 }}>
+                        <ContentContainer>
+                          <div className="flex justify-end">
+                            <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                              <p className="text-white text-sm">{entry.text}</p>
+                            </div>
+                          </div>
+                        </ContentContainer>
+                      </div>
+                    );
+                  }
+                  
+                  // Transcript entries (existing logic continues below)
                   const mt = (entry.messageType || entry.type || '').toString();
                   const entrySource = entry?.source || entry?.meta?.source || '';
                   const textPreview = entry.text || entry.questionText || entry.content || '';
