@@ -9045,6 +9045,10 @@ export default function CandidateInterview() {
           })()}
 
           {/* MI_GATE: Suppressed from main history - renders in footer only per ClearQuest UI contract */}
+          {/* UI CONTRACT EXPLANATION: Active prompts MUST render ONLY in footer. */}
+          {/* This block existed previously as MI_GATE_PROMPT_LANE_BLOCK and rendered a big card. */}
+          {/* Root cause: Footer lacked prompt text initially, so main pane showed it instead. */}
+          {/* Fix: Permanent suppression with triple-gate hardening. */}
           {(() => {
             // HARDENED: Triple-gate check (active MI_GATE only)
             const isMiGateActive = 
@@ -9054,21 +9058,24 @@ export default function CandidateInterview() {
               bottomBarMode === "YES_NO";
             
             if (isMiGateActive) {
-              console.log('[MI_GATE][HISTORY_RENDER_SOURCE]', {
-                renderPath: 'MI_GATE_PROMPT_LANE_BLOCK',
+              // REGRESSION GUARD: Log if this code path is ever reached
+              console.error('[MI_GATE][UI_CONTRACT_BREACH]', {
+                source: 'MAIN_PANE_RENDER_ATTEMPT',
                 itemId: currentItem?.id,
-                itemType: currentItem?.type,
-                activeUiItemKind: activeUiItem?.kind,
-                bottomBarMode,
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
-                action: 'SUPPRESSED_PER_UI_CONTRACT',
-                gateCheckPassed: {
-                  effectiveItemType: effectiveItemType === 'multi_instance_gate',
-                  currentItemType: currentItem?.type === 'multi_instance_gate',
-                  activeUiItemKind: activeUiItem?.kind === "MI_GATE",
-                  bottomBarMode: bottomBarMode === "YES_NO"
-                }
+                renderPath: 'MI_GATE_PROMPT_LANE_BLOCK',
+                action: 'SUPPRESSED_PER_UI_CONTRACT'
+              });
+              
+              console.warn('[MI_GATE][WHY_CONTRACT_WAS_BREACHED]', {
+                explanation: 'A main-pane MI_GATE prompt renderer existed (MI_GATE_PROMPT_LANE_BLOCK). Active prompts must be footer-only.',
+                renderPath: 'MI_GATE_PROMPT_LANE_BLOCK',
+                itemId: currentItem?.id,
+                packId: currentItem?.packId,
+                instanceNumber: currentItem?.instanceNumber,
+                rootCause: 'Footer originally lacked prompt text, so main pane showed it as big card',
+                fix: 'Permanent suppression - this block now returns null always'
               });
               
               console.log('[MI_GATE][HISTORY_SUPPRESSED]', {
@@ -9095,7 +9102,7 @@ export default function CandidateInterview() {
               }
             }
             
-            return null; // MI_GATE never renders in main history
+            return null; // MI_GATE PERMANENT SUPPRESSION - never renders in main history
           })()}
 
           {/* V3 PROBE PROMPT LANE: Active prompt card for V3 probing (purple AI follow-up) */}
