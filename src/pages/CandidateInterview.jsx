@@ -7721,11 +7721,14 @@ export default function CandidateInterview() {
   if (activeUiItem.kind === "V3_PROMPT") {
     const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
-    const stableKey = loopKey ? `v3-prompt-active:${loopKey}` : null;
+    const promptId = v3ProbingContext?.promptId || v3PromptIdRef.current || 'noid';
+    const normalizedPromptText = normalizeTextForMatch(v3PromptText);
+    // Stable key includes loopKey + promptId + text preview to prevent "new card" feeling across watchdog re-renders
+    const stableKey = loopKey ? `v3-active:${loopKey}:${promptId}:${normalizedPromptText.slice(0,32)}` : null;
     
     // DEDUPE: Check if equivalent prompt already in v3UiRenderable
     const alreadyInStream = v3UiRenderable.some(e => 
-      e.stableKey && stableKey && normalizeTextForMatch(e.text) === normalizeTextForMatch(v3PromptText)
+      e.stableKey && stableKey && normalizeTextForMatch(e.text) === normalizedPromptText
     );
     
     if (!alreadyInStream && v3PromptText) {
@@ -7737,6 +7740,12 @@ export default function CandidateInterview() {
         packId: v3ProbingContext?.packId,
         instanceNumber: v3ProbingContext?.instanceNumber
       };
+      console.log("[V3_PROMPT][ACTIVE_CARD_KEY]", { 
+        stableKey, 
+        loopKey, 
+        promptId,
+        promptPreview: v3PromptText.slice(0, 60) 
+      });
     } else if (alreadyInStream) {
       console.log("[STREAM][ACTIVE_CARD_DEDUPED]", { kind: "V3_PROMPT", reason: "already_in_v3UiRenderable" });
     }
