@@ -7746,10 +7746,10 @@ export default function CandidateInterview() {
               return;
             }
             
-            const { footerWired, activeGateSuppressed, suppressedSeenViaLog } = finalTracker;
+            const { footerWired, activeGateSuppressed } = finalTracker;
             
-            // TASK 4: Self-test accepts EITHER tracker flag OR log detection
-            const passCondition = footerWired && (activeGateSuppressed || finalTracker.suppressedSeenViaLog);
+            // TASK 3: Self-test requires footer wired AND active gate suppressed
+            const passCondition = footerWired && activeGateSuppressed;
             
             if (passCondition) {
               console.log('[MI_GATE][UI_CONTRACT_PASS]', {
@@ -7757,8 +7757,7 @@ export default function CandidateInterview() {
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
                 footerWiredSeen: true,
-                activeGateSuppressed: activeGateSuppressed || finalTracker.suppressedSeenViaLog,
-                suppressionSource: activeGateSuppressed ? 'tracker_flag' : 'log_detection'
+                activeGateSuppressed: true
               });
             } else {
               // TASK D: Enhanced failure diagnostics with final render list snapshot
@@ -8191,87 +8190,49 @@ export default function CandidateInterview() {
     }
   };
   
-  // TASK 1: Canonical field extractors (plain functions - no hooks, no state)
-  const getItemId = (item) => {
-    return item?.id || item?.itemId || item?.messageId || item?.key || item?.stableKey || item?.stable_key || null;
-  };
-  
-  const getItemStableKey = (item) => {
-    return item?.stableKey || item?.stable_key || item?.key || item?.id || null;
-  };
-  
-  const getItemText = (item) => {
-    return (
-      item?.promptText ||
-      item?.questionText ||
-      item?.text ||
-      item?.title ||
-      item?.message ||
-      item?.payload?.promptText ||
-      item?.payload?.questionText ||
-      item?.payload?.text ||
-      item?.payload?.message ||
-      item?.data?.text ||
-      item?.data?.promptText ||
-      item?.meta?.promptText ||
-      item?.meta?.questionText ||
-      item?.meta?.text ||
-      ""
-    );
-  };
-  
-  const normalizeText = (text) => {
-    return (text || "").toLowerCase().trim().replace(/\s+/g, ' ');
-  };
-  
-  // TASK 2: Sentinel matching function (upgraded with canonical field extraction)
+  // TASK B: Sentinel matching function (local helper - no data mutation)
   const matchesActiveMiGatePrompt = (item, ctx) => {
     if (!item || !ctx) return false;
     
-    // Extract canonical fields using getters
-    const itemId = getItemId(item);
-    const itemStableKey = getItemStableKey(item);
-    const itemText = getItemText(item);
-    const itemTextNormalized = normalizeText(itemText);
-    const miGatePromptNormalized = normalizeText(ctx.miGatePrompt);
-    const miGatePromptPrefix = miGatePromptNormalized.slice(0, 30);
-    
-    // Strategy A: Exact ID match
-    if (ctx.activeGateItemId && itemId && itemId === ctx.activeGateItemId) {
+    // Strategy 1: Exact ID match
+    if (ctx.activeGateItemId && item.id === ctx.activeGateItemId) {
       return true;
     }
     
-    // Strategy B: StableKey exact match (base OR q variant)
-    if (ctx.activeGateStableKeyBase && itemStableKey && itemStableKey === ctx.activeGateStableKeyBase) {
-      return true;
-    }
-    if (ctx.activeGateStableKeyQ && itemStableKey && itemStableKey === ctx.activeGateStableKeyQ) {
+    // Strategy 2: StableKey base match
+    if (ctx.activeGateStableKeyBase && item.stableKey === ctx.activeGateStableKeyBase) {
       return true;
     }
     
-    // Strategy C: StableKey prefix match (covers :q, :a, :answer variants)
-    if (ctx.activeGateStableKeyBase && itemStableKey && itemStableKey.startsWith(ctx.activeGateStableKeyBase)) {
+    // Strategy 3: StableKey Q suffix match
+    if (ctx.activeGateStableKeyQ && item.stableKey === ctx.activeGateStableKeyQ) {
       return true;
     }
     
-    // Strategy D: Text-based matching with "do you have another" + prefix/equality check
-    const hasGateKeywords = itemTextNormalized.includes("do you have another");
-    if (hasGateKeywords && itemTextNormalized.length > 0) {
-      // Check text equality
-      if (itemTextNormalized === miGatePromptNormalized) {
-        return true;
-      }
-      // Check text prefix (handles variations)
-      if (itemTextNormalized.startsWith(miGatePromptPrefix)) {
-        return true;
-      }
-    }
-    
-    // Strategy E: ID contains gate identifiers (handles weird id formats)
-    if (ctx.activeGateStableKeyBase && itemId && itemId.includes(ctx.activeGateStableKeyBase)) {
+    // Strategy 4: ID contains gate identifiers (variant matching)
+    if (ctx.activeGateItemId && item.id && item.id.includes(ctx.activeGateItemId)) {
       return true;
     }
-    if (ctx.activeGateItemId && itemId && itemId.includes(ctx.activeGateItemId)) {
+    
+    if (ctx.activeGateStableKeyBase && item.id && item.id.includes(ctx.activeGateStableKeyBase)) {
+      return true;
+    }
+    
+    // Strategy 5: Text-based matching
+    const itemText = (item.text || item.promptText || item.questionText || "").trim();
+    if (!itemText) return false;
+    
+    const itemTextNormalized = itemText.toLowerCase().replace(/\s+/g, ' ');
+    const miGatePromptNormalized = ctx.miGatePrompt.toLowerCase().trim().replace(/\s+/g, ' ');
+    const miGatePromptPrefix = miGatePromptNormalized.slice(0, 40);
+    
+    // Text equality
+    if (itemTextNormalized === miGatePromptNormalized) {
+      return true;
+    }
+    
+    // Text prefix (handles variations)
+    if (itemTextNormalized.startsWith(miGatePromptPrefix)) {
       return true;
     }
     
@@ -8506,11 +8467,10 @@ export default function CandidateInterview() {
                   }
                 });
                 
-                // TASK 4: Self-test tracker hookup (ref mutation only - safe during render)
+                // TASK D: Self-test tracker hookup
                 if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
-                  const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { footerWired: false, activeGateSuppressed: false, testStarted: false, suppressedSeenViaLog: false };
+                  const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { footerWired: false, activeGateSuppressed: false, testStarted: false };
                   tracker.activeGateSuppressed = true;
-                  tracker.suppressedSeenViaLog = true;
                   miGateTestTrackerRef.current.set(currentItem.id, tracker);
                   
                   console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
@@ -8521,22 +8481,14 @@ export default function CandidateInterview() {
                   });
                 }
               } else {
-                // TASK 3: Actionable NO_MATCH log with canonicalized fields
                 console.warn("[MI_GATE][SENTINEL_NO_MATCH]", {
                   beforeCount,
                   note: "No matching items found to suppress; main pane should not show active gate anyway.",
-                  ctx: {
-                    activeGateItemId: ctx.activeGateItemId,
-                    activeGateStableKeyBase: ctx.activeGateStableKeyBase,
-                    activeGateStableKeyQ: ctx.activeGateStableKeyQ,
-                    miGatePromptNormalized: normalizeText(ctx.miGatePrompt).slice(0, 60)
-                  },
-                  lastItems: transcriptToRender.slice(-10).map(it => ({
-                    id: getItemId(it),
-                    stableKey: getItemStableKey(it),
-                    type: it?.type || it?.messageType || it?.kind,
-                    textPreview: getItemText(it).slice(0, 120),
-                    textNormalized: normalizeText(getItemText(it)).slice(0, 80)
+                  last10Items: transcriptToRender.slice(-10).map(i => ({
+                    id: i.id,
+                    stableKey: i.stableKey,
+                    type: i.messageType || i.type,
+                    textPreview: (i.text || "").slice(0, 50)
                   }))
                 });
               }
