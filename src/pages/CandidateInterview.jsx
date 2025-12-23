@@ -9452,17 +9452,20 @@ export default function CandidateInterview() {
 
 
 
-          {/* LEGACY BLOCK: V3 PROBE PROMPT LANE - Removed (canonical stream handles all rendering) */}
+          {/* LEGACY V3 PROMPT RENDER PATH - HARD DISABLED */}
           {(() => {
-            // DIAGNOSTIC: This block should never fire - canonical stream owns all rendering
-            if (activeUiItem?.kind === "V3_PROMPT") {
+            // HARD DISABLED: Legacy V3 prompt render path must NEVER render UI
+            // All V3 prompts render via canonical stream (activeCard in renderStream)
+            // This block exists only as a diagnostic error detector
+            if (activeUiItem?.kind === "V3_PROMPT" && v3ActivePromptText) {
               console.error('[V3_PROMPT][LEGACY_BLOCK_REACHED]', {
+                reason: 'LEGACY_PATH_DISABLED',
                 activeUiItemKind: activeUiItem.kind,
-                reason: 'should_be_impossible_after_canonical_stream',
-                note: 'All V3 prompts should render via canonical stream at lines 8942-8985'
+                v3PromptPhase,
+                note: 'This path returns null - all V3 prompts render via canonical stream'
               });
             }
-            return null;
+            return null; // UNCONDITIONAL NULL - no UI output ever
           })()}
 
           {/* UNIFIED STREAM: Active cards disabled - all content in transcript */}
