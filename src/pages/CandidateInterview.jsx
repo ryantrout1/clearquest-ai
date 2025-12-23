@@ -7722,13 +7722,14 @@ export default function CandidateInterview() {
     const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
     const promptId = v3ProbingContext?.promptId || 'noid';
-    const normalizedPromptText = normalizeTextForMatch(v3PromptText);
+    // Inline normalization to avoid TDZ error (normalizeTextForMatch declared later in component)
+    const normalizedPromptText = (v3PromptText || "").toLowerCase().trim().replace(/\s+/g, " ");
     // Stable key includes loopKey + promptId + text preview to prevent "new card" feeling across watchdog re-renders
     const stableKey = loopKey ? `v3-active:${loopKey}:${promptId}:${normalizedPromptText.slice(0,32)}` : null;
     
-    // DEDUPE: Check if equivalent prompt already in v3UiRenderable
+    // DEDUPE: Check if equivalent prompt already in v3UiRenderable (inline normalization)
     const alreadyInStream = v3UiRenderable.some(e => 
-      e.stableKey && stableKey && normalizeTextForMatch(e.text) === normalizedPromptText
+      e.stableKey && stableKey && (e.text || "").toLowerCase().trim().replace(/\s+/g, " ") === normalizedPromptText
     );
     
     if (!alreadyInStream && v3PromptText) {
