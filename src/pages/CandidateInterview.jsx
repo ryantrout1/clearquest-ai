@@ -7686,73 +7686,10 @@ export default function CandidateInterview() {
   };
 
   // ============================================================================
-  // CENTRALIZED BOTTOM BAR MODE SELECTION (Single Decision Point)
+  // REFINED MODE COMPUTATION + LOGS (after unified block above)
   // ============================================================================
-  
-  // Compute currentItemType (base type before precedence)
-  const currentItemType = (v3GateActive ? 'v3_gate' : (v3ProbingActive ? 'v3_probing' : (pendingSectionTransition ? 'section_transition' : currentItem?.type || null)));
-  
-  // CANONICAL ROUTING: Use activeUiItem.kind to determine ALL UI rendering
-  const footerControllerLocal = activeUiItem.kind === "V3_PROMPT" ? "V3_PROMPT" :
-                                activeUiItem.kind === "V3_OPENER" ? "V3_OPENER" :
-                                activeUiItem.kind === "MI_GATE" ? "MI_GATE" :
-                                "DEFAULT";
-  
-  // UI TRUTH: effectiveItemType derived from activeUiItem.kind (single source)
-  // Also used as fallback in bottomBarRenderType declaration above
-  const effectiveItemType = activeUiItem.kind === "V3_PROMPT" ? 'v3_probing' : 
-                           activeUiItem.kind === "V3_OPENER" ? 'v3_pack_opener' :
-                           activeUiItem.kind === "MI_GATE" ? 'multi_instance_gate' :
-                           (v3ProbingActive ? 'v3_probing' : currentItemType);
-  
-  // CONTRACT VERIFICATION: Log canonical UI item resolution
-  console.log('[V3_UI_CONTRACT][ACTIVE_UI_ITEM]', {
-    kind: activeUiItem.kind,
-    hasV3PromptText,
-    hasV3ProbeQuestion,
-    hasV3LoopKey,
-    hasActiveV3Prompt,
-    currentItemType,
-    effectiveItemType,
-    footerControllerLocal,
-    v3ProbingActive
-  });
-  
-  // UI STATE SNAPSHOT: Consolidated snapshot on state transitions
-  console.log('[UI][STATE_SNAPSHOT]', {
-    currentActiveKind: activeUiItem.kind,
-    transcriptLen: dbTranscript?.length || 0,
-    v3UiHistoryLen: v3ProbeDisplayHistory?.length || 0,
-    shouldAutoScroll: shouldAutoScrollRef.current,
-    footerSafePaddingPx,
-    dynamicBottomPaddingPx,
-    hasActiveV3Prompt,
-    v3PromptPhase,
-    currentItemType: currentItem?.type
-  });
-  
-  // CANONICAL ROUTING: Log footer controller derived from activeUiItem
-  console.log('[FOOTER_CONTROLLER_LOCAL]', {
-    activeUiItemKind: activeUiItem.kind,
-    footerControllerLocal,
-    hasActiveV3Prompt,
-    hasV3PromptText,
-    hasV3ProbeQuestion,
-    hasV3LoopKey,
-    currentItemType,
-    effectiveItemType,
-    v3PromptPreview: v3ActivePromptText?.substring(0, 40) || null
-  });
-  
-  const isV3Gate = effectiveItemType === "v3_gate";
-  const isMultiInstanceGate = effectiveItemType === "multi_instance_gate";
-  
-  // Compute bottom bar mode (uses early approximation, refined with currentPrompt below)
-  let bottomBarMode = bottomBarModeEarly;
-  let isQuestion = false; // Semantic flag: is this a question-like prompt?
-  
-  // REFINED MODE COMPUTATION: Override early approximation with currentPrompt precision
-  // (Full refinement happens after currentPrompt is resolved)
+  // NOTE: All variables (bottomBarMode, effectiveItemType, etc.) already declared in unified block
+  // This section only adds contract verification logs
   
   // MI_GATE TRACE 1: Mode derivation audit
   if (effectiveItemType === 'multi_instance_gate' || currentItemType === 'multi_instance_gate' || isMultiInstanceGate) {
