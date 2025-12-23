@@ -7856,6 +7856,27 @@ export default function CandidateInterview() {
   const isV3PackOpener = effectiveItemType === "v3_pack_opener";
   const showTextInput = bottomBarMode === "TEXT_INPUT";
   
+  // TASK A: Single MI_GATE active boolean (UI contract sentinel)
+  const isMiGateActive =
+    activeUiItem?.kind === "MI_GATE" &&
+    effectiveItemType === "multi_instance_gate" &&
+    bottomBarMode === "YES_NO" &&
+    currentItem?.type === "multi_instance_gate";
+  
+  // Log once per activation (de-duped by currentItem.id)
+  const miGateActiveLogKeyRef = React.useRef(null);
+  if (isMiGateActive && miGateActiveLogKeyRef.current !== currentItem?.id) {
+    miGateActiveLogKeyRef.current = currentItem?.id;
+    console.log("[MI_GATE][ACTIVE_STATE]", {
+      currentItemId: currentItem?.id,
+      packId: currentItem?.packId,
+      instanceNumber: currentItem?.instanceNumber,
+      sentinelArmed: true
+    });
+  } else if (!isMiGateActive && miGateActiveLogKeyRef.current) {
+    miGateActiveLogKeyRef.current = null;
+  }
+  
   // Derive answerable from existing values (safe default: allow answer if we have a current item and it's a question-like type)
   const answerable = currentItem && (
     currentItem.type === 'question' || 
