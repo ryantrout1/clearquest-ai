@@ -7685,12 +7685,6 @@ export default function CandidateInterview() {
   return item.type === "question" || item.type === "v2_pack_field" || item.type === "v3_pack_opener" || item.type === "followup";
   };
 
-  // ============================================================================
-  // REFINED MODE COMPUTATION + LOGS (after unified block above)
-  // ============================================================================
-  // NOTE: All variables (bottomBarMode, effectiveItemType, etc.) already declared in unified block
-  // This section only adds contract verification logs
-  
   // MI_GATE TRACE 1: Mode derivation audit
   if (effectiveItemType === 'multi_instance_gate' || currentItemType === 'multi_instance_gate' || isMultiInstanceGate) {
     console.log('[MI_GATE][TRACE][MODE]', {
