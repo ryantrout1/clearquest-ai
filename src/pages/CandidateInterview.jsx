@@ -7070,9 +7070,6 @@ export default function CandidateInterview() {
   // ============================================================================
   const SAFETY_MARGIN_PX = 8;
   const MIN_FOOTER_FALLBACK_PX = 80;
-  const needsPrompt = bottomBarMode === 'TEXT_INPUT' || 
-                      ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
-  const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
   const shouldRenderFooter = 
     screenMode === 'QUESTION' && 
     (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
@@ -7082,13 +7079,6 @@ export default function CandidateInterview() {
     : 0;
   
   const dynamicBottomPaddingPx = footerSafePaddingPx;
-  
-  console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
-    footerMeasuredHeightPx: footerHeightPx,
-    footerSafePaddingPx,
-    dynamicBottomPaddingPx,
-    shouldRenderFooter
-  });
   
   console.log('[BOOT][FOOTER_SAFE_PADDING_READY]', { 
     footerSafePaddingPx, 
@@ -8040,6 +8030,16 @@ export default function CandidateInterview() {
   // BOTTOM BAR DERIVED STATE BLOCK - All derived variables in strict order
   // ============================================================================
   // NOTE: Footer padding computation moved earlier (before auto-scroll effect) to prevent TDZ
+  const needsPrompt = bottomBarMode === 'TEXT_INPUT' || 
+                      ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
+  const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
+  
+  console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
+    footerMeasuredHeightPx: footerHeightPx,
+    footerSafePaddingPx,
+    dynamicBottomPaddingPx,
+    shouldRenderFooter
+  });
   
   // Auto-focus control props (pure values, no hooks)
   const focusEnabled = screenMode === 'QUESTION';
