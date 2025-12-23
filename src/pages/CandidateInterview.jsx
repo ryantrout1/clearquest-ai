@@ -7746,42 +7746,39 @@ export default function CandidateInterview() {
               return;
             }
             
-            const { footerWired, activeGateSuppressed, suppressedSeenViaLog } = finalTracker;
+            const { mainPaneRendered, footerButtonsOnly } = finalTracker;
             
-            // TASK 3: Self-test requires footer wired AND (active gate suppressed OR suppression seen in logs)
-            const passCondition = footerWired && (activeGateSuppressed || suppressedSeenViaLog);
+            // UI CONTRACT: Self-test requires main pane render AND footer buttons-only
+            const passCondition = mainPaneRendered && footerButtonsOnly;
             
             if (passCondition) {
               console.log('[MI_GATE][UI_CONTRACT_PASS]', {
                 itemId,
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
-                footerWiredSeen: true,
-                activeGateSuppressed: activeGateSuppressed || suppressedSeenViaLog,
-                suppressionSource: activeGateSuppressed ? 'tracker_flag' : suppressedSeenViaLog ? 'log_detected' : 'unknown'
+                mainPaneRendered: true,
+                footerButtonsOnly: true
               });
             } else {
-              // TASK D: Enhanced failure diagnostics with canonical field extraction
+              // Enhanced failure diagnostics
               const finalRenderList = renderedTranscriptSnapshotRef.current || renderedTranscript;
-              const last10Items = finalRenderList.slice(-10);
               
               console.error('[MI_GATE][UI_CONTRACT_FAIL]', {
                 itemId,
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
-                footerWiredSeen: footerWired,
-                activeGateSuppressedSeen: activeGateSuppressed || suppressedSeenViaLog,
-                suppressedSeenViaLog,
-                reason: !footerWired ? 'Footer prompt not wired' : 'Active gate not suppressed from main pane',
+                mainPaneRendered,
+                footerButtonsOnly,
+                reason: !mainPaneRendered ? 'Main pane did not render active MI_GATE card' : 
+                        !footerButtonsOnly ? 'Footer showed prompt text instead of buttons-only' :
+                        'Unknown failure',
                 diagnosticSnapshot: {
                   finalRenderListLen: finalRenderList.length,
-                  last10Canonical: last10Items.map(it => ({
-                    id: getItemId(it),
-                    stableKey: getItemStableKey(it),
-                    type: it.messageType || it.type || it.kind,
-                    textPreview: getItemText(it).slice(0, 120),
-                    hasAnotherKeyword: normalizeTextForMatch(getItemText(it)).includes("do you have another")
-                  }))
+                  hasActiveGateInMainPane: finalRenderList.some(it => 
+                    it.messageType === 'MULTI_INSTANCE_GATE_SHOWN' &&
+                    (getItemId(it) === currentItem?.id || 
+                     getItemStableKey(it)?.startsWith(`mi-gate:${currentItem?.packId}:${currentItem?.instanceNumber}`))
+                  )
                 }
               });
             }
