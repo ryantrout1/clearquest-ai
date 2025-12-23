@@ -9211,8 +9211,51 @@ export default function CandidateInterview() {
             );
           })()}
 
+          {/* V3_PROMPT ACTIVE CARD: Active V3 prompt renders in main pane (above footer) */}
+          {(() => {
+            // UI CONTRACT: V3_PROMPT active card renders in main content area when V3 prompt is active
+            const shouldRenderActiveV3Prompt = 
+              activeUiItem?.kind === "V3_PROMPT" &&
+              effectiveItemType === "v3_probing" &&
+              hasActiveV3Prompt === true;
+            
+            if (!shouldRenderActiveV3Prompt) {
+              return null;
+            }
+            
+            // Derive prompt text (single source of truth - same as footer placeholder)
+            const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
+            
+            console.log('[V3_PROMPT][MAIN_PANE_ACTIVE_RENDER]', {
+              promptPreview: (v3PromptText || "").slice(0, 120),
+              v3PromptPhase,
+              hasActiveV3Prompt,
+              effectiveItemType,
+              packId: v3ProbingContext?.packId,
+              instanceNumber: v3ProbingContext?.instanceNumber
+            });
+            
+            return (
+              <ContentContainer>
+                <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
+                    {v3ProbingContext?.instanceNumber > 1 && (
+                      <>
+                        <span className="text-xs text-slate-500">•</span>
+                        <span className="text-xs text-slate-400">Instance {v3ProbingContext.instanceNumber}</span>
+                      </>
+                    )}
+                  </div>
+                  <p className="text-white text-sm leading-relaxed">{v3PromptText}</p>
+                </div>
+              </ContentContainer>
+            );
+          })()}
+
           {/* V3 PROBE PROMPT LANE: Active prompt card for V3 probing (purple AI follow-up) */}
           {/* SUPPRESSION GUARD: While MI_GATE is active, suppress AI follow-up cards to prevent stacking */}
+          {/* NOTE: This block is now redundant with V3_PROMPT ACTIVE CARD above, but kept for safety */}
           {(() => {
             // HARDENED: Suppress AI follow-up cards while MI_GATE is active (display only)
             const isMiGateActive = 
