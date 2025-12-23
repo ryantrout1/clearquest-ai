@@ -7721,7 +7721,7 @@ export default function CandidateInterview() {
   if (activeUiItem.kind === "V3_PROMPT") {
     const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
-    const promptId = v3ProbingContext?.promptId || v3PromptIdRef.current || 'noid';
+    const promptId = v3ProbingContext?.promptId || 'noid';
     const normalizedPromptText = normalizeTextForMatch(v3PromptText);
     // Stable key includes loopKey + promptId + text preview to prevent "new card" feeling across watchdog re-renders
     const stableKey = loopKey ? `v3-active:${loopKey}:${promptId}:${normalizedPromptText.slice(0,32)}` : null;
