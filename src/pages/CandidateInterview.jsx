@@ -1516,6 +1516,13 @@ export default function CandidateInterview() {
   const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && 
                             v3PromptPhase === "ANSWER_NEEDED";
   
+  // ============================================================================
+  // V3 BLOCKING GATE - Prevents base question advancement during V3 probing
+  // ============================================================================
+  const isV3Blocking = v3ProbingActive || hasActiveV3Prompt || 
+                       v3PromptPhase === 'ANSWER_NEEDED' || 
+                       v3PromptPhase === 'PROCESSING';
+  
   // TASK A: V3 VISIBLE PROMPT CARD SIGNAL - Prevents MI_GATE from jumping ahead during transitions
   // Check if v3ProbeDisplayHistory has an unanswered question (Q exists but no matching A)
   const v3HasVisiblePromptCard = (() => {
@@ -1594,9 +1601,27 @@ export default function CandidateInterview() {
       };
     }
     
-    // TASK B: Priority 3: Multi-instance gate (ONLY if V3 prompt not active AND no visible V3 prompt card)
-    // HARDENED: Block MI_GATE if V3 still has visible prompt card in UI history (prevents jump-ahead during transitions)
-    if (currentItem?.type === 'multi_instance_gate' && !hasActiveV3Prompt && !v3HasVisiblePromptCard) {
+    // TASK B: Priority 3: Multi-instance gate (ONLY if V3 not blocking)
+    // HARDENED: Block MI_GATE if V3 is blocking (active, has prompt, or processing)
+    if (currentItem?.type === 'multi_instance_gate') {
+      if (isV3Blocking) {
+        console.log('[FLOW][MI_GATE_STAGED_BUT_BLOCKED_BY_V3]', {
+          packId: currentItem.packId,
+          instanceNumber: currentItem.instanceNumber,
+          v3PromptPhase,
+          v3ProbingActive,
+          hasActiveV3Prompt,
+          v3HasVisiblePromptCard
+        });
+        // Return DEFAULT kind to prevent MI_GATE from activating
+        return {
+          kind: "DEFAULT",
+          currentItemType: currentItem?.type,
+          currentItemId: currentItem?.id,
+          promptText: null
+        };
+      }
+      
       return {
         kind: "MI_GATE",
         packId: currentItem.packId,
@@ -2973,6 +2998,19 @@ export default function CandidateInterview() {
   }, [flushPersist]);
 
   const advanceToNextBaseQuestion = useCallback(async (baseQuestionId, currentTranscript = null) => {
+    // V3 BLOCKING GATE: Block advancement if V3 is active
+    if (isV3Blocking) {
+      console.log('[FLOW][BLOCKED_ADVANCE_DUE_TO_V3]', {
+        reason: 'V3_BLOCKING',
+        currentItemType: currentItem?.type,
+        v3PromptPhase,
+        v3ProbingActive,
+        hasActiveV3Prompt,
+        baseQuestionId
+      });
+      return;
+    }
+    
     const currentQuestion = engine.QById[baseQuestionId];
     if (!currentQuestion) {
       setShowCompletionModal(true);
@@ -9402,6 +9440,13 @@ export default function CandidateInterview() {
                     instanceNumber,
                     reason,
                     hasRecap
+                  });
+                  
+                  // V3 BLOCK RELEASE: Log completion
+                  console.log('[FLOW][V3_BLOCK_RELEASED]', {
+                    loopKey,
+                    nextAllowed: true,
+                    reason: 'V3_INCIDENT_COMPLETE'
                   });
                   
                   // Route based on pack type (TDZ-safe)
