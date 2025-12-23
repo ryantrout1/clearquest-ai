@@ -9961,54 +9961,7 @@ export default function CandidateInterview() {
                });
                handleBottomBarSubmit();
              }}
-             disabled={(() => {
-                // V3 OPENER: Per-item commit check (use effectiveItemType for canonical routing)
-                const isV3OpenerActive = effectiveItemType === 'v3_pack_opener';
-                
-                if (isV3OpenerActive) {
-                  const openerText = openerDraft || "";
-                  const openerTextTrimmed = openerText.trim();
-                  const inputLen = openerTextTrimmed.length;
-                  const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem?.id;
-                  const submitDisabledRaw = inputLen === 0 || isCurrentItemCommitting || v3ProbingActive;
-                  
-                  // HARD UNHANG OVERRIDE: Force enable if we have input and not committing/probing
-                  let submitDisabledFinal = submitDisabledRaw;
-                  if (submitDisabledRaw && inputLen > 0 && !isCurrentItemCommitting && !v3ProbingActive) {
-                    console.warn('[V3_OPENER][SUBMIT_UNHANG_OVERRIDE]', {
-                      currentItemId: currentItem?.id,
-                      packId: currentItem?.packId,
-                      instanceNumber: currentItem?.instanceNumber,
-                      inputLen,
-                      reason: 'submit_disabled_despite_having_input_and_not_committing',
-                      action: 'forcing enabled'
-                    });
-                    submitDisabledFinal = false; // Force enable
-                  }
-
-                  console.log('[V3_OPENER][SUBMIT_ENABLE_CHECK]', {
-                    packId: currentItem?.packId,
-                    instanceNumber: currentItem?.instanceNumber,
-                    inputLen,
-                    isCurrentItemCommitting,
-                    v3ProbingActive,
-                    submitDisabledRaw,
-                    submitDisabledFinal,
-                    currentItemType: currentItem?.type,
-                    effectiveItemType,
-                    sourceFlags: {
-                      openerDraftLen: openerDraft?.length || 0,
-                      globalIsCommitting: isCommitting,
-                      committingItemId: committingItemIdRef.current
-                    }
-                  });
-
-                  return submitDisabledFinal;
-                }
-
-                // For all other types: use standard logic
-                return isBottomBarSubmitDisabled || !hasPrompt;
-              })()}
+             disabled={effectiveItemType === 'v3_pack_opener' ? v3OpenerSubmitDisabled : (isBottomBarSubmitDisabled || !hasPrompt)}
              className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5 disabled:opacity-50"
            >
              {(currentItem?.type !== 'v3_pack_opener' && !hasPrompt) ? (
