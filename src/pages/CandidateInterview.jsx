@@ -8490,86 +8490,9 @@ export default function CandidateInterview() {
           {(() => {
             const transcriptToRender = renderedTranscriptSnapshotRef.current || renderedTranscript;
             
-            // TASK C: SENTINEL FILTER - Single UI contract guardrail (final boundary before DOM)
-            const finalList = (() => {
-              // SENTINEL: Only active when MI_GATE is showing
-              if (!isMiGateActive) {
-                return transcriptToRender; // No filtering - normal flow
-              }
-              
-              // Build sentinel context (active gate identifiers)
-              const ctx = {
-                activeGateItemId: currentItem?.id,
-                activeGateStableKeyBase: currentItem?.packId && currentItem?.instanceNumber
-                  ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`
-                  : null,
-                activeGateStableKeyQ: null, // Computed below
-                miGatePrompt: currentItem?.promptText || 
-                              multiInstanceGate?.promptText ||
-                              (currentItem?.categoryLabel ? `Do you have another ${currentItem.categoryLabel} to report?` : null) ||
-                              `Do you have another incident to report?`
-              };
-              ctx.activeGateStableKeyQ = ctx.activeGateStableKeyBase ? `${ctx.activeGateStableKeyBase}:q` : null;
-              
-              // Apply sentinel filter
-              const beforeCount = transcriptToRender.length;
-              const filtered = transcriptToRender.filter(item => !matchesActiveMiGatePrompt(item, ctx));
-              const afterCount = filtered.length;
-              const suppressedCount = beforeCount - afterCount;
-              
-              if (suppressedCount > 0) {
-                console.log("[MI_GATE][SENTINEL_SUPPRESSED_MAIN_PANE]", {
-                  beforeCount,
-                  afterCount,
-                  suppressed: suppressedCount,
-                  ctx: {
-                    activeGateItemId: ctx.activeGateItemId,
-                    activeGateStableKeyBase: ctx.activeGateStableKeyBase,
-                    activeGateStableKeyQ: ctx.activeGateStableKeyQ,
-                    miGatePromptPreview: ctx.miGatePrompt.slice(0, 60)
-                  },
-                  suppressedItems: transcriptToRender.slice(-10).filter(it => matchesActiveMiGatePrompt(it, ctx)).map(it => ({
-                    id: getItemId(it),
-                    stableKey: getItemStableKey(it),
-                    type: it.messageType || it.type || it.kind,
-                    textPreview: getItemText(it).slice(0, 120)
-                  }))
-                });
-                
-                // TASK D: Self-test tracker hookup (ref mutation only, no hooks)
-                if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
-                  const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { footerWired: false, activeGateSuppressed: false, suppressedSeenViaLog: false, testStarted: false };
-                  tracker.activeGateSuppressed = true;
-                  tracker.suppressedSeenViaLog = true; // Mark that we saw suppression in logs
-                  miGateTestTrackerRef.current.set(currentItem.id, tracker);
-                  
-                  console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
-                    itemId: currentItem.id,
-                    event: 'SENTINEL_SUPPRESSED',
-                    suppressedCount,
-                    tracker
-                  });
-                }
-              } else {
-                console.warn("[MI_GATE][SENTINEL_NO_MATCH]", {
-                  beforeCount,
-                  note: "No matching items found to suppress; main pane should not show active gate anyway.",
-                  ctx: {
-                    activeGateItemId: ctx.activeGateItemId,
-                    activeGateStableKeyBase: ctx.activeGateStableKeyBase,
-                    miGatePromptPreview: ctx.miGatePrompt.slice(0, 80)
-                  },
-                  lastItems: transcriptToRender.slice(-10).map(it => ({
-                    id: getItemId(it),
-                    stableKey: getItemStableKey(it),
-                    type: it.messageType || it.type || it.kind,
-                    textPreview: getItemText(it).slice(0, 120)
-                  }))
-                });
-              }
-              
-              return filtered;
-            })();
+            // UI CONTRACT: MI_GATE renders in main pane (NO suppression)
+            // Sentinel logic DISABLED - active MI_GATE must show in main pane per ClearQuest contract
+            const finalList = transcriptToRender;
             
             return (
               <div className="opacity-100">
