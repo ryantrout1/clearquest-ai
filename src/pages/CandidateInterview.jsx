@@ -8522,14 +8522,22 @@ export default function CandidateInterview() {
                   });
                 }
               } else {
+                // TASK 3: Actionable diagnostic - use canonical getters
                 console.warn("[MI_GATE][SENTINEL_NO_MATCH]", {
                   beforeCount,
                   note: "No matching items found to suppress; main pane should not show active gate anyway.",
-                  last10Items: transcriptToRender.slice(-10).map(i => ({
-                    id: i.id,
-                    stableKey: i.stableKey,
-                    type: i.messageType || i.type,
-                    textPreview: (i.text || "").slice(0, 50)
+                  ctx: {
+                    activeGateItemId: ctx.activeGateItemId,
+                    activeGateStableKeyBase: ctx.activeGateStableKeyBase,
+                    activeGateStableKeyQ: ctx.activeGateStableKeyQ,
+                    miGatePromptPreview: ctx.miGatePrompt.slice(0, 60)
+                  },
+                  lastItems: transcriptToRender.slice(-10).map(it => ({
+                    id: getItemId(it),
+                    stableKey: getItemStableKey(it),
+                    type: it?.type || it?.messageType || it?.kind,
+                    textPreview: getItemText(it).slice(0, 120),
+                    hasGateKeyword: normalizeText(getItemText(it)).includes("do you have another")
                   }))
                 });
               }
