@@ -9946,22 +9946,29 @@ export default function CandidateInterview() {
                handleBottomBarSubmit();
              }}
              disabled={(() => {
-                // CRITICAL FIX: Use currentItem.type directly (not effectiveItemType) to prevent mismatch
-                if (currentItem?.type === 'v3_pack_opener') {
+                // V3 OPENER: Per-item commit check (use effectiveItemType for canonical routing)
+                const isV3Opener = effectiveItemType === 'v3_pack_opener';
+                
+                if (isV3Opener) {
                   const openerText = openerDraft || "";
                   const openerTextTrimmed = openerText.trim();
                   const inputLen = openerTextTrimmed.length;
-                  const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem.id;
+                  const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem?.id;
                   const submitDisabled = inputLen === 0 || isCurrentItemCommitting;
 
                   console.log('[V3_OPENER][SUBMIT_ENABLE_CHECK]', {
-                    packId: currentItem.packId,
-                    instanceNumber: currentItem.instanceNumber,
+                    packId: currentItem?.packId,
+                    instanceNumber: currentItem?.instanceNumber,
                     inputLen,
                     isCurrentItemCommitting,
                     submitDisabled,
-                    currentItemType: currentItem.type,
-                    effectiveItemType
+                    currentItemType: currentItem?.type,
+                    effectiveItemType,
+                    sourceFlags: {
+                      openerDraftLen: openerDraft?.length || 0,
+                      globalIsCommitting: isCommitting,
+                      committingItemId: committingItemIdRef.current
+                    }
                   });
 
                   return submitDisabled;
