@@ -9412,8 +9412,24 @@ export default function CandidateInterview() {
            </div>
           ) : bottomBarMode === "YES_NO" && (bottomBarRenderTypeSOT === "multi_instance_gate" || isMultiInstanceGate) ? (
           <div className="space-y-3">
-            {/* MI_GATE FOOTER PROMPT: Question text above Yes/No buttons */}
+            {/* MI_GATE FOOTER PROMPT: Question text above Yes/No buttons (MI_GATE ONLY) */}
             {(() => {
+              // HARDENED: Only render prompt box for active MI_GATE (not other YES/NO)
+              const isMiGateFooter = 
+                activeUiItem?.kind === "MI_GATE" &&
+                effectiveItemType === 'multi_instance_gate' &&
+                bottomBarMode === "YES_NO";
+              
+              if (!isMiGateFooter) {
+                console.log('[MI_GATE][FOOTER_PROMPT_SKIP]', {
+                  reason: 'NOT_MI_GATE',
+                  activeUiItemKind: activeUiItem?.kind,
+                  effectiveItemType,
+                  bottomBarMode
+                });
+                return null; // Do not render prompt box for other YES/NO questions
+              }
+              
               const miGatePrompt = 
                 currentItem?.promptText || 
                 multiInstanceGate?.promptText ||
@@ -9430,17 +9446,19 @@ export default function CandidateInterview() {
               });
               
               // UI CONTRACT SELF-TEST: Track footer wired event
-              const itemId = currentItem?.id;
-              if (itemId) {
-                const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, historySuppressed: false, testStarted: false };
-                tracker.footerWired = true;
-                miGateTestTrackerRef.current.set(itemId, tracker);
-                
-                console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
-                  itemId,
-                  event: 'FOOTER_WIRED',
-                  tracker
-                });
+              if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST) {
+                const itemId = currentItem?.id;
+                if (itemId) {
+                  const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, historySuppressed: false, testStarted: false };
+                  tracker.footerWired = true;
+                  miGateTestTrackerRef.current.set(itemId, tracker);
+                  
+                  console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
+                    itemId,
+                    event: 'FOOTER_WIRED',
+                    tracker
+                  });
+                }
               }
               
               return (
