@@ -9256,11 +9256,12 @@ export default function CandidateInterview() {
             );
           })()}
 
-          {/* V3 PROBE PROMPT LANE: Active prompt card for V3 probing (purple AI follow-up) */}
-          {/* SUPPRESSION GUARD: While MI_GATE is active, suppress AI follow-up cards to prevent stacking */}
-          {/* NOTE: This block is now redundant with V3_PROMPT ACTIVE CARD above, but kept for safety */}
+          {/* V3 PROBE PROMPT LANE: LEGACY BLOCK - Suppressed (V3_PROMPT ACTIVE CARD handles rendering) */}
           {(() => {
-            // HARDENED: Suppress AI follow-up cards while MI_GATE is active (display only)
+            // SUPPRESSION: Canonical V3_PROMPT ACTIVE CARD (lines 9217-9257) now handles all V3 prompt rendering
+            // This legacy block is redundant and causes duplicate cards
+            
+            // HARDENED: Suppress while MI_GATE active (keep for diagnostics)
             const isMiGateActive = 
               activeUiItem?.kind === "MI_GATE" &&
               bottomBarMode === "YES_NO";
@@ -9272,67 +9273,29 @@ export default function CandidateInterview() {
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber
               });
-              return null; // Suppress AI follow-up cards while MI_GATE decision pending
             }
             
-            // ROBUST GATING: Use state flags directly instead of strict type matching
-            // LIFECYCLE: Only render active prompt when phase is ANSWER_NEEDED (not PROCESSING)
-            const shouldRenderV3PromptLaneCard = 
-              v3ProbingActive &&
-              effectiveItemType === 'v3_probing' &&
-              v3ActivePromptText &&
-              v3ActivePromptText.trim().length > 0 &&
-              v3PromptPhase === "ANSWER_NEEDED" &&
-              !activeBlocker;
-            
-            // DIAGNOSTIC: Log when prompt exists but render condition fails
-            if (v3ProbingActive && v3ActivePromptText && !shouldRenderV3PromptLaneCard) {
-              console.warn('[V3_PROMPT_LANE_MISSING]', {
-                preview: v3ActivePromptText?.slice(0, 80),
-                effectiveItemType,
-                bottomBarMode,
-                v3ProbingActive,
-                hasActiveBlocker: !!activeBlocker,
-                reason: 'Prompt exists but render condition failed'
+            // LEGACY SUPPRESSION: V3_PROMPT canonical block handles rendering (prevents duplicate)
+            if (activeUiItem?.kind === "V3_PROMPT") {
+              console.log('[V3_PROMPT][LEGACY_BLOCK_SUPPRESSED]', {
+                reason: 'V3_PROMPT_ACTIVE_CARD_HANDLES_RENDERING',
+                activeUiItemKind: activeUiItem.kind,
+                packId: v3ProbingContext?.packId,
+                instanceNumber: v3ProbingContext?.instanceNumber,
+                note: 'Legacy V3 PROBE PROMPT LANE suppressed to prevent duplicate'
               });
-            }
-            
-            if (!shouldRenderV3PromptLaneCard) {
               return null;
             }
             
-            console.log('[V3_PROMPT_LANE_RENDER]', {
-              preview: v3ActivePromptText?.slice(0, 80),
-              effectiveItemType,
-              bottomBarMode,
+            // SAFETY: Should never reach here if canonical routing works correctly
+            console.warn('[V3_PROMPT][LEGACY_BLOCK_REACHED]', {
+              activeUiItemKind: activeUiItem?.kind,
               v3ProbingActive,
-              hasPrompt: !!v3ActivePromptText
+              hasActiveV3Prompt,
+              reason: 'Canonical V3_PROMPT block should have rendered - this is a fallback path'
             });
             
-            return (
-              <ContentContainer>
-                <div ref={promptLaneRef} className="relative z-20 w-full rounded-xl p-1">
-                  <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 shadow-xl">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
-                      {v3ProbingContext?.instanceNumber > 1 && (
-                        <>
-                          <span className="text-xs text-slate-500">•</span>
-                          <span className="text-xs text-slate-400">Instance {v3ProbingContext.instanceNumber}</span>
-                        </>
-                      )}
-                    </div>
-                    <p className="text-white text-sm leading-relaxed">{v3ActivePromptText}</p>
-                  </div>
-
-                  {validationHint && (
-                    <div className="mt-2 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
-                      <p className="text-yellow-200 text-sm">{validationHint}</p>
-                    </div>
-                  )}
-                </div>
-              </ContentContainer>
-            );
+            return null;
           })()}
 
           {/* UNIFIED STREAM: Active cards disabled - all content in transcript */}
