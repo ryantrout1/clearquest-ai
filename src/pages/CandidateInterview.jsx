@@ -8616,7 +8616,38 @@ export default function CandidateInterview() {
             
             // UI CONTRACT: MI_GATE renders in main pane (NO suppression)
             // Sentinel logic DISABLED - active MI_GATE must show in main pane per ClearQuest contract
-            const finalList = transcriptToRender;
+            
+            // ORDER GATING: Suppress base QUESTION_SHOWN during active V3 probing
+            // Prevents Q2 from rendering above active V3 probe prompt card
+            const v3UiHistoryLen = v3UiRenderable.length;
+            const hasVisibleV3PromptCard = v3HasVisiblePromptCard;
+            const shouldSuppressBaseQuestions = v3ProbingActive || hasVisibleV3PromptCard;
+            
+            const finalList = shouldSuppressBaseQuestions 
+              ? transcriptToRender.filter((entry, idx) => {
+                  // Only filter QUESTION_SHOWN entries
+                  if (entry.messageType !== 'QUESTION_SHOWN') return true;
+                  
+                  // Keep question if it's part of V3 pack (has packId)
+                  if (entry.meta?.packId) return true;
+                  
+                  // Suppress standalone base questions during V3 probing
+                  const suppressedQuestionId = entry.meta?.questionDbId || entry.questionId;
+                  const suppressedQuestionCode = entry.meta?.questionCode || 'unknown';
+                  
+                  console.log('[ORDER][BASE_QUESTION_SUPPRESSED_DURING_V3]', {
+                    suppressedQuestionId,
+                    suppressedQuestionCode,
+                    reason: 'V3_PROBING_ACTIVE_OR_VISIBLE_PROMPT_CARD',
+                    v3ProbingActive,
+                    v3UiHistoryLen,
+                    hasVisibleV3PromptCard,
+                    loopKey: v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null
+                  });
+                  
+                  return false; // Suppress this question
+                })
+              : transcriptToRender;
             
             return (
               <div className="opacity-100">
