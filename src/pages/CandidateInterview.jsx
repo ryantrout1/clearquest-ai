@@ -6961,13 +6961,68 @@ export default function CandidateInterview() {
   }, [footerHeightPx]);
 
   // ============================================================================
+  // BOTTOM BAR MODE EARLY COMPUTATION - Must be before footer padding (TDZ fix)
+  // ============================================================================
+  // Compute bottomBarMode early to break TDZ dependency chain
+  // This is a minimal computation - full mode logic remains in main body (line 7654+)
+  let bottomBarModeEarly = "HIDDEN";
+  
+  // Pre-interview intro (WELCOME screen only)
+  if (screenMode === 'WELCOME' && !v3ProbingActive && !currentItem) {
+    bottomBarModeEarly = "CTA";
+  }
+  // Section transition blockers
+  else if (activeBlocker?.type === 'SECTION_MESSAGE' && currentItem?.type !== 'section_transition') {
+    bottomBarModeEarly = "CTA";
+  }
+  else if (pendingSectionTransition && currentItem?.type === 'section_transition') {
+    bottomBarModeEarly = "CTA";
+  }
+  // V3_PROMPT active (canonical routing via activeUiItem)
+  else if (activeUiItem.kind === "V3_PROMPT") {
+    bottomBarModeEarly = "TEXT_INPUT";
+  }
+  // V3_OPENER active
+  else if (activeUiItem.kind === "V3_OPENER") {
+    bottomBarModeEarly = "TEXT_INPUT";
+  }
+  // MI_GATE active
+  else if (activeUiItem.kind === "MI_GATE") {
+    const gatePromptText = activeUiItem.promptText || currentItem?.promptText || multiInstanceGate?.promptText;
+    bottomBarModeEarly = (gatePromptText && gatePromptText.trim().length > 0) ? "YES_NO" : "DISABLED";
+  }
+  // Regular yes/no questions
+  else if (currentItem?.type === 'question' && engine?.QById[currentItem.id]?.response_type === 'yes_no') {
+    bottomBarModeEarly = "YES_NO";
+  }
+  // V2 pack field yes/no
+  else if (currentItem?.type === 'v2_pack_field' && currentItem?.fieldConfig?.inputType === 'yes_no') {
+    bottomBarModeEarly = "YES_NO";
+  }
+  // V2 pack field select
+  else if (currentItem?.type === 'v2_pack_field' && currentItem?.fieldConfig?.inputType === 'select_single') {
+    bottomBarModeEarly = "SELECT";
+  }
+  // Text input for answerable items
+  else if (currentItem && (currentItem.type === 'question' || currentItem.type === 'v2_pack_field' || currentItem.type === 'v3_pack_opener' || currentItem.type === 'followup')) {
+    bottomBarModeEarly = "TEXT_INPUT";
+  }
+  
+  console.log('[BOOT][BOTTOM_BAR_MODE_READY]', {
+    bottomBarMode: bottomBarModeEarly,
+    effectiveItemType: v3ProbingActive ? 'v3_probing' : currentItem?.type,
+    activeUiItemKind: activeUiItem?.kind,
+    currentItemType: currentItem?.type
+  });
+
+  // ============================================================================
   // FOOTER PADDING COMPUTATION - Must be declared before auto-scroll effect (TDZ fix)
   // ============================================================================
   const SAFETY_MARGIN_PX = 8;
   const MIN_FOOTER_FALLBACK_PX = 80;
   const shouldRenderFooterEarly = 
     screenMode === 'QUESTION' && 
-    (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
+    (bottomBarModeEarly === 'TEXT_INPUT' || bottomBarModeEarly === 'YES_NO' || bottomBarModeEarly === 'SELECT');
   
   const footerSafePaddingPx = shouldRenderFooterEarly 
     ? (footerHeightPx > 0 ? footerHeightPx : MIN_FOOTER_FALLBACK_PX) + SAFETY_MARGIN_PX
@@ -7588,184 +7643,61 @@ export default function CandidateInterview() {
   return item.type === "question" || item.type === "v2_pack_field" || item.type === "v3_pack_opener" || item.type === "followup";
   };
 
+  // Re-anchor bottom on footer height changes when auto-scroll is enabled
+  useEffect(() => {
+    if (!historyRef.current) return;
+    if (!autoScrollEnabledRef.current) return;
+    requestAnimationFrame(() => {
+      bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+    });
+  }, [footerHeightPx]);
+
   // ============================================================================
-  // CENTRALIZED BOTTOM BAR MODE SELECTION (Single Decision Point)
+  // BOTTOM BAR MODE EARLY COMPUTATION - Must be before footer padding (TDZ fix)
   // ============================================================================
+  // CRITICAL: Minimal early bottomBarMode computation to break TDZ dependency
+  // Full mode logic with all guards remains in main body (after currentPrompt is resolved)
+  // This early version uses ONLY already-declared state to compute a safe approximation
+  let bottomBarModeEarly = "HIDDEN";
   
-  // Compute currentItemType (base type before precedence)
-  const currentItemType = (v3GateActive ? 'v3_gate' : (v3ProbingActive ? 'v3_probing' : (pendingSectionTransition ? 'section_transition' : currentItem?.type || null)));
+  if (screenMode === 'WELCOME' && !v3ProbingActive && !currentItem) {
+    bottomBarModeEarly = "CTA";
+  } else if (activeBlocker?.type === 'SECTION_MESSAGE' || pendingSectionTransition) {
+    bottomBarModeEarly = "CTA";
+  } else if (activeUiItem.kind === "V3_PROMPT") {
+    bottomBarModeEarly = "TEXT_INPUT";
+  } else if (activeUiItem.kind === "V3_OPENER") {
+    bottomBarModeEarly = "TEXT_INPUT";
+  } else if (activeUiItem.kind === "MI_GATE") {
+    const gatePromptText = activeUiItem.promptText || currentItem?.promptText || multiInstanceGate?.promptText;
+    bottomBarModeEarly = (gatePromptText && gatePromptText.trim().length > 0) ? "YES_NO" : "DISABLED";
+  } else if (v3ProbingActive) {
+    bottomBarModeEarly = v3ActivePromptText ? "TEXT_INPUT" : "DISABLED";
+  } else if (currentItem?.type === 'question' || currentItem?.type === 'v2_pack_field' || currentItem?.type === 'v3_pack_opener' || currentItem?.type === 'followup') {
+    bottomBarModeEarly = "TEXT_INPUT"; // Default for answerable items
+  }
   
-  // CANONICAL ROUTING: Use activeUiItem.kind to determine ALL UI rendering
-  const footerControllerLocal = activeUiItem.kind === "V3_PROMPT" ? "V3_PROMPT" :
-                                activeUiItem.kind === "V3_OPENER" ? "V3_OPENER" :
-                                activeUiItem.kind === "MI_GATE" ? "MI_GATE" :
-                                "DEFAULT";
-  
-  // UI TRUTH: effectiveItemType derived from activeUiItem.kind (single source)
-  // Also used as fallback in bottomBarRenderType declaration above
-  const effectiveItemType = activeUiItem.kind === "V3_PROMPT" ? 'v3_probing' : 
-                           activeUiItem.kind === "V3_OPENER" ? 'v3_pack_opener' :
-                           activeUiItem.kind === "MI_GATE" ? 'multi_instance_gate' :
-                           (v3ProbingActive ? 'v3_probing' : currentItemType);
-  
-  // CONTRACT VERIFICATION: Log canonical UI item resolution
-  console.log('[V3_UI_CONTRACT][ACTIVE_UI_ITEM]', {
-    kind: activeUiItem.kind,
-    hasV3PromptText,
-    hasV3ProbeQuestion,
-    hasV3LoopKey,
-    hasActiveV3Prompt,
-    currentItemType,
-    effectiveItemType,
-    footerControllerLocal,
-    v3ProbingActive
-  });
-  
-  // UI STATE SNAPSHOT: Consolidated snapshot on state transitions
-  console.log('[UI][STATE_SNAPSHOT]', {
-    currentActiveKind: activeUiItem.kind,
-    transcriptLen: dbTranscript?.length || 0,
-    v3UiHistoryLen: v3ProbeDisplayHistory?.length || 0,
-    shouldAutoScroll: shouldAutoScrollRef.current,
-    footerSafePaddingPx,
-    dynamicBottomPaddingPx,
-    hasActiveV3Prompt,
-    v3PromptPhase,
+  console.log('[BOOT][BOTTOM_BAR_MODE_READY]', {
+    bottomBarMode: bottomBarModeEarly,
+    effectiveItemType: v3ProbingActive ? 'v3_probing' : currentItem?.type,
+    activeUiItemKind: activeUiItem?.kind,
     currentItemType: currentItem?.type
   });
+
+  // ============================================================================
+  // FOOTER PADDING COMPUTATION - Must be declared before auto-scroll effect (TDZ fix)
+  // ============================================================================
+  const SAFETY_MARGIN_PX = 8;
+  const MIN_FOOTER_FALLBACK_PX = 80;
+  const shouldRenderFooterEarly = 
+    screenMode === 'QUESTION' && 
+    (bottomBarModeEarly === 'TEXT_INPUT' || bottomBarModeEarly === 'YES_NO' || bottomBarModeEarly === 'SELECT');
   
-  // CANONICAL ROUTING: Log footer controller derived from activeUiItem
-  console.log('[FOOTER_CONTROLLER_LOCAL]', {
-    activeUiItemKind: activeUiItem.kind,
-    footerControllerLocal,
-    hasActiveV3Prompt,
-    hasV3PromptText,
-    hasV3ProbeQuestion,
-    hasV3LoopKey,
-    currentItemType,
-    effectiveItemType,
-    v3PromptPreview: v3ActivePromptText?.substring(0, 40) || null
-  });
+  const footerSafePaddingPx = shouldRenderFooterEarly 
+    ? (footerHeightPx > 0 ? footerHeightPx : MIN_FOOTER_FALLBACK_PX) + SAFETY_MARGIN_PX
+    : 0;
   
-  const isV3Gate = effectiveItemType === "v3_gate";
-  const isMultiInstanceGate = effectiveItemType === "multi_instance_gate";
-  
-  // Compute bottom bar mode
-  let bottomBarMode = "HIDDEN"; // Default: no controls shown
-  let isQuestion = false; // Semantic flag: is this a question-like prompt?
-  
-  // Pre-interview intro (WELCOME screen only - strict gate)
-  if (screenMode === 'WELCOME' && !v3ProbingActive && !currentItem) {
-    if (!isMultiInstanceGate && !isV3Gate) {
-      bottomBarMode = "CTA"; // "Got it — Let's Begin" button
-    }
-  }
-  // Section transition blockers
-  else if (activeBlocker?.type === 'SECTION_MESSAGE' && currentItem?.type !== 'section_transition') {
-    bottomBarMode = "CTA"; // "Continue →" button
-  }
-  else if (pendingSectionTransition && currentItem?.type === 'section_transition') {
-     bottomBarMode = "CTA"; // "Begin Next Section" button
-   }
-  // FOOTER MODE ENFORCEMENT: Driven by activeUiItem.kind (canonical routing)
-  if (activeUiItem.kind === "V3_PROMPT") {
-    bottomBarMode = "TEXT_INPUT";
-    isQuestion = true;
-    console.log('[V3_FOOTER_MODE]', {
-      activeUiItemKind: "V3_PROMPT",
-      hasActiveV3Prompt: true,
-      bottomBarMode,
-      effectiveItemType,
-      packId: activeUiItem.packId,
-      instanceNumber: activeUiItem.instanceNumber,
-      reason: 'V3_PROMPT canonical item - TEXT_INPUT enforced'
-    });
-  }
-  else if (activeUiItem.kind === "V3_OPENER") {
-    bottomBarMode = "TEXT_INPUT";
-    isQuestion = true;
-    console.log('[V3_OPENER_MODE]', {
-      activeUiItemKind: "V3_OPENER",
-      bottomBarMode,
-      packId: activeUiItem.packId,
-      instanceNumber: activeUiItem.instanceNumber
-    });
-  }
-  else if (activeUiItem.kind === "MI_GATE") {
-    // PART 2: Hard guard - never show YES/NO without question text
-    const gatePromptText = activeUiItem.promptText || currentItem?.promptText || multiInstanceGate?.promptText;
-    
-    if (!gatePromptText || gatePromptText.trim().length === 0) {
-      bottomBarMode = "DISABLED";
-      console.log('[MI_GATE][PROMPT_MISSING_BLOCKED]', {
-        activeUiItemKind: "MI_GATE",
-        packId: activeUiItem.packId,
-        instanceNumber: activeUiItem.instanceNumber,
-        reason: 'Gate active but no prompt text - preventing YES/NO without question'
-      });
-    } else {
-      bottomBarMode = "YES_NO";
-      isQuestion = true; // Treat as question for semantic styling
-      console.log('[MI_GATE_MODE]', {
-        activeUiItemKind: "MI_GATE",
-        bottomBarMode,
-        packId: activeUiItem.packId,
-        instanceNumber: activeUiItem.instanceNumber
-      });
-    }
-  }
-  // V3 gate (fallback YES_NO)
-  else if (isV3Gate) {
-    bottomBarMode = "YES_NO";
-    isQuestion = true;
-  }
-  // V3 probing active (show TEXT_INPUT ONLY if prompt is ready - prevent blank probing UI)
-  else if (v3ProbingActive && !isV3Gate && !isMultiInstanceGate) {
-    // GUARD: Block text input if V3 probing active but no prompt yet (prevent blank UI state)
-    if (!v3ActivePromptText || v3ActivePromptText.trim().length === 0) {
-      bottomBarMode = "DISABLED";
-      console.log('[V3_UI_CONTRACT][PROMPT_AWAIT]', {
-        loopKey: `${sessionId}:${v3ProbingContext?.categoryId}:${v3ProbingContext?.instanceNumber || 1}`,
-        v3ProbingActive: true,
-        hasPrompt: false,
-        reason: 'Waiting for first probe prompt - preventing blank input state'
-      });
-    } else {
-      bottomBarMode = "TEXT_INPUT";
-      isQuestion = true;
-      console.log('[V3_UI_CONTRACT]', {
-        action: 'TEXT_INPUT_DURING_PROBING',
-        reason: 'Parent owns UI - V3ProbingLoop is headless',
-        v3ProbingActive,
-        effectiveItemType,
-        hasActivePrompt: !!v3ActivePromptText
-      });
-    }
-  }
-  // Normal yes/no questions
-  else if (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop) {
-    bottomBarMode = "YES_NO";
-    isQuestion = true;
-  }
-  else if (currentPrompt?.type === 'multi_instance' && currentPrompt?.responseType === 'yes_no') {
-    bottomBarMode = "YES_NO";
-    isQuestion = true;
-  }
-  // V2 pack field yes/no
-  else if (effectiveItemType === 'v2_pack_field' && currentPrompt?.inputType === 'yes_no') {
-    bottomBarMode = "YES_NO";
-    isQuestion = true;
-  }
-  // V2 pack field select single
-  else if (effectiveItemType === 'v2_pack_field' && currentPrompt?.inputType === 'select_single' && currentPrompt?.options) {
-    bottomBarMode = "SELECT";
-    isQuestion = true;
-  }
-  // Text input for questions, v2_pack_field, v3_pack_opener, followup
-  else if ((effectiveItemType === 'question' || effectiveItemType === 'v2_pack_field' || effectiveItemType === 'v3_pack_opener' || effectiveItemType === 'followup' || currentPrompt?.type === 'ai_probe') && !isV3Gate && !isMultiInstanceGate) {
-    bottomBarMode = "TEXT_INPUT";
-    isQuestion = true;
-  }
+  const dynamicBottomPaddingPx = footerSafePaddingPx;
   
   // MI_GATE TRACE 1: Mode derivation audit
   if (effectiveItemType === 'multi_instance_gate' || currentItemType === 'multi_instance_gate' || isMultiInstanceGate) {
@@ -7905,6 +7837,7 @@ export default function CandidateInterview() {
   });
   
   // WATCHDOG FRESHNESS: Sync all watchdog-critical state to refs (no stale closures)
+  // NOTE: Use final bottomBarMode (refined with currentPrompt), not bottomBarModeEarly
   bottomBarModeRef.current = bottomBarMode;
   v3ActivePromptTextRef.current = v3ActivePromptText;
   v3ProbingActiveRef.current = v3ProbingActive;
