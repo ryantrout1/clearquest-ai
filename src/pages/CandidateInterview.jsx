@@ -1611,12 +1611,13 @@ export default function CandidateInterview() {
   
   const activeUiItem = resolveActiveUiItem();
   
-  // ACTIVE KIND PRECEDENCE LOG: Only log when kind changes (reduce spam)
+  // TASK B: ACTIVE KIND PRECEDENCE LOG: Only log when kind changes (reduce spam)
   if (activeUiItem.kind !== lastLoggedActiveKindRef.current) {
     lastLoggedActiveKindRef.current = activeUiItem.kind;
     console.log('[ORDER][ACTIVE_KIND_PRECEDENCE]', {
       currentActiveKind: activeUiItem.kind,
       hasActiveV3Prompt,
+      v3HasVisiblePromptCard,
       v3PromptPhase,
       currentItemType: currentItem?.type,
       effectiveItemType: v3ProbingActive ? 'v3_probing' : currentItem?.type,
