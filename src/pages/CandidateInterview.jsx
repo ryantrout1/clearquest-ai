@@ -9323,6 +9323,20 @@ export default function CandidateInterview() {
                 derivedPromptPreview: miGatePrompt?.slice(0, 80)
               });
               
+              // UI CONTRACT SELF-TEST: Track footer wired event
+              const itemId = currentItem?.id;
+              if (itemId) {
+                const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, historySuppressed: false, testStarted: false };
+                tracker.footerWired = true;
+                miGateTestTrackerRef.current.set(itemId, tracker);
+                
+                console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
+                  itemId,
+                  event: 'FOOTER_WIRED',
+                  tracker
+                });
+              }
+              
               return (
                 <div className="bg-purple-900/30 border border-purple-700/50 rounded-lg px-4 py-3">
                   <p className="text-white text-sm leading-relaxed">{miGatePrompt}</p>
