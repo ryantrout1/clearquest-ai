@@ -8545,11 +8545,16 @@ export default function CandidateInterview() {
                 console.warn("[MI_GATE][SENTINEL_NO_MATCH]", {
                   beforeCount,
                   note: "No matching items found to suppress; main pane should not show active gate anyway.",
-                  last10Items: transcriptToRender.slice(-10).map(i => ({
-                    id: i.id,
-                    stableKey: i.stableKey,
-                    type: i.messageType || i.type,
-                    textPreview: (i.text || "").slice(0, 50)
+                  ctx: {
+                    activeGateItemId: ctx.activeGateItemId,
+                    activeGateStableKeyBase: ctx.activeGateStableKeyBase,
+                    miGatePromptPreview: ctx.miGatePrompt.slice(0, 80)
+                  },
+                  lastItems: transcriptToRender.slice(-10).map(it => ({
+                    id: getItemId(it),
+                    stableKey: getItemStableKey(it),
+                    type: it.messageType || it.type || it.kind,
+                    textPreview: getItemText(it).slice(0, 120)
                   }))
                 });
               }
