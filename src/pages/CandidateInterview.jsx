@@ -1478,6 +1478,9 @@ export default function CandidateInterview() {
   // V3 PROMPT DEDUPE: Track last rendered active prompt to prevent duplicate cards
   const lastRenderedV3PromptKeyRef = useRef(null);
   
+  // STICKY AUTOSCROLL: Single source of truth for auto-scroll behavior
+  const shouldAutoScrollRef = useRef(true);
+  
   // V3 UI-ONLY HISTORY: Display V3 probe Q/A without polluting transcript
   // MOVED UP: Must be declared before refreshTranscriptFromDB (TDZ fix)
   const v3ActiveProbeQuestionRef = useRef(null);
@@ -1507,6 +1510,7 @@ export default function CandidateInterview() {
   // V3_PROMPT > V3_OPENER > MI_GATE > DEFAULT
   const resolveActiveUiItem = () => {
     // Priority 1: V3 prompt active (multi-signal detection)
+    // HARDENED: V3_PROMPT takes absolute precedence - even if MI_GATE exists in state
     if (hasActiveV3Prompt) {
       return {
         kind: "V3_PROMPT",
@@ -1520,7 +1524,7 @@ export default function CandidateInterview() {
       };
     }
     
-    // Priority 2: V3 pack opener
+    // Priority 2: V3 pack opener (must not be superseded by MI_GATE)
     if (currentItem?.type === 'v3_pack_opener') {
       return {
         kind: "V3_OPENER",
@@ -1533,8 +1537,9 @@ export default function CandidateInterview() {
       };
     }
     
-    // Priority 3: Multi-instance gate
-    if (currentItem?.type === 'multi_instance_gate') {
+    // Priority 3: Multi-instance gate (ONLY if V3 prompt not active)
+    // GUARD: Prevent MI_GATE from jumping ahead during V3 prompt lifecycle
+    if (currentItem?.type === 'multi_instance_gate' && !hasActiveV3Prompt) {
       return {
         kind: "MI_GATE",
         packId: currentItem.packId,
@@ -1556,6 +1561,18 @@ export default function CandidateInterview() {
   };
   
   const activeUiItem = resolveActiveUiItem();
+  
+  // ACTIVE KIND PRECEDENCE LOG: Track ordering decisions
+  console.log('[ORDER][ACTIVE_KIND_PRECEDENCE]', {
+    currentActiveKind: activeUiItem.kind,
+    hasActiveV3Prompt,
+    v3PromptPhase,
+    currentItemType: currentItem?.type,
+    effectiveItemType: v3ProbingActive ? 'v3_probing' : currentItem?.type,
+    currentItemId: currentItem?.id,
+    packId: currentItem?.packId || v3ProbingContext?.packId,
+    instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber
+  });
 
   // ============================================================================
   // BOTTOM BAR RENDER TYPE - Single source of truth (top-level component scope)
@@ -2103,21 +2120,38 @@ export default function CandidateInterview() {
     // GUARD: Ignore programmatic scroll events to prevent flapping
     if (isProgrammaticScrollRef.current) return;
     
-    if (isUserTyping) return;
-    
     const el = historyRef.current;
     if (!el) return;
     
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    // STICKY AUTOSCROLL: Detect if user is near bottom (24px threshold)
+    const NEAR_BOTTOM_THRESHOLD_PX = 24;
+    const distanceFromBottom = el.scrollHeight - (el.scrollTop + el.clientHeight);
+    const nearBottom = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD_PX;
+    
+    // Update sticky autoscroll state based on user scroll position
+    const wasShouldAutoScroll = shouldAutoScrollRef.current;
+    const nowShouldAutoScroll = nearBottom;
+    
+    if (wasShouldAutoScroll !== nowShouldAutoScroll) {
+      shouldAutoScrollRef.current = nowShouldAutoScroll;
+      console.log('[SCROLL][AUTO_SCROLL_STATE]', {
+        nearBottom,
+        shouldAutoScroll: nowShouldAutoScroll,
+        distanceFromBottom: Math.round(distanceFromBottom),
+        reason: nowShouldAutoScroll ? 'user_scrolled_to_bottom' : 'user_scrolled_up'
+      });
+    }
+    
+    // Legacy state sync (for compatibility)
+    const distanceFromBottomLegacy = el.scrollHeight - el.scrollTop - el.clientHeight;
     const wasEnabled = autoScrollEnabledRef.current;
-    const nowEnabled = distanceFromBottom <= AUTO_SCROLL_BOTTOM_THRESHOLD_PX;
+    const nowEnabled = distanceFromBottomLegacy <= AUTO_SCROLL_BOTTOM_THRESHOLD_PX;
     
     if (wasEnabled !== nowEnabled) {
-      console.log('[SCROLL]', { autoScrollEnabled: nowEnabled, distanceFromBottom: Math.round(distanceFromBottom) });
       autoScrollEnabledRef.current = nowEnabled;
       setAutoScrollEnabled(nowEnabled);
     }
-  }, [AUTO_SCROLL_BOTTOM_THRESHOLD_PX, isUserTyping]);
+  }, [AUTO_SCROLL_BOTTOM_THRESHOLD_PX]);
 
   const scrollToBottomSafely = useCallback((reason = 'default') => {
     if (!autoScrollEnabledRef.current) return;
@@ -6930,33 +6964,48 @@ export default function CandidateInterview() {
     });
   }, [footerHeightPx]);
 
-  // Deterministic scroll: initial snap once, then smooth follow when transcript grows
+  // STICKY AUTOSCROLL: Scroll to bottom on transcript growth, active item changes, footer changes
   React.useLayoutEffect(() => {
-    if (!bottomAnchorRef.current || !historyRef.current) return;
+    const scrollContainer = historyRef.current;
+    if (!scrollContainer) return;
     
-    // Never yank the view while the user is typing
+    // GUARD: Never auto-scroll while user is typing
     if (isUserTyping) return;
     
-    // Gate on transcript growth ONLY (no scroll on mode/currentItem changes)
-    const currentLen = Array.isArray(dbTranscript) ? dbTranscript.length : 0;
+    // GUARD: Only auto-scroll if shouldAutoScrollRef is true
+    if (!shouldAutoScrollRef.current) return;
     
-    // Initial hard snap exactly once
-    if (!didInitialSnapRef.current && currentLen > 0) {
-      lastAutoScrollLenRef.current = currentLen;
-      isProgrammaticScrollRef.current = true;
-      bottomAnchorRef.current.scrollIntoView({ block: 'end', behavior: 'auto' });
+    // Double RAF for layout stability
+    requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        isProgrammaticScrollRef.current = false;
+        if (!scrollContainer || !shouldAutoScrollRef.current) return;
+        
+        const scrollTopBefore = scrollContainer.scrollTop;
+        const scrollHeight = scrollContainer.scrollHeight;
+        const clientHeight = scrollContainer.clientHeight;
+        
+        // Scroll to absolute bottom
+        scrollContainer.scrollTop = scrollHeight;
+        
+        const scrollTopAfter = scrollContainer.scrollTop;
+        
+        console.log('[SCROLL][AUTO_SCROLL]', {
+          trigger: 'transcript_or_state_change',
+          scrollTopBefore: Math.round(scrollTopBefore),
+          scrollTopAfter: Math.round(scrollTopAfter),
+          scrollHeight: Math.round(scrollHeight),
+          clientHeight: Math.round(clientHeight)
+        });
       });
-      didInitialSnapRef.current = true;
-      return;
-    }
-    
-    // Smooth follow ONLY when transcript grows (gated by scrollToBottomSafely)
-    if (autoScrollEnabledRef.current) {
-      scrollToBottomSafely('transcriptGrowth');
-    }
-  }, [dbTranscript.length, isUserTyping, scrollToBottomSafely]);
+    });
+  }, [
+    dbTranscript.length, 
+    v3ProbeDisplayHistory.length,
+    activeUiItem?.kind,
+    footerHeightPx,
+    footerSafePaddingPx,
+    isUserTyping
+  ]);
 
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
   useEffect(() => {
@@ -7547,6 +7596,19 @@ export default function CandidateInterview() {
     v3ProbingActive
   });
   
+  // UI STATE SNAPSHOT: Consolidated snapshot on state transitions
+  console.log('[UI][STATE_SNAPSHOT]', {
+    currentActiveKind: activeUiItem.kind,
+    transcriptLen: dbTranscript?.length || 0,
+    v3UiHistoryLen: v3ProbeDisplayHistory?.length || 0,
+    shouldAutoScroll: shouldAutoScrollRef.current,
+    footerSafePaddingPx,
+    dynamicBottomPaddingPx,
+    hasActiveV3Prompt,
+    v3PromptPhase,
+    currentItemType: currentItem?.type
+  });
+  
   // CANONICAL ROUTING: Log footer controller derived from activeUiItem
   console.log('[FOOTER_CONTROLLER_LOCAL]', {
     activeUiItemKind: activeUiItem.kind,
@@ -7956,15 +8018,12 @@ export default function CandidateInterview() {
   // OVERFLOW-AWARE: Apply full padding only when content overflows, otherwise use compact gap
   const dynamicBottomPaddingPx = contentOverflows ? footerSafePaddingPx : COMPACT_GAP_PX;
   
-  console.log('[UI][FOOTER_SAFE_PADDING]', {
-    shouldRenderFooter,
-    bottomBarMode,
-    effectiveItemType,
+  console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
     footerMeasuredHeightPx: footerHeightPx,
     footerSafePaddingPx,
-    contentOverflows,
     dynamicBottomPaddingPx,
-    usingFallback: shouldRenderFooter && footerHeightPx === 0
+    contentOverflows,
+    shouldRenderFooter
   });
   
   // Auto-focus control props (pure values, no hooks)
@@ -9217,6 +9276,7 @@ export default function CandidateInterview() {
           {/* V3_PROMPT ACTIVE CARD: Active V3 prompt renders in main pane (above footer) */}
           {(() => {
             // UI CONTRACT: V3_PROMPT active card renders in main content area when V3 prompt is active
+            // PRECEDENCE GUARD: V3_PROMPT > MI_GATE (even if MI_GATE exists in currentItem)
             const shouldRenderActiveV3Prompt = 
               activeUiItem?.kind === "V3_PROMPT" &&
               effectiveItemType === "v3_probing" &&
@@ -9229,13 +9289,15 @@ export default function CandidateInterview() {
             // Derive prompt text (single source of truth - same as footer placeholder)
             const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
             
-            console.log('[V3_PROMPT][MAIN_PANE_ACTIVE_RENDER]', {
+            console.log('[V3_PROMPT][RENDER_SOURCE_ACTIVE_CARD]', {
               promptPreview: (v3PromptText || "").slice(0, 120),
               v3PromptPhase,
               hasActiveV3Prompt,
               effectiveItemType,
               packId: v3ProbingContext?.packId,
-              instanceNumber: v3ProbingContext?.instanceNumber
+              instanceNumber: v3ProbingContext?.instanceNumber,
+              currentItemType: currentItem?.type,
+              note: 'V3_PROMPT has precedence over MI_GATE'
             });
             
             return (
