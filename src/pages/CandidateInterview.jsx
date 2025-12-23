@@ -6960,6 +6960,21 @@ export default function CandidateInterview() {
     });
   }, [footerHeightPx]);
 
+  // ============================================================================
+  // FOOTER PADDING COMPUTATION - Must be declared before auto-scroll effect (TDZ fix)
+  // ============================================================================
+  const SAFETY_MARGIN_PX = 8;
+  const MIN_FOOTER_FALLBACK_PX = 80;
+  const shouldRenderFooterEarly = 
+    screenMode === 'QUESTION' && 
+    (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
+  
+  const footerSafePaddingPx = shouldRenderFooterEarly 
+    ? (footerHeightPx > 0 ? footerHeightPx : MIN_FOOTER_FALLBACK_PX) + SAFETY_MARGIN_PX
+    : 0;
+  
+  const dynamicBottomPaddingPx = footerSafePaddingPx;
+
   // STICKY AUTOSCROLL: Scroll to bottom on transcript growth, active item changes, footer changes
   React.useLayoutEffect(() => {
     const scrollContainer = historyRef.current;
@@ -7065,26 +7080,7 @@ export default function CandidateInterview() {
     }
   }, [input]);
 
-  // ============================================================================
-  // FOOTER PADDING COMPUTATION - Must be declared before auto-scroll effect
-  // ============================================================================
-  const SAFETY_MARGIN_PX = 8;
-  const MIN_FOOTER_FALLBACK_PX = 80;
-  const shouldRenderFooter = 
-    screenMode === 'QUESTION' && 
-    (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
-  
-  const footerSafePaddingPx = shouldRenderFooter 
-    ? (footerHeightPx > 0 ? footerHeightPx : MIN_FOOTER_FALLBACK_PX) + SAFETY_MARGIN_PX
-    : 0;
-  
-  const dynamicBottomPaddingPx = footerSafePaddingPx;
-  
-  console.log('[BOOT][FOOTER_SAFE_PADDING_READY]', { 
-    footerSafePaddingPx, 
-    footerHeightPx,
-    shouldRenderFooter 
-  });
+  // NOTE: Footer padding computation moved before auto-scroll effect (TDZ fix)
 
   // DEFENSIVE GUARD: Force exit WELCOME mode when interview has progressed
   useEffect(() => {
@@ -8029,10 +8025,18 @@ export default function CandidateInterview() {
   // ============================================================================
   // BOTTOM BAR DERIVED STATE BLOCK - All derived variables in strict order
   // ============================================================================
-  // NOTE: Footer padding computation moved earlier (before auto-scroll effect) to prevent TDZ
   const needsPrompt = bottomBarMode === 'TEXT_INPUT' || 
                       ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
   const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
+  const shouldRenderFooter = 
+    screenMode === 'QUESTION' && 
+    (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
+  
+  console.log('[BOOT][FOOTER_SAFE_PADDING_READY]', { 
+    footerSafePaddingPx, 
+    footerHeightPx,
+    shouldRenderFooter 
+  });
   
   console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
     footerMeasuredHeightPx: footerHeightPx,
