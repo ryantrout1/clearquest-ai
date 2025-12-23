@@ -7065,6 +7065,37 @@ export default function CandidateInterview() {
     }
   }, [input]);
 
+  // ============================================================================
+  // FOOTER PADDING COMPUTATION - Must be declared before auto-scroll effect
+  // ============================================================================
+  const SAFETY_MARGIN_PX = 8;
+  const MIN_FOOTER_FALLBACK_PX = 80;
+  const needsPrompt = bottomBarMode === 'TEXT_INPUT' || 
+                      ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
+  const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
+  const shouldRenderFooter = 
+    screenMode === 'QUESTION' && 
+    (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
+  
+  const footerSafePaddingPx = shouldRenderFooter 
+    ? (footerHeightPx > 0 ? footerHeightPx : MIN_FOOTER_FALLBACK_PX) + SAFETY_MARGIN_PX
+    : 0;
+  
+  const dynamicBottomPaddingPx = footerSafePaddingPx;
+  
+  console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
+    footerMeasuredHeightPx: footerHeightPx,
+    footerSafePaddingPx,
+    dynamicBottomPaddingPx,
+    shouldRenderFooter
+  });
+  
+  console.log('[BOOT][FOOTER_SAFE_PADDING_READY]', { 
+    footerSafePaddingPx, 
+    footerHeightPx,
+    shouldRenderFooter 
+  });
+
   // DEFENSIVE GUARD: Force exit WELCOME mode when interview has progressed
   useEffect(() => {
     if (screenMode !== "WELCOME") return; // Only act if we're in WELCOME
@@ -8008,32 +8039,7 @@ export default function CandidateInterview() {
   // ============================================================================
   // BOTTOM BAR DERIVED STATE BLOCK - All derived variables in strict order
   // ============================================================================
-  const needsPrompt = bottomBarMode === 'TEXT_INPUT' || 
-                      ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
-  const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
-  const shouldRenderFooter = 
-    screenMode === 'QUESTION' && 
-    (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
-  
-  // DYNAMIC FOOTER-SAFE PADDING: Compute after shouldRenderFooter is declared
-  const SAFETY_MARGIN_PX = 8;
-  const MIN_FOOTER_FALLBACK_PX = 80; // Conservative fallback until measured
-  const COMPACT_GAP_PX = 16; // Small gap when content doesn't overflow
-  const footerSafePaddingPx = shouldRenderFooter 
-    ? (footerHeightPx > 0 ? footerHeightPx : MIN_FOOTER_FALLBACK_PX) + SAFETY_MARGIN_PX
-    : 0;
-  
-  // FOOTER PADDING CONTRACT: Always apply safe padding to prevent clipping
-  // CRITICAL: Do NOT zero out padding when content doesn't overflow - footer still needs space
-  const dynamicBottomPaddingPx = footerSafePaddingPx;
-  
-  console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
-    footerMeasuredHeightPx: footerHeightPx,
-    footerSafePaddingPx,
-    dynamicBottomPaddingPx,
-    contentOverflows,
-    shouldRenderFooter
-  });
+  // NOTE: Footer padding computation moved earlier (before auto-scroll effect) to prevent TDZ
   
   // Auto-focus control props (pure values, no hooks)
   const focusEnabled = screenMode === 'QUESTION';
