@@ -8505,10 +8505,11 @@ export default function CandidateInterview() {
                   }
                 });
                 
-                // TASK D: Self-test tracker hookup
+                // TASK 4: Self-test tracker hookup (ref mutation only - safe during render)
                 if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
-                  const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { footerWired: false, activeGateSuppressed: false, testStarted: false };
+                  const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { footerWired: false, activeGateSuppressed: false, testStarted: false, suppressedSeenViaLog: false };
                   tracker.activeGateSuppressed = true;
+                  tracker.suppressedSeenViaLog = true;
                   miGateTestTrackerRef.current.set(currentItem.id, tracker);
                   
                   console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
@@ -8519,14 +8520,22 @@ export default function CandidateInterview() {
                   });
                 }
               } else {
+                // TASK 3: Actionable NO_MATCH log with canonicalized fields
                 console.warn("[MI_GATE][SENTINEL_NO_MATCH]", {
                   beforeCount,
                   note: "No matching items found to suppress; main pane should not show active gate anyway.",
-                  last10Items: transcriptToRender.slice(-10).map(i => ({
-                    id: i.id,
-                    stableKey: i.stableKey,
-                    type: i.messageType || i.type,
-                    textPreview: (i.text || "").slice(0, 50)
+                  ctx: {
+                    activeGateItemId: ctx.activeGateItemId,
+                    activeGateStableKeyBase: ctx.activeGateStableKeyBase,
+                    activeGateStableKeyQ: ctx.activeGateStableKeyQ,
+                    miGatePromptNormalized: normalizeText(ctx.miGatePrompt).slice(0, 60)
+                  },
+                  lastItems: transcriptToRender.slice(-10).map(it => ({
+                    id: getItemId(it),
+                    stableKey: getItemStableKey(it),
+                    type: it?.type || it?.messageType || it?.kind,
+                    textPreview: getItemText(it).slice(0, 120),
+                    textNormalized: normalizeText(getItemText(it)).slice(0, 80)
                   }))
                 });
               }
