@@ -9336,64 +9336,8 @@ export default function CandidateInterview() {
             );
           })()}
 
-          {/* MI_GATE ACTIVE CARD: Active MI_GATE question renders in main pane (above footer) */}
-          {(() => {
-            // UI CONTRACT: MI_GATE active card renders in main content area when gate is active
-            const shouldRenderActiveMiGate = 
-              activeUiItem?.kind === "MI_GATE" &&
-              effectiveItemType === "multi_instance_gate" &&
-              currentItem?.type === "multi_instance_gate";
-            
-            if (!shouldRenderActiveMiGate) {
-              return null;
-            }
-            
-            // TASK C: Block MI_GATE render if V3 still has visible prompt card (prevents jump-ahead)
-            if (v3HasVisiblePromptCard) {
-              console.log("[MI_GATE][ACTIVE_RENDER_BLOCKED_BY_V3]", {
-                packId: currentItem?.packId,
-                instanceNumber: currentItem?.instanceNumber,
-                reason: "V3_VISIBLE_PROMPT_CARD",
-                v3UiHistoryLen: v3ProbeDisplayHistory?.length || 0
-              });
-              return null;
-            }
-            
-            // Derive prompt text (single source of truth)
-            const miGatePrompt = 
-              currentItem.promptText ||
-              multiInstanceGate?.promptText ||
-              (currentItem.categoryLabel ? `Do you have another ${currentItem.categoryLabel} to report?` : null) ||
-              `Do you have another incident to report?`;
-            
-            console.log('[MI_GATE][MAIN_PANE_ACTIVE_RENDER]', {
-              currentItemId: currentItem?.id,
-              packId: currentItem?.packId,
-              instanceNumber: currentItem?.instanceNumber,
-              promptPreview: (miGatePrompt || "").slice(0, 120)
-            });
-            
-            // UI CONTRACT SELF-TEST: Track main pane render
-            if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
-              const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
-              tracker.mainPaneRendered = true;
-              miGateTestTrackerRef.current.set(currentItem.id, tracker);
-              
-              console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
-                itemId: currentItem.id,
-                event: 'MAIN_PANE_RENDERED',
-                tracker
-              });
-            }
-            
-            return (
-              <ContentContainer>
-                <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
-                  <p className="text-white text-base leading-relaxed">{miGatePrompt}</p>
-                </div>
-              </ContentContainer>
-            );
-          })()}
+          {/* MI_GATE/V3_PROMPT/V3_OPENER ACTIVE CARDS: Removed - now rendered via canonical stream */}
+          {/* CANONICAL STREAM: All active cards injected via renderStream (lines 8471-8539) */}
 
           {/* V3_PROMPT ACTIVE CARD: Active V3 prompt renders in main pane (above footer) */}
           {(() => {
