@@ -7959,65 +7959,6 @@ export default function CandidateInterview() {
     currentItem.type === 'multi_instance_gate'
   ) && !v3ProbingActive;
   
-  // ============================================================================
-  // ACTIVE PROMPT TEXT RESOLUTION - Single source of truth for what user sees
-  // ============================================================================
-  let activePromptText = null;
-  
-  // Priority 1: V3 active prompt (from V3ProbingLoop callback)
-  if (v3ProbingActive && v3ActivePromptText) {
-    activePromptText = v3ActivePromptText;
-  }
-  // Priority 2: V2 pack field - use backend question text or field label
-  else if (effectiveItemType === 'v2_pack_field' && currentItem) {
-    const backendText = currentItem.backendQuestionText;
-    const clarifierText = v2ClarifierState?.packId === currentItem.packId && 
-                         v2ClarifierState?.fieldKey === currentItem.fieldKey && 
-                         v2ClarifierState?.instanceNumber === currentItem.instanceNumber
-                         ? v2ClarifierState.clarifierQuestion
-                         : null;
-    activePromptText = clarifierText || backendText || currentItem.fieldConfig?.label || null;
-  }
-  // Priority 3: V3 pack opener (with fallback)
-  else if (effectiveItemType === 'v3_pack_opener' && currentItem) {
-    const openerText = currentItem.openerText;
-    const usingFallback = !openerText || openerText.trim() === '';
-    activePromptText = usingFallback 
-      ? "Please describe the details for this section in your own words."
-      : openerText;
-  }
-  // Priority 4: Current prompt from getCurrentPrompt()
-  else if (currentPrompt?.text) {
-    activePromptText = currentPrompt.text;
-  }
-  
-  // ============================================================================
-  // BOTTOM BAR DERIVED STATE BLOCK - All derived variables in strict order
-  // ============================================================================
-  // NOTE: bottomBarMode, effectiveItemType, and shouldRenderFooter already declared in unified block above
-  const needsPrompt = bottomBarMode === 'TEXT_INPUT' || 
-                      ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
-  const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
-  
-  console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
-    footerMeasuredHeightPx: footerHeightPx,
-    footerSafePaddingPx,
-    dynamicBottomPaddingPx,
-    shouldRenderFooter,
-    bottomBarMode
-  });
-  
-  // Auto-focus control props (pure values, no hooks)
-  const focusEnabled = screenMode === 'QUESTION';
-  const focusShouldTrigger = focusEnabled && bottomBarMode === 'TEXT_INPUT' && (hasPrompt || v3ProbingActive || currentItem?.type === 'v3_pack_opener');
-  const focusKey = v3ProbingActive 
-    ? `v3:${v3ProbingContext?.packId}:${v3ProbingContext?.instanceNumber}:${v3ActivePromptText?.substring(0, 20)}`
-    : currentItem?.type === 'v3_pack_opener'
-    ? `opener:${currentItem?.id}`
-    : currentItem?.id
-    ? `item:${currentItem.id}:${hasPrompt ? '1' : '0'}`
-    : 'none';
-  
   // V3 OPENER SUBMIT STATE: Log submit affordance for opener (use currentItem.type directly)
   if (currentItem?.type === 'v3_pack_opener') {
     const openerInputValue = openerDraft || "";
