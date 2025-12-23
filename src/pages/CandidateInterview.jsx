@@ -7811,21 +7811,12 @@ export default function CandidateInterview() {
     }
   }
   
-  // Log final mode selection
+  // Log final mode selection (minimal log - full snapshot already in unified block)
   console.log('[BOTTOM_BAR_MODE]', { 
     activeUiItemKind: activeUiItem.kind,
-    footerControllerLocal, 
-    currentItemType, 
-    effectiveItemType, 
-    bottomBarMode, 
-    bottomBarRenderTypeSOT,
-    isQuestion, 
-    screenMode,
-    hasActiveV3Prompt,
-    hasV3PromptText,
-    hasV3ProbeQuestion,
-    hasV3LoopKey,
-    v3ProbingActive
+    bottomBarMode,
+    effectiveItemType,
+    screenMode
   });
   
   // WATCHDOG FRESHNESS: Sync all watchdog-critical state to refs (no stale closures)
