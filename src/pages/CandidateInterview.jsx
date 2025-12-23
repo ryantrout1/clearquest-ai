@@ -9906,40 +9906,26 @@ export default function CandidateInterview() {
             style={{ maxHeight: '120px', overflowY: 'auto' }}
             disabled={(() => {
               // V3 OPENER: Item-scoped committing ONLY (use effectiveItemType for canonical routing)
-              const isV3Opener = effectiveItemType === 'v3_pack_opener';
+              const isV3OpenerActive = effectiveItemType === 'v3_pack_opener';
               
-              if (isV3Opener) {
+              if (isV3OpenerActive) {
                 const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem?.id;
-                const inputDisabled = isCurrentItemCommitting || v3ProbingActive;
+                const openerDisabledRaw = Boolean(isCurrentItemCommitting) || Boolean(v3ProbingActive);
                 
-                // FAIL-SAFE UNHANG: Detect stuck disabled state and force enable
-                if (inputDisabled && !isCurrentItemCommitting && !v3ProbingActive) {
+                // HARD UNHANG OVERRIDE: Force enable if raw logic is wrong
+                let openerDisabledFinal = openerDisabledRaw;
+                if (openerDisabledRaw && !isCurrentItemCommitting && !v3ProbingActive) {
                   console.warn('[V3_OPENER][UNHANG_OVERRIDE]', {
                     currentItemId: currentItem?.id,
                     packId: currentItem?.packId,
                     instanceNumber: currentItem?.instanceNumber,
-                    reason: 'disabled_true_while_not_committing',
+                    reason: 'disabled_true_while_not_committing_and_not_probing',
                     isCommitting,
                     committingItemId: committingItemIdRef.current,
                     v3ProbingActive,
                     action: 'forcing enabled'
                   });
-                  return false; // Force enable
-                }
-                
-                // ADDITIONAL UNHANG: Detect global isCommitting leak
-                if (!inputDisabled && isCommitting && !isCurrentItemCommitting) {
-                  console.warn('[V3_OPENER][UNHANG_GLOBAL_LEAK]', {
-                    currentItemId: currentItem?.id,
-                    packId: currentItem?.packId,
-                    instanceNumber: currentItem?.instanceNumber,
-                    globalIsCommitting: isCommitting,
-                    isCurrentItemCommitting,
-                    committingItemId: committingItemIdRef.current,
-                    reason: 'Global isCommitting true but not for this opener - preventing leak',
-                    action: 'keeping enabled'
-                  });
-                  // Return inputDisabled (false) - do NOT leak global isCommitting
+                  openerDisabledFinal = false; // Force enable
                 }
                 
                 console.log('[V3_OPENER][DISABLED_REASON]', {
@@ -9948,7 +9934,8 @@ export default function CandidateInterview() {
                   instanceNumber: currentItem?.instanceNumber,
                   isCurrentItemCommitting,
                   v3ProbingActive,
-                  computedDisabled: inputDisabled,
+                  disabledRaw: openerDisabledRaw,
+                  disabledFinal: openerDisabledFinal,
                   sourceFlags: {
                     globalIsCommitting: isCommitting,
                     committingItemId: committingItemIdRef.current,
@@ -9956,7 +9943,7 @@ export default function CandidateInterview() {
                   }
                 });
                 
-                return inputDisabled;
+                return openerDisabledFinal;
               }
               
               // All other types: global isCommitting only
