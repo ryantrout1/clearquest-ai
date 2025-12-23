@@ -9163,11 +9163,53 @@ export default function CandidateInterview() {
             );
           })()}
 
-          {/* MI_GATE UI CONTRACT: Active gates render ONLY in footer - no main pane block */}
-          {/* REMOVED: MI_GATE_PROMPT_LANE_BLOCK - caused UI contract breach */}
-          {/* Root cause: Block ran checks and logged, even though it returned null */}
-          {/* Fix: Complete removal - main pane has ZERO active MI_GATE logic */}
-          {/* Historical gates still render via transcript loop (MULTI_INSTANCE_GATE_SHOWN) */}
+          {/* MI_GATE ACTIVE CARD: Active MI_GATE question renders in main pane (above footer) */}
+          {(() => {
+            // UI CONTRACT: MI_GATE active card renders in main content area when gate is active
+            const shouldRenderActiveMiGate = 
+              activeUiItem?.kind === "MI_GATE" &&
+              effectiveItemType === "multi_instance_gate" &&
+              currentItem?.type === "multi_instance_gate";
+            
+            if (!shouldRenderActiveMiGate) {
+              return null;
+            }
+            
+            // Derive prompt text (single source of truth)
+            const miGatePrompt = 
+              currentItem.promptText ||
+              multiInstanceGate?.promptText ||
+              (currentItem.categoryLabel ? `Do you have another ${currentItem.categoryLabel} to report?` : null) ||
+              `Do you have another incident to report?`;
+            
+            console.log('[MI_GATE][MAIN_PANE_ACTIVE_RENDER]', {
+              currentItemId: currentItem?.id,
+              packId: currentItem?.packId,
+              instanceNumber: currentItem?.instanceNumber,
+              promptPreview: (miGatePrompt || "").slice(0, 120)
+            });
+            
+            // UI CONTRACT SELF-TEST: Track main pane render
+            if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
+              const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
+              tracker.mainPaneRendered = true;
+              miGateTestTrackerRef.current.set(currentItem.id, tracker);
+              
+              console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
+                itemId: currentItem.id,
+                event: 'MAIN_PANE_RENDERED',
+                tracker
+              });
+            }
+            
+            return (
+              <ContentContainer>
+                <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
+                  <p className="text-white text-base leading-relaxed">{miGatePrompt}</p>
+                </div>
+              </ContentContainer>
+            );
+          })()}
 
           {/* V3 PROBE PROMPT LANE: Active prompt card for V3 probing (purple AI follow-up) */}
           {/* SUPPRESSION GUARD: While MI_GATE is active, suppress AI follow-up cards to prevent stacking */}
