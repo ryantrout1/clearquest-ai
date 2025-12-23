@@ -9529,60 +9529,37 @@ export default function CandidateInterview() {
            </div>
           ) : bottomBarMode === "YES_NO" && (bottomBarRenderTypeSOT === "multi_instance_gate" || isMultiInstanceGate) ? (
           <div className="space-y-3">
-            {/* MI_GATE FOOTER PROMPT: Question text above Yes/No buttons (MI_GATE ONLY) */}
+            {/* UI CONTRACT: MI_GATE footer shows buttons ONLY (no prompt text) */}
             {(() => {
-              // HARDENED: Only render prompt box for active MI_GATE (not other YES/NO)
+              // Confirmation log: MI_GATE footer is buttons-only
               const isMiGateFooter = 
                 activeUiItem?.kind === "MI_GATE" &&
                 effectiveItemType === 'multi_instance_gate' &&
                 bottomBarMode === "YES_NO";
               
-              if (!isMiGateFooter) {
-                console.log('[MI_GATE][FOOTER_PROMPT_SKIP]', {
-                  reason: 'NOT_MI_GATE',
-                  activeUiItemKind: activeUiItem?.kind,
-                  effectiveItemType,
-                  bottomBarMode
+              if (isMiGateFooter) {
+                console.log('[MI_GATE][FOOTER_BUTTONS_ONLY]', {
+                  currentItemId: currentItem?.id,
+                  packId: currentItem?.packId,
+                  instanceNumber: currentItem?.instanceNumber,
+                  note: 'Footer shows Yes/No buttons only - question renders in main pane'
                 });
-                return null; // Do not render prompt box for other YES/NO questions
-              }
-              
-              const miGatePrompt = 
-                currentItem?.promptText || 
-                multiInstanceGate?.promptText ||
-                currentItem?.openerText ||
-                (currentItem?.categoryLabel ? `Do you have another ${currentItem.categoryLabel} to report?` : null) ||
-                `Do you have another incident to report?`;
-              
-              console.log('[MI_GATE][FOOTER_PROMPT_WIRED]', {
-                currentItemId: currentItem?.id,
-                packId: currentItem?.packId || multiInstanceGate?.packId,
-                instanceNumber: currentItem?.instanceNumber || multiInstanceGate?.instanceNumber,
-                derivedPromptLen: miGatePrompt?.length || 0,
-                derivedPromptPreview: miGatePrompt?.slice(0, 80)
-              });
-              
-              // UI CONTRACT SELF-TEST: Track footer wired event
-              if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST) {
-                const itemId = currentItem?.id;
-                if (itemId) {
-                  const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, historySuppressed: false, testStarted: false };
-                  tracker.footerWired = true;
-                  miGateTestTrackerRef.current.set(itemId, tracker);
+                
+                // UI CONTRACT SELF-TEST: Track footer buttons event
+                if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
+                  const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
+                  tracker.footerButtonsOnly = true;
+                  miGateTestTrackerRef.current.set(currentItem.id, tracker);
                   
                   console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
-                    itemId,
-                    event: 'FOOTER_WIRED',
+                    itemId: currentItem.id,
+                    event: 'FOOTER_BUTTONS_ONLY',
                     tracker
                   });
                 }
               }
               
-              return (
-                <div className="bg-purple-900/30 border border-purple-700/50 rounded-lg px-4 py-3">
-                  <p className="text-white text-sm leading-relaxed">{miGatePrompt}</p>
-                </div>
-              );
+              return null; // No prompt box in footer - buttons only
             })()}
             
             <div className="flex gap-3">
