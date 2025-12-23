@@ -7684,6 +7684,67 @@ export default function CandidateInterview() {
       v3ProbingActive,
       pendingSectionTransition: !!pendingSectionTransition
     });
+    
+    // UI CONTRACT SELF-TEST: Start test when MI_GATE becomes active (once per itemId)
+    const itemId = currentItem?.id;
+    if (itemId) {
+      const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, historySuppressed: false, testStarted: false };
+      
+      if (!tracker.testStarted) {
+        tracker.testStarted = true;
+        miGateTestTrackerRef.current.set(itemId, tracker);
+        
+        console.log('[MI_GATE][UI_CONTRACT_TEST_START]', {
+          itemId,
+          packId: currentItem?.packId,
+          instanceNumber: currentItem?.instanceNumber
+        });
+        
+        // Clear any existing timeout
+        if (miGateTestTimeoutRef.current) {
+          clearTimeout(miGateTestTimeoutRef.current);
+        }
+        
+        // Schedule self-test after 250ms
+        miGateTestTimeoutRef.current = setTimeout(() => {
+          const finalTracker = miGateTestTrackerRef.current.get(itemId);
+          
+          if (!finalTracker) {
+            console.warn('[MI_GATE][UI_CONTRACT_TEST]', {
+              itemId,
+              packId: currentItem?.packId,
+              instanceNumber: currentItem?.instanceNumber,
+              result: 'NO_TRACKER',
+              reason: 'Tracker was cleared or never created'
+            });
+            return;
+          }
+          
+          const { footerWired, historySuppressed } = finalTracker;
+          
+          if (footerWired && historySuppressed) {
+            console.log('[MI_GATE][UI_CONTRACT_PASS]', {
+              itemId,
+              packId: currentItem?.packId,
+              instanceNumber: currentItem?.instanceNumber,
+              footerWiredSeen: true,
+              historySuppressedSeen: true
+            });
+          } else {
+            console.error('[MI_GATE][UI_CONTRACT_FAIL]', {
+              itemId,
+              packId: currentItem?.packId,
+              instanceNumber: currentItem?.instanceNumber,
+              footerWiredSeen: footerWired,
+              historySuppressedSeen: historySuppressed,
+              reason: !footerWired ? 'Footer prompt not wired' : 'History render not suppressed'
+            });
+          }
+          
+          miGateTestTimeoutRef.current = null;
+        }, 250);
+      }
+    }
   }
   
   // Log final mode selection
