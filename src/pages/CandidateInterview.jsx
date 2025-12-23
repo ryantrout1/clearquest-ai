@@ -1472,6 +1472,9 @@ export default function CandidateInterview() {
   const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { footerWired: bool, historySuppressed: bool, testStarted: bool }>
   const miGateTestTimeoutRef = useRef(null);
   
+  // MI_GATE SENTINEL: Track active state log key (prevents duplicate logs)
+  const miGateActiveLogKeyRef = useRef(null);
+  
   // V3 UI-ONLY HISTORY: Display V3 probe Q/A without polluting transcript
   // MOVED UP: Must be declared before refreshTranscriptFromDB (TDZ fix)
   const v3ActiveProbeQuestionRef = useRef(null);
