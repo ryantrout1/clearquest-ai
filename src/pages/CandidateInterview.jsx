@@ -3055,6 +3055,143 @@ export default function CandidateInterview() {
     advanceToNextBaseQuestion(baseQuestionId);
   }, [engine, sessionId, dbTranscript, advanceToNextBaseQuestion]);
 
+  // SHARED MI_GATE HANDLER: Deduplicated logic for YES/NO (inline function)
+  const handleMiGateYesNo = async ({ answer, gate, sessionId, engine }) => {
+    // PART C: Append gate Q+A to transcript after user answers
+    const { appendUserMessage, appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
+    const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
+    const currentTranscript = sessionForAnswer.transcript_snapshot || [];
+    
+    const transcriptLenBefore = currentTranscript.length;
+
+    // Append gate question first
+    const gateQuestionStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:q`;
+    const transcriptAfterQ = await appendAssistantMessage(sessionId, currentTranscript, gate.promptText, {
+      id: `mi-gate-q-${gate.packId}-${gate.instanceNumber}`,
+      stableKey: gateQuestionStableKey,
+      messageType: 'MULTI_INSTANCE_GATE_SHOWN',
+      packId: gate.packId,
+      categoryId: gate.categoryId,
+      instanceNumber: gate.instanceNumber,
+      baseQuestionId: gate.baseQuestionId,
+      isActiveGate: false,
+      visibleToCandidate: true
+    });
+
+    // Append user's answer
+    const gateAnswerStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:a`;
+    const transcriptAfterA = await appendUserMessage(sessionId, transcriptAfterQ, answer, {
+      id: `mi-gate-answer-${gate.packId}-${gate.instanceNumber}-${answer.toLowerCase()}`,
+      stableKey: gateAnswerStableKey,
+      messageType: 'MULTI_INSTANCE_GATE_ANSWER',
+      packId: gate.packId,
+      categoryId: gate.categoryId,
+      instanceNumber: gate.instanceNumber
+    });
+    
+    const transcriptLenAfter = transcriptAfterA.length;
+
+    console.log('[MI_GATE][TRACE][APPEND_RESULT]', {
+      appendedQ: transcriptAfterQ.length > currentTranscript.length,
+      appendedA: transcriptAfterA.length > transcriptAfterQ.length,
+      qKey: gateQuestionStableKey,
+      aKey: gateAnswerStableKey,
+      transcriptLenBefore,
+      transcriptLenAfter,
+      delta: transcriptLenAfter - transcriptLenBefore
+    });
+
+    // Reload transcript
+    await refreshTranscriptFromDB(`gate_${answer.toLowerCase()}_answered`);
+
+    // Clear gate state
+    setMultiInstanceGate(null);
+
+    if (answer === 'Yes') {
+      const nextInstanceNumber = (gate.instanceNumber || 1) + 1;
+
+      console.log('[MI_GATE][ADVANCE_NEXT_INSTANCE]', {
+        packId: gate.packId,
+        fromInstanceNumber: gate.instanceNumber,
+        toInstanceNumber: nextInstanceNumber,
+        nextStableKey: `v3-opener-${gate.packId}-${nextInstanceNumber}`,
+        nextItemKindOrType: 'v3_pack_opener'
+      });
+
+      await logPackEntered(sessionId, {
+        packId: gate.packId,
+        instanceNumber: nextInstanceNumber,
+        isV3: true
+      });
+
+      const { getV3DeterministicOpener } = await import("../components/utils/v3ProbingPrompts");
+      const opener = getV3DeterministicOpener(gate.packData, gate.categoryId, gate.categoryLabel);
+
+      const openerItem = {
+        id: `v3-opener-${gate.packId}-${nextInstanceNumber}`,
+        type: 'v3_pack_opener',
+        packId: gate.packId,
+        categoryId: gate.categoryId,
+        categoryLabel: gate.categoryLabel,
+        openerText: opener.text,
+        exampleNarrative: opener.example,
+        baseQuestionId: gate.baseQuestionId,
+        questionCode: engine.QById[gate.baseQuestionId]?.question_id,
+        sectionId: engine.QById[gate.baseQuestionId]?.section_id,
+        instanceNumber: nextInstanceNumber,
+        packData: gate.packData
+      };
+      
+      console.log('[MI_GATE][STATE_SET_OPENER]', {
+        toInstanceNumber: nextInstanceNumber,
+        openerId: openerItem.id,
+        packId: gate.packId
+      });
+
+      setCurrentItem(openerItem);
+      await persistStateToDatabase(null, [], openerItem);
+      
+      // REGRESSION CHECK
+      setTimeout(async () => {
+        const checkSession = await base44.entities.InterviewSession.get(sessionId);
+        const checkCurrentItem = checkSession.current_item_snapshot;
+        
+        if (!checkCurrentItem || checkCurrentItem.type !== 'v3_pack_opener' || checkCurrentItem.instanceNumber !== nextInstanceNumber) {
+          console.error('[MI_GATE][ADVANCE_FAILED]', {
+            packId: gate.packId,
+            expectedInstanceNumber: nextInstanceNumber,
+            actualItemType: checkCurrentItem?.type,
+            actualInstanceNumber: checkCurrentItem?.instanceNumber,
+            actualItemId: checkCurrentItem?.id
+          });
+        } else {
+          console.log('[MI_GATE][ADVANCE_VERIFIED]', {
+            packId: gate.packId,
+            toInstanceNumber: nextInstanceNumber,
+            currentItemType: checkCurrentItem.type
+          });
+        }
+      }, 200);
+    } else {
+      console.log('[MI_GATE][EXIT_LOOP]', {
+        packId: gate.packId,
+        instanceNumber: gate.instanceNumber,
+        reason: "NO",
+        nextItemKindOrType: 'question'
+      });
+      
+      await logPackExited(sessionId, {
+        packId: gate.packId,
+        instanceNumber: gate.instanceNumber
+      });
+
+      if (gate.baseQuestionId) {
+        const freshAfterGateNo = await refreshTranscriptFromDB('gate_no_before_advance');
+        await advanceToNextBaseQuestion(gate.baseQuestionId, freshAfterGateNo);
+      }
+    }
+  };
+
   const handleAnswer = useCallback(async (value) => {
     // IDEMPOTENCY GUARD: Build submit key and check if already submitted
     const buildSubmitKey = (item, answerValue = null) => {
