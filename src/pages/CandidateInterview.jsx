@@ -8974,6 +8974,20 @@ export default function CandidateInterview() {
                 instanceNumber: currentItem?.instanceNumber,
                 reason: 'MI_GATE_RENDERS_IN_FOOTER_ONLY'
               });
+              
+              // UI CONTRACT SELF-TEST: Track history suppressed event (main area block)
+              const itemId = currentItem?.id;
+              if (itemId) {
+                const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, historySuppressed: false, testStarted: false };
+                tracker.historySuppressed = true;
+                miGateTestTrackerRef.current.set(itemId, tracker);
+                
+                console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
+                  itemId,
+                  event: 'HISTORY_SUPPRESSED_MAIN',
+                  tracker
+                });
+              }
             }
             
             return null; // MI_GATE never renders in main history
