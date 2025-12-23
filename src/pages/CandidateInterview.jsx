@@ -8190,52 +8190,113 @@ export default function CandidateInterview() {
     }
   };
   
-  // TASK B: Sentinel matching function (local helper - no data mutation)
+  // CANONICAL ITEM FIELD EXTRACTORS - Pure helpers (no hooks, no state writes)
+  const getItemId = (item) => {
+    if (!item) return null;
+    return item.id || item.itemId || item.messageId || item.key || item.stableKey || item.stable_key || null;
+  };
+  
+  const getItemStableKey = (item) => {
+    if (!item) return null;
+    return item.stableKey || item.stable_key || item.key || item.id || null;
+  };
+  
+  const getItemText = (item) => {
+    if (!item) return "";
+    return (
+      item.promptText ||
+      item.questionText ||
+      item.text ||
+      item.title ||
+      item.message ||
+      item.payload?.promptText ||
+      item.payload?.questionText ||
+      item.payload?.text ||
+      item.payload?.message ||
+      item.data?.text ||
+      item.data?.promptText ||
+      item.meta?.promptText ||
+      item.meta?.questionText ||
+      ""
+    );
+  };
+  
+  const normalizeTextForMatch = (text) => {
+    if (!text || typeof text !== 'string') return '';
+    return text.toLowerCase().trim().replace(/\s+/g, ' ');
+  };
+  
+  // TASK B: Sentinel matching function (upgraded with canonical extractors)
   const matchesActiveMiGatePrompt = (item, ctx) => {
     if (!item || !ctx) return false;
     
+    // Extract canonical fields from item (handles all field name variants)
+    const itemId = getItemId(item);
+    const itemStableKey = getItemStableKey(item);
+    const itemText = getItemText(item);
+    const itemTextNormalized = normalizeTextForMatch(itemText);
+    const miGatePromptNormalized = normalizeTextForMatch(ctx.miGatePrompt);
+    
     // Strategy 1: Exact ID match
-    if (ctx.activeGateItemId && item.id === ctx.activeGateItemId) {
+    if (ctx.activeGateItemId && itemId === ctx.activeGateItemId) {
+      console.log("[MI_GATE][SENTINEL_MATCH]", { strategy: 'EXACT_ID', itemId, suppressedBy: 'Strategy 1' });
       return true;
     }
     
     // Strategy 2: StableKey base match
-    if (ctx.activeGateStableKeyBase && item.stableKey === ctx.activeGateStableKeyBase) {
+    if (ctx.activeGateStableKeyBase && itemStableKey === ctx.activeGateStableKeyBase) {
+      console.log("[MI_GATE][SENTINEL_MATCH]", { strategy: 'STABLEKEY_BASE', itemStableKey, suppressedBy: 'Strategy 2' });
       return true;
     }
     
     // Strategy 3: StableKey Q suffix match
-    if (ctx.activeGateStableKeyQ && item.stableKey === ctx.activeGateStableKeyQ) {
+    if (ctx.activeGateStableKeyQ && itemStableKey === ctx.activeGateStableKeyQ) {
+      console.log("[MI_GATE][SENTINEL_MATCH]", { strategy: 'STABLEKEY_Q', itemStableKey, suppressedBy: 'Strategy 3' });
       return true;
     }
     
-    // Strategy 4: ID contains gate identifiers (variant matching)
-    if (ctx.activeGateItemId && item.id && item.id.includes(ctx.activeGateItemId)) {
+    // Strategy 4: StableKey prefix match (covers :q, :a, and variants)
+    if (ctx.activeGateStableKeyBase && itemStableKey && itemStableKey.startsWith(ctx.activeGateStableKeyBase)) {
+      console.log("[MI_GATE][SENTINEL_MATCH]", { strategy: 'STABLEKEY_PREFIX', itemStableKey, suppressedBy: 'Strategy 4' });
       return true;
     }
     
-    if (ctx.activeGateStableKeyBase && item.id && item.id.includes(ctx.activeGateStableKeyBase)) {
+    // Strategy 5: ID containment match (variant ID formats)
+    if (ctx.activeGateItemId && itemId && itemId.includes(ctx.activeGateItemId)) {
+      console.log("[MI_GATE][SENTINEL_MATCH]", { strategy: 'ID_CONTAINS_GATE', itemId, suppressedBy: 'Strategy 5' });
       return true;
     }
     
-    // Strategy 5: Text-based matching
-    const itemText = (item.text || item.promptText || item.questionText || "").trim();
-    if (!itemText) return false;
+    if (ctx.activeGateStableKeyBase && itemId && itemId.includes(ctx.activeGateStableKeyBase)) {
+      console.log("[MI_GATE][SENTINEL_MATCH]", { strategy: 'ID_CONTAINS_KEY', itemId, suppressedBy: 'Strategy 6' });
+      return true;
+    }
     
-    const itemTextNormalized = itemText.toLowerCase().replace(/\s+/g, ' ');
-    const miGatePromptNormalized = ctx.miGatePrompt.toLowerCase().trim().replace(/\s+/g, ' ');
-    const miGatePromptPrefix = miGatePromptNormalized.slice(0, 40);
+    // Strategy 6: Text-based matching (upgraded)
+    if (!itemTextNormalized || !miGatePromptNormalized) return false;
+    
+    const miGatePromptPrefix = miGatePromptNormalized.slice(0, 30);
+    const containsAnotherKeyword = itemTextNormalized.includes("do you have another");
     
     // Text equality
     if (itemTextNormalized === miGatePromptNormalized) {
+      console.log("[MI_GATE][SENTINEL_MATCH]", { strategy: 'TEXT_EXACT', textPreview: itemText.slice(0, 60), suppressedBy: 'Strategy 7' });
       return true;
     }
     
-    // Text prefix (handles variations)
+    // Text prefix match
     if (itemTextNormalized.startsWith(miGatePromptPrefix)) {
+      console.log("[MI_GATE][SENTINEL_MATCH]", { strategy: 'TEXT_PREFIX', textPreview: itemText.slice(0, 60), suppressedBy: 'Strategy 8' });
       return true;
     }
     
+    // Keyword + prefix match (catch partial variations)
+    if (containsAnotherKeyword && itemTextNormalized.startsWith(miGatePromptPrefix)) {
+      console.log("[MI_GATE][SENTINEL_MATCH]", { strategy: 'KEYWORD_PREFIX', textPreview: itemText.slice(0, 60), suppressedBy: 'Strategy 9' });
+      return true;
+    }
+    
+    // No match
     return false;
   };
   
