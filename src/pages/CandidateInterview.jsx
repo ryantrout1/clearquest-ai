@@ -8316,7 +8316,34 @@ export default function CandidateInterview() {
 
             // Multi-instance gate prompt shown (PART C: Only appears after answer, never filtered)
             if (entry.role === 'assistant' && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
-              // PART C: Ensure gate Q/A items are NEVER filtered once appended
+              // STEP 1 VERIFICATION: Check if this is the ACTIVE gate (should render in prompt lane, not history)
+              const isActiveGate = 
+                currentItem?.type === 'multi_instance_gate' &&
+                currentItem?.packId === entry.packId &&
+                currentItem?.instanceNumber === entry.instanceNumber;
+              
+              if (isActiveGate) {
+                console.log('[MI_GATE][HISTORY_RENDER_SOURCE]', {
+                  renderPath: 'MULTI_INSTANCE_GATE_SHOWN',
+                  itemId: entry.id,
+                  itemType: entry.messageType,
+                  activeUiItemKind: activeUiItem?.kind,
+                  packId: entry.packId,
+                  instanceNumber: entry.instanceNumber,
+                  isActivePreviouslyRenderedInHistory: true
+                });
+                
+                console.log('[MI_GATE][HISTORY_SUPPRESSED]', {
+                  itemId: entry.id,
+                  packId: entry.packId,
+                  instanceNumber: entry.instanceNumber,
+                  reason: 'ACTIVE_GATE_RENDERS_IN_PROMPT_LANE_ONLY',
+                  currentItemId: currentItem.id
+                });
+                return null; // Suppress - will render in prompt lane instead
+              }
+              
+              // PART C: Historical gates (answered, not active) - render as history
               const stableKey = entry.stableKey || entry.id;
               const isMiGateQA = stableKey && (stableKey.startsWith('mi-gate:') && (stableKey.endsWith(':q') || stableKey.endsWith(':a')));
               
@@ -8329,9 +8356,12 @@ export default function CandidateInterview() {
                   reason: 'Appended after answer - must persist'
                 });
               } else {
-                console.log('[MI_GATE][RENDER_SOURCE]', {
+                console.log('[MI_GATE][RENDER_HISTORICAL]', {
                   source: 'TRANSCRIPT',
-                  stableKey: entry.stableKey || entry.id
+                  stableKey: entry.stableKey || entry.id,
+                  packId: entry.packId,
+                  instanceNumber: entry.instanceNumber,
+                  reason: 'Historical gate (answered in prior instance) - rendering in history'
                 });
               }
 
