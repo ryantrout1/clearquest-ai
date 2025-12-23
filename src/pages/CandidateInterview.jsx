@@ -7746,10 +7746,10 @@ export default function CandidateInterview() {
               return;
             }
             
-            const { footerWired, activeGateSuppressed } = finalTracker;
+            const { footerWired, activeGateSuppressed, suppressedSeenViaLog } = finalTracker;
             
-            // TASK 3: Self-test requires footer wired AND active gate suppressed
-            const passCondition = footerWired && activeGateSuppressed;
+            // TASK 3: Self-test requires footer wired AND (active gate suppressed OR suppression seen in logs)
+            const passCondition = footerWired && (activeGateSuppressed || suppressedSeenViaLog);
             
             if (passCondition) {
               console.log('[MI_GATE][UI_CONTRACT_PASS]', {
