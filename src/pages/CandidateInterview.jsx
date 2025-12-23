@@ -7746,10 +7746,7 @@ export default function CandidateInterview() {
               return;
             }
             
-            const { footerWired, activeGateSuppressed } = finalTracker;
-            
-            // TASK 3: Self-test requires footer wired AND active gate suppressed
-            const passCondition = footerWired && activeGateSuppressed;
+            const { footerWired, activeGateSuppressed, suppressedSeenViaLog } = finalTracker;
             
             // TASK 4: Self-test accepts EITHER tracker flag OR log detection
             const passCondition = footerWired && (activeGateSuppressed || finalTracker.suppressedSeenViaLog);
