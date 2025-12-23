@@ -7956,24 +7956,20 @@ export default function CandidateInterview() {
   // ============================================================================
   // BOTTOM BAR DERIVED STATE BLOCK - All derived variables in strict order
   // ============================================================================
-  const needsPrompt = bottomBarMode === 'TEXT_INPUT' || 
+  // NOTE: bottomBarMode already computed above (bottomBarModeEarly for early use, refined to bottomBarMode)
+  const needsPrompt = bottomBarModeEarly === 'TEXT_INPUT' || 
                       ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
   const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
   const shouldRenderFooter = 
     screenMode === 'QUESTION' && 
-    (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
-  
-  console.log('[BOOT][FOOTER_SAFE_PADDING_READY]', { 
-    footerSafePaddingPx, 
-    footerHeightPx,
-    shouldRenderFooter 
-  });
+    (bottomBarModeEarly === 'TEXT_INPUT' || bottomBarModeEarly === 'YES_NO' || bottomBarModeEarly === 'SELECT');
   
   console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
     footerMeasuredHeightPx: footerHeightPx,
     footerSafePaddingPx,
     dynamicBottomPaddingPx,
-    shouldRenderFooter
+    shouldRenderFooter,
+    bottomBarModeEarly
   });
   
   // Auto-focus control props (pure values, no hooks)
