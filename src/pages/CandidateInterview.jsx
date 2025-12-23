@@ -8412,23 +8412,54 @@ export default function CandidateInterview() {
 
             // Multi-instance gate prompt shown (PART C: Only appears after answer, never filtered)
             if (entry.role === 'assistant' && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
-              // HARDENED: Triple-gate check using activeUiItem.kind + currentItem match
-              const isActiveGate = 
+              // TASK 1: Leak candidate logging (when MI_GATE active, identify which transcript item)
+              if (activeUiItem?.kind === "MI_GATE") {
+                const entryTextPreview = (entry.promptText || entry.text || entry.questionText || "").slice(0, 120);
+                const hasGateTextSignal = entryTextPreview.includes("Do you have another") || entryTextPreview.includes("another instance");
+                
+                if (hasGateTextSignal || entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
+                  console.log("[MI_GATE][LEAK_CANDIDATE_TRANSCRIPT_ITEM]", {
+                    itemId: entry.id,
+                    messageType: entry.messageType || entry.type,
+                    packId: entry.packId,
+                    instanceNumber: entry.instanceNumber,
+                    stableKey: entry.stableKey,
+                    promptPreview: entryTextPreview,
+                    currentItemId: currentItem?.id,
+                    currentStableKey: `mi-gate:${currentItem?.packId}:${currentItem?.instanceNumber}`,
+                    activeUiItemKind: activeUiItem?.kind
+                  });
+                }
+              }
+              
+              // TASK 2: ID-based active gate suppression (strongest available match)
+              const activeGateId = currentItem?.type === 'multi_instance_gate' ? currentItem?.id : null;
+              const activeGateStableKey = currentItem?.type === 'multi_instance_gate' && currentItem?.packId && currentItem?.instanceNumber
+                ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`
+                : null;
+              
+              // Suppress when ANY of these match (ID-based routing)
+              const suppressByIdMatch = activeGateId && entry.id === activeGateId;
+              const suppressByStableKey = activeGateStableKey && entry.stableKey === activeGateStableKey;
+              const suppressByHeuristic = 
                 activeUiItem?.kind === "MI_GATE" &&
                 currentItem?.type === 'multi_instance_gate' &&
-                currentItem?.packId === entry.packId &&
-                currentItem?.instanceNumber === entry.instanceNumber;
+                entry.packId === currentItem?.packId &&
+                entry.instanceNumber === currentItem?.instanceNumber;
+              
+              const isActiveGate = suppressByIdMatch || suppressByStableKey || suppressByHeuristic;
               
               if (isActiveGate) {
-                console.error('[MI_GATE][UI_CONTRACT_FAIL]', {
-                  reason: 'ACTIVE_GATE_IN_MAIN_PANE',
-                  renderPath: 'MULTI_INSTANCE_GATE_SHOWN_TRANSCRIPT_LOOP',
-                  itemId: entry.id,
-                  currentItemId: currentItem?.id,
+                const suppressionMethod = suppressByIdMatch ? "id" : suppressByStableKey ? "stableKey" : "fallback";
+                
+                console.log("[MI_GATE][ACTIVE_GATE_TRANSCRIPT_SUPPRESSED]", {
+                  suppressedBy: suppressionMethod,
+                  entryId: entry.id,
+                  entryStableKey: entry.stableKey,
+                  activeGateId,
+                  activeGateStableKey,
                   packId: entry.packId,
-                  instanceNumber: entry.instanceNumber,
-                  activeUiItemKind: activeUiItem?.kind,
-                  fix: 'Active gate should ONLY render in footer - suppressing from transcript'
+                  instanceNumber: entry.instanceNumber
                 });
                 
                 console.log('[MI_GATE][HISTORY_SUPPRESSED]', {
@@ -8436,10 +8467,10 @@ export default function CandidateInterview() {
                   packId: entry.packId,
                   instanceNumber: entry.instanceNumber,
                   reason: 'ACTIVE_GATE_RENDERS_IN_FOOTER_ONLY',
-                  currentItemId: currentItem.id
+                  suppressionMethod
                 });
                 
-                // UI CONTRACT SELF-TEST: Track history suppressed event (transcript source)
+                // UI CONTRACT SELF-TEST: Track history suppressed event
                 if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST) {
                   const itemId = currentItem?.id;
                   if (itemId) {
@@ -8450,6 +8481,7 @@ export default function CandidateInterview() {
                     console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
                       itemId,
                       event: 'HISTORY_SUPPRESSED_TRANSCRIPT',
+                      suppressionMethod,
                       tracker
                     });
                   }
