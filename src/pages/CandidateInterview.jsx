@@ -9443,39 +9443,8 @@ export default function CandidateInterview() {
                </ContentContainer>
               )}
 
-              {/* V3 UI-ONLY HISTORY: Render probe Q/A for user's chat history perception */}
-              {/* PART D: ALWAYS render UI history (not just during active probing - persists across transitions) */}
-              {v3ProbeDisplayHistory.length > 0 && v3ProbeDisplayHistory.map((entry, idx) => {
-                const key = `v3-ui-${entry.loopKey}-${entry.kind}-${idx}`;
-                
-                if (entry.kind === 'v3_probe_q') {
-                  return (
-                    <div key={key}>
-                      <ContentContainer>
-                        <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
-                          </div>
-                          <p className="text-white text-sm leading-relaxed">{entry.text}</p>
-                        </div>
-                      </ContentContainer>
-                    </div>
-                  );
-                } else if (entry.kind === 'v3_probe_a') {
-                  return (
-                    <div key={key} style={{ marginBottom: 10 }}>
-                      <ContentContainer>
-                        <div className="flex justify-end">
-                          <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                            <p className="text-white text-sm">{entry.text}</p>
-                          </div>
-                        </div>
-                      </ContentContainer>
-                    </div>
-                  );
-                }
-                return null;
-              })}
+              {/* V3 UI-ONLY HISTORY: Rendered via canonical stream (lines 8942-8985) */}
+              {/* Separate loop removed - renderStream includes v3UiRenderable */}
               
               {/* Bottom anchor - zero-height sentinel for scroll positioning */}
               <div ref={bottomAnchorRef} aria-hidden="true" />
