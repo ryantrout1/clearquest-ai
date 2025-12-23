@@ -9253,11 +9253,12 @@ export default function CandidateInterview() {
             );
           })()}
 
-          {/* V3 PROBE PROMPT LANE: Active prompt card for V3 probing (purple AI follow-up) */}
-          {/* SUPPRESSION GUARD: While MI_GATE is active, suppress AI follow-up cards to prevent stacking */}
-          {/* NOTE: This block is now redundant with V3_PROMPT ACTIVE CARD above, but kept for safety */}
+          {/* V3 PROBE PROMPT LANE: LEGACY BLOCK - DISABLED (replaced by canonical V3_PROMPT ACTIVE CARD above) */}
+          {/* DUPLICATION FIX: This legacy block caused duplicate V3 prompt cards */}
+          {/* Root cause: Both legacy block and new canonical V3_PROMPT block rendered same prompt */}
+          {/* Fix: Disable legacy block entirely - canonical V3_PROMPT ACTIVE CARD handles all V3 prompts */}
           {(() => {
-            // HARDENED: Suppress AI follow-up cards while MI_GATE is active (display only)
+            // LEGACY SUPPRESSION: Keep MI_GATE suppression guard for compatibility
             const isMiGateActive = 
               activeUiItem?.kind === "MI_GATE" &&
               bottomBarMode === "YES_NO";
@@ -9265,71 +9266,23 @@ export default function CandidateInterview() {
             if (isMiGateActive) {
               console.log('[MI_GATE][FOLLOWUP_SUPPRESSED]', {
                 reason: 'MI_GATE_ACTIVE',
-                suppressedType: 'v3_probe',
+                suppressedType: 'v3_probe_legacy',
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber
               });
-              return null; // Suppress AI follow-up cards while MI_GATE decision pending
-            }
-            
-            // ROBUST GATING: Use state flags directly instead of strict type matching
-            // LIFECYCLE: Only render active prompt when phase is ANSWER_NEEDED (not PROCESSING)
-            const shouldRenderV3PromptLaneCard = 
-              v3ProbingActive &&
-              effectiveItemType === 'v3_probing' &&
-              v3ActivePromptText &&
-              v3ActivePromptText.trim().length > 0 &&
-              v3PromptPhase === "ANSWER_NEEDED" &&
-              !activeBlocker;
-            
-            // DIAGNOSTIC: Log when prompt exists but render condition fails
-            if (v3ProbingActive && v3ActivePromptText && !shouldRenderV3PromptLaneCard) {
-              console.warn('[V3_PROMPT_LANE_MISSING]', {
-                preview: v3ActivePromptText?.slice(0, 80),
-                effectiveItemType,
-                bottomBarMode,
-                v3ProbingActive,
-                hasActiveBlocker: !!activeBlocker,
-                reason: 'Prompt exists but render condition failed'
-              });
-            }
-            
-            if (!shouldRenderV3PromptLaneCard) {
               return null;
             }
             
-            console.log('[V3_PROMPT_LANE_RENDER]', {
-              preview: v3ActivePromptText?.slice(0, 80),
-              effectiveItemType,
-              bottomBarMode,
-              v3ProbingActive,
-              hasPrompt: !!v3ActivePromptText
-            });
+            // DUPLICATION FIX: Disable legacy V3 prompt lane (canonical V3_PROMPT ACTIVE CARD handles it)
+            if (v3ProbingActive && v3ActivePromptText) {
+              console.log('[V3_PROMPT][LEGACY_BLOCK_DISABLED]', {
+                preview: v3ActivePromptText?.slice(0, 80),
+                reason: 'Canonical V3_PROMPT ACTIVE CARD renders above - legacy block disabled to prevent duplication'
+              });
+              return null; // ✓ FIX: Skip legacy render (canonical block above handles it)
+            }
             
-            return (
-              <ContentContainer>
-                <div ref={promptLaneRef} className="relative z-20 w-full rounded-xl p-1">
-                  <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 shadow-xl">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
-                      {v3ProbingContext?.instanceNumber > 1 && (
-                        <>
-                          <span className="text-xs text-slate-500">•</span>
-                          <span className="text-xs text-slate-400">Instance {v3ProbingContext.instanceNumber}</span>
-                        </>
-                      )}
-                    </div>
-                    <p className="text-white text-sm leading-relaxed">{v3ActivePromptText}</p>
-                  </div>
-
-                  {validationHint && (
-                    <div className="mt-2 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
-                      <p className="text-yellow-200 text-sm">{validationHint}</p>
-                    </div>
-                  )}
-                </div>
-              </ContentContainer>
-            );
+            return null; // Legacy block fully disabled
           })()}
 
           {/* UNIFIED STREAM: Active cards disabled - all content in transcript */}
