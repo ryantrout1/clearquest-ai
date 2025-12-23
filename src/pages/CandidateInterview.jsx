@@ -8412,28 +8412,30 @@ export default function CandidateInterview() {
 
             // Multi-instance gate prompt shown (PART C: Only appears after answer, never filtered)
             if (entry.role === 'assistant' && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
-              // STEP 1 VERIFICATION: Check if this is the ACTIVE gate (should render in prompt lane, not history)
+              // HARDENED: Triple-gate check using activeUiItem.kind + currentItem match
               const isActiveGate = 
+                activeUiItem?.kind === "MI_GATE" &&
                 currentItem?.type === 'multi_instance_gate' &&
                 currentItem?.packId === entry.packId &&
                 currentItem?.instanceNumber === entry.instanceNumber;
               
               if (isActiveGate) {
-                console.log('[MI_GATE][HISTORY_RENDER_SOURCE]', {
-                  renderPath: 'MULTI_INSTANCE_GATE_SHOWN',
+                console.error('[MI_GATE][UI_CONTRACT_FAIL]', {
+                  reason: 'ACTIVE_GATE_IN_MAIN_PANE',
+                  renderPath: 'MULTI_INSTANCE_GATE_SHOWN_TRANSCRIPT_LOOP',
                   itemId: entry.id,
-                  itemType: entry.messageType,
-                  activeUiItemKind: activeUiItem?.kind,
+                  currentItemId: currentItem?.id,
                   packId: entry.packId,
                   instanceNumber: entry.instanceNumber,
-                  isActivePreviouslyRenderedInHistory: true
+                  activeUiItemKind: activeUiItem?.kind,
+                  fix: 'Active gate should ONLY render in footer - suppressing from transcript'
                 });
                 
                 console.log('[MI_GATE][HISTORY_SUPPRESSED]', {
                   itemId: entry.id,
                   packId: entry.packId,
                   instanceNumber: entry.instanceNumber,
-                  reason: 'ACTIVE_GATE_RENDERS_IN_PROMPT_LANE_ONLY',
+                  reason: 'ACTIVE_GATE_RENDERS_IN_FOOTER_ONLY',
                   currentItemId: currentItem.id
                 });
                 
@@ -8452,7 +8454,7 @@ export default function CandidateInterview() {
                     });
                   }
                 }
-                return null; // Suppress - will render in prompt lane instead
+                return null; // Suppress - will render in footer only
               }
               
               // PART C: Historical gates (answered, not active) - render as history
