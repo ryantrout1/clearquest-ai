@@ -1481,6 +1481,9 @@ export default function CandidateInterview() {
   // STICKY AUTOSCROLL: Single source of truth for auto-scroll behavior
   const shouldAutoScrollRef = useRef(true);
   
+  // ACTIVE KIND CHANGE DETECTION: Track last logged kind to prevent spam
+  const lastLoggedActiveKindRef = useRef(null);
+  
   // V3 UI-ONLY HISTORY: Display V3 probe Q/A without polluting transcript
   // MOVED UP: Must be declared before refreshTranscriptFromDB (TDZ fix)
   const v3ActiveProbeQuestionRef = useRef(null);
@@ -1562,17 +1565,20 @@ export default function CandidateInterview() {
   
   const activeUiItem = resolveActiveUiItem();
   
-  // ACTIVE KIND PRECEDENCE LOG: Track ordering decisions
-  console.log('[ORDER][ACTIVE_KIND_PRECEDENCE]', {
-    currentActiveKind: activeUiItem.kind,
-    hasActiveV3Prompt,
-    v3PromptPhase,
-    currentItemType: currentItem?.type,
-    effectiveItemType: v3ProbingActive ? 'v3_probing' : currentItem?.type,
-    currentItemId: currentItem?.id,
-    packId: currentItem?.packId || v3ProbingContext?.packId,
-    instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber
-  });
+  // ACTIVE KIND PRECEDENCE LOG: Only log when kind changes (reduce spam)
+  if (activeUiItem.kind !== lastLoggedActiveKindRef.current) {
+    lastLoggedActiveKindRef.current = activeUiItem.kind;
+    console.log('[ORDER][ACTIVE_KIND_PRECEDENCE]', {
+      currentActiveKind: activeUiItem.kind,
+      hasActiveV3Prompt,
+      v3PromptPhase,
+      currentItemType: currentItem?.type,
+      effectiveItemType: v3ProbingActive ? 'v3_probing' : currentItem?.type,
+      currentItemId: currentItem?.id,
+      packId: currentItem?.packId || v3ProbingContext?.packId,
+      instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber
+    });
+  }
 
   // ============================================================================
   // BOTTOM BAR RENDER TYPE - Single source of truth (top-level component scope)
@@ -2141,17 +2147,7 @@ export default function CandidateInterview() {
         reason: nowShouldAutoScroll ? 'user_scrolled_to_bottom' : 'user_scrolled_up'
       });
     }
-    
-    // Legacy state sync (for compatibility)
-    const distanceFromBottomLegacy = el.scrollHeight - el.scrollTop - el.clientHeight;
-    const wasEnabled = autoScrollEnabledRef.current;
-    const nowEnabled = distanceFromBottomLegacy <= AUTO_SCROLL_BOTTOM_THRESHOLD_PX;
-    
-    if (wasEnabled !== nowEnabled) {
-      autoScrollEnabledRef.current = nowEnabled;
-      setAutoScrollEnabled(nowEnabled);
-    }
-  }, [AUTO_SCROLL_BOTTOM_THRESHOLD_PX]);
+  }, []);
 
   const scrollToBottomSafely = useCallback((reason = 'default') => {
     if (!autoScrollEnabledRef.current) return;
@@ -6969,7 +6965,7 @@ export default function CandidateInterview() {
     const scrollContainer = historyRef.current;
     if (!scrollContainer) return;
     
-    // GUARD: Never auto-scroll while user is typing
+    // GUARD: Never auto-scroll while user is typing (inline check, not dependency)
     if (isUserTyping) return;
     
     // GUARD: Only auto-scroll if shouldAutoScrollRef is true
@@ -6984,27 +6980,39 @@ export default function CandidateInterview() {
         const scrollHeight = scrollContainer.scrollHeight;
         const clientHeight = scrollContainer.clientHeight;
         
-        // Scroll to absolute bottom
-        scrollContainer.scrollTop = scrollHeight;
+        // CORRECT MATH: Absolute bottom position
+        const targetScrollTop = Math.max(0, scrollHeight - clientHeight);
+        scrollContainer.scrollTop = targetScrollTop;
         
         const scrollTopAfter = scrollContainer.scrollTop;
         
         console.log('[SCROLL][AUTO_SCROLL]', {
           trigger: 'transcript_or_state_change',
           scrollTopBefore: Math.round(scrollTopBefore),
+          targetScrollTop: Math.round(targetScrollTop),
           scrollTopAfter: Math.round(scrollTopAfter),
           scrollHeight: Math.round(scrollHeight),
           clientHeight: Math.round(clientHeight)
         });
+        
+        // PIN VERIFICATION: Check if we actually reached bottom
+        const distanceFromBottom = scrollHeight - (scrollContainer.scrollTop + clientHeight);
+        if (distanceFromBottom > 24) {
+          console.warn('[SCROLL][PIN_FAIL]', {
+            distanceFromBottom: Math.round(distanceFromBottom),
+            scrollTop: Math.round(scrollContainer.scrollTop),
+            scrollHeight: Math.round(scrollHeight),
+            clientHeight: Math.round(clientHeight),
+            footerSafePaddingPx
+          });
+        }
       });
     });
   }, [
-    dbTranscript.length, 
+    dbTranscript.length,
     v3ProbeDisplayHistory.length,
     activeUiItem?.kind,
-    footerHeightPx,
-    footerSafePaddingPx,
-    isUserTyping
+    footerSafePaddingPx
   ]);
 
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
@@ -8015,8 +8023,9 @@ export default function CandidateInterview() {
     ? (footerHeightPx > 0 ? footerHeightPx : MIN_FOOTER_FALLBACK_PX) + SAFETY_MARGIN_PX
     : 0;
   
-  // OVERFLOW-AWARE: Apply full padding only when content overflows, otherwise use compact gap
-  const dynamicBottomPaddingPx = contentOverflows ? footerSafePaddingPx : COMPACT_GAP_PX;
+  // FOOTER PADDING CONTRACT: Always apply safe padding to prevent clipping
+  // CRITICAL: Do NOT zero out padding when content doesn't overflow - footer still needs space
+  const dynamicBottomPaddingPx = footerSafePaddingPx;
   
   console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
     footerMeasuredHeightPx: footerHeightPx,
