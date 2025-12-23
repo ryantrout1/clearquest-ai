@@ -9775,13 +9775,17 @@ export default function CandidateInterview() {
             </div>
           ) : bottomBarMode === "TEXT_INPUT" ? (
           <div className="space-y-2">
-          {/* V3 UI CONTRACT: NO visible prompt banner - prompt goes in placeholder ONLY */}
-          {v3ProbingActive && v3ActivePromptText && (() => {
-            console.warn('[UI_CONTRACT] BLOCKED_MAIN_BODY_V3_PROMPT_RENDER', { 
-              preview: v3ActivePromptText?.slice(0, 60),
-              reason: 'V3 probe prompts must NOT render as visible banner - placeholder only'
-            });
-            return null;
+          {/* V3_PROMPT UI CONTRACT: Footer shows input + send only (no prompt text duplication) */}
+          {(() => {
+            const isV3PromptActive = activeUiItem?.kind === "V3_PROMPT" && bottomBarMode === "TEXT_INPUT";
+            if (isV3PromptActive) {
+              console.log("[V3_PROMPT][FOOTER_INPUT_ONLY]", { 
+                bottomBarMode, 
+                effectiveItemType,
+                note: 'Footer shows input + send only - question renders in main pane'
+              });
+            }
+            return null; // No prompt banner in footer - input only
           })()}
 
           {/* LLM Suggestion - show if available for this field (hide during V3 probing or missing prompt) */}
