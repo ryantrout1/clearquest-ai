@@ -9067,8 +9067,66 @@ export default function CandidateInterview() {
             );
           })()}
 
+          {/* CANONICAL STREAM ACTIVE CARDS: Render from renderStream (no separate inject blocks) */}
+          {renderStream.filter(x => x.__activeCard).map(card => {
+            if (card.kind === "v3_probe_q") {
+              return (
+                <div key={card.stableKey}>
+                  <ContentContainer>
+                    <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
+                        {card.instanceNumber > 1 && (
+                          <>
+                            <span className="text-xs text-slate-500">•</span>
+                            <span className="text-xs text-slate-400">Instance {card.instanceNumber}</span>
+                          </>
+                        )}
+                      </div>
+                      <p className="text-white text-sm leading-relaxed">{card.text}</p>
+                    </div>
+                  </ContentContainer>
+                </div>
+              );
+            } else if (card.kind === "v3_pack_opener") {
+              return (
+                <div key={card.stableKey}>
+                  <ContentContainer>
+                    <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                      {card.categoryLabel && (
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-sm font-medium text-purple-400">
+                            {card.categoryLabel}{card.instanceNumber > 1 ? ` — Instance ${card.instanceNumber}` : ''}
+                          </span>
+                        </div>
+                      )}
+                      <p className="text-white text-sm leading-relaxed">{card.text}</p>
+                      {card.exampleNarrative && (
+                        <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
+                          <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
+                          <p className="text-slate-300 text-xs italic">{card.exampleNarrative}</p>
+                        </div>
+                      )}
+                    </div>
+                  </ContentContainer>
+                </div>
+              );
+            } else if (card.kind === "multi_instance_gate") {
+              return (
+                <div key={card.stableKey}>
+                  <ContentContainer>
+                    <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
+                      <p className="text-white text-base leading-relaxed">{card.text}</p>
+                    </div>
+                  </ContentContainer>
+                </div>
+              );
+            }
+            return null;
+          })}
+          
           {/* V3 Pack Opener Card - SYNTHETIC RENDER (disabled by ENABLE_SYNTHETIC_TRANSCRIPT) */}
-          {ENABLE_SYNTHETIC_TRANSCRIPT && (() => {
+          {false && ENABLE_SYNTHETIC_TRANSCRIPT && (() => {
             // UI CONTRACT: Use effectiveItemType (never render opener during probing)
             const isV3OpenerMode = effectiveItemType === 'v3_pack_opener';
             
