@@ -7879,7 +7879,7 @@ export default function CandidateInterview() {
     bottomBarMode === "YES_NO" &&
     currentItem?.type === "multi_instance_gate";
   
-  // Log once per activation (de-duped by currentItem.id) - using ref declared at top
+  // Log once per activation (de-duped by currentItem.id) - using ref declared at top-level (line 1476)
   if (isMiGateActive && miGateActiveLogKeyRef.current !== currentItem?.id) {
     miGateActiveLogKeyRef.current = currentItem?.id;
     console.log("[MI_GATE][ACTIVE_STATE]", {
