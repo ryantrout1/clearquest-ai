@@ -1586,9 +1586,9 @@ export default function CandidateInterview() {
       };
     }
     
-    // Priority 3: Multi-instance gate (ONLY if V3 prompt not active)
-    // GUARD: Prevent MI_GATE from jumping ahead during V3 prompt lifecycle
-    if (currentItem?.type === 'multi_instance_gate' && !hasActiveV3Prompt) {
+    // TASK B: Priority 3: Multi-instance gate (ONLY if V3 prompt not active AND no visible V3 prompt card)
+    // HARDENED: Block MI_GATE if V3 still has visible prompt card in UI history (prevents jump-ahead during transitions)
+    if (currentItem?.type === 'multi_instance_gate' && !hasActiveV3Prompt && !v3HasVisiblePromptCard) {
       return {
         kind: "MI_GATE",
         packId: currentItem.packId,
