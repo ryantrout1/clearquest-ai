@@ -9017,9 +9017,12 @@ export default function CandidateInterview() {
 
           {/* MI_GATE: Suppressed from main history - renders in footer only per ClearQuest UI contract */}
           {(() => {
+            // HARDENED: Triple-gate check (active MI_GATE only)
             const isMiGateActive = 
               effectiveItemType === 'multi_instance_gate' && 
-              currentItem?.type === 'multi_instance_gate';
+              currentItem?.type === 'multi_instance_gate' &&
+              activeUiItem?.kind === "MI_GATE" &&
+              bottomBarMode === "YES_NO";
             
             if (isMiGateActive) {
               console.log('[MI_GATE][HISTORY_RENDER_SOURCE]', {
@@ -9030,7 +9033,13 @@ export default function CandidateInterview() {
                 bottomBarMode,
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
-                action: 'SUPPRESSED_PER_UI_CONTRACT'
+                action: 'SUPPRESSED_PER_UI_CONTRACT',
+                gateCheckPassed: {
+                  effectiveItemType: effectiveItemType === 'multi_instance_gate',
+                  currentItemType: currentItem?.type === 'multi_instance_gate',
+                  activeUiItemKind: activeUiItem?.kind === "MI_GATE",
+                  bottomBarMode: bottomBarMode === "YES_NO"
+                }
               });
               
               console.log('[MI_GATE][HISTORY_SUPPRESSED]', {
@@ -9041,17 +9050,19 @@ export default function CandidateInterview() {
               });
               
               // UI CONTRACT SELF-TEST: Track history suppressed event (main area block)
-              const itemId = currentItem?.id;
-              if (itemId) {
-                const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, historySuppressed: false, testStarted: false };
-                tracker.historySuppressed = true;
-                miGateTestTrackerRef.current.set(itemId, tracker);
-                
-                console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
-                  itemId,
-                  event: 'HISTORY_SUPPRESSED_MAIN',
-                  tracker
-                });
+              if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST) {
+                const itemId = currentItem?.id;
+                if (itemId) {
+                  const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, historySuppressed: false, testStarted: false };
+                  tracker.historySuppressed = true;
+                  miGateTestTrackerRef.current.set(itemId, tracker);
+                  
+                  console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
+                    itemId,
+                    event: 'HISTORY_SUPPRESSED_MAIN',
+                    tracker
+                  });
+                }
               }
             }
             
