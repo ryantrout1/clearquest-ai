@@ -8006,23 +8006,64 @@ export default function CandidateInterview() {
     currentItem.type === 'multi_instance_gate'
   ) && !v3ProbingActive;
   
-  // V3 OPENER SUBMIT STATE: Log submit affordance for opener (use currentItem.type directly)
+  // ============================================================================
+  // V3 OPENER SINGLE SOURCE OF TRUTH - Compute disabled states ONCE (used by footer render)
+  // ============================================================================
+  let v3OpenerTextareaDisabled = false;
+  let v3OpenerSubmitDisabled = false;
+  
   if (currentItem?.type === 'v3_pack_opener') {
     const openerInputValue = openerDraft || "";
     const openerTextTrimmed = openerInputValue.trim();
     const openerTextTrimmedLen = openerTextTrimmed.length;
     const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem.id;
     
-    // SOURCE OF TRUTH: Single disabled calculation
-    const textareaDisabled = isCurrentItemCommitting;
-    const submitDisabled = openerTextTrimmedLen === 0 || isCurrentItemCommitting;
+    // TASK B: Single source of truth for textarea disabled
+    const textareaDisabledRaw = Boolean(isCurrentItemCommitting) || Boolean(v3ProbingActive);
     
-    // ENABLEMENT SOURCE OF TRUTH: Forensic log for debugging
+    // TASK C: Hard unhang override
+    let textareaDisabledFinal = textareaDisabledRaw;
+    if (textareaDisabledRaw && !isCurrentItemCommitting && !v3ProbingActive) {
+      console.warn('[V3_OPENER][UNHANG_OVERRIDE_TEXTAREA]', {
+        currentItemId: currentItem?.id,
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+        reason: 'disabled_true_while_not_committing_and_not_probing',
+        action: 'forcing enabled'
+      });
+      textareaDisabledFinal = false;
+    }
+    
+    // Submit disabled if no input or committing/probing
+    const submitDisabledRaw = openerTextTrimmedLen === 0 || isCurrentItemCommitting || v3ProbingActive;
+    
+    // Hard unhang override for submit
+    let submitDisabledFinal = submitDisabledRaw;
+    if (submitDisabledRaw && openerTextTrimmedLen > 0 && !isCurrentItemCommitting && !v3ProbingActive) {
+      console.warn('[V3_OPENER][UNHANG_OVERRIDE_SUBMIT]', {
+        currentItemId: currentItem?.id,
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+        inputLen: openerTextTrimmedLen,
+        reason: 'submit_disabled_despite_having_input_and_not_committing',
+        action: 'forcing enabled'
+      });
+      submitDisabledFinal = false;
+    }
+    
+    // Store in module variables for footer render
+    v3OpenerTextareaDisabled = textareaDisabledFinal;
+    v3OpenerSubmitDisabled = submitDisabledFinal;
+    
+    // TASK D: Forensic log - outputs FINAL values used by render
     console.log('[V3_OPENER][ENABLEMENT_SOT]', {
       openerTextTrimmedLen,
       isCurrentItemCommitting,
-      textareaDisabled,
-      submitDisabled,
+      v3ProbingActive,
+      textareaDisabledRaw,
+      textareaDisabledFinal,
+      submitDisabledRaw,
+      submitDisabledFinal,
       bottomBarMode,
       effectiveItemType,
       packId: currentItem.packId,
