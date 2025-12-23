@@ -8412,112 +8412,73 @@ export default function CandidateInterview() {
           {(() => {
             const transcriptToRender = renderedTranscriptSnapshotRef.current || renderedTranscript;
             
-            // TASK 1: Leak diagnostic when MI_GATE active - identify final render list
-            if (activeUiItem?.kind === "MI_GATE") {
-              const last12 = transcriptToRender.slice(-12);
-              const hasGateTextFlags = last12.map(i => {
-                const t = (i.promptText || i.text || i.questionText || "").toLowerCase();
-                return t.includes("do you have another");
-              });
-              
-              console.log("[MI_GATE][MAIN_PANE_FINAL_LIST]", {
-                count: transcriptToRender.length,
-                ids: last12.map(i => i.id),
-                types: last12.map(i => i.type || i.messageType || i.kind),
-                stableKeys: last12.map(i => i.stableKey),
-                hasGateText: hasGateTextFlags,
-                leakCandidates: last12.filter((_, idx) => hasGateTextFlags[idx]).map(i => ({
-                  id: i.id,
-                  stableKey: i.stableKey,
-                  type: i.messageType || i.type,
-                  textPreview: (i.text || i.promptText || "").slice(0, 80)
-                }))
-              });
-            }
-            
-            // TASK 2: Active MI_GATE filter at final list level (ID-based suppression)
+            // TASK C: SENTINEL FILTER - Single UI contract guardrail (final boundary before DOM)
             const finalList = (() => {
-              // Only filter when MI_GATE is active
-              if (activeUiItem?.kind !== "MI_GATE" || currentItem?.type !== 'multi_instance_gate') {
-                return transcriptToRender;
+              // SENTINEL: Only active when MI_GATE is showing
+              if (!isMiGateActive) {
+                return transcriptToRender; // No filtering - normal flow
               }
               
-              // Derive active gate identifiers (strongest to weakest)
-              const activeGateItemId = currentItem?.id;
-              const activeGateStableKeyBase = currentItem?.packId && currentItem?.instanceNumber
-                ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`
-                : null;
-              const activeGateStableKeyQ = activeGateStableKeyBase ? `${activeGateStableKeyBase}:q` : null;
+              // Build sentinel context (active gate identifiers)
+              const ctx = {
+                activeGateItemId: currentItem?.id,
+                activeGateStableKeyBase: currentItem?.packId && currentItem?.instanceNumber
+                  ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`
+                  : null,
+                activeGateStableKeyQ: null, // Computed below
+                miGatePrompt: currentItem?.promptText || 
+                              multiInstanceGate?.promptText ||
+                              (currentItem?.categoryLabel ? `Do you have another ${currentItem.categoryLabel} to report?` : null) ||
+                              `Do you have another incident to report?`
+              };
+              ctx.activeGateStableKeyQ = ctx.activeGateStableKeyBase ? `${ctx.activeGateStableKeyBase}:q` : null;
               
-              // Derive gate prompt text (exact same derivation as footer uses)
-              const miGatePrompt = 
-                currentItem?.promptText || 
-                multiInstanceGate?.promptText ||
-                currentItem?.openerText ||
-                (currentItem?.categoryLabel ? `Do you have another ${currentItem.categoryLabel} to report?` : null) ||
-                `Do you have another incident to report?`;
+              // Apply sentinel filter
+              const beforeCount = transcriptToRender.length;
+              const filtered = transcriptToRender.filter(item => !matchesActiveMiGatePrompt(item, ctx));
+              const afterCount = filtered.length;
+              const suppressedCount = beforeCount - afterCount;
               
-              const miGatePromptNormalized = miGatePrompt.toLowerCase().trim().replace(/\s+/g, ' ');
-              const miGatePromptPrefix = miGatePromptNormalized.slice(0, 40);
-              
-              console.log("[MI_GATE][FILTER_CONTEXT]", {
-                activeGateItemId,
-                activeGateStableKeyBase,
-                activeGateStableKeyQ,
-                miGatePromptPreview: miGatePrompt.slice(0, 80)
-              });
-              
-              // Filter out active gate from transcript
-              return transcriptToRender.filter(item => {
-                // Check all suppression conditions
-                const suppressByIdMatch = activeGateItemId && item.id === activeGateItemId;
-                const suppressByStableKeyBase = activeGateStableKeyBase && item.stableKey === activeGateStableKeyBase;
-                const suppressByStableKeyQ = activeGateStableKeyQ && item.stableKey === activeGateStableKeyQ;
-                
-                // Text-based suppression (for entries without matching IDs)
-                const itemText = (item.promptText || item.text || item.questionText || "").trim();
-                const itemTextNormalized = itemText.toLowerCase().replace(/\s+/g, ' ');
-                const suppressByTextEq = itemTextNormalized.length > 0 && itemTextNormalized === miGatePromptNormalized;
-                const suppressByTextPrefix = itemTextNormalized.length > 0 && itemTextNormalized.startsWith(miGatePromptPrefix);
-                
-                const shouldSuppress = suppressByIdMatch || suppressByStableKeyBase || suppressByStableKeyQ || suppressByTextEq || suppressByTextPrefix;
-                
-                if (shouldSuppress) {
-                  const suppressionMethod = suppressByIdMatch ? "id" : 
-                                           suppressByStableKeyBase ? "stableKey" :
-                                           suppressByStableKeyQ ? "stableKeyQ" :
-                                           suppressByTextEq ? "text_eq" :
-                                           "text_prefix";
-                  
-                  console.log("[MI_GATE][MAIN_PANE_ACTIVE_GATE_SUPPRESSED]", {
-                    suppressedBy: suppressionMethod,
-                    itemId: item.id,
-                    itemStableKey: item.stableKey,
-                    activeGateItemId,
-                    activeGateStableKeyBase,
-                    activeGateStableKeyQ,
-                    itemTextPreview: itemText.slice(0, 60)
-                  });
-                  
-                  // TASK 3: Self-test tracker hookup
-                  if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
-                    const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { footerWired: false, activeGateSuppressed: false, testStarted: false };
-                    tracker.activeGateSuppressed = true;
-                    miGateTestTrackerRef.current.set(currentItem.id, tracker);
-                    
-                    console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
-                      itemId: currentItem.id,
-                      event: 'ACTIVE_GATE_SUPPRESSED',
-                      suppressionMethod,
-                      tracker
-                    });
+              if (suppressedCount > 0) {
+                console.log("[MI_GATE][SENTINEL_SUPPRESSED_MAIN_PANE]", {
+                  beforeCount,
+                  afterCount,
+                  suppressed: suppressedCount,
+                  ctx: {
+                    activeGateItemId: ctx.activeGateItemId,
+                    activeGateStableKeyBase: ctx.activeGateStableKeyBase,
+                    activeGateStableKeyQ: ctx.activeGateStableKeyQ,
+                    miGatePromptPreview: ctx.miGatePrompt.slice(0, 60)
                   }
-                  
-                  return false; // Suppress from render list
-                }
+                });
                 
-                return true; // Keep in render list
-              });
+                // TASK D: Self-test tracker hookup
+                if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
+                  const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { footerWired: false, activeGateSuppressed: false, testStarted: false };
+                  tracker.activeGateSuppressed = true;
+                  miGateTestTrackerRef.current.set(currentItem.id, tracker);
+                  
+                  console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
+                    itemId: currentItem.id,
+                    event: 'SENTINEL_SUPPRESSED',
+                    suppressedCount,
+                    tracker
+                  });
+                }
+              } else {
+                console.warn("[MI_GATE][SENTINEL_NO_MATCH]", {
+                  beforeCount,
+                  note: "No matching items found to suppress; main pane should not show active gate anyway.",
+                  last10Items: transcriptToRender.slice(-10).map(i => ({
+                    id: i.id,
+                    stableKey: i.stableKey,
+                    type: i.messageType || i.type,
+                    textPreview: (i.text || "").slice(0, 50)
+                  }))
+                });
+              }
+              
+              return filtered;
             })();
             
             return (
