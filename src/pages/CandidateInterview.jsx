@@ -9206,6 +9206,17 @@ export default function CandidateInterview() {
               return null;
             }
             
+            // TASK C: Block MI_GATE render if V3 still has visible prompt card (prevents jump-ahead)
+            if (v3HasVisiblePromptCard) {
+              console.log("[MI_GATE][ACTIVE_RENDER_BLOCKED_BY_V3]", {
+                packId: currentItem?.packId,
+                instanceNumber: currentItem?.instanceNumber,
+                reason: "V3_VISIBLE_PROMPT_CARD",
+                v3UiHistoryLen: v3ProbeDisplayHistory?.length || 0
+              });
+              return null;
+            }
+            
             // Derive prompt text (single source of truth)
             const miGatePrompt = 
               currentItem.promptText ||
