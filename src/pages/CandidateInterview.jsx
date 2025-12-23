@@ -8410,18 +8410,20 @@ export default function CandidateInterview() {
                   currentItemId: currentItem.id
                 });
                 
-                // UI CONTRACT SELF-TEST: Track history suppressed event
-                const itemId = currentItem?.id;
-                if (itemId) {
-                  const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, historySuppressed: false, testStarted: false };
-                  tracker.historySuppressed = true;
-                  miGateTestTrackerRef.current.set(itemId, tracker);
-                  
-                  console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
-                    itemId,
-                    event: 'HISTORY_SUPPRESSED',
-                    tracker
-                  });
+                // UI CONTRACT SELF-TEST: Track history suppressed event (transcript source)
+                if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST) {
+                  const itemId = currentItem?.id;
+                  if (itemId) {
+                    const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, historySuppressed: false, testStarted: false };
+                    tracker.historySuppressed = true;
+                    miGateTestTrackerRef.current.set(itemId, tracker);
+                    
+                    console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
+                      itemId,
+                      event: 'HISTORY_SUPPRESSED_TRANSCRIPT',
+                      tracker
+                    });
+                  }
                 }
                 return null; // Suppress - will render in prompt lane instead
               }
