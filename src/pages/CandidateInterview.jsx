@@ -8175,6 +8175,55 @@ export default function CandidateInterview() {
     }
   };
   
+  // TASK B: Sentinel matching function (local helper - no data mutation)
+  const matchesActiveMiGatePrompt = (item, ctx) => {
+    if (!item || !ctx) return false;
+    
+    // Strategy 1: Exact ID match
+    if (ctx.activeGateItemId && item.id === ctx.activeGateItemId) {
+      return true;
+    }
+    
+    // Strategy 2: StableKey base match
+    if (ctx.activeGateStableKeyBase && item.stableKey === ctx.activeGateStableKeyBase) {
+      return true;
+    }
+    
+    // Strategy 3: StableKey Q suffix match
+    if (ctx.activeGateStableKeyQ && item.stableKey === ctx.activeGateStableKeyQ) {
+      return true;
+    }
+    
+    // Strategy 4: ID contains gate identifiers (variant matching)
+    if (ctx.activeGateItemId && item.id && item.id.includes(ctx.activeGateItemId)) {
+      return true;
+    }
+    
+    if (ctx.activeGateStableKeyBase && item.id && item.id.includes(ctx.activeGateStableKeyBase)) {
+      return true;
+    }
+    
+    // Strategy 5: Text-based matching
+    const itemText = (item.text || item.promptText || item.questionText || "").trim();
+    if (!itemText) return false;
+    
+    const itemTextNormalized = itemText.toLowerCase().replace(/\s+/g, ' ');
+    const miGatePromptNormalized = ctx.miGatePrompt.toLowerCase().trim().replace(/\s+/g, ' ');
+    const miGatePromptPrefix = miGatePromptNormalized.slice(0, 40);
+    
+    // Text equality
+    if (itemTextNormalized === miGatePromptNormalized) {
+      return true;
+    }
+    
+    // Text prefix (handles variations)
+    if (itemTextNormalized.startsWith(miGatePromptPrefix)) {
+      return true;
+    }
+    
+    return false;
+  };
+  
   // Unified bottom bar submit handler for question, v2_pack_field, followup, and V3 probing
   const handleBottomBarSubmit = async () => {
     console.log("[BOTTOM_BAR_SUBMIT][CLICK]", {
