@@ -8525,13 +8525,20 @@ export default function CandidateInterview() {
                     activeGateStableKeyBase: ctx.activeGateStableKeyBase,
                     activeGateStableKeyQ: ctx.activeGateStableKeyQ,
                     miGatePromptPreview: ctx.miGatePrompt.slice(0, 60)
-                  }
+                  },
+                  suppressedItems: transcriptToRender.slice(-10).filter(it => matchesActiveMiGatePrompt(it, ctx)).map(it => ({
+                    id: getItemId(it),
+                    stableKey: getItemStableKey(it),
+                    type: it.messageType || it.type || it.kind,
+                    textPreview: getItemText(it).slice(0, 120)
+                  }))
                 });
                 
-                // TASK D: Self-test tracker hookup
+                // TASK D: Self-test tracker hookup (ref mutation only, no hooks)
                 if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
-                  const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { footerWired: false, activeGateSuppressed: false, testStarted: false };
+                  const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { footerWired: false, activeGateSuppressed: false, suppressedSeenViaLog: false, testStarted: false };
                   tracker.activeGateSuppressed = true;
+                  tracker.suppressedSeenViaLog = true; // Mark that we saw suppression in logs
                   miGateTestTrackerRef.current.set(currentItem.id, tracker);
                   
                   console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
