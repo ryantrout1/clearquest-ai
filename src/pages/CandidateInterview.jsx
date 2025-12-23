@@ -8190,49 +8190,90 @@ export default function CandidateInterview() {
     }
   };
   
-  // TASK B: Sentinel matching function (local helper - no data mutation)
+  // TASK 1: Canonical item field getters (plain functions - no hooks, no state)
+  const getItemId = (item) => {
+    return item?.id || item?.itemId || item?.messageId || item?.key || item?.stableKey || item?.stable_key || null;
+  };
+  
+  const getItemStableKey = (item) => {
+    return item?.stableKey || item?.stable_key || item?.key || item?.id || null;
+  };
+  
+  const getItemText = (item) => {
+    return (
+      item?.promptText ||
+      item?.questionText ||
+      item?.text ||
+      item?.title ||
+      item?.message ||
+      item?.payload?.promptText ||
+      item?.payload?.questionText ||
+      item?.payload?.text ||
+      item?.payload?.message ||
+      item?.data?.text ||
+      item?.data?.promptText ||
+      item?.meta?.promptText ||
+      item?.meta?.text ||
+      ""
+    );
+  };
+  
+  const normalizeText = (text) => {
+    if (!text || typeof text !== 'string') return '';
+    return text.toLowerCase().trim().replace(/\s+/g, ' ');
+  };
+  
+  // TASK 2: Sentinel matching function (upgraded with canonical field extraction)
   const matchesActiveMiGatePrompt = (item, ctx) => {
     if (!item || !ctx) return false;
     
-    // Strategy 1: Exact ID match
-    if (ctx.activeGateItemId && item.id === ctx.activeGateItemId) {
+    // Canonicalize item fields (handles all field name variants)
+    const itemId = getItemId(item);
+    const itemStableKey = getItemStableKey(item);
+    const itemText = getItemText(item);
+    const itemTextNormalized = normalizeText(itemText);
+    
+    const miGatePromptNormalized = normalizeText(ctx.miGatePrompt);
+    const miGatePromptPrefix = miGatePromptNormalized.slice(0, 30);
+    
+    // Strategy A: Exact ID match
+    if (ctx.activeGateItemId && itemId === ctx.activeGateItemId) {
       return true;
     }
     
-    // Strategy 2: StableKey base match
-    if (ctx.activeGateStableKeyBase && item.stableKey === ctx.activeGateStableKeyBase) {
+    // Strategy B: StableKey exact matches
+    if (ctx.activeGateStableKeyBase && itemStableKey === ctx.activeGateStableKeyBase) {
       return true;
     }
     
-    // Strategy 3: StableKey Q suffix match
-    if (ctx.activeGateStableKeyQ && item.stableKey === ctx.activeGateStableKeyQ) {
+    if (ctx.activeGateStableKeyQ && itemStableKey === ctx.activeGateStableKeyQ) {
       return true;
     }
     
-    // Strategy 4: ID contains gate identifiers (variant matching)
-    if (ctx.activeGateItemId && item.id && item.id.includes(ctx.activeGateItemId)) {
+    // Strategy C: StableKey startsWith (covers variants like :q, :a, :answer)
+    if (ctx.activeGateStableKeyBase && itemStableKey && itemStableKey.startsWith(ctx.activeGateStableKeyBase)) {
       return true;
     }
     
-    if (ctx.activeGateStableKeyBase && item.id && item.id.includes(ctx.activeGateStableKeyBase)) {
+    // Strategy D: Text-based matching (if text contains gate indicator)
+    if (itemTextNormalized && itemTextNormalized.includes("do you have another")) {
+      // Exact text match
+      if (itemTextNormalized === miGatePromptNormalized) {
+        return true;
+      }
+      
+      // Prefix match (first 30 chars)
+      if (miGatePromptPrefix && itemTextNormalized.startsWith(miGatePromptPrefix)) {
+        return true;
+      }
+    }
+    
+    // Strategy E: ID string containment (handles prefixed/suffixed ID formats)
+    if (ctx.activeGateStableKeyBase && itemId && itemId.includes(ctx.activeGateStableKeyBase)) {
       return true;
     }
     
-    // Strategy 5: Text-based matching
-    const itemText = (item.text || item.promptText || item.questionText || "").trim();
-    if (!itemText) return false;
-    
-    const itemTextNormalized = itemText.toLowerCase().replace(/\s+/g, ' ');
-    const miGatePromptNormalized = ctx.miGatePrompt.toLowerCase().trim().replace(/\s+/g, ' ');
-    const miGatePromptPrefix = miGatePromptNormalized.slice(0, 40);
-    
-    // Text equality
-    if (itemTextNormalized === miGatePromptNormalized) {
-      return true;
-    }
-    
-    // Text prefix (handles variations)
-    if (itemTextNormalized.startsWith(miGatePromptPrefix)) {
+    if (ctx.activeGateItemId && itemId && itemId.includes(ctx.activeGateItemId)) {
       return true;
     }
     
