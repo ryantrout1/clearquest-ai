@@ -8567,96 +8567,31 @@ export default function CandidateInterview() {
               );
             }
 
-            // Multi-instance gate prompt shown (PART C: Only appears after answer, never filtered)
+            // Multi-instance gate prompt shown (TASK E: Simplified - sentinel handles suppression)
             if (entry.role === 'assistant' && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
-              // TASK 1: Identify this exact render branch for diagnostics
-              if (activeUiItem?.kind === "MI_GATE") {
-                const entryTextPreview = (entry.text || entry.promptText || "").slice(0, 120);
-                console.log("[MI_GATE][MAIN_PANE_GATE_CARD_RENDER]", {
-                  branch: "MULTI_INSTANCE_GATE_SHOWN",
-                  entryId: entry.id,
-                  entryType: entry.messageType,
-                  entryStableKey: entry.stableKey,
-                  entryTextPreview,
-                  entryPackId: entry.packId,
-                  entryInstanceNumber: entry.instanceNumber,
-                  activeUiItemKind: activeUiItem?.kind,
-                  currentItemId: currentItem?.id,
-                  currentPackId: currentItem?.packId,
-                  currentInstanceNumber: currentItem?.instanceNumber
-                });
-              }
-              
-              // TASK 2: Hard suppress active gate card at render (before returning JSX)
-              if (activeUiItem?.kind === "MI_GATE" && 
-                  effectiveItemType === "multi_instance_gate" && 
-                  bottomBarMode === "YES_NO") {
+              // DEFENSE-IN-DEPTH: Render-level guard (backup to sentinel - should rarely execute)
+              if (isMiGateActive) {
+                const ctx = {
+                  activeGateItemId: currentItem?.id,
+                  activeGateStableKeyBase: currentItem?.packId && currentItem?.instanceNumber
+                    ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`
+                    : null,
+                  activeGateStableKeyQ: null,
+                  miGatePrompt: currentItem?.promptText || 
+                                multiInstanceGate?.promptText ||
+                                `Do you have another incident to report?`
+                };
+                ctx.activeGateStableKeyQ = ctx.activeGateStableKeyBase ? `${ctx.activeGateStableKeyBase}:q` : null;
                 
-                // Derive active gate identifiers
-                const activeGateItemId = currentItem?.id;
-                const activeGateStableKeyBase = currentItem?.packId && currentItem?.instanceNumber
-                  ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`
-                  : null;
-                const activeGateStableKeyQ = activeGateStableKeyBase ? `${activeGateStableKeyBase}:q` : null;
+                const isActiveGate = matchesActiveMiGatePrompt(entry, ctx);
                 
-                // Derive gate prompt (same derivation as footer uses)
-                const miGatePrompt = 
-                  currentItem?.promptText || 
-                  multiInstanceGate?.promptText ||
-                  currentItem?.openerText ||
-                  (currentItem?.categoryLabel ? `Do you have another ${currentItem.categoryLabel} to report?` : null) ||
-                  `Do you have another incident to report?`;
-                
-                const miGatePromptNormalized = miGatePrompt.toLowerCase().trim().replace(/\s+/g, ' ');
-                const miGatePromptPrefix = miGatePromptNormalized.slice(0, 40);
-                
-                // Check all suppression conditions
-                const suppressByIdMatch = activeGateItemId && entry.id === activeGateItemId;
-                const suppressByStableKeyBase = activeGateStableKeyBase && entry.stableKey === activeGateStableKeyBase;
-                const suppressByStableKeyQ = activeGateStableKeyQ && entry.stableKey === activeGateStableKeyQ;
-                
-                // Text-based suppression
-                const entryText = (entry.text || entry.promptText || "").trim();
-                const entryTextNormalized = entryText.toLowerCase().replace(/\s+/g, ' ');
-                const hasGateText = entryTextNormalized.includes("do you have another");
-                const suppressByTextEq = hasGateText && entryTextNormalized === miGatePromptNormalized;
-                const suppressByTextPrefix = hasGateText && entryTextNormalized.startsWith(miGatePromptPrefix);
-                
-                const shouldSuppress = suppressByIdMatch || suppressByStableKeyBase || suppressByStableKeyQ || suppressByTextEq || suppressByTextPrefix;
-                
-                if (shouldSuppress) {
-                  const suppressionMethod = suppressByIdMatch ? "id" : 
-                                           suppressByStableKeyBase ? "stableKey" :
-                                           suppressByStableKeyQ ? "stableKeyQ" :
-                                           suppressByTextEq ? "text_eq" :
-                                           "text_prefix";
-                  
-                  console.log("[MI_GATE][MAIN_PANE_GATE_CARD_SUPPRESSED_AT_RENDER]", {
-                    suppressedBy: suppressionMethod,
+                if (isActiveGate) {
+                  console.log("[MI_GATE][RENDER_LEVEL_BACKUP_SUPPRESSED]", {
                     entryId: entry.id,
                     entryStableKey: entry.stableKey,
-                    activeGateItemId,
-                    activeGateStableKeyBase,
-                    activeGateStableKeyQ,
-                    entryTextPreview: entryText.slice(0, 60),
-                    reason: "ACTIVE_GATE_FOOTER_ONLY"
+                    note: "Sentinel should have caught this - backup suppression fired"
                   });
-                  
-                  // TASK 3: Self-test tracker hookup
-                  if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
-                    const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { footerWired: false, activeGateSuppressed: false, testStarted: false };
-                    tracker.activeGateSuppressed = true;
-                    miGateTestTrackerRef.current.set(currentItem.id, tracker);
-                    
-                    console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
-                      itemId: currentItem.id,
-                      event: 'ACTIVE_GATE_SUPPRESSED_AT_RENDER',
-                      suppressionMethod,
-                      tracker
-                    });
-                  }
-                  
-                  return null; // Suppress - active gate renders in footer only
+                  return null; // Backup suppression
                 }
               }
               
