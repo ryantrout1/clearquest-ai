@@ -6961,74 +6961,118 @@ export default function CandidateInterview() {
   }, [footerHeightPx]);
 
   // ============================================================================
-  // BOTTOM BAR MODE EARLY COMPUTATION - Must be before footer padding (TDZ fix)
+  // UNIFIED BOTTOM BAR MODE + FOOTER PADDING COMPUTATION (Single Source of Truth)
   // ============================================================================
-  // Compute bottomBarMode early to break TDZ dependency chain
-  // This is a minimal computation - full mode logic remains in main body (line 7654+)
-  let bottomBarModeEarly = "HIDDEN";
+  // CRITICAL: All variables declared EXACTLY ONCE in this block
+  // NO early/centralized split - prevents TDZ and duplicate declarations
+  
+  // Step 1: Compute currentItemType (base type before precedence)
+  const currentItemType = v3GateActive ? 'v3_gate' : 
+                          v3ProbingActive ? 'v3_probing' : 
+                          pendingSectionTransition ? 'section_transition' : 
+                          currentItem?.type || null;
+  
+  // Step 2: Compute footer controller (determines which UI block controls bottom bar)
+  const footerControllerLocal = activeUiItem.kind === "V3_PROMPT" ? "V3_PROMPT" :
+                                activeUiItem.kind === "V3_OPENER" ? "V3_OPENER" :
+                                activeUiItem.kind === "MI_GATE" ? "MI_GATE" :
+                                "DEFAULT";
+  
+  // Step 3: Compute effectiveItemType (UI routing key derived from activeUiItem.kind)
+  const effectiveItemType = activeUiItem.kind === "V3_PROMPT" ? 'v3_probing' : 
+                           activeUiItem.kind === "V3_OPENER" ? 'v3_pack_opener' :
+                           activeUiItem.kind === "MI_GATE" ? 'multi_instance_gate' :
+                           v3ProbingActive ? 'v3_probing' : 
+                           currentItemType;
+  
+  // Step 4: Compute bottom bar mode (final - no early/refined split)
+  let bottomBarMode = "HIDDEN";
   
   // Pre-interview intro (WELCOME screen only)
   if (screenMode === 'WELCOME' && !v3ProbingActive && !currentItem) {
-    bottomBarModeEarly = "CTA";
+    bottomBarMode = "CTA";
   }
   // Section transition blockers
   else if (activeBlocker?.type === 'SECTION_MESSAGE' && currentItem?.type !== 'section_transition') {
-    bottomBarModeEarly = "CTA";
+    bottomBarMode = "CTA";
   }
   else if (pendingSectionTransition && currentItem?.type === 'section_transition') {
-    bottomBarModeEarly = "CTA";
+    bottomBarMode = "CTA";
   }
   // V3_PROMPT active (canonical routing via activeUiItem)
   else if (activeUiItem.kind === "V3_PROMPT") {
-    bottomBarModeEarly = "TEXT_INPUT";
+    bottomBarMode = "TEXT_INPUT";
   }
   // V3_OPENER active
   else if (activeUiItem.kind === "V3_OPENER") {
-    bottomBarModeEarly = "TEXT_INPUT";
+    bottomBarMode = "TEXT_INPUT";
   }
   // MI_GATE active
   else if (activeUiItem.kind === "MI_GATE") {
     const gatePromptText = activeUiItem.promptText || currentItem?.promptText || multiInstanceGate?.promptText;
-    bottomBarModeEarly = (gatePromptText && gatePromptText.trim().length > 0) ? "YES_NO" : "DISABLED";
+    bottomBarMode = (gatePromptText && gatePromptText.trim().length > 0) ? "YES_NO" : "DISABLED";
   }
   // Regular yes/no questions
   else if (currentItem?.type === 'question' && engine?.QById[currentItem.id]?.response_type === 'yes_no') {
-    bottomBarModeEarly = "YES_NO";
+    bottomBarMode = "YES_NO";
   }
   // V2 pack field yes/no
   else if (currentItem?.type === 'v2_pack_field' && currentItem?.fieldConfig?.inputType === 'yes_no') {
-    bottomBarModeEarly = "YES_NO";
+    bottomBarMode = "YES_NO";
   }
   // V2 pack field select
   else if (currentItem?.type === 'v2_pack_field' && currentItem?.fieldConfig?.inputType === 'select_single') {
-    bottomBarModeEarly = "SELECT";
+    bottomBarMode = "SELECT";
   }
   // Text input for answerable items
   else if (currentItem && (currentItem.type === 'question' || currentItem.type === 'v2_pack_field' || currentItem.type === 'v3_pack_opener' || currentItem.type === 'followup')) {
-    bottomBarModeEarly = "TEXT_INPUT";
+    bottomBarMode = "TEXT_INPUT";
   }
   
-  console.log('[BOOT][BOTTOM_BAR_MODE_READY]', {
-    bottomBarMode: bottomBarModeEarly,
-    effectiveItemType: v3ProbingActive ? 'v3_probing' : currentItem?.type,
-    activeUiItemKind: activeUiItem?.kind,
-    currentItemType: currentItem?.type
-  });
-
-  // ============================================================================
-  // FOOTER PADDING COMPUTATION - Must be declared before auto-scroll effect (TDZ fix)
-  // ============================================================================
+  // Step 5: Compute footer rendering flag
+  const shouldRenderFooter = screenMode === 'QUESTION' && 
+                             (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
+  
+  // Step 6: Compute footer padding (TDZ-safe - all deps declared above)
   const SAFETY_MARGIN_PX = 8;
   const MIN_FOOTER_FALLBACK_PX = 80;
-  const shouldRenderFooterEarly = 
-    screenMode === 'QUESTION' && 
-    (bottomBarModeEarly === 'TEXT_INPUT' || bottomBarModeEarly === 'YES_NO' || bottomBarModeEarly === 'SELECT');
-  
-  const footerSafePaddingPx = shouldRenderFooterEarly 
+  const footerSafePaddingPx = shouldRenderFooter 
     ? (footerHeightPx > 0 ? footerHeightPx : MIN_FOOTER_FALLBACK_PX) + SAFETY_MARGIN_PX
     : 0;
   
   const dynamicBottomPaddingPx = footerSafePaddingPx;
+  
+  // Step 7: Semantic helper flags
+  const isV3Gate = effectiveItemType === "v3_gate";
+  const isMultiInstanceGate = effectiveItemType === "multi_instance_gate";
+  const isQuestion = false; // Set to true during refinement if needed
+  
+  // ============================================================================
+  // REGRESSION GUARD: Assert single source of truth (dev-only, non-blocking)
+  // ============================================================================
+  console.log("[GUARD][BOTTOM_BAR_SINGLE_SOURCE]", {
+    bottomBarMode,
+    effectiveItemType,
+    footerControllerLocal,
+    currentItemType,
+    shouldRenderFooter,
+    footerSafePaddingPx,
+    dynamicBottomPaddingPx,
+    activeUiItemKind: activeUiItem?.kind
+  });
+  
+  // Defensive check: Detect undefined values (log-only, never throw)
+  if (bottomBarMode === undefined || effectiveItemType === undefined || footerSafePaddingPx === undefined) {
+    console.error("[GUARD][BOTTOM_BAR_UNDEFINED]", {
+      bottomBarMode,
+      effectiveItemType,
+      footerControllerLocal,
+      footerSafePaddingPx,
+      dynamicBottomPaddingPx,
+      reason: 'CRITICAL: One or more unified block variables is undefined',
+      stack: new Error().stack?.split('\n').slice(1, 3).join(' | ')
+    });
+  }
 
   // STICKY AUTOSCROLL: Scroll to bottom on transcript growth, active item changes, footer changes
   React.useLayoutEffect(() => {
