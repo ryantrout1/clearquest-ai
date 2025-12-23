@@ -1507,6 +1507,52 @@ export default function CandidateInterview() {
   // LIFECYCLE-AWARE: Prompt is ONLY active when waiting for answer, NOT during processing
   const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && 
                             v3PromptPhase === "ANSWER_NEEDED";
+  
+  // TASK A: V3 VISIBLE PROMPT CARD SIGNAL - Prevents MI_GATE from jumping ahead during transitions
+  // Check if v3ProbeDisplayHistory has an unanswered question (Q exists but no matching A)
+  const v3HasVisiblePromptCard = (() => {
+    if (!v3ProbeDisplayHistory || v3ProbeDisplayHistory.length === 0) return false;
+    
+    // Get current loopKey from active context
+    const activeLoopKey = v3ProbingContext 
+      ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`
+      : null;
+    
+    if (!activeLoopKey) return false;
+    
+    // Check if there's an unanswered question for this loopKey
+    const loopEntries = v3ProbeDisplayHistory.filter(e => e.loopKey === activeLoopKey);
+    if (loopEntries.length === 0) return false;
+    
+    // Group by sequence number from stableKey (v3-ui:<loopKey>:<n>:q/a)
+    const sequenceMap = new Map();
+    for (const entry of loopEntries) {
+      const match = entry.stableKey?.match(/:(\d+):(q|a)$/);
+      if (match) {
+        const seqNum = match[1];
+        const qOrA = match[2];
+        if (!sequenceMap.has(seqNum)) {
+          sequenceMap.set(seqNum, { q: null, a: null });
+        }
+        sequenceMap.get(seqNum)[qOrA] = entry;
+      }
+    }
+    
+    // Find any Q without matching A
+    for (const [seqNum, pair] of sequenceMap.entries()) {
+      if (pair.q && !pair.a) {
+        return true; // Found unanswered question
+      }
+    }
+    
+    return false;
+  })();
+  
+  console.log("[ORDER][V3_VISIBLE_PROMPT_CARD]", {
+    v3HasVisiblePromptCard,
+    v3UiHistoryLen: v3ProbeDisplayHistory?.length || 0,
+    lastKeysPreview: (v3ProbeDisplayHistory || []).slice(-4).map(x => x.stableKey)
+  });
 
   // CANONICAL ACTIVE UI ITEM RESOLVER - Single source of truth
   // Determines what UI should be shown based on strict precedence:
