@@ -9339,50 +9339,7 @@ export default function CandidateInterview() {
           {/* MI_GATE/V3_PROMPT/V3_OPENER ACTIVE CARDS: Removed - now rendered via canonical stream */}
           {/* CANONICAL STREAM: All active cards injected via renderStream (lines 8471-8539) */}
 
-          {/* V3_PROMPT ACTIVE CARD: Active V3 prompt renders in main pane (above footer) */}
-          {(() => {
-            // TASK D: UI CONTRACT: V3_PROMPT active card renders when V3 prompt is active OR visible in UI history
-            // PRECEDENCE GUARD: V3_PROMPT > MI_GATE (even if MI_GATE exists in currentItem)
-            const shouldRenderActiveV3Prompt = 
-              activeUiItem?.kind === "V3_PROMPT" &&
-              effectiveItemType === "v3_probing" &&
-              (hasActiveV3Prompt === true || v3HasVisiblePromptCard === true);
-            
-            if (!shouldRenderActiveV3Prompt) {
-              return null;
-            }
-            
-            // Derive prompt text (single source of truth - same as footer placeholder)
-            const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
-            
-            console.log('[V3_PROMPT][RENDER_SOURCE_ACTIVE_CARD]', {
-              promptPreview: (v3PromptText || "").slice(0, 120),
-              v3PromptPhase,
-              hasActiveV3Prompt,
-              effectiveItemType,
-              packId: v3ProbingContext?.packId,
-              instanceNumber: v3ProbingContext?.instanceNumber,
-              currentItemType: currentItem?.type,
-              note: 'V3_PROMPT has precedence over MI_GATE'
-            });
-            
-            return (
-              <ContentContainer>
-                <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
-                    {v3ProbingContext?.instanceNumber > 1 && (
-                      <>
-                        <span className="text-xs text-slate-500">•</span>
-                        <span className="text-xs text-slate-400">Instance {v3ProbingContext.instanceNumber}</span>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-white text-sm leading-relaxed">{v3PromptText}</p>
-                </div>
-              </ContentContainer>
-            );
-          })()}
+
 
           {/* V3 PROBE PROMPT LANE: LEGACY BLOCK - Suppressed (V3_PROMPT ACTIVE CARD handles rendering) */}
           {(() => {
