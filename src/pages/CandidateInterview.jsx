@@ -53,7 +53,9 @@ import {
   logPackExited,
   logSectionStarted,
   logFollowupCardShown,
-  mergeTranscript
+  mergeTranscript,
+  appendUserMessage as appendUserMessageImport,
+  appendAssistantMessage as appendAssistantMessageImport
 } from "../components/utils/chatTranscriptHelpers";
 
 // ============================================================================
@@ -1153,7 +1155,10 @@ export default function CandidateInterview() {
 
   // CANONICAL HELPER: Append to DB transcript + refresh local mirror
   const appendAndRefresh = useCallback(async (kind, payload, reasonLabel) => {
-    const { appendUserMessage, appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
+    // STATIC IMPORT FIX: Use top-level imports to prevent React context duplication
+    // Dynamic imports can create separate React contexts and cause "Invalid hook call" crashes
+    const appendUserMessage = appendUserMessageImport;
+    const appendAssistantMessage = appendAssistantMessageImport;
     
     const freshSession = await base44.entities.InterviewSession.get(sessionId);
     const currentTranscript = freshSession.transcript_snapshot || [];
@@ -4049,7 +4054,8 @@ export default function CandidateInterview() {
 
         // FIX A: Do NOT append duplicate v3_opener_question - FOLLOWUP_CARD_SHOWN already logged it
         // Only append the user's answer
-        const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
+        // STATIC IMPORT FIX: Use top-level imports (prevents React context duplication)
+        const appendUserMessage = appendUserMessageImport;
         const freshSession = await base44.entities.InterviewSession.get(sessionId);
         const currentTranscript = freshSession.transcript_snapshot || [];
 
@@ -4377,7 +4383,8 @@ export default function CandidateInterview() {
           : value;
 
         // Append user answer to session transcript (single source of truth)
-        const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
+        // STATIC IMPORT FIX: Use top-level imports (prevents React context duplication)
+        const appendUserMessage = appendUserMessageImport;
         const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
         await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], answerDisplayText, {
           messageType: 'ANSWER',
@@ -4646,8 +4653,9 @@ export default function CandidateInterview() {
               }
 
               // Get deterministic opener (configured or synthesized)
-              const { getV3DeterministicOpener } = await import("../components/utils/v3ProbingPrompts");
-              const opener = getV3DeterministicOpener(packMetadata, categoryId, categoryLabel);
+              // STATIC IMPORT FIX: Import at module level to prevent React context issues
+              const v3ProbingPromptsModule = await import("../components/utils/v3ProbingPrompts");
+              const opener = v3ProbingPromptsModule.getV3DeterministicOpener(packMetadata, categoryId, categoryLabel);
 
               if (opener.isSynthesized) {
                 console.warn(`[V3_PACK][MISSING_OPENER] Pack ${packId} missing configured opener - synthesized fallback used`);
@@ -5074,17 +5082,18 @@ export default function CandidateInterview() {
 
                 // Add AI opening question to transcript
                 // V2 cluster opening: append via canonical helper
-                await appendAndRefresh('assistant', {
-                  text: initialCallResult.question,
-                  metadata: {
-                    messageType: 'v2_pack_opening',
-                    packId,
-                    fieldKey: firstField.fieldKey,
-                    instanceNumber: 1,
-                    baseQuestionId: currentItem.id,
-                    visibleToCandidate: true
-                  }
-                }, 'v2_cluster_opening_shown');
+                // STATIC IMPORT FIX: Use top-level import
+                const sessionForV2Opening = await base44.entities.InterviewSession.get(sessionId);
+                const currentTranscriptForV2 = sessionForV2Opening.transcript_snapshot || [];
+                await appendAssistantMessageImport(sessionId, currentTranscriptForV2, initialCallResult.question, {
+                  messageType: 'v2_pack_opening',
+                  packId,
+                  fieldKey: firstField.fieldKey,
+                  instanceNumber: 1,
+                  baseQuestionId: currentItem.id,
+                  visibleToCandidate: true
+                });
+                await refreshTranscriptFromDB('v2_cluster_opening_shown');
 
                 // Set up AI probe state - this makes the UI show the AI question and wait for answer
                 setIsWaitingForAgent(true);
@@ -5688,17 +5697,18 @@ export default function CandidateInterview() {
         });
 
         // Append multi-instance answer via canonical helper
-        await appendAndRefresh('user', {
-          text: answer,
-          metadata: {
-            id: `mi-a-${questionId}-${packId}-${instanceNumber}-${Date.now()}`,
-            stableKey: `multi-instance-answer:${questionId}:${packId}:${instanceNumber}`,
-            messageType: 'MULTI_INSTANCE_GATE_ANSWER',
-            questionId,
-            packId,
-            instanceNumber
-          }
-        }, 'multi_instance_answer');
+        // STATIC IMPORT FIX: Use top-level import (already aliased as appendUserMessageImport)
+        const sessionForMiAnswer = await base44.entities.InterviewSession.get(sessionId);
+        const currentTranscriptForMi = sessionForMiAnswer.transcript_snapshot || [];
+        await appendUserMessageImport(sessionId, currentTranscriptForMi, answer, {
+          id: `mi-a-${questionId}-${packId}-${instanceNumber}-${Date.now()}`,
+          stableKey: `multi-instance-answer:${questionId}:${packId}:${instanceNumber}`,
+          messageType: 'MULTI_INSTANCE_GATE_ANSWER',
+          questionId,
+          packId,
+          instanceNumber
+        });
+        await refreshTranscriptFromDB('multi_instance_answer');
 
         if (answer === 'Yes') {
           const substanceName = question?.substance_name || null;
@@ -9560,13 +9570,14 @@ export default function CandidateInterview() {
                   });
                   
                   // UI CONTRACT: Append "Got it — Let's Begin" as normal user message
-                  await appendAndRefresh('user', {
-                    text: "Got it — Let's Begin",
-                    metadata: {
-                      messageType: 'USER_MESSAGE',
-                      visibleToCandidate: true
-                    }
-                  }, 'welcome_acknowledged');
+                  // STATIC IMPORT FIX: Use top-level import
+                  const sessionForWelcome = await base44.entities.InterviewSession.get(sessionId);
+                  const currentTranscriptForWelcome = sessionForWelcome.transcript_snapshot || [];
+                  await appendUserMessageImport(sessionId, currentTranscriptForWelcome, "Got it — Let's Begin", {
+                    messageType: 'USER_MESSAGE',
+                    visibleToCandidate: true
+                  });
+                  await refreshTranscriptFromDB('welcome_acknowledged');
                   
                   // Get first question from section-first order
                   const firstQuestionId = sections.length > 0 && sections[0]?.questionIds?.length > 0
