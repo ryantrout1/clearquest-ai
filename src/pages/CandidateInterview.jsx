@@ -7641,61 +7641,74 @@ export default function CandidateInterview() {
   return item.type === "question" || item.type === "v2_pack_field" || item.type === "v3_pack_opener" || item.type === "followup";
   };
 
-  // Re-anchor bottom on footer height changes when auto-scroll is enabled
-  useEffect(() => {
-    if (!historyRef.current) return;
-    if (!autoScrollEnabledRef.current) return;
-    requestAnimationFrame(() => {
-      bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
-    });
-  }, [footerHeightPx]);
-
   // ============================================================================
-  // BOTTOM BAR MODE EARLY COMPUTATION - Must be before footer padding (TDZ fix)
+  // CENTRALIZED BOTTOM BAR MODE SELECTION (Single Decision Point)
   // ============================================================================
-  // CRITICAL: Minimal early bottomBarMode computation to break TDZ dependency
-  // Full mode logic with all guards remains in main body (after currentPrompt is resolved)
-  // This early version uses ONLY already-declared state to compute a safe approximation
-  let bottomBarModeEarly = "HIDDEN";
   
-  if (screenMode === 'WELCOME' && !v3ProbingActive && !currentItem) {
-    bottomBarModeEarly = "CTA";
-  } else if (activeBlocker?.type === 'SECTION_MESSAGE' || pendingSectionTransition) {
-    bottomBarModeEarly = "CTA";
-  } else if (activeUiItem.kind === "V3_PROMPT") {
-    bottomBarModeEarly = "TEXT_INPUT";
-  } else if (activeUiItem.kind === "V3_OPENER") {
-    bottomBarModeEarly = "TEXT_INPUT";
-  } else if (activeUiItem.kind === "MI_GATE") {
-    const gatePromptText = activeUiItem.promptText || currentItem?.promptText || multiInstanceGate?.promptText;
-    bottomBarModeEarly = (gatePromptText && gatePromptText.trim().length > 0) ? "YES_NO" : "DISABLED";
-  } else if (v3ProbingActive) {
-    bottomBarModeEarly = v3ActivePromptText ? "TEXT_INPUT" : "DISABLED";
-  } else if (currentItem?.type === 'question' || currentItem?.type === 'v2_pack_field' || currentItem?.type === 'v3_pack_opener' || currentItem?.type === 'followup') {
-    bottomBarModeEarly = "TEXT_INPUT"; // Default for answerable items
-  }
+  // Compute currentItemType (base type before precedence)
+  const currentItemType = (v3GateActive ? 'v3_gate' : (v3ProbingActive ? 'v3_probing' : (pendingSectionTransition ? 'section_transition' : currentItem?.type || null)));
   
-  console.log('[BOOT][BOTTOM_BAR_MODE_READY]', {
-    bottomBarMode: bottomBarModeEarly,
-    effectiveItemType: v3ProbingActive ? 'v3_probing' : currentItem?.type,
-    activeUiItemKind: activeUiItem?.kind,
+  // CANONICAL ROUTING: Use activeUiItem.kind to determine ALL UI rendering
+  const footerControllerLocal = activeUiItem.kind === "V3_PROMPT" ? "V3_PROMPT" :
+                                activeUiItem.kind === "V3_OPENER" ? "V3_OPENER" :
+                                activeUiItem.kind === "MI_GATE" ? "MI_GATE" :
+                                "DEFAULT";
+  
+  // UI TRUTH: effectiveItemType derived from activeUiItem.kind (single source)
+  // Also used as fallback in bottomBarRenderType declaration above
+  const effectiveItemType = activeUiItem.kind === "V3_PROMPT" ? 'v3_probing' : 
+                           activeUiItem.kind === "V3_OPENER" ? 'v3_pack_opener' :
+                           activeUiItem.kind === "MI_GATE" ? 'multi_instance_gate' :
+                           (v3ProbingActive ? 'v3_probing' : currentItemType);
+  
+  // CONTRACT VERIFICATION: Log canonical UI item resolution
+  console.log('[V3_UI_CONTRACT][ACTIVE_UI_ITEM]', {
+    kind: activeUiItem.kind,
+    hasV3PromptText,
+    hasV3ProbeQuestion,
+    hasV3LoopKey,
+    hasActiveV3Prompt,
+    currentItemType,
+    effectiveItemType,
+    footerControllerLocal,
+    v3ProbingActive
+  });
+  
+  // UI STATE SNAPSHOT: Consolidated snapshot on state transitions
+  console.log('[UI][STATE_SNAPSHOT]', {
+    currentActiveKind: activeUiItem.kind,
+    transcriptLen: dbTranscript?.length || 0,
+    v3UiHistoryLen: v3ProbeDisplayHistory?.length || 0,
+    shouldAutoScroll: shouldAutoScrollRef.current,
+    footerSafePaddingPx,
+    dynamicBottomPaddingPx,
+    hasActiveV3Prompt,
+    v3PromptPhase,
     currentItemType: currentItem?.type
   });
-
-  // ============================================================================
-  // FOOTER PADDING COMPUTATION - Must be declared before auto-scroll effect (TDZ fix)
-  // ============================================================================
-  const SAFETY_MARGIN_PX = 8;
-  const MIN_FOOTER_FALLBACK_PX = 80;
-  const shouldRenderFooterEarly = 
-    screenMode === 'QUESTION' && 
-    (bottomBarModeEarly === 'TEXT_INPUT' || bottomBarModeEarly === 'YES_NO' || bottomBarModeEarly === 'SELECT');
   
-  const footerSafePaddingPx = shouldRenderFooterEarly 
-    ? (footerHeightPx > 0 ? footerHeightPx : MIN_FOOTER_FALLBACK_PX) + SAFETY_MARGIN_PX
-    : 0;
+  // CANONICAL ROUTING: Log footer controller derived from activeUiItem
+  console.log('[FOOTER_CONTROLLER_LOCAL]', {
+    activeUiItemKind: activeUiItem.kind,
+    footerControllerLocal,
+    hasActiveV3Prompt,
+    hasV3PromptText,
+    hasV3ProbeQuestion,
+    hasV3LoopKey,
+    currentItemType,
+    effectiveItemType,
+    v3PromptPreview: v3ActivePromptText?.substring(0, 40) || null
+  });
   
-  const dynamicBottomPaddingPx = footerSafePaddingPx;
+  const isV3Gate = effectiveItemType === "v3_gate";
+  const isMultiInstanceGate = effectiveItemType === "multi_instance_gate";
+  
+  // Compute bottom bar mode (uses early approximation, refined with currentPrompt below)
+  let bottomBarMode = bottomBarModeEarly;
+  let isQuestion = false; // Semantic flag: is this a question-like prompt?
+  
+  // REFINED MODE COMPUTATION: Override early approximation with currentPrompt precision
+  // (Full refinement happens after currentPrompt is resolved)
   
   // MI_GATE TRACE 1: Mode derivation audit
   if (effectiveItemType === 'multi_instance_gate' || currentItemType === 'multi_instance_gate' || isMultiInstanceGate) {
