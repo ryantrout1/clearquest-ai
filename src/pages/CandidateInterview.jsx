@@ -8567,56 +8567,38 @@ export default function CandidateInterview() {
               );
             }
 
-            // Multi-instance gate prompt shown (TASK E: Simplified - sentinel handles suppression)
+            // Multi-instance gate prompt shown (ALWAYS render - no suppression)
             if (entry.role === 'assistant' && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
-              // DEFENSE-IN-DEPTH: Render-level guard (backup to sentinel - should rarely execute)
-              if (isMiGateActive) {
-                const ctx = {
-                  activeGateItemId: currentItem?.id,
-                  activeGateStableKeyBase: currentItem?.packId && currentItem?.instanceNumber
-                    ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`
-                    : null,
-                  activeGateStableKeyQ: null,
-                  miGatePrompt: currentItem?.promptText || 
-                                multiInstanceGate?.promptText ||
-                                `Do you have another incident to report?`
-                };
-                ctx.activeGateStableKeyQ = ctx.activeGateStableKeyBase ? `${ctx.activeGateStableKeyBase}:q` : null;
+              // UI CONTRACT: Active MI_GATE renders in main pane (above footer)
+              const stableKey = entry.stableKey || entry.id;
+              const isActiveGate = isMiGateActive && 
+                (entry.id === currentItem?.id || 
+                 stableKey === `mi-gate:${currentItem?.packId}:${currentItem?.instanceNumber}:q` ||
+                 stableKey?.startsWith(`mi-gate:${currentItem?.packId}:${currentItem?.instanceNumber}`));
+              
+              if (isActiveGate) {
+                console.log('[MI_GATE][MAIN_PANE_ACTIVE_RENDER]', {
+                  currentItemId: currentItem?.id,
+                  packId: currentItem?.packId,
+                  instanceNumber: currentItem?.instanceNumber,
+                  stableKey,
+                  promptPreview: (entry.text || "").slice(0, 120)
+                });
                 
-                const isActiveGate = matchesActiveMiGatePrompt(entry, ctx);
-                
-                if (isActiveGate) {
-                  console.log("[MI_GATE][RENDER_LEVEL_BACKUP_SUPPRESSED]", {
-                    entryId: entry.id,
-                    entryStableKey: entry.stableKey,
-                    note: "Sentinel should have caught this - backup suppression fired"
+                // UI CONTRACT SELF-TEST: Track main pane render
+                if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
+                  const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
+                  tracker.mainPaneRendered = true;
+                  miGateTestTrackerRef.current.set(currentItem.id, tracker);
+                  
+                  console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
+                    itemId: currentItem.id,
+                    event: 'MAIN_PANE_RENDERED',
+                    tracker
                   });
-                  return null; // Backup suppression
                 }
               }
               
-              // PART C: Historical gates (answered, not active) - render as history
-              const stableKey = entry.stableKey || entry.id;
-              const isMiGateQA = stableKey && (stableKey.startsWith('mi-gate:') && (stableKey.endsWith(':q') || stableKey.endsWith(':a')));
-              
-              if (isMiGateQA) {
-                console.log('[MI_GATE][RENDER_PERSISTED]', {
-                  stableKey,
-                  packId: entry.packId,
-                  instanceNumber: entry.instanceNumber,
-                  source: 'TRANSCRIPT',
-                  reason: 'Appended after answer - must persist'
-                });
-              } else {
-                console.log('[MI_GATE][RENDER_HISTORICAL]', {
-                  source: 'TRANSCRIPT',
-                  stableKey: entry.stableKey || entry.id,
-                  packId: entry.packId,
-                  instanceNumber: entry.instanceNumber,
-                  reason: 'Historical gate (answered in prior instance) - rendering in history'
-                });
-              }
-
               return (
                 <div key={entry.id}>
                   <ContentContainer>
