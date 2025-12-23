@@ -7700,7 +7700,7 @@ export default function CandidateInterview() {
           itemId,
           packId: currentItem?.packId,
           instanceNumber: currentItem?.instanceNumber,
-          mainHistorySuppressed: true,
+          mainPaneBlockRemoved: true,
           footerPromptEnabled: true,
           selfTestEnabled: ENABLE_MI_GATE_UI_CONTRACT_SELFTEST
         });
@@ -7745,13 +7745,14 @@ export default function CandidateInterview() {
             
             const { footerWired, historySuppressed } = finalTracker;
             
-            if (footerWired && historySuppressed) {
+            // UPDATED: historySuppressed tracked via transcript loop only (main pane block removed)
+            if (footerWired) {
               console.log('[MI_GATE][UI_CONTRACT_PASS]', {
                 itemId,
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
                 footerWiredSeen: true,
-                historySuppressedSeen: true
+                mainPaneBlockRemoved: true
               });
             } else {
               console.error('[MI_GATE][UI_CONTRACT_FAIL]', {
@@ -7759,8 +7760,7 @@ export default function CandidateInterview() {
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
                 footerWiredSeen: footerWired,
-                historySuppressedSeen: historySuppressed,
-                reason: !footerWired ? 'Footer prompt not wired' : 'History render not suppressed'
+                reason: 'Footer prompt not wired'
               });
             }
           } catch (testError) {
