@@ -1468,8 +1468,8 @@ export default function CandidateInterview() {
   // V3 SUBMIT COUNTER: Monotonic counter for tokenized pendingAnswer payloads
   const v3SubmitCounterRef = useRef(0);
   
-  // MI_GATE UI CONTRACT SELF-TEST: Track footer wired + history suppressed per itemId
-  const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { footerWired: bool, historySuppressed: bool, testStarted: bool }>
+  // MI_GATE UI CONTRACT SELF-TEST: Track main pane render + footer buttons per itemId
+  const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { mainPaneRendered: bool, footerButtonsOnly: bool, testStarted: bool }>
   const miGateTestTimeoutRef = useRef(null);
   
   // MI_GATE SENTINEL: Track active state log key (prevents duplicate logs)
