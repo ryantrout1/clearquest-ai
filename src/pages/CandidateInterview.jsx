@@ -274,6 +274,10 @@ const ENABLE_CHAT_VIRTUALIZATION = false;
 // UI CONTRACT: Disable synthetic transcript injection (must use append-only DB transcript)
 const ENABLE_SYNTHETIC_TRANSCRIPT = false;
 
+// MI_GATE UI CONTRACT: Enable self-test verification (log-only, non-blocking)
+// Set to false to disable self-test logging if it causes noise
+const ENABLE_MI_GATE_UI_CONTRACT_SELFTEST = true;
+
 // Removed anchor-based gating diagnostic helpers - V2 now uses field-based gating only
 
 // File revision: 2025-12-02 - Cleaned and validated
