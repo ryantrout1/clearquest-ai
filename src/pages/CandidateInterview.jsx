@@ -7169,7 +7169,7 @@ export default function CandidateInterview() {
   // This prevents logging questions with null responseId
   
   // ============================================================================
-  // Derived state and resolver section moved to line 1472 (TDZ-safe early placement)
+  // CENTRALIZED BOTTOM BAR MODE SELECTION - moved earlier (line 6963) for TDZ-safe footer padding
   // ============================================================================
 
   const getCurrentPrompt = () => {
