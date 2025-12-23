@@ -1484,6 +1484,9 @@ export default function CandidateInterview() {
   // ACTIVE KIND CHANGE DETECTION: Track last logged kind to prevent spam
   const lastLoggedActiveKindRef = useRef(null);
   
+  // RENDER STREAM SNAPSHOT: Track last stream length for change detection (PART E)
+  const lastRenderStreamLenRef = useRef(0);
+  
   // V3 UI-ONLY HISTORY: Display V3 probe Q/A without polluting transcript
   // MOVED UP: Must be declared before refreshTranscriptFromDB (TDZ fix)
   const v3ActiveProbeQuestionRef = useRef(null);
