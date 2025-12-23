@@ -8932,52 +8932,33 @@ export default function CandidateInterview() {
             );
           })()}
 
-          {/* MI_GATE PROMPT LANE: Active gate question card (purple) */}
+          {/* MI_GATE: Suppressed from main history - renders in footer only per ClearQuest UI contract */}
           {(() => {
-            const shouldRenderMiGatePromptLane = 
+            const isMiGateActive = 
               effectiveItemType === 'multi_instance_gate' && 
-              currentItem?.type === 'multi_instance_gate' &&
-              !v3ProbingActive &&
-              !pendingSectionTransition &&
-              !activeBlocker;
+              currentItem?.type === 'multi_instance_gate';
             
-            if (!shouldRenderMiGatePromptLane) {
-              return null;
+            if (isMiGateActive) {
+              console.log('[MI_GATE][HISTORY_RENDER_SOURCE]', {
+                renderPath: 'MI_GATE_PROMPT_LANE_BLOCK',
+                itemId: currentItem?.id,
+                itemType: currentItem?.type,
+                activeUiItemKind: activeUiItem?.kind,
+                bottomBarMode,
+                packId: currentItem?.packId,
+                instanceNumber: currentItem?.instanceNumber,
+                action: 'SUPPRESSED_PER_UI_CONTRACT'
+              });
+              
+              console.log('[MI_GATE][HISTORY_SUPPRESSED]', {
+                itemId: currentItem?.id,
+                packId: currentItem?.packId,
+                instanceNumber: currentItem?.instanceNumber,
+                reason: 'MI_GATE_RENDERS_IN_FOOTER_ONLY'
+              });
             }
             
-            // Derive MI_GATE prompt text from currentItem (single source of truth)
-            const miGatePrompt = 
-              currentItem.promptText || 
-              multiInstanceGate?.promptText ||
-              currentItem.openerText ||
-              (currentItem.categoryLabel ? `Do you have another ${currentItem.categoryLabel} to report?` : null) ||
-              `Do you have another incident to report?`;
-            
-            const packId = currentItem.packId;
-            const instanceNumber = currentItem.instanceNumber;
-            
-            console.log('[MI_GATE][PROMPT_RENDER]', {
-              currentItemId: currentItem.id,
-              packId,
-              instanceNumber,
-              derivedPromptLen: miGatePrompt?.length || 0,
-              derivedPromptPreview: miGatePrompt?.slice(0, 80),
-              renderType: bottomBarRenderTypeSOT,
-              bottomBarMode,
-              source: currentItem.promptText ? 'currentItem.promptText' : 
-                      multiInstanceGate?.promptText ? 'multiInstanceGate.promptText' :
-                      'fallback'
-            });
-            
-            return (
-              <ContentContainer>
-                <div className="relative z-20 w-full rounded-xl p-1">
-                  <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 shadow-xl">
-                    <p className="text-white text-base leading-relaxed">{miGatePrompt}</p>
-                  </div>
-                </div>
-              </ContentContainer>
-            );
+            return null; // MI_GATE never renders in main history
           })()}
 
           {/* V3 PROBE PROMPT LANE: Active prompt card for V3 probing (purple AI follow-up) */}
