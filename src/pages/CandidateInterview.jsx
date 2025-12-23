@@ -7135,8 +7135,6 @@ export default function CandidateInterview() {
     }
   }, [input]);
 
-  // NOTE: Footer padding computation moved before auto-scroll effect (TDZ fix)
-
   // DEFENSIVE GUARD: Force exit WELCOME mode when interview has progressed
   useEffect(() => {
     if (screenMode !== "WELCOME") return; // Only act if we're in WELCOME
