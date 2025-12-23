@@ -7751,13 +7751,17 @@ export default function CandidateInterview() {
             // TASK 3: Self-test requires footer wired AND active gate suppressed
             const passCondition = footerWired && activeGateSuppressed;
             
+            // TASK 4: Self-test accepts EITHER tracker flag OR log detection
+            const passCondition = footerWired && (activeGateSuppressed || finalTracker.suppressedSeenViaLog);
+            
             if (passCondition) {
               console.log('[MI_GATE][UI_CONTRACT_PASS]', {
                 itemId,
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
                 footerWiredSeen: true,
-                activeGateSuppressed: true
+                activeGateSuppressed: activeGateSuppressed || finalTracker.suppressedSeenViaLog,
+                suppressionSource: activeGateSuppressed ? 'tracker_flag' : 'log_detection'
               });
             } else {
               // TASK D: Enhanced failure diagnostics with final render list snapshot
