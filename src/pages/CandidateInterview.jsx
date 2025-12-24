@@ -1963,14 +1963,40 @@ export default function CandidateInterview() {
       return `mi-gate:${gatePackId}:${gateInstanceNumber}`;
     })();
     
-    // DEDUPE BY CANONICAL KEY: Preserve insertion order, keep FIRST occurrence
-    const canonicalKeySet = new Set();
+    // TASK 1: DEDUPE - Split logic for legal record vs other entries
+    const stableKeySet = new Set(); // For visibleToCandidate=true (legal record)
+    const canonicalKeySet = new Set(); // For other entries
     const finalFiltered = [];
     let activeGateRemovedCount = 0;
     
     for (const entry of normalized) {
       const ck = entry.__canonicalKey;
+      const stableKey = entry.stableKey || entry.id;
       
+      // LEGAL RECORD PATH: Dedupe by stableKey/id only (no canonicalKey)
+      if (entry.visibleToCandidate === true) {
+        if (!stableKey) {
+          // No stableKey - treat as unique (shouldn't happen but fail-open)
+          finalFiltered.push(entry);
+          continue;
+        }
+        
+        if (!stableKeySet.has(stableKey)) {
+          stableKeySet.add(stableKey);
+          finalFiltered.push(entry);
+        } else {
+          // DUPLICATE LEGAL RECORD: Log and keep first
+          console.log('[TRANSCRIPT_DEDUPE][DUP_STABLEKEY_VISIBLE]', {
+            stableKey,
+            messageType: entry.messageType || entry.type,
+            textPreview: (entry.text || '').substring(0, 40)
+          });
+          // Skip duplicate (first occurrence already added)
+        }
+        continue;
+      }
+      
+      // OTHER ENTRIES PATH: Dedupe by canonicalKey (includes stableKey in key now)
       if (!ck) {
         finalFiltered.push(entry);
         continue;
@@ -1980,18 +2006,6 @@ export default function CandidateInterview() {
         canonicalKeySet.add(ck);
         finalFiltered.push(entry);
       } else {
-        // GUARD: Never drop visibleToCandidate=true entries (legal record)
-        if (entry.visibleToCandidate === true) {
-          console.error('[TRANSCRIPT_RENDER][ILLEGAL_DROP_PREVENTED]', {
-            canonicalKey: ck,
-            messageType: entry.messageType || entry.type,
-            textPreview: (entry.text || '').substring(0, 40),
-            reason: 'Attempted to dedupe candidate-visible entry - adding anyway'
-          });
-          finalFiltered.push(entry); // Add even if duplicate key (prevents legal record loss)
-          continue;
-        }
-        
         // DUPLICATE DETECTED: Log for V3 opener cards
         const messageType = entry.messageType || entry.type;
         if (messageType === 'FOLLOWUP_CARD_SHOWN') {
@@ -2092,26 +2106,40 @@ export default function CandidateInterview() {
     }
   }, [isUserTyping, renderedTranscript]);
 
-  // Monotonicity audit (log-only regression detection)
+  // TASK 4: Monotonicity audit with invariant guard (prevents render shrinkage)
+  const lastRenderedLenRef = useRef(null);
+  const lastRenderedTranscriptRef = useRef([]);
+  
   useEffect(() => {
-    const prevRenderedLen = prevRenderedLenRef.current;
+    const prevRenderedLen = lastRenderedLenRef.current;
     const nextRenderedLen = renderedTranscript.length;
     const shrinkDetected = prevRenderedLen !== null && nextRenderedLen < prevRenderedLen;
     
     if (shrinkDetected) {
-      // TASK D: If rendered shrinks but DB didn't, this is illegal filtering
-      const droppedKeys = prevRenderedLen > 0 ? 
-        `${prevRenderedLen - nextRenderedLen} entries dropped by filter` : 
-        'unknown';
+      // ILLEGAL SHRINK: Find dropped entries
+      const droppedEntries = lastRenderedTranscriptRef.current.filter(prev => 
+        !renderedTranscript.some(curr => 
+          (curr.stableKey && curr.stableKey === prev.stableKey) || 
+          (curr.id && curr.id === prev.id)
+        )
+      );
       
-      console.error('[REGRESSION][TRANSCRIPT_SHRINK]', {
+      console.error('[TRANSCRIPT_RENDER][ILLEGAL_SHRINK]', {
         prevLen: prevRenderedLen,
         nextLen: nextRenderedLen,
         delta: prevRenderedLen - nextRenderedLen,
         screenMode,
         currentItemType: currentItem?.type,
-        droppedKeys
+        droppedKeys: droppedEntries.map(e => ({
+          key: e.stableKey || e.id,
+          type: e.messageType || e.type,
+          textPreview: (e.text || '').substring(0, 40)
+        }))
       });
+      
+      // ABORT SHRINK: Keep previous transcript (prevents UI regression)
+      console.warn('[TRANSCRIPT_RENDER][SHRINK_ABORTED] Keeping previous transcript to prevent data loss');
+      return; // Don't update refs - keep previous list
     }
     
     // Log success when monotonic growth occurs
@@ -2123,7 +2151,9 @@ export default function CandidateInterview() {
       });
     }
     
-    prevRenderedLenRef.current = nextRenderedLen;
+    // Update refs for next check
+    lastRenderedLenRef.current = nextRenderedLen;
+    lastRenderedTranscriptRef.current = renderedTranscript;
   }, [renderedTranscript, screenMode, currentItem]);
 
   // Verification instrumentation (moved above early returns)
