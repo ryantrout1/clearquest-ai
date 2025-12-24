@@ -14,6 +14,160 @@
 
 import { base44 } from "@/api/base44Client";
 
+// ============================================================================
+// PERSIST RETRY QUEUE - Handle transient network failures
+// ============================================================================
+const retryQueue = new Map(); // Map<stableKey, { sessionId, transcript, attempts, nextRetryAt }>
+const MAX_RETRY_ATTEMPTS = 5;
+const RETRY_BACKOFF_MS = [1000, 3000, 10000, 30000, 60000]; // 1s, 3s, 10s, 30s, 60s
+
+const queueFailedPersist = (sessionId, stableKey, transcript) => {
+  if (retryQueue.has(stableKey)) {
+    console.log('[PERSIST][RETRY_ALREADY_QUEUED]', { sessionId, stableKey });
+    return;
+  }
+  
+  const retryItem = {
+    sessionId,
+    transcript,
+    attempts: 0,
+    nextRetryAt: Date.now() + RETRY_BACKOFF_MS[0]
+  };
+  
+  retryQueue.set(stableKey, retryItem);
+  
+  console.log('[PERSIST][RETRY_QUEUED]', {
+    sessionId,
+    stableKey,
+    attempt: 1,
+    nextRetryIn: RETRY_BACKOFF_MS[0]
+  });
+  
+  // Save to localStorage for cross-session recovery
+  try {
+    const queueSnapshot = Array.from(retryQueue.entries());
+    localStorage.setItem('cq_persist_retry_queue', JSON.stringify(queueSnapshot));
+  } catch (e) {
+    console.warn('[PERSIST][RETRY_QUEUE_STORAGE_FAIL]', { error: e.message });
+  }
+  
+  // Schedule retry
+  scheduleNextRetry();
+};
+
+const scheduleNextRetry = () => {
+  const now = Date.now();
+  let nextRetryDelay = Infinity;
+  
+  for (const [stableKey, item] of retryQueue.entries()) {
+    const delay = item.nextRetryAt - now;
+    if (delay < nextRetryDelay) {
+      nextRetryDelay = delay;
+    }
+  }
+  
+  if (nextRetryDelay < Infinity && nextRetryDelay >= 0) {
+    setTimeout(processRetryQueue, Math.max(0, nextRetryDelay));
+  }
+};
+
+const processRetryQueue = async () => {
+  const now = Date.now();
+  
+  for (const [stableKey, item] of retryQueue.entries()) {
+    if (item.nextRetryAt > now) continue;
+    
+    item.attempts++;
+    
+    if (item.attempts > MAX_RETRY_ATTEMPTS) {
+      console.error('[PERSIST][RETRY_GIVEUP]', {
+        sessionId: item.sessionId,
+        stableKey,
+        attempts: item.attempts
+      });
+      retryQueue.delete(stableKey);
+      continue;
+    }
+    
+    console.log('[PERSIST][RETRY_ATTEMPT]', {
+      sessionId: item.sessionId,
+      stableKey,
+      attempt: item.attempts
+    });
+    
+    try {
+      await base44.entities.InterviewSession.update(item.sessionId, {
+        transcript_snapshot: item.transcript
+      });
+      
+      console.log('[PERSIST][RETRY_OK]', {
+        sessionId: item.sessionId,
+        stableKey
+      });
+      
+      retryQueue.delete(stableKey);
+    } catch (err) {
+      // Check if error is duplicate (already exists in DB)
+      if (err.message?.includes('already exists') || err.message?.includes('duplicate')) {
+        console.log('[PERSIST][RETRY_DEDUPED]', {
+          sessionId: item.sessionId,
+          stableKey,
+          reason: 'Server confirmed already exists'
+        });
+        retryQueue.delete(stableKey);
+      } else {
+        // Schedule next retry with backoff
+        const nextBackoff = RETRY_BACKOFF_MS[Math.min(item.attempts, RETRY_BACKOFF_MS.length - 1)];
+        item.nextRetryAt = now + nextBackoff;
+        
+        console.log('[PERSIST][RETRY_FAILED]', {
+          sessionId: item.sessionId,
+          stableKey,
+          attempt: item.attempts,
+          nextRetryIn: nextBackoff,
+          error: err.message
+        });
+      }
+    }
+  }
+  
+  // Update localStorage
+  try {
+    if (retryQueue.size > 0) {
+      const queueSnapshot = Array.from(retryQueue.entries());
+      localStorage.setItem('cq_persist_retry_queue', JSON.stringify(queueSnapshot));
+    } else {
+      localStorage.removeItem('cq_persist_retry_queue');
+    }
+  } catch (e) {
+    console.warn('[PERSIST][RETRY_QUEUE_STORAGE_FAIL]', { error: e.message });
+  }
+  
+  // Schedule next retry if queue not empty
+  if (retryQueue.size > 0) {
+    scheduleNextRetry();
+  }
+};
+
+// Load retry queue from localStorage on module init
+if (typeof window !== 'undefined') {
+  try {
+    const stored = localStorage.getItem('cq_persist_retry_queue');
+    if (stored) {
+      const entries = JSON.parse(stored);
+      for (const [stableKey, item] of entries) {
+        retryQueue.set(stableKey, item);
+      }
+      console.log('[PERSIST][RETRY_QUEUE_RESTORED]', { count: retryQueue.size });
+      if (retryQueue.size > 0) {
+        scheduleNextRetry();
+      }
+    }
+  } catch (e) {
+    console.warn('[PERSIST][RETRY_QUEUE_RESTORE_FAIL]', { error: e.message });
+  }
+}
+
 /**
  * Get next transcript index
  * Ensures monotonically increasing order
@@ -266,10 +420,25 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
 
   const updatedTranscript = [...existingTranscript, entry];
 
+  // PERSIST: Immediate write to DB (not batched)
+  console.log('[PERSIST][ANSWER_SUBMIT_START]', {
+    sessionId,
+    stableKey: entry.stableKey || entry.id,
+    kind: 'assistant',
+    messageType: metadata.messageType,
+    questionId: metadata.meta?.questionDbId || metadata.questionDbId
+  });
+
   try {
     await base44.entities.InterviewSession.update(sessionId, {
       transcript_snapshot: updatedTranscript
     });
+
+    console.log('[PERSIST][ANSWER_SUBMIT_OK]', {
+      sessionId,
+      stableKey: entry.stableKey || entry.id
+    });
+
     console.log("[TRANSCRIPT][APPEND] assistant", {
       index: entry.index,
       messageType: metadata.messageType || 'message',
@@ -277,7 +446,15 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
     });
     console.log("[TRANSCRIPT][APPEND_OK] newLength=", updatedTranscript.length, "lastIndex=", entry.index);
   } catch (err) {
+    console.error('[PERSIST][ANSWER_SUBMIT_ERR]', {
+      sessionId,
+      stableKey: entry.stableKey || entry.id,
+      error: err.message
+    });
     console.error("[TRANSCRIPT][ERROR]", err);
+
+    // RETRY: Queue for background persistence
+    queueFailedPersist(sessionId, entry.stableKey || entry.id, updatedTranscript);
   }
 
   return updatedTranscript;
@@ -322,17 +499,42 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
 
   const updatedTranscript = [...existingTranscript, entry];
 
+  // PERSIST: Immediate write to DB (not batched)
+  console.log('[PERSIST][ANSWER_SUBMIT_START]', {
+    sessionId,
+    stableKey: entry.stableKey || entry.id,
+    kind: 'user',
+    messageType: metadata.messageType,
+    questionId: metadata.questionDbId || metadata.meta?.questionDbId,
+    loopKey: metadata.loopKey,
+    promptId: metadata.promptId
+  });
+
   try {
     await base44.entities.InterviewSession.update(sessionId, {
       transcript_snapshot: updatedTranscript
     });
+
+    console.log('[PERSIST][ANSWER_SUBMIT_OK]', {
+      sessionId,
+      stableKey: entry.stableKey || entry.id
+    });
+
     console.log("[TRANSCRIPT][APPEND] user", {
       index: entry.index,
       textPreview: text.substring(0, 60)
     });
     console.log("[TRANSCRIPT][APPEND_OK] newLength=", updatedTranscript.length, "lastIndex=", entry.index);
   } catch (err) {
+    console.error('[PERSIST][ANSWER_SUBMIT_ERR]', {
+      sessionId,
+      stableKey: entry.stableKey || entry.id,
+      error: err.message
+    });
     console.error("[TRANSCRIPT][ERROR]", err);
+
+    // RETRY: Queue for background persistence
+    queueFailedPersist(sessionId, entry.stableKey || entry.id, updatedTranscript);
   }
 
   return updatedTranscript;

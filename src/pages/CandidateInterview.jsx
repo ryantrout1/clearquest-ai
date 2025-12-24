@@ -2516,6 +2516,13 @@ export default function CandidateInterview() {
 
     try {
       window.sessionStorage.setItem(draftKey, value);
+      
+      // ABANDONMENT SAFETY: Log draft save
+      console.log('[DRAFT][SAVE]', {
+        keyPreview: draftKey.substring(0, 40),
+        len: value?.length || 0
+      });
+      
       console.log("[FORENSIC][STORAGE][WRITE]", { operation: 'WRITE', key: draftKey, success: true, valueLength: value?.length || 0 });
     } catch (e) {
       const isTrackingPrevention = e.message?.includes('tracking') || e.name === 'SecurityError';
@@ -2542,6 +2549,11 @@ export default function CandidateInterview() {
 
     try {
       window.sessionStorage.removeItem(draftKey);
+      
+      // ABANDONMENT SAFETY: Log draft clear
+      console.log('[DRAFT][CLEAR]', {
+        keyPreview: draftKey.substring(0, 40)
+      });
     } catch (e) {
       console.warn("[UX][DRAFT] Failed to clear draft", e);
     }
@@ -6764,6 +6776,11 @@ export default function CandidateInterview() {
       const v3DraftKey = `cq_v3draft_${sessionId}_${loopKey}_${promptId}`;
       try {
         window.sessionStorage.removeItem(v3DraftKey);
+        
+        // ABANDONMENT SAFETY: Log V3 draft clear
+        console.log('[DRAFT][CLEAR]', {
+          keyPreview: v3DraftKey.substring(0, 40)
+        });
         console.log('[V3_DRAFT][CLEAR_ON_SUBMIT]', { keyPreview: v3DraftKey });
       } catch (e) {
         console.warn('[V3_DRAFT][CLEAR_FAILED]', { error: e.message });
@@ -7386,9 +7403,19 @@ export default function CandidateInterview() {
     try {
       const savedDraft = window.sessionStorage.getItem(v3DraftKey);
       if (savedDraft && savedDraft.trim()) {
+        // ABANDONMENT SAFETY: Log V3 draft load
+        console.log('[DRAFT][LOAD]', {
+          found: true,
+          keyPreview: v3DraftKey.substring(0, 40),
+          len: savedDraft.length
+        });
         console.log('[V3_DRAFT][LOAD]', { found: true, keyPreview: v3DraftKey, len: savedDraft.length });
         setInput(savedDraft);
       } else {
+        console.log('[DRAFT][LOAD]', {
+          found: false,
+          keyPreview: v3DraftKey.substring(0, 40)
+        });
         console.log('[V3_DRAFT][LOAD]', { found: false, keyPreview: v3DraftKey });
         setInput("");
       }
@@ -7414,6 +7441,12 @@ export default function CandidateInterview() {
     try {
       if (input && input.trim()) {
         window.sessionStorage.setItem(v3DraftKey, input);
+        
+        // ABANDONMENT SAFETY: Log V3 draft save
+        console.log('[DRAFT][SAVE]', {
+          keyPreview: v3DraftKey.substring(0, 40),
+          len: input.length
+        });
         console.log('[V3_DRAFT][SAVE]', { keyPreview: v3DraftKey, len: input.length });
       }
     } catch (e) {
@@ -7498,9 +7531,19 @@ export default function CandidateInterview() {
             window.sessionStorage.removeItem(draftKey);
           } catch {}
         } else if (savedDraft != null && savedDraft !== "") {
+          // ABANDONMENT SAFETY: Log opener draft load
+          console.log('[DRAFT][LOAD]', {
+            found: true,
+            keyPreview: draftKey.substring(0, 40),
+            len: savedDraft?.length || 0
+          });
           console.log("[UX][DRAFT] Restoring opener draft for", draftKey);
           setOpenerDraft(savedDraft);
         } else {
+          console.log('[DRAFT][LOAD]', {
+            found: false,
+            keyPreview: draftKey.substring(0, 40)
+          });
           setOpenerDraft("");
         }
       } catch (e) {
@@ -7518,10 +7561,22 @@ export default function CandidateInterview() {
     try {
       const savedDraft = window.sessionStorage.getItem(draftKey);
       if (savedDraft != null && savedDraft !== "") {
+        // ABANDONMENT SAFETY: Log draft load
+        console.log('[DRAFT][LOAD]', {
+          found: true,
+          keyPreview: draftKey.substring(0, 40),
+          len: savedDraft?.length || 0
+        });
+        
         console.log("[UX][DRAFT] Restoring draft for", draftKey);
         console.log("[FORENSIC][STORAGE][READ]", { operation: 'READ', key: draftKey, success: true, valueLength: savedDraft?.length || 0 });
         setInput(savedDraft);
       } else {
+        console.log('[DRAFT][LOAD]', {
+          found: false,
+          keyPreview: draftKey.substring(0, 40)
+        });
+        
         console.log("[FORENSIC][STORAGE][READ]", { operation: 'READ', key: draftKey, success: true, found: false });
         // UI CONTRACT: NEVER prefill with prompt - input starts empty unless real draft exists
         setInput("");
@@ -10704,6 +10759,14 @@ export default function CandidateInterview() {
                 try {
                   const draftKey = buildDraftKey(sessionId, currentItem?.packId, currentItem?.id, currentItem?.instanceNumber || 0);
                   window.sessionStorage.setItem(draftKey, value);
+                  
+                  // ABANDONMENT SAFETY: Log opener draft save (throttled)
+                  if (openerDraftChangeCountRef.current % 5 === 0) {
+                    console.log('[DRAFT][SAVE]', {
+                      keyPreview: draftKey.substring(0, 40),
+                      len: value?.length || 0
+                    });
+                  }
                 } catch (e) {
                   // Silent fallback - in-memory draft is source of truth
                 }
