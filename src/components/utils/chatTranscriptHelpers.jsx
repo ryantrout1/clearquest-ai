@@ -61,9 +61,13 @@ const acquireSessionLock = (sessionId) => {
     localStorage.setItem(lockKey, Date.now().toString());
     return true;
   } catch (e) {
-    // Storage unavailable - proceed without lock
-    console.warn('[PERSIST][RETRY_SESSION_LOCK_UNAVAILABLE]', { sessionId, error: e.message });
-    return true;
+    // CHANGE 3: Storage unavailable - proceed without lock (safe degradation)
+    console.warn('[PERSIST][RETRY_LOCK_UNAVAILABLE]', { 
+      sessionId, 
+      error: e.message,
+      reason: 'localStorage blocked or unavailable - proceeding without multi-tab lock'
+    });
+    return true; // Fail-open: allow retry without lock
   }
 };
 
@@ -155,25 +159,49 @@ const processRetryQueue = async () => {
     // Process each session (with lock acquisition)
     for (const sessionId of sessionIds) {
       // CHANGE 3: Acquire per-session lock (multi-tab safety)
-      if (!acquireSessionLock(sessionId)) {
-        continue; // Skip this session - locked by another tab
+      let lockAcquired = false;
+      try {
+        lockAcquired = acquireSessionLock(sessionId);
+        if (!lockAcquired) {
+          continue; // Skip this session - locked by another tab
+        }
+      } catch (e) {
+        // CHANGE 3: Lock acquisition failed - proceed without lock
+        console.warn('[PERSIST][RETRY_LOCK_ERROR]', { 
+          sessionId, 
+          error: e.message,
+          action: 'proceeding without lock'
+        });
+        lockAcquired = false; // Mark as not acquired so we don't try to release
       }
       
       try {
-        // CHANGE 2: Fetch ONLY transcript_snapshot (lightweight)
+        // CHANGE 2: Count items for this session
+        const sessionItems = Array.from(retryQueue.entries()).filter(([_, item]) => 
+          item.sessionId === sessionId && item.nextRetryAt <= now
+        );
+        
+        if (sessionItems.length === 0) {
+          continue; // No items ready for this session
+        }
+        
+        console.log('[PERSIST][RETRY_SESSION_BATCH]', {
+          sessionId,
+          itemsCount: sessionItems.length
+        });
+        
+        // CHANGE 2: Fetch ONCE per session (performance optimization)
         const latestSession = await base44.entities.InterviewSession.get(sessionId);
-        const latestTranscript = latestSession.transcript_snapshot || [];
+        let workingTranscript = latestSession.transcript_snapshot || [];
         
         console.log('[PERSIST][RETRY_FETCH]', {
           sessionId,
-          transcriptLen: latestTranscript.length
+          transcriptLen: workingTranscript.length,
+          itemsToRetry: sessionItems.length
         });
         
-        // Process all retries for this session
-        for (const [compositeKey, item] of retryQueue.entries()) {
-          if (item.sessionId !== sessionId) continue;
-          if (item.nextRetryAt > now) continue;
-          
+        // CHANGE 2: Process all retries for this session using workingTranscript
+        for (const [compositeKey, item] of sessionItems) {
           item.attempts++;
           
           if (item.attempts > MAX_RETRY_ATTEMPTS) {
@@ -195,8 +223,8 @@ const processRetryQueue = async () => {
           });
           
           try {
-            // Dedupe: Check if entry already exists in latest transcript
-            const alreadyExists = latestTranscript.some(e => 
+            // CHANGE 2: Dedupe against workingTranscript (not latest from DB)
+            const alreadyExists = workingTranscript.some(e => 
               e.stableKey === item.stableKey || e.id === item.entry.id
             );
             
@@ -205,14 +233,14 @@ const processRetryQueue = async () => {
                 sessionId: item.sessionId,
                 stableKey: item.stableKey,
                 compositeKey,
-                reason: 'stableKey already present in DB'
+                reason: 'stableKey already present in working transcript'
               });
               retryQueue.delete(compositeKey);
               continue;
             }
             
-            // APPEND-ONLY: Merge entry into latest transcript (prevents overwrite)
-            const nextTranscript = [...latestTranscript, item.entry];
+            // CHANGE 2: Append to workingTranscript
+            const nextTranscript = [...workingTranscript, item.entry];
             
             await base44.entities.InterviewSession.update(item.sessionId, {
               transcript_snapshot: nextTranscript
@@ -224,16 +252,18 @@ const processRetryQueue = async () => {
               compositeKey
             });
             
-            // CHANGE 4: INTEGRITY AUDIT - Verify stableKey now in DB
+            // CHANGE 2: Update workingTranscript for next iteration
+            workingTranscript = nextTranscript;
+            
+            // CHANGE 1: INTEGRITY AUDIT - Check local invariant only
             const auditKey = `${item.sessionId}|${item.stableKey}`;
             if (seenStableKeysBySession.has(auditKey)) {
-              // Entry was locally seen and now confirmed in DB
-              const foundInDb = nextTranscript.some(e => e.stableKey === item.stableKey);
-              if (!foundInDb) {
-                console.error('[PERSIST][INTEGRITY_MISSING_IN_DB]', {
+              const foundInLocal = nextTranscript.some(e => e.stableKey === item.stableKey);
+              if (!foundInLocal) {
+                console.error('[PERSIST][INTEGRITY_LOCAL_MISSING]', {
                   sessionId: item.sessionId,
                   stableKey: item.stableKey,
-                  reason: 'Write succeeded but stableKey not in returned transcript'
+                  reason: 'Write succeeded but stableKey not in local transcript array (invariant violation)'
                 });
               }
             }
@@ -265,9 +295,25 @@ const processRetryQueue = async () => {
             }
           }
         }
+      } catch (e) {
+        // CHANGE 3: Session processing failed - log and continue
+        console.error('[PERSIST][RETRY_SESSION_ERROR]', {
+          sessionId,
+          error: e.message,
+          action: 'continuing to next session'
+        });
       } finally {
-        // CHANGE 3: Release session lock
-        releaseSessionLock(sessionId);
+        // CHANGE 3: Release session lock (safe even if not acquired)
+        if (lockAcquired) {
+          try {
+            releaseSessionLock(sessionId);
+          } catch (e) {
+            console.warn('[PERSIST][RETRY_UNLOCK_ERROR]', {
+              sessionId,
+              error: e.message
+            });
+          }
+        }
       }
     }
     
@@ -701,13 +747,13 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
       stableKey: entry.stableKey || entry.id
     });
 
-    // CHANGE 4: INTEGRITY AUDIT - Verify stableKey in returned transcript
-    const foundInDb = updatedTranscript.some(e => e.stableKey === (entry.stableKey || entry.id));
-    if (!foundInDb) {
-      console.error('[PERSIST][INTEGRITY_MISSING_IN_DB]', {
+    // CHANGE 4: INTEGRITY AUDIT - Verify stableKey in LOCAL transcript copy
+    const foundInLocal = updatedTranscript.some(e => e.stableKey === (entry.stableKey || entry.id));
+    if (!foundInLocal) {
+      console.error('[PERSIST][INTEGRITY_LOCAL_MISSING]', {
         sessionId,
         stableKey: entry.stableKey || entry.id,
-        reason: 'Write succeeded but stableKey not in local transcript copy'
+        reason: 'Write succeeded but stableKey not in local transcript array (local invariant violation)'
       });
     }
 
