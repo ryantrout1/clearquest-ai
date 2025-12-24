@@ -55,7 +55,8 @@ import {
   logFollowupCardShown,
   mergeTranscript,
   appendUserMessage as appendUserMessageImport,
-  appendAssistantMessage as appendAssistantMessageImport
+  appendAssistantMessage as appendAssistantMessageImport,
+  getNextIndex
 } from "../components/utils/chatTranscriptHelpers";
 
 // ============================================================================
@@ -6556,7 +6557,7 @@ export default function CandidateInterview() {
   }, [commitV3PromptToBottomBar, v3ProbingContext, currentItem, sessionId]);
 
   // V3 answer submit handler - routes answer to V3ProbingLoop
-  const handleV3AnswerSubmit = useCallback((answerText) => {
+  const handleV3AnswerSubmit = useCallback(async (answerText) => {
     // TDZ FIX: Compute effectiveItemType locally (not from closure deps)
     const localEffectiveItemType = v3ProbingActive ? 'v3_probing' : currentItem?.type;
     
@@ -6692,7 +6693,7 @@ export default function CandidateInterview() {
     }
     
     setV3PendingAnswer(payload);
-  }, [v3ProbingContext, sessionId, v3ActivePromptText, currentItem]);
+  }, [v3ProbingContext, sessionId, v3ActivePromptText, currentItem, setDbTranscriptSafe]);
   
   // V3 answer consumed handler - clears pending answer after V3ProbingLoop consumes it
   const handleV3AnswerConsumed = useCallback(({ loopKey, answerToken, probeCount, submitId }) => {
@@ -8962,7 +8963,7 @@ export default function CandidateInterview() {
       console.log("[BOTTOM_BAR_SUBMIT][V3] Routing to V3ProbingLoop via pendingAnswer");
       
       // Route answer to V3ProbingLoop via state
-      handleV3AnswerSubmit(trimmed);
+      await handleV3AnswerSubmit(trimmed);
       setInput(""); // Clear input immediately
       
       // NOTE: V3ProbingLoop will call handleV3AnswerConsumed to clear pendingAnswer
