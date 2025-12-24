@@ -1521,7 +1521,7 @@ export default function CandidateInterview() {
   // ============================================================================
   // FIX A1: TIGHTENED - Only block when there's an ACTIVE prompt waiting for answer
   // DO NOT block if v3PromptPhase === 'IDLE' and no active prompt text
-  const hasV3PromptText = v3ActivePromptText && v3ActivePromptText.trim().length > 0;
+  // NOTE: hasV3PromptText already declared above (line ~1511) - reusing existing
   const isV3Blocking = hasActiveV3Prompt || 
                        v3PromptPhase === 'ANSWER_NEEDED' || 
                        hasV3PromptText;
