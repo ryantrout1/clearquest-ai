@@ -31,6 +31,17 @@ const seenStableKeysBySession = new Set(); // Set<`${sessionId}|${stableKey}`>
 // MULTI-TAB SAFETY: Per-session retry locks
 const SESSION_LOCK_TIMEOUT_MS = 15000; // 15 seconds
 
+// CONFLICT DETECTION: Write timing threshold for suspecting contention
+const SLOW_WRITE_THRESHOLD_MS = 1500; // 1.5 seconds
+
+// Helper: Check if retry queue has items for a session
+const hasRetryQueueForSession = (sessionId) => {
+  for (const [_, item] of retryQueue.entries()) {
+    if (item.sessionId === sessionId) return true;
+  }
+  return false;
+};
+
 const acquireSessionLock = (sessionId) => {
   try {
     const lockKey = `cq_retry_lock_${sessionId}`;
@@ -160,6 +171,7 @@ const processRetryQueue = async () => {
     for (const sessionId of sessionIds) {
       // CHANGE 3: Acquire per-session lock (multi-tab safety)
       let lockAcquired = false;
+      let sessionLockReliable = true; // CHANGE 2: Track lock reliability
       try {
         lockAcquired = acquireSessionLock(sessionId);
         if (!lockAcquired) {
@@ -173,6 +185,7 @@ const processRetryQueue = async () => {
           action: 'proceeding without lock'
         });
         lockAcquired = false; // Mark as not acquired so we don't try to release
+        sessionLockReliable = false; // CHANGE 2: Lock unreliable - enable cautious retry
       }
       
       try {
@@ -242,9 +255,65 @@ const processRetryQueue = async () => {
             // CHANGE 2: Append to workingTranscript
             const nextTranscript = [...workingTranscript, item.entry];
             
+            // CHANGE 1: Track write timing
+            const t0 = Date.now();
             await base44.entities.InterviewSession.update(item.sessionId, {
               transcript_snapshot: nextTranscript
             });
+            const dtMs = Date.now() - t0;
+            
+            // CHANGE 1/2: Suspect contention if >1 items OR lock unreliable
+            const suspectContention = sessionItems.length > 1 || !sessionLockReliable;
+            
+            console.log('[PERSIST][WRITE_TIMING]', {
+              kind: 'retry',
+              sessionId: item.sessionId,
+              stableKey: item.stableKey,
+              dtMs,
+              suspectContention,
+              reason: suspectContention ? 
+                (!sessionLockReliable ? 'lock_unreliable' : 'batch_size_gt_1') : 'none'
+            });
+            
+            // CHANGE 1: Conflict detection when contention suspected
+            if (suspectContention) {
+              const verifySession = await base44.entities.InterviewSession.get(item.sessionId);
+              const latestTranscript = verifySession.transcript_snapshot || [];
+              const foundInDb = latestTranscript.some(e => e.stableKey === item.stableKey);
+              
+              if (foundInDb) {
+                console.log('[PERSIST][CONFLICT_CHECK_OK]', {
+                  sessionId: item.sessionId,
+                  stableKey: item.stableKey,
+                  dtMs
+                });
+              } else {
+                console.error('[PERSIST][CONFLICT_DETECTED]', {
+                  sessionId: item.sessionId,
+                  stableKey: item.stableKey,
+                  dtMs,
+                  action: 'remerge',
+                  reason: 'stableKey missing after write - likely overwritten by concurrent write'
+                });
+                
+                // Re-merge into latest and write again
+                const alreadyExistsInLatest = latestTranscript.some(e => e.stableKey === item.stableKey);
+                if (!alreadyExistsInLatest) {
+                  const remergedTranscript = [...latestTranscript, item.entry];
+                  await base44.entities.InterviewSession.update(item.sessionId, {
+                    transcript_snapshot: remergedTranscript
+                  });
+                  
+                  console.log('[PERSIST][CONFLICT_REMERGE_OK]', {
+                    sessionId: item.sessionId,
+                    stableKey: item.stableKey
+                  });
+                  
+                  // Update workingTranscript to remerged version
+                  workingTranscript = remergedTranscript;
+                }
+              }
+            }
             
             console.log('[PERSIST][RETRY_OK]', {
               sessionId: item.sessionId,
@@ -252,13 +321,15 @@ const processRetryQueue = async () => {
               compositeKey
             });
             
-            // CHANGE 2: Update workingTranscript for next iteration
-            workingTranscript = nextTranscript;
+            // CHANGE 2: Update workingTranscript for next iteration (if not already updated by remerge)
+            if (!suspectContention || workingTranscript.some(e => e.stableKey === item.stableKey)) {
+              workingTranscript = nextTranscript;
+            }
             
             // CHANGE 1: INTEGRITY AUDIT - Check local invariant only
             const auditKey = `${item.sessionId}|${item.stableKey}`;
             if (seenStableKeysBySession.has(auditKey)) {
-              const foundInLocal = nextTranscript.some(e => e.stableKey === item.stableKey);
+              const foundInLocal = workingTranscript.some(e => e.stableKey === item.stableKey);
               if (!foundInLocal) {
                 console.error('[PERSIST][INTEGRITY_LOCAL_MISSING]', {
                   sessionId: item.sessionId,
@@ -638,6 +709,7 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
   };
 
   const updatedTranscript = [...existingTranscript, entry];
+  const baseLen = existingTranscript.length;
 
   // CHANGE 4: INTEGRITY AUDIT - Track locally-seen stableKey
   const auditKey = `${sessionId}|${entry.stableKey || entry.id}`;
@@ -653,9 +725,62 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
   });
 
   try {
+    // CHANGE 1: Track write timing
+    const t0 = Date.now();
     await base44.entities.InterviewSession.update(sessionId, {
       transcript_snapshot: updatedTranscript
     });
+    const dtMs = Date.now() - t0;
+
+    // CHANGE 1: Suspect contention if slow write OR retry queue active
+    const hasActiveRetry = hasRetryQueueForSession(sessionId);
+    const suspectContention = dtMs > SLOW_WRITE_THRESHOLD_MS || hasActiveRetry;
+
+    console.log('[PERSIST][WRITE_TIMING]', {
+      kind: 'assistant',
+      sessionId,
+      stableKey: entry.stableKey || entry.id,
+      dtMs,
+      suspectContention,
+      reason: suspectContention ? (dtMs > SLOW_WRITE_THRESHOLD_MS ? 'slow_write' : 'active_retry') : 'none'
+    });
+
+    // CHANGE 1: Conflict detection when contention suspected
+    if (suspectContention) {
+      const verifySession = await base44.entities.InterviewSession.get(sessionId);
+      const latestTranscript = verifySession.transcript_snapshot || [];
+      const foundInDb = latestTranscript.some(e => e.stableKey === (entry.stableKey || entry.id));
+
+      if (foundInDb) {
+        console.log('[PERSIST][CONFLICT_CHECK_OK]', {
+          sessionId,
+          stableKey: entry.stableKey || entry.id,
+          dtMs
+        });
+      } else {
+        console.error('[PERSIST][CONFLICT_DETECTED]', {
+          sessionId,
+          stableKey: entry.stableKey || entry.id,
+          dtMs,
+          action: 'remerge',
+          reason: 'stableKey missing after write - likely overwritten by concurrent write'
+        });
+
+        // Re-merge into latest and write again
+        const alreadyExists = latestTranscript.some(e => e.stableKey === (entry.stableKey || entry.id));
+        if (!alreadyExists) {
+          const remergedTranscript = [...latestTranscript, entry];
+          await base44.entities.InterviewSession.update(sessionId, {
+            transcript_snapshot: remergedTranscript
+          });
+
+          console.log('[PERSIST][CONFLICT_REMERGE_OK]', {
+            sessionId,
+            stableKey: entry.stableKey || entry.id
+          });
+        }
+      }
+    }
 
     console.log('[PERSIST][ANSWER_SUBMIT_OK]', {
       sessionId,
@@ -721,6 +846,7 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
   };
 
   const updatedTranscript = [...existingTranscript, entry];
+  const baseLen = existingTranscript.length;
 
   // CHANGE 4: INTEGRITY AUDIT - Track locally-seen stableKey
   const auditKey = `${sessionId}|${entry.stableKey || entry.id}`;
@@ -738,9 +864,62 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
   });
 
   try {
+    // CHANGE 1: Track write timing
+    const t0 = Date.now();
     await base44.entities.InterviewSession.update(sessionId, {
       transcript_snapshot: updatedTranscript
     });
+    const dtMs = Date.now() - t0;
+
+    // CHANGE 1: Suspect contention if slow write OR retry queue active
+    const hasActiveRetry = hasRetryQueueForSession(sessionId);
+    const suspectContention = dtMs > SLOW_WRITE_THRESHOLD_MS || hasActiveRetry;
+
+    console.log('[PERSIST][WRITE_TIMING]', {
+      kind: 'user',
+      sessionId,
+      stableKey: entry.stableKey || entry.id,
+      dtMs,
+      suspectContention,
+      reason: suspectContention ? (dtMs > SLOW_WRITE_THRESHOLD_MS ? 'slow_write' : 'active_retry') : 'none'
+    });
+
+    // CHANGE 1: Conflict detection when contention suspected
+    if (suspectContention) {
+      const verifySession = await base44.entities.InterviewSession.get(sessionId);
+      const latestTranscript = verifySession.transcript_snapshot || [];
+      const foundInDb = latestTranscript.some(e => e.stableKey === (entry.stableKey || entry.id));
+
+      if (foundInDb) {
+        console.log('[PERSIST][CONFLICT_CHECK_OK]', {
+          sessionId,
+          stableKey: entry.stableKey || entry.id,
+          dtMs
+        });
+      } else {
+        console.error('[PERSIST][CONFLICT_DETECTED]', {
+          sessionId,
+          stableKey: entry.stableKey || entry.id,
+          dtMs,
+          action: 'remerge',
+          reason: 'stableKey missing after write - likely overwritten by concurrent write'
+        });
+
+        // Re-merge into latest and write again
+        const alreadyExists = latestTranscript.some(e => e.stableKey === (entry.stableKey || entry.id));
+        if (!alreadyExists) {
+          const remergedTranscript = [...latestTranscript, entry];
+          await base44.entities.InterviewSession.update(sessionId, {
+            transcript_snapshot: remergedTranscript
+          });
+
+          console.log('[PERSIST][CONFLICT_REMERGE_OK]', {
+            sessionId,
+            stableKey: entry.stableKey || entry.id
+          });
+        }
+      }
+    }
 
     console.log('[PERSIST][ANSWER_SUBMIT_OK]', {
       sessionId,
