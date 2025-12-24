@@ -15,6 +15,16 @@
 import { base44 } from "@/api/base44Client";
 
 /**
+ * Get next transcript index
+ * Ensures monotonically increasing order
+ */
+export const getNextIndex = (existingTranscript = []) => {
+  if (!existingTranscript || existingTranscript.length === 0) return 1;
+  const maxIndex = Math.max(...existingTranscript.map(e => e.index || 0), 0);
+  return maxIndex + 1;
+};
+
+/**
  * Merge transcripts monotonically (NEVER allow shrinkage)
  * Uses stable identifiers (stableKey > id > index) for deduplication
  * 
@@ -78,16 +88,6 @@ function makeTranscriptId() {
 
 // In-flight protection: Prevent concurrent writes for the same transcript ID
 const inFlightTranscriptIds = new Set();
-
-/**
- * Get next transcript index
- * Ensures monotonically increasing order
- */
-function getNextIndex(existingTranscript = []) {
-  if (!existingTranscript || existingTranscript.length === 0) return 1;
-  const maxIndex = Math.max(...existingTranscript.map(e => e.index || 0), 0);
-  return maxIndex + 1;
-}
 
 /**
  * Append assistant message to transcript
@@ -160,7 +160,9 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
     'SECTION_COMPLETE',
     'WELCOME',
     'RESUME',
-    'MULTI_INSTANCE_GATE_SHOWN'
+    'MULTI_INSTANCE_GATE_SHOWN',
+    'V3_PROBE_QUESTION',
+    'V3_PROBE_ANSWER'
   ];
   
   // PART A: MULTI_INSTANCE_GATE_SHOWN - Block append while gate is active
