@@ -3014,14 +3014,32 @@ export default function CandidateInterview() {
       return;
     }
     
-    // FIX A1: Log when advance is allowed despite v3ProbingActive flag
+    // FIX C: Guard advance - require V3 UI fully cleared
     if (v3ProbingActive && !isV3Blocking) {
-      console.log('[FLOW][ADVANCE_ALLOWED_DESPITE_V3_ACTIVE_FLAG]', {
+      const v3UiHistoryLen = v3ProbeDisplayHistory.length;
+      const hasV3Context = !!v3ProbingContext;
+      const hasV3UiArtifacts = v3UiHistoryLen > 0 || hasV3Context;
+      
+      if (hasV3UiArtifacts) {
+        console.warn('[FLOW][ADVANCE_BLOCKED_V3_UI_NOT_CLEARED]', {
+          v3ProbingActive,
+          v3PromptPhase,
+          hasActiveV3Prompt,
+          v3UiHistoryLen,
+          hasV3Context,
+          reason: 'V3 UI artifacts still present - must cleanup before advancing',
+          action: 'BLOCKED'
+        });
+        return;
+      }
+      
+      console.log('[FLOW][ADVANCE_ALLOWED_V3_CLEARED]', {
         v3ProbingActive,
         v3PromptPhase,
         hasActiveV3Prompt,
-        hasV3PromptText: !!(v3ActivePromptText && v3ActivePromptText.trim().length > 0),
-        reason: 'No active prompt - allowing advancement'
+        v3UiHistoryLen,
+        hasV3Context,
+        reason: 'V3 UI fully cleared - allowing advancement'
       });
     }
     
@@ -3288,10 +3306,30 @@ export default function CandidateInterview() {
         reason: 'Atomic transition - no intermediate null currentItem'
       });
       
-      // ATOMIC STATE TRANSITION: Clear gate + set next question in one batch
+      // FIX B: Cleanup V3 UI state before advancing to prevent stale cards
+      const v3UiHistoryLen = v3ProbeDisplayHistory.length;
+      const loopKey = `${sessionId}:${gate.categoryId}:${gate.instanceNumber}`;
+      
+      console.log('[V3_UI][CLEANUP_ON_PACK_EXIT]', {
+        packId: gate.packId,
+        instanceNumber: gate.instanceNumber,
+        clearedHistoryLen: v3UiHistoryLen,
+        clearedContext: true,
+        loopKey,
+        reason: 'MI_GATE_NO_ADVANCE'
+      });
+      
+      // ATOMIC STATE TRANSITION: Clear ALL V3 state + gate + set next question in one batch
       unstable_batchedUpdates(() => {
         setMultiInstanceGate(null);
         setCurrentItem(nextItem);
+        setV3ProbeDisplayHistory([]); // Clear UI history
+        setV3ProbingActive(false); // Clear active flag
+        setV3ProbingContext(null); // Clear context
+        setV3ActivePromptText(null); // Clear prompt text
+        setV3PromptPhase('IDLE'); // Reset phase
+        v3ActiveProbeQuestionRef.current = null;
+        v3ActiveProbeQuestionLoopKeyRef.current = null;
       });
       
       await persistStateToDatabase(null, [], nextItem);
@@ -3378,6 +3416,29 @@ export default function CandidateInterview() {
         packId: gate.packId,
         instanceNumber: gate.instanceNumber
       });
+      
+      // FIX B: Cleanup V3 UI state when exiting pack via legacy path (if somehow reached)
+      const legacyV3UiHistoryLen = v3ProbeDisplayHistory.length;
+      if (legacyV3UiHistoryLen > 0 || v3ProbingActive || v3ProbingContext) {
+        const legacyLoopKey = `${sessionId}:${gate.categoryId}:${gate.instanceNumber}`;
+        
+        console.log('[V3_UI][CLEANUP_ON_PACK_EXIT_LEGACY]', {
+          packId: gate.packId,
+          instanceNumber: gate.instanceNumber,
+          clearedHistoryLen: legacyV3UiHistoryLen,
+          clearedContext: !!v3ProbingContext,
+          loopKey: legacyLoopKey,
+          reason: 'LEGACY_EXIT_PATH'
+        });
+        
+        setV3ProbeDisplayHistory([]);
+        setV3ProbingActive(false);
+        setV3ProbingContext(null);
+        setV3ActivePromptText(null);
+        setV3PromptPhase('IDLE');
+        v3ActiveProbeQuestionRef.current = null;
+        v3ActiveProbeQuestionLoopKeyRef.current = null;
+      }
 
       if (gate.baseQuestionId) {
         const freshAfterGateNo = await refreshTranscriptFromDB('gate_no_before_advance');
@@ -8016,6 +8077,22 @@ export default function CandidateInterview() {
   // PART A: Build unified stream from three sources (transcript + v3UI + activeCard)
   const transcriptRenderable = renderedTranscriptSnapshotRef.current || renderedTranscript;
   let v3UiRenderable = v3ProbeDisplayHistory || [];
+  
+  // FIX A: HARD LANE GATING - Suppress V3 UI when base question is active
+  if (effectiveItemType === 'question' && currentItem?.type === 'question' && v3UiRenderable.length > 0) {
+    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+    
+    console.log('[V3_UI][RENDER_SUPPRESSED_AFTER_ADVANCE]', {
+      reason: 'BASE_QUESTION_ACTIVE',
+      v3UiHistoryLen: v3UiRenderable.length,
+      v3ProbingActive,
+      loopKey,
+      currentQuestionId: currentItem.id,
+      suppressedItemsPreview: v3UiRenderable.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) }))
+    });
+    
+    v3UiRenderable = []; // Clear V3 UI history from render stream
+  }
   
   // Active card (exactly ONE, derived from activeUiItem.kind precedence)
   let activeCard = null;
