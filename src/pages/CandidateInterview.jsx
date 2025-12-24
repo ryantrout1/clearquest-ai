@@ -6440,61 +6440,34 @@ export default function CandidateInterview() {
       return prev; // No mutation - just logging
     });
     
-    // UI HISTORY: Append probe Q+A to display history (UI-only, not transcript)
-    // PHASE GUARD: Only append during active V3 probing (prevents stale appends after gate transition)
+    // FIX B: Append ONLY answer to V3 UI history (question already appended when prompt appeared)
     if (v3ProbingActive && localEffectiveItemType === 'v3_probing' && loopKey && answerText?.trim()) {
-      const questionText = v3ActiveProbeQuestionRef.current || v3ActivePromptText;
-      const questionLoopKey = v3ActiveProbeQuestionLoopKeyRef.current || loopKey;
+      const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
       
-      setV3ProbeDisplayHistory(prev => {
-        // PART C: Stable key dedupe (prevents double-insert)
-        const promptSequence = submitId; // Use submitId as sequence number
-        const qStableKey = `v3-ui:${questionLoopKey}:${promptSequence}:q`;
-        const aStableKey = `v3-ui:${loopKey}:${promptSequence}:a`;
+      if (promptId) {
+        const aStableKey = `v3-ui:${loopKey}:${promptId}:a`;
         
-        // Check if Q already exists by stable key
-        const hasQ = prev.some(e => e.stableKey === qStableKey);
-        const hasA = prev.some(e => e.stableKey === aStableKey);
-        
-        const newEntries = [];
-        if (!hasQ && questionText) {
-          newEntries.push({
-            kind: 'v3_probe_q',
-            loopKey: questionLoopKey,
-            text: questionText,
-            ts: Date.now(),
-            stableKey: qStableKey
-          });
-          console.log('[V3_UI_HISTORY][APPEND_Q]', { stableKey: qStableKey, qPreview: questionText?.substring(0, 50) });
-        } else if (hasQ) {
-          console.log('[V3_UI_HISTORY][DEDUPED]', { stableKey: qStableKey, type: 'q' });
-        }
-        
-        if (!hasA) {
-          newEntries.push({
+        setV3ProbeDisplayHistory(prev => {
+          // Dedupe: skip if already exists
+          if (prev.some(e => e.stableKey === aStableKey)) {
+            console.log('[V3_UI_HISTORY][DEDUPED]', { stableKey: aStableKey, type: 'a' });
+            return prev;
+          }
+          
+          const aEntry = {
             kind: 'v3_probe_a',
             loopKey,
+            promptId,
             text: answerText,
             ts: Date.now(),
             stableKey: aStableKey
-          });
+          };
+          
           console.log('[V3_UI_HISTORY][APPEND_A]', { stableKey: aStableKey, aPreview: answerText?.substring(0, 50) });
-        } else {
-          console.log('[V3_UI_HISTORY][DEDUPED]', { stableKey: aStableKey, type: 'a' });
-        }
-        
-        // PART A: FORENSIC SNAPSHOT - After append (before state update)
-        const nextHistory = [...prev, ...newEntries];
-        console.log('[V3_UI_HISTORY][SNAPSHOT_AFTER_APPEND]', {
-          uiHistoryLenBefore: prev.length,
-          uiHistoryLenAfter: nextHistory.length,
-          delta: newEntries.length,
-          appendedQ: !hasQ && questionText,
-          appendedA: !hasA
+          
+          return [...prev, aEntry];
         });
-        
-        return nextHistory;
-      });
+      }
       
       // Clear active probe question after moving to history
       v3ActiveProbeQuestionRef.current = null;
@@ -6980,6 +6953,41 @@ export default function CandidateInterview() {
   // ITEM-SCOPED COMMIT TRACKING: Track which item is being submitted
   const committingItemIdRef = useRef(null);
 
+  // FIX A: V3 UI history - append question when prompt becomes active
+  useEffect(() => {
+    if (v3PromptPhase !== 'ANSWER_NEEDED') return;
+    if (!v3ProbingActive || !v3ProbingContext) return;
+    
+    const loopKey = `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`;
+    const promptId = v3ProbingContext.promptId || lastV3PromptSnapshotRef.current?.promptId;
+    const promptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current;
+    
+    if (!promptId || !promptText) return;
+    
+    const qStableKey = `v3-ui:${loopKey}:${promptId}:q`;
+    
+    setV3ProbeDisplayHistory(prev => {
+      // Dedupe: skip if already exists
+      if (prev.some(e => e.stableKey === qStableKey)) {
+        console.log('[V3_UI_HISTORY][DEDUPED]', { stableKey: qStableKey, type: 'q' });
+        return prev;
+      }
+      
+      const qEntry = {
+        kind: 'v3_probe_q',
+        loopKey,
+        promptId,
+        text: promptText,
+        ts: Date.now(),
+        stableKey: qStableKey
+      };
+      
+      console.log('[V3_UI_HISTORY][APPEND_Q]', { stableKey: qStableKey, qPreview: promptText?.substring(0, 50) });
+      
+      return [...prev, qEntry];
+    });
+  }, [v3PromptPhase, v3ProbingActive, v3ProbingContext?.promptId, v3ActivePromptText, sessionId]);
+  
   // FIX B: V3 draft restore - load draft when V3 prompt becomes active
   useEffect(() => {
     if (!v3ProbingActive || !v3ProbingContext) return;
@@ -7031,6 +7039,45 @@ export default function CandidateInterview() {
       console.warn('[V3_DRAFT][SAVE_FAILED]', { error: e.message });
     }
   }, [input, v3ProbingActive, v3ProbingContext?.promptId, sessionId]);
+  
+  // FIX C: V3 UI history persistence - save to localStorage
+  useEffect(() => {
+    if (!v3ProbingActive || !v3ProbingContext) return;
+    if (v3ProbeDisplayHistory.length === 0) return;
+    
+    const loopKey = `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`;
+    const storageKey = `cq_v3ui_${sessionId}_${loopKey}`;
+    
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(v3ProbeDisplayHistory));
+      console.log('[V3_UI_HISTORY][SAVE]', { len: v3ProbeDisplayHistory.length });
+    } catch (e) {
+      console.warn('[V3_UI_HISTORY][SAVE_FAILED]', { error: e.message });
+    }
+  }, [v3ProbeDisplayHistory, v3ProbingActive, v3ProbingContext?.categoryId, sessionId]);
+  
+  // FIX C: V3 UI history restore - load from localStorage on mount
+  useEffect(() => {
+    if (!v3ProbingActive || !v3ProbingContext) return;
+    
+    const loopKey = `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`;
+    const storageKey = `cq_v3ui_${sessionId}_${loopKey}`;
+    
+    try {
+      const savedHistory = window.localStorage.getItem(storageKey);
+      if (savedHistory) {
+        const parsed = JSON.parse(savedHistory);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          console.log('[V3_UI_HISTORY][LOAD]', { found: true, len: parsed.length });
+          setV3ProbeDisplayHistory(parsed);
+        }
+      } else {
+        console.log('[V3_UI_HISTORY][LOAD]', { found: false });
+      }
+    } catch (e) {
+      console.warn('[V3_UI_HISTORY][LOAD_FAILED]', { error: e.message });
+    }
+  }, [v3ProbingActive, v3ProbingContext?.categoryId, v3ProbingContext?.instanceNumber, sessionId]);
 
   // UX: Restore draft when currentItem changes
   useEffect(() => {
