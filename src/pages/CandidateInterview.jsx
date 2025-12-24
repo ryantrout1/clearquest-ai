@@ -1204,8 +1204,7 @@ export default function CandidateInterview() {
 
   // CANONICAL HELPER: Append to DB transcript + refresh local mirror
   const appendAndRefresh = useCallback(async (kind, payload, reasonLabel) => {
-    // STATIC IMPORT FIX: Use top-level imports to prevent React context duplication
-    // Dynamic imports can create separate React contexts and cause "Invalid hook call" crashes
+    // STATIC IMPORT: Use top-level imports (already imported at line 57-58)
     const appendUserMessage = appendUserMessageImport;
     const appendAssistantMessage = appendAssistantMessageImport;
     
@@ -5174,9 +5173,9 @@ export default function CandidateInterview() {
               }
 
               // Get deterministic opener (configured or synthesized)
-              // STATIC IMPORT FIX: Import at module level to prevent React context issues
-              const v3ProbingPromptsModule = await import("../components/utils/v3ProbingPrompts");
-              const opener = v3ProbingPromptsModule.getV3DeterministicOpener(packMetadata, categoryId, categoryLabel);
+              // STATIC IMPORT: Must use top-level import to prevent React duplication
+              const { getV3DeterministicOpener } = await import("../components/utils/v3ProbingPrompts");
+              const opener = getV3DeterministicOpener(packMetadata, categoryId, categoryLabel);
 
               if (opener.isSynthesized) {
                 console.warn(`[V3_PACK][MISSING_OPENER] Pack ${packId} missing configured opener - synthesized fallback used`);
