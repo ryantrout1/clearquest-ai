@@ -4466,8 +4466,8 @@ export default function CandidateInterview() {
 
         console.log("[V3_OPENER][TRANSCRIPT_BEFORE]", { length: currentTranscript.length });
 
-        // REGRESSION FIX: Append user opener answer with stableKey for dedupe protection
-        const openerAnswerStableKey = `v3-opener-a:${packId}:${instanceNumber}`;
+        // REGRESSION FIX: Append user opener answer with stableKey (session-scoped for uniqueness)
+        const openerAnswerStableKey = `v3-opener-a:${sessionId}:${packId}:${instanceNumber}`;
         const transcriptAfterAnswer = await appendUserMessage(sessionId, currentTranscript, value, {
           id: `v3-opener-answer-${sessionId}-${packId}-${instanceNumber}`,
           stableKey: openerAnswerStableKey,
@@ -8736,21 +8736,23 @@ export default function CandidateInterview() {
     }
   }
   
-  // Build final stream: filtered transcript + v3UI + activeCard
-  const renderStream = [
+  // Build base stream: filtered transcript + v3UI + activeCard
+  const baseRenderStream = [
     ...filteredTranscriptRenderable,
     ...v3UiRenderable,
     ...(activeCard ? [activeCard] : [])
   ];
   
   // SAFETY NET: Re-inject missing v3_opener_answer if it exists in canonical but not in render
-  // Idempotent per packId+instanceNumber
+  // IMMUTABLE: Creates new array rather than mutating (guarantees React re-render)
   const reinjectedOpenerAnswersRef = useRef(new Set()); // Track what we've reinjected
+  
+  let finalRenderStream = baseRenderStream;
   
   if (currentItem?.type === 'v3_pack_opener' || v3ProbingActive) {
     const packId = currentItem?.packId || v3ProbingContext?.packId;
     const instanceNumber = currentItem?.instanceNumber || v3ProbingContext?.instanceNumber || 1;
-    const reinjectKey = `${packId}:${instanceNumber}`;
+    const reinjectKey = `${sessionId}:${packId}:${instanceNumber}`;
     
     if (packId && !reinjectedOpenerAnswersRef.current.has(reinjectKey)) {
       // Check if opener answer exists in dbTranscript
@@ -8760,8 +8762,8 @@ export default function CandidateInterview() {
         e.instanceNumber === instanceNumber
       );
       
-      // Check if it exists in renderStream
-      const openerAnswerInRender = renderStream.find(e => 
+      // Check if it exists in baseRenderStream
+      const openerAnswerInRender = baseRenderStream.find(e => 
         (e.messageType === 'v3_opener_answer' || e.kind === 'v3_opener_a') &&
         e.packId === packId && 
         (e.instanceNumber === instanceNumber || e.meta?.instanceNumber === instanceNumber)
@@ -8775,15 +8777,17 @@ export default function CandidateInterview() {
           textPreview: (openerAnswerInDb.text || '').substring(0, 60),
           reason: 'Opener answer in dbTranscript but missing from renderStream - re-injecting',
           dbTranscriptLen: dbTranscript.length,
-          renderStreamLen: renderStream.length
+          baseRenderStreamLen: baseRenderStream.length
         });
         
-        // Re-inject into renderStream (one-time repair)
-        renderStream.push(openerAnswerInDb);
+        // IMMUTABLE: Create new array with reinjected entry (guarantees React re-render)
+        finalRenderStream = [...baseRenderStream, openerAnswerInDb];
         reinjectedOpenerAnswersRef.current.add(reinjectKey);
       }
     }
   }
+  
+  // Use finalRenderStream for all rendering below (immutable - safe for React)
   
   // PART E: Stream snapshot log (only on length changes, with array guard)
   const renderStreamLen = Array.isArray(renderStream) ? renderStream.length : 0;
@@ -9600,8 +9604,30 @@ export default function CandidateInterview() {
           <div className="space-y-2 relative isolate">
           {/* CANONICAL RENDER STREAM: Single source of truth for all main pane content */}
           {(() => {
-            // Use component-scope renderStream (declared above before render)
-            const transcriptToRender = renderStream;
+            // Use finalRenderStream (immutable - includes safety net repairs)
+            const transcriptToRender = finalRenderStream;
+            
+            // REGRESSION LOG: Prove what we're about to render (source of truth for UI)
+            const packId = currentItem?.packId || v3ProbingContext?.packId;
+            const instanceNumber = currentItem?.instanceNumber || v3ProbingContext?.instanceNumber || 1;
+            const openerAnswerStableKeyForLog = `v3-opener-a:${sessionId}:${packId}:${instanceNumber}`;
+            const hasOpenerAnswerInRenderList = transcriptToRender.some(e => 
+              (e.messageType === 'v3_opener_answer' || e.kind === 'v3_opener_a') &&
+              e.stableKey === openerAnswerStableKeyForLog
+            );
+            
+            console.log('[CQ_RENDER_SOT][BEFORE_MAP]', {
+              listName: 'finalRenderStream',
+              len: transcriptToRender.length,
+              hasOpenerAnswer: hasOpenerAnswerInRenderList,
+              verifyStableKey: openerAnswerStableKeyForLog,
+              last3: transcriptToRender.slice(-3).map(e => ({
+                stableKey: e.stableKey || e.id,
+                messageType: e.messageType || e.type || e.kind,
+                role: e.role,
+                textPreview: (e.text || '').substring(0, 40)
+              }))
+            });
             
             // UI CONTRACT: MI_GATE renders in main pane (NO suppression)
             // Sentinel logic DISABLED - active MI_GATE must show in main pane per ClearQuest contract
