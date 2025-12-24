@@ -1925,30 +1925,18 @@ export default function CandidateInterview() {
       deduped.push(entry);
     }
     
-    // CANONICAL KEY NORMALIZATION: Assign canonical follow-up card keys
+    // TASK 2: CANONICAL KEY NORMALIZATION - Always include stableKey/id (prevents collisions)
     const normalized = deduped.map(entry => {
       const messageType = entry.messageType || entry.type;
+      const role = entry.role || 'unknown';
+      const uniqueId = entry.stableKey || entry.id || `idx-${entry.index || Math.random()}`;
       
-      // Normalize follow-up card entries to canonical stableKey format
-      if (messageType === 'FOLLOWUP_CARD_SHOWN') {
-        const packId = entry.meta?.packId || entry.packId;
-        const variant = entry.meta?.variant || entry.variant;
-        const instanceNumber = entry.meta?.instanceNumber || entry.instanceNumber || 1;
-        
-        if (packId && variant) {
-          // Canonical format: followup-card:${packId}:${variant}:${instanceNumber}
-          const canonicalKey = `followup-card:${packId}:${variant}:${instanceNumber}`;
-          return {
-            ...entry,
-            __canonicalKey: canonicalKey // Attach for dedupe (no DB mutation)
-          };
-        }
-      }
+      // Canonical key: role:messageType:uniqueId (guarantees uniqueness)
+      const canonicalKey = `${role}:${messageType}:${uniqueId}`;
       
-      // Use stableKey or id as canonical for non-followup-card entries
       return {
         ...entry,
-        __canonicalKey: entry.stableKey || entry.id
+        __canonicalKey: canonicalKey
       };
     });
     
