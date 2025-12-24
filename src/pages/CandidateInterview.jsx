@@ -8328,9 +8328,9 @@ export default function CandidateInterview() {
         promptPreview: v3PromptText.slice(0, 60)
       });
     }
-  } else {
-    // Clear tracker when not V3_PROMPT
-    if (lastRenderedV3PromptKeyRef.current) {
+    
+    // Clear tracker when not actively rendering V3_PROMPT card
+    if (!activeCard && lastRenderedV3PromptKeyRef.current) {
       lastRenderedV3PromptKeyRef.current = null;
     }
   } else if (activeUiItem.kind === "V3_OPENER") {
