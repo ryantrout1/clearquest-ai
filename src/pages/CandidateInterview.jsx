@@ -1519,9 +1519,12 @@ export default function CandidateInterview() {
   // ============================================================================
   // V3 BLOCKING GATE - Prevents base question advancement during V3 probing
   // ============================================================================
-  const isV3Blocking = v3ProbingActive || hasActiveV3Prompt || 
+  // FIX A1: TIGHTENED - Only block when there's an ACTIVE prompt waiting for answer
+  // DO NOT block if v3PromptPhase === 'IDLE' and no active prompt text
+  const hasV3PromptText = v3ActivePromptText && v3ActivePromptText.trim().length > 0;
+  const isV3Blocking = hasActiveV3Prompt || 
                        v3PromptPhase === 'ANSWER_NEEDED' || 
-                       v3PromptPhase === 'PROCESSING';
+                       hasV3PromptText;
   
   // TASK A: V3 VISIBLE PROMPT CARD SIGNAL - Prevents MI_GATE from jumping ahead during transitions
   // Check if v3ProbeDisplayHistory has an unanswered question (Q exists but no matching A)
@@ -3011,6 +3014,17 @@ export default function CandidateInterview() {
       return;
     }
     
+    // FIX A1: Log when advance is allowed despite v3ProbingActive flag
+    if (v3ProbingActive && !isV3Blocking) {
+      console.log('[FLOW][ADVANCE_ALLOWED_DESPITE_V3_ACTIVE_FLAG]', {
+        v3ProbingActive,
+        v3PromptPhase,
+        hasActiveV3Prompt,
+        hasV3PromptText: !!(v3ActivePromptText && v3ActivePromptText.trim().length > 0),
+        reason: 'No active prompt - allowing advancement'
+      });
+    }
+    
     const currentQuestion = engine.QById[baseQuestionId];
     if (!currentQuestion) {
       setShowCompletionModal(true);
@@ -3241,8 +3255,19 @@ export default function CandidateInterview() {
     // Reload transcript
     await refreshTranscriptFromDB(`gate_${answer.toLowerCase()}_answered`);
 
-    // Clear gate state
+    // FIX A2: Clear gate state immediately to prevent re-render
     setMultiInstanceGate(null);
+
+    // FIX A2: Clear currentItem if it's still the gate (prevents stale MI_GATE render)
+    if (currentItem?.type === 'multi_instance_gate' && currentItem?.packId === gate.packId && currentItem?.instanceNumber === gate.instanceNumber) {
+      console.log('[MI_GATE][CLEAR_CURRENT_ITEM_ON_ANSWER]', {
+        packId: gate.packId,
+        instanceNumber: gate.instanceNumber,
+        answer,
+        reason: 'Prevent MI_GATE re-render during advance'
+      });
+      setCurrentItem(null);
+    }
 
     if (answer === 'Yes') {
       const nextInstanceNumber = (gate.instanceNumber || 1) + 1;
@@ -7198,19 +7223,30 @@ export default function CandidateInterview() {
         
         const scrollTopAfter = scrollContainer.scrollTop;
         
-        // FIX B: Enhanced logging for MI_GATE activation
+        // FIX B: Enhanced logging for MI_GATE and gate exit transitions
         const didScroll = Math.abs(scrollTopAfter - scrollTopBefore) > 1;
-        const logLabel = activeUiItem?.kind === "MI_GATE" ? '[SCROLL][PIN_ON_MI_GATE]' : '[SCROLL][AUTO_SCROLL]';
+        
+        // Detect MI_GATE -> question transition for gate exit logging
+        const prevKind = lastActiveUiItemKindRef.current;
+        const currentKind = activeUiItem?.kind;
+        const isGateExitTransition = prevKind === "MI_GATE" && currentKind === "DEFAULT" && currentItem?.type === 'question';
+        
+        const logLabel = activeUiItem?.kind === "MI_GATE" ? '[SCROLL][PIN_ON_MI_GATE]' : 
+                        isGateExitTransition ? '[SCROLL][PIN_AFTER_GATE_EXIT]' :
+                        '[SCROLL][AUTO_SCROLL]';
         
         console.log(logLabel, {
-          trigger: activeUiItem?.kind === "MI_GATE" ? 'mi_gate_activation' : 'transcript_or_state_change',
+          trigger: activeUiItem?.kind === "MI_GATE" ? 'mi_gate_activation' :
+                   isGateExitTransition ? 'gate_exit_to_question' :
+                   'transcript_or_state_change',
           didScroll,
           shouldAutoScroll: shouldAutoScrollRef.current,
           scrollTopBefore: Math.round(scrollTopBefore),
           targetScrollTop: Math.round(targetScrollTop),
           scrollTopAfter: Math.round(scrollTopAfter),
           scrollHeight: Math.round(scrollHeight),
-          clientHeight: Math.round(clientHeight)
+          clientHeight: Math.round(clientHeight),
+          ...(isGateExitTransition ? { from: 'MI_GATE', to: 'question' } : {})
         });
         
         // PIN VERIFICATION: Check if we actually reached bottom
