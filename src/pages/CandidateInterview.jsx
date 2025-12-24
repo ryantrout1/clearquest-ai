@@ -8015,7 +8015,7 @@ export default function CandidateInterview() {
   // ============================================================================
   // PART A: Build unified stream from three sources (transcript + v3UI + activeCard)
   const transcriptRenderable = renderedTranscriptSnapshotRef.current || renderedTranscript;
-  const v3UiRenderable = v3ProbeDisplayHistory || [];
+  let v3UiRenderable = v3ProbeDisplayHistory || [];
   
   // Active card (exactly ONE, derived from activeUiItem.kind precedence)
   let activeCard = null;
@@ -8030,12 +8030,8 @@ export default function CandidateInterview() {
     // Stable key includes loopKey + promptId + text preview to prevent "new card" feeling across watchdog re-renders
     const stableKey = loopKey ? `v3-active:${loopKey}:${promptId}:${normalizedPromptText.slice(0,32)}` : null;
     
-    // DEDUPE: Check if equivalent prompt already in v3UiRenderable (inline normalization)
-    const alreadyInStream = v3UiRenderable.some(e => 
-      e.stableKey && stableKey && (e.text || "").toLowerCase().trim().replace(/\s+/g, " ") === normalizedPromptText
-    );
-    
-    if (!alreadyInStream && v3PromptText) {
+    // FIX A: ALWAYS create activeCard when V3_PROMPT is active (UI contract requirement)
+    if (v3PromptText && hasActiveV3Prompt) {
       activeCard = {
         __activeCard: true,
         kind: "v3_probe_q",
@@ -8044,14 +8040,43 @@ export default function CandidateInterview() {
         packId: v3ProbingContext?.packId,
         instanceNumber: v3ProbingContext?.instanceNumber
       };
-      console.log("[V3_PROMPT][ACTIVE_CARD_KEY]", { 
-        stableKey, 
+      
+      console.log("[V3_PROMPT][ACTIVE_CARD_ADDED]", { 
         loopKey, 
         promptId,
-        promptPreview: v3PromptText.slice(0, 60) 
+        promptPreview: v3PromptText.slice(0, 60)
       });
-    } else if (alreadyInStream) {
-      console.log("[STREAM][ACTIVE_CARD_DEDUPED]", { kind: "V3_PROMPT", reason: "already_in_v3UiRenderable" });
+      
+      // FIX B: Filter out duplicate from v3UiRenderable (prevent double-render)
+      const matchKey = `v3-ui:${loopKey}:${promptId}:q`;
+      const initialLen = v3UiRenderable.length;
+      
+      v3UiRenderable = v3UiRenderable.filter(e => {
+        // Keep if not a question entry
+        if (e.kind !== 'v3_probe_q') return true;
+        
+        // Filter by stableKey match
+        if (e.stableKey === matchKey) return false;
+        
+        // Filter by loopKey + promptId match
+        if (e.loopKey === loopKey && e.promptId === promptId) return false;
+        
+        // Filter by text match (same prompt text)
+        const eTextNormalized = (e.text || "").toLowerCase().trim().replace(/\s+/g, " ");
+        if (e.loopKey === loopKey && eTextNormalized === normalizedPromptText) return false;
+        
+        return true; // Keep other entries
+      });
+      
+      const removedCount = initialLen - v3UiRenderable.length;
+      if (removedCount > 0) {
+        console.log('[V3_PROMPT][STREAM_FILTER_DUPLICATE_FROM_V3UI]', {
+          removedCount,
+          loopKey,
+          promptId,
+          activeStableKeyPreview: matchKey
+        });
+      }
     }
   } else if (activeUiItem.kind === "V3_OPENER") {
     const openerText = currentItem?.openerText || "";
@@ -10371,8 +10396,8 @@ export default function CandidateInterview() {
               });
             }
             
-            // TASK D: Fix mainBodyPromptCards to count active V3 prompt card if present
-            const mainBodyPromptCards = activeUiItem.kind === "V3_PROMPT" && activeCard ? 1 : 0;
+            // FIX C: Count actual active card in stream
+            const mainBodyPromptCards = activeCard?.kind === "v3_probe_q" ? 1 : 0;
             
             console.log('[V3_UI_CONTRACT] ENFORCED', {
               v3ProbingActive,
@@ -10381,7 +10406,9 @@ export default function CandidateInterview() {
               mainBodyPromptCards,
               transcriptPromptCards,
               transcriptLen: transcriptLengthNow,
-              activeCardKind: activeCard?.kind || null
+              activeCardKind: activeCard?.kind || null,
+              hasActiveV3Prompt,
+              activeUiItemKind: activeUiItem?.kind
             });
             return null;
           })()}
