@@ -4486,6 +4486,31 @@ export default function CandidateInterview() {
           answerLen: value?.length || 0,
           transcriptLenAfter: transcriptAfterAnswer.length
         });
+        
+        // REGRESSION GUARD: Verify appended entry is in returned transcript
+        const foundInReturned = transcriptAfterAnswer.some(e => e.stableKey === openerAnswerStableKey);
+        console.log('[CQ_TRANSCRIPT][SOT_AFTER_USER_APPEND]', {
+          renderSourceLenAfter: transcriptAfterAnswer.length,
+          foundOpenerAnswer: foundInReturned,
+          last2Items: transcriptAfterAnswer.slice(-2).map(e => ({
+            role: e.role,
+            messageType: e.messageType || e.type,
+            stableKey: e.stableKey || e.id,
+            textPreview: (e.text || '').substring(0, 40)
+          })),
+          verifyStableKey: openerAnswerStableKey
+        });
+        
+        if (!foundInReturned) {
+          console.error('[CQ_TRANSCRIPT][USER_APPEND_MISSING]', {
+            stableKey: openerAnswerStableKey,
+            packId,
+            instanceNumber,
+            reason: 'appendUserMessage returned but entry not in transcript array',
+            transcriptLenAfter: transcriptAfterAnswer.length
+          });
+        }
+        
         console.log('[V3_OPENER][SUBMITTED_OK]', {
           sessionId,
           packId,
@@ -4503,8 +4528,42 @@ export default function CandidateInterview() {
           instanceNumber
         });
 
-        // Refresh from DB after opener answer
+        // REGRESSION GUARD: Preserve local transcript during refresh
+        // refreshTranscriptFromDB uses mergeTranscript to prevent regression
+        console.log('[V3_OPENER][REFRESH_BEFORE]', {
+          localTranscriptLen: dbTranscript.length,
+          transcriptAfterAnswerLen: transcriptAfterAnswer.length,
+          packId,
+          instanceNumber
+        });
+        
+        // Refresh from DB after opener answer (uses functional merge - preserves local entries)
         await refreshTranscriptFromDB('v3_opener_answered');
+        
+        // REGRESSION GUARD: Verify opener answer survived refresh
+        setDbTranscript(prev => {
+          const foundAfterRefresh = prev.some(e => e.stableKey === openerAnswerStableKey);
+          console.log('[V3_OPENER][REFRESH_AFTER]', {
+            transcriptLenAfter: prev.length,
+            foundOpenerAnswer: foundAfterRefresh,
+            openerAnswerStableKey,
+            packId,
+            instanceNumber
+          });
+          
+          if (!foundAfterRefresh) {
+            console.error('[CQ_TRANSCRIPT][OPENER_ANSWER_LOST_AFTER_REFRESH]', {
+              stableKey: openerAnswerStableKey,
+              packId,
+              instanceNumber,
+              transcriptLenBefore: transcriptAfterAnswer.length,
+              transcriptLenAfter: prev.length,
+              reason: 'Opener answer missing after refreshTranscriptFromDB - possible DB write race'
+            });
+          }
+          
+          return prev; // No mutation - just logging
+        });
 
         // Save opener answer to database
         await saveV2PackFieldResponse({
@@ -4599,7 +4658,11 @@ export default function CandidateInterview() {
         v3OpenerSubmitTokenRef.current = submitToken;
         v3OpenerSubmitLoopKeyRef.current = loopKey;
         
+        // REGRESSION GUARD: Ensure transcript is not cleared during V3 activation
+        const transcriptLenBeforeV3Activation = transcriptAfterAnswer.length;
+        
         // ATOMIC STATE TRANSITION: Set probing active + context in one batch
+        // CRITICAL: Does NOT modify dbTranscript - only sets V3 mode flags
         unstable_batchedUpdates(() => {
           setV3ProbingActive(true);
           setV3ProbingContext({
@@ -4614,6 +4677,14 @@ export default function CandidateInterview() {
             packData,
             openerAnswer: value,
             traceId
+          });
+          
+          // REGRESSION GUARD: Log that we're NOT touching transcript here
+          console.log('[V3_ACTIVATION][TRANSCRIPT_PRESERVED]', {
+            packId,
+            instanceNumber,
+            transcriptLenBeforeActivation: transcriptLenBeforeV3Activation,
+            action: 'Setting V3 flags only - transcript untouched'
           });
         });
         
@@ -4643,6 +4714,7 @@ export default function CandidateInterview() {
         v3ProbingStartedRef.current.set(loopKey, true);
 
         // CRITICAL: Set currentItem to v3_probing type (enables correct bottom bar binding)
+        // REGRESSION GUARD: This state change does NOT modify transcript
         const probingItem = {
           id: `v3-probing-${packId}-${instanceNumber}`,
           type: 'v3_probing',
@@ -4651,9 +4723,42 @@ export default function CandidateInterview() {
           instanceNumber,
           baseQuestionId
         };
+        
+        console.log('[V3_PROBING][ITEM_TRANSITION]', {
+          from: currentItem?.type,
+          to: 'v3_probing',
+          packId,
+          instanceNumber,
+          transcriptLenBeforeTransition: dbTranscript.length,
+          action: 'Setting currentItem only - transcript preserved'
+        });
+        
         setCurrentItem(probingItem);
 
+        // REGRESSION GUARD: Refresh uses functional merge - preserves all existing entries
         await refreshTranscriptFromDB('v3_probing_enter');
+        
+        // Verify opener answer still present after transition
+        setDbTranscript(prev => {
+          const foundAfterTransition = prev.some(e => e.stableKey === openerAnswerStableKey);
+          console.log('[V3_PROBING][ITEM_TRANSITION_AFTER]', {
+            transcriptLen: prev.length,
+            foundOpenerAnswer: foundAfterTransition,
+            openerAnswerStableKey
+          });
+          
+          if (!foundAfterTransition) {
+            console.error('[CQ_TRANSCRIPT][OPENER_ANSWER_LOST_AFTER_TRANSITION]', {
+              stableKey: openerAnswerStableKey,
+              packId,
+              instanceNumber,
+              reason: 'Opener answer missing after v3_probing transition'
+            });
+          }
+          
+          return prev; // No mutation - just logging
+        });
+        
         await persistStateToDatabase(null, [], probingItem);
         
         // FAILSAFE: Detect if probing doesn't start within 3s (token-gated)
@@ -6724,7 +6829,11 @@ export default function CandidateInterview() {
     
     // DO NOT append to transcript - return early
 
+    // REGRESSION GUARD: Capture transcript length before V3 prompt commit
+    const transcriptLenBeforePromptCommit = dbTranscript.length;
+    
     // ATOMIC STATE UPDATE: All V3 prompt activation in one place
+    // CRITICAL: Does NOT modify dbTranscript - only sets prompt state
     unstable_batchedUpdates(() => {
     // Confirm V3 probing is active
     if (!v3ProbingActive) {
@@ -6760,6 +6869,14 @@ export default function CandidateInterview() {
     if (screenMode !== 'QUESTION') {
       setScreenMode('QUESTION');
     }
+    
+    // REGRESSION GUARD: Confirm transcript untouched during prompt commit
+    console.log('[V3_PROMPT_COMMIT][TRANSCRIPT_PRESERVED]', {
+      loopKey,
+      promptId,
+      transcriptLenBefore: transcriptLenBeforePromptCommit,
+      action: 'Prompt activated - dbTranscript state untouched'
+    });
     });
     
     // FAILSAFE CANCEL: Prompt arrived - cancel opener failsafe
@@ -8625,6 +8742,48 @@ export default function CandidateInterview() {
     ...v3UiRenderable,
     ...(activeCard ? [activeCard] : [])
   ];
+  
+  // SAFETY NET: Re-inject missing v3_opener_answer if it exists in canonical but not in render
+  // Idempotent per packId+instanceNumber
+  const reinjectedOpenerAnswersRef = useRef(new Set()); // Track what we've reinjected
+  
+  if (currentItem?.type === 'v3_pack_opener' || v3ProbingActive) {
+    const packId = currentItem?.packId || v3ProbingContext?.packId;
+    const instanceNumber = currentItem?.instanceNumber || v3ProbingContext?.instanceNumber || 1;
+    const reinjectKey = `${packId}:${instanceNumber}`;
+    
+    if (packId && !reinjectedOpenerAnswersRef.current.has(reinjectKey)) {
+      // Check if opener answer exists in dbTranscript
+      const openerAnswerInDb = dbTranscript.find(e => 
+        e.messageType === 'v3_opener_answer' && 
+        e.packId === packId && 
+        e.instanceNumber === instanceNumber
+      );
+      
+      // Check if it exists in renderStream
+      const openerAnswerInRender = renderStream.find(e => 
+        (e.messageType === 'v3_opener_answer' || e.kind === 'v3_opener_a') &&
+        e.packId === packId && 
+        (e.instanceNumber === instanceNumber || e.meta?.instanceNumber === instanceNumber)
+      );
+      
+      if (openerAnswerInDb && !openerAnswerInRender) {
+        console.error('[CQ_TRANSCRIPT][REPAIR_REINJECTED_OPENER_ANSWER]', {
+          packId,
+          instanceNumber,
+          stableKey: openerAnswerInDb.stableKey || openerAnswerInDb.id,
+          textPreview: (openerAnswerInDb.text || '').substring(0, 60),
+          reason: 'Opener answer in dbTranscript but missing from renderStream - re-injecting',
+          dbTranscriptLen: dbTranscript.length,
+          renderStreamLen: renderStream.length
+        });
+        
+        // Re-inject into renderStream (one-time repair)
+        renderStream.push(openerAnswerInDb);
+        reinjectedOpenerAnswersRef.current.add(reinjectKey);
+      }
+    }
+  }
   
   // PART E: Stream snapshot log (only on length changes, with array guard)
   const renderStreamLen = Array.isArray(renderStream) ? renderStream.length : 0;
