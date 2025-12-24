@@ -6483,6 +6483,11 @@ export default function CandidateInterview() {
             promptId,
             transcriptLen: updated.length
           });
+          console.log('[V3_TRANSCRIPT][APPEND_Q_DB_OK]', {
+            stableKey: qStableKey,
+            loopKey,
+            promptId
+          });
         }).catch(err => {
           console.error('[V3_TRANSCRIPT][APPEND_Q_ERROR]', { error: err.message });
         });
@@ -6590,12 +6595,11 @@ export default function CandidateInterview() {
     // This makes hasV3PromptText false so the prompt doesn't continue to render
     setV3ActivePromptText("");
     v3ActivePromptTextRef.current = "";
-    setV3PromptPhase("PROCESSING");
     
     console.log('[V3_PROMPT_CLEAR_ON_SUBMIT]', {
       submitId,
       answerPreview: answerText?.substring(0, 50),
-      phaseNow: "PROCESSING",
+      phaseNow: "WILL_BE_PROCESSING_AFTER_DB",
       clearedPromptText: true,
       loopKey
     });
@@ -6664,6 +6668,11 @@ export default function CandidateInterview() {
                 aPreview: answerText?.substring(0, 50),
                 transcriptLen: updated.length
               });
+              console.log('[V3_TRANSCRIPT][APPEND_A_DB_OK]', {
+                stableKey: aStableKey,
+                loopKey,
+                promptId
+              });
               resolve(true);
             }).catch(err => {
               console.error('[V3_TRANSCRIPT][APPEND_A_ERROR]', { error: err.message });
@@ -6691,6 +6700,14 @@ export default function CandidateInterview() {
         reason: 'V3 probing not active - skipping append'
       });
     }
+    
+    // CRITICAL: Set PROCESSING state ONLY after DB write completes
+    setV3PromptPhase("PROCESSING");
+    console.log('[V3_PROMPT_PHASE][SET_PROCESSING_AFTER_DB]', {
+      submitId,
+      loopKey,
+      reason: 'DB write complete - now ready for engine call'
+    });
     
     setV3PendingAnswer(payload);
   }, [v3ProbingContext, sessionId, v3ActivePromptText, currentItem, setDbTranscriptSafe]);
