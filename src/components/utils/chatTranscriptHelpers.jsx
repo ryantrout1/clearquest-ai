@@ -593,6 +593,10 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
 
   const updatedTranscript = [...existingTranscript, entry];
 
+  // CHANGE 4: INTEGRITY AUDIT - Track locally-seen stableKey
+  const auditKey = `${sessionId}|${entry.stableKey || entry.id}`;
+  seenStableKeysBySession.add(auditKey);
+
   // PERSIST: Immediate write to DB (not batched)
   console.log('[PERSIST][ANSWER_SUBMIT_START]', {
     sessionId,
@@ -626,8 +630,8 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
     });
     console.error("[TRANSCRIPT][ERROR]", err);
 
-    // RETRY: Queue for background persistence
-    queueFailedPersist(sessionId, entry.stableKey || entry.id, updatedTranscript);
+    // RETRY: Queue for background persistence (entry only, not full transcript)
+    queueFailedPersist(sessionId, entry.stableKey || entry.id, entry);
   }
 
   return updatedTranscript;
@@ -672,6 +676,10 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
 
   const updatedTranscript = [...existingTranscript, entry];
 
+  // CHANGE 4: INTEGRITY AUDIT - Track locally-seen stableKey
+  const auditKey = `${sessionId}|${entry.stableKey || entry.id}`;
+  seenStableKeysBySession.add(auditKey);
+
   // PERSIST: Immediate write to DB (not batched)
   console.log('[PERSIST][ANSWER_SUBMIT_START]', {
     sessionId,
@@ -693,6 +701,16 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
       stableKey: entry.stableKey || entry.id
     });
 
+    // CHANGE 4: INTEGRITY AUDIT - Verify stableKey in returned transcript
+    const foundInDb = updatedTranscript.some(e => e.stableKey === (entry.stableKey || entry.id));
+    if (!foundInDb) {
+      console.error('[PERSIST][INTEGRITY_MISSING_IN_DB]', {
+        sessionId,
+        stableKey: entry.stableKey || entry.id,
+        reason: 'Write succeeded but stableKey not in local transcript copy'
+      });
+    }
+
     console.log("[TRANSCRIPT][APPEND] user", {
       index: entry.index,
       textPreview: text.substring(0, 60)
@@ -706,8 +724,8 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
     });
     console.error("[TRANSCRIPT][ERROR]", err);
 
-    // RETRY: Queue for background persistence
-    queueFailedPersist(sessionId, entry.stableKey || entry.id, updatedTranscript);
+    // RETRY: Queue for background persistence (entry only, not full transcript)
+    queueFailedPersist(sessionId, entry.stableKey || entry.id, entry);
   }
 
   return updatedTranscript;
