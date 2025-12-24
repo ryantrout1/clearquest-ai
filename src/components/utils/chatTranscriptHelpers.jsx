@@ -93,55 +93,34 @@ function getNextIndex(existingTranscript = []) {
  * Append assistant message to transcript
  * Use for: questions, system messages, AI prompts that should be in legal record
  * 
+ * NEW: V3 probe questions (V3_PROBE_QUESTION) are now ALLOWED in transcript as legal record
+ * 
  * @param {string} sessionId
  * @param {Array} existingTranscript
  * @param {string} text - Message text (fallback if uiVariant not used)
  * @param {object} metadata - Additional metadata
- *   - messageType: type of message (WELCOME, QUESTION_SHOWN, SECTION_COMPLETE, etc.)
- *   - uiVariant: UI card variant (WELCOME_CARD, QUESTION_CARD, FOLLOWUP_CARD, SECTION_COMPLETE_CARD, etc.)
+ *   - messageType: type of message (WELCOME, QUESTION_SHOWN, V3_PROBE_QUESTION, etc.)
+ *   - uiVariant: UI card variant (WELCOME_CARD, QUESTION_CARD, FOLLOWUP_CARD, etc.)
  *   - title: optional card title
  *   - lines: optional array of bullet/line strings
  *   - example: optional example text
- *   - meta: optional { sectionId, sectionTitle, questionDbId, questionCode, packId, instanceNumber }
+ *   - meta: optional { packId, categoryId, loopKey, instanceNumber, promptId, incidentId }
  *   - visibleToCandidate: explicit override (required - no defaults)
  * @returns {Promise<object>} Updated transcript
  */
 export async function appendAssistantMessage(sessionId, existingTranscript = [], text, metadata = {}) {
-  // V3 UI CONTRACT GUARD: Block V3 probe prompt types from transcript
-  const V3_PROBE_TYPES = ['v3_probe_question', 'V3_PROBE_ASKED', 'V3_PROBE', 'v3_probe', 'v3_probe_complete'];
-  if (V3_PROBE_TYPES.includes(metadata.messageType)) {
+  // V3 TRANSCRIPT UPDATE: V3_PROBE_QUESTION now allowed in transcript (legal record)
+  // Only block internal system events like V3_PROBE_ASKED
+  const V3_BLOCKED_TYPES = ['V3_PROBE_ASKED', 'V3_PROBE', 'v3_probe', 'v3_probe_complete'];
+  if (V3_BLOCKED_TYPES.includes(metadata.messageType)) {
     console.error('[V3_UI_CONTRACT]', {
       action: 'TRANSCRIPT_APPEND_BLOCKED',
       messageType: metadata.messageType,
-      reason: 'V3 probes must NOT be appended to transcript - use logSystemEvent instead',
+      reason: 'Internal V3 system events must NOT be in transcript - use logSystemEvent',
       caller: new Error().stack?.split('\n')[2]?.trim(),
       textPreview: text?.substring(0, 60) || null
     });
     return existingTranscript; // Block append, return unchanged
-  }
-  
-  // HARDENED V3 CONTRACT: Block any message containing probe-like text patterns
-  if (text && typeof text === 'string') {
-    const textLower = text.toLowerCase();
-    const probePatterns = [
-      'what is the name of the agency',
-      'which agency',
-      'what agency',
-      'when did this occur',
-      'where did this occur'
-    ];
-    
-    const looksLikeProbe = probePatterns.some(pattern => textLower.includes(pattern));
-    if (looksLikeProbe && (!metadata.messageType || metadata.messageType.includes('probe'))) {
-      console.error('[V3_UI_CONTRACT]', {
-        action: 'TRANSCRIPT_APPEND_BLOCKED_BY_PATTERN',
-        messageType: metadata.messageType || 'unknown',
-        reason: 'Text matches V3 probe pattern - likely should be in V3ProbingLoop only',
-        textPreview: text.substring(0, 60),
-        caller: new Error().stack?.split('\n')[2]?.trim()
-      });
-      return existingTranscript; // Block append
-    }
   }
   
   // HARDENED CONTRACT: Default visibleToCandidate to false if not provided

@@ -103,7 +103,8 @@ const resetMountTracker = (sid) => {
 // Defines what entries are shown in ChatGPT-style transcript view
 // Only conversational turns are visible, system/mechanical events are filtered out
 
-  // TRANSCRIPT FILTERING: Canonical render filter (visibleToCandidate only)
+  // TRANSCRIPT DENYLIST: System events and internal markers (NOT user-visible Q/A)
+  // V3 UPDATE: V3_PROBE_QUESTION and V3_PROBE_ANSWER now ALLOWED (legal record)
   const TRANSCRIPT_DENYLIST = new Set([
     'SYSTEM_EVENT',             // All system events
     'SESSION_CREATED',          // Session lifecycle
@@ -115,20 +116,15 @@ const resetMountTracker = (sid) => {
     'AI_PROBING_CALLED',        // AI probing events
     'AI_PROBING_RESPONSE',
     'V3_PROBE_ASKED',           // V3 probe system events (visibleToCandidate=false)
-    'V3_PROBE_QUESTION',        // V3 UI CONTRACT: Probe questions never in transcript
-    'V3_PROBE_PROMPT',          // V3 UI CONTRACT: Probe prompts never in transcript
-    'AI_FOLLOWUP_QUESTION',     // V3 UI CONTRACT: Probe questions render in prompt lane, not transcript
-    'PROCESSING',               // V3 UI CONTRACT: No processing bubbles during V3
-    'REVIEWING',                // V3 UI CONTRACT: No reviewing bubbles during V3
-    'AI_THINKING',              // V3 UI CONTRACT: No thinking bubbles during V3
+    'PROCESSING',               // No processing bubbles
+    'REVIEWING',                // No reviewing bubbles
+    'AI_THINKING',              // No thinking bubbles
   ]);
 
-  // V3 UI CONTRACT: Hard filter for V3 prompt items (module-scope safe)
+  // V3 FILTER REMOVED: V3 probe Q/A now in transcript (legal record)
+  // Only block internal system events
   const isV3PromptTranscriptItem = (msg) => {
     const t = msg?.messageType || msg?.type || msg?.kind;
-    const entrySource = msg?.source || msg?.meta?.source || '';
-    const isProbePrompt = msg?.isProbePrompt === true;
-    const hasFieldKey = !!msg?.fieldKey;
     
     // ALLOW: V3 opener prompts (FOLLOWUP_CARD_SHOWN with variant='opener')
     if (t === "FOLLOWUP_CARD_SHOWN") {
@@ -138,31 +134,22 @@ const resetMountTracker = (sid) => {
       }
     }
     
-    // REGRESSION GUARD: Hard-block V3 probe questions from transcript
-    // These type strings MUST NEVER appear in renderable transcript
-    const V3_PROBE_TYPES = [
-      "V3_PROBE_ASKED",
-      "V3_PROBE_PROMPT", 
-      "V3_PROBE_QUESTION",
-      "v3_probe_question",
-      "V3_PROMPT",
-      "V3_PROBE",
-      "AI_FOLLOWUP_QUESTION" // V3 probes render in prompt lane, not transcript
+    // BLOCK: Internal V3 system events only
+    const V3_INTERNAL_TYPES = [
+      "V3_PROBE_ASKED",     // Internal system event
+      "V3_PROBE_PROMPT",    // Internal marker
+      "V3_PROBE",           // Internal event
+      "AI_FOLLOWUP_QUESTION" // Legacy internal type
     ];
     
-    if (V3_PROBE_TYPES.includes(t)) {
-      console.log('[V3_UI_CONTRACT][BLOCKED_TRANSCRIPT_APPEND]', {
+    if (V3_INTERNAL_TYPES.includes(t)) {
+      console.log('[V3_SYSTEM_EVENT][BLOCKED]', {
         messageType: t,
         textPreview: msg?.text?.substring(0, 60) || null,
-        reason: 'V3 probe questions render in prompt lane, not transcript'
+        reason: 'Internal system event - not legal record'
       });
       return true;
     }
-    
-    // Additional heuristic blocks
-    if (t === "ai_probe_question" && entrySource.includes('v3')) return true;
-    if (msg?.role === 'assistant' && isProbePrompt && entrySource.includes('v3')) return true;
-    if (hasFieldKey && t.includes('probe') && entrySource.includes('v3')) return true;
     
     return false;
   };
@@ -5802,11 +5789,28 @@ export default function CandidateInterview() {
           setIsCommitting(false);
           return;
         }
-        
+
+        // FIX F: Check if gate already answered (prevent re-ask)
+        const session = await base44.entities.InterviewSession.get(sessionId);
+        const existingTranscript = session.transcript_snapshot || [];
+        const gateAnswerKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:a`;
+        const alreadyAnswered = existingTranscript.some(e => e.stableKey === gateAnswerKey);
+
+        if (alreadyAnswered) {
+          console.warn('[MI_GATE][ALREADY_ANSWERED]', {
+            packId: gate.packId,
+            instanceNumber: gate.instanceNumber,
+            stableKey: gateAnswerKey,
+            reason: 'Gate already answered - blocking duplicate submission'
+          });
+          setIsCommitting(false);
+          return;
+        }
+
         // Forensic log: MI_GATE submission
         const nextInstanceNumber = answer === 'Yes' ? (gate.instanceNumber || 1) + 1 : null;
         const nextStableKey = answer === 'Yes' ? `v3-opener-${gate.packId}-${nextInstanceNumber}` : null;
-        
+
         console.log('[MI_GATE][ANSWER]', {
           packId: gate.packId,
           instanceNumber: gate.instanceNumber,
@@ -5822,10 +5826,10 @@ export default function CandidateInterview() {
           answer,
           action: answer === 'Yes' ? 'starting next instance' : 'advancing to next question'
         });
-        
+
         // Extract shared MI_GATE handler logic
         await handleMiGateYesNo({ answer, gate, sessionId, engine });
-        
+
         setIsCommitting(false);
         setInput("");
         return;
@@ -6533,45 +6537,65 @@ export default function CandidateInterview() {
       return prev; // No mutation - just logging
     });
     
-    // FIX B: Append ONLY answer to V3 UI history (question already appended when prompt appeared)
+    // FIX C: Append answer to DB transcript (legal record)
     if (v3ProbingActive && localEffectiveItemType === 'v3_probing' && loopKey && answerText?.trim()) {
       const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
       
       if (promptId) {
-        const aStableKey = `v3-ui:${loopKey}:${promptId}:a`;
+        const aStableKey = `v3-probe-a:${loopKey}:${promptId}`;
         
-        setV3ProbeDisplayHistory(prev => {
-          // Dedupe: skip if already exists
-          if (prev.some(e => e.stableKey === aStableKey)) {
-            console.log('[V3_UI_HISTORY][DEDUPED]', { stableKey: aStableKey, type: 'a' });
-            return prev;
+        // Append to DB transcript immediately
+        const appendV3Answer = async () => {
+          try {
+            const session = await base44.entities.InterviewSession.get(sessionId);
+            const existingTranscript = session.transcript_snapshot || [];
+            
+            // Dedupe: check if already in DB
+            if (existingTranscript.some(e => e.stableKey === aStableKey)) {
+              console.log('[V3_TRANSCRIPT][DEDUPE_A]', { stableKey: aStableKey });
+              return;
+            }
+            
+            const updated = await appendUserMessageImport(sessionId, existingTranscript, answerText, {
+              id: `v3-probe-a-${sessionId}-${loopKey}-${promptId}`,
+              stableKey: aStableKey,
+              messageType: 'V3_PROBE_ANSWER',
+              meta: {
+                packId: v3ProbingContext.packId,
+                categoryId: v3ProbingContext.categoryId,
+                loopKey,
+                instanceNumber: v3ProbingContext.instanceNumber,
+                promptId,
+                incidentId: v3ProbingContext.incidentId
+              },
+              visibleToCandidate: true // Legal record
+            });
+            
+            console.log('[V3_TRANSCRIPT][APPEND_A]', {
+              stableKey: aStableKey,
+              aPreview: answerText?.substring(0, 50),
+              transcriptLen: updated.length
+            });
+            
+            // DO NOT refresh here - will refresh after engine response
+          } catch (err) {
+            console.error('[V3_TRANSCRIPT][APPEND_A_ERROR]', { error: err.message });
           }
-          
-          const aEntry = {
-            kind: 'v3_probe_a',
-            loopKey,
-            promptId,
-            text: answerText,
-            ts: Date.now(),
-            stableKey: aStableKey
-          };
-          
-          console.log('[V3_UI_HISTORY][APPEND_A]', { stableKey: aStableKey, aPreview: answerText?.substring(0, 50) });
-          
-          return [...prev, aEntry];
-        });
+        };
+        
+        await appendV3Answer();
       }
       
-      // Clear active probe question after moving to history
+      // Clear active probe question after answering
       v3ActiveProbeQuestionRef.current = null;
       v3ActiveProbeQuestionLoopKeyRef.current = null;
     } else if (!v3ProbingActive || localEffectiveItemType !== 'v3_probing') {
       // GUARD: Prevent append after V3 exit
-      console.log('[V3_UI_HISTORY][APPEND_BLOCKED]', {
+      console.log('[V3_TRANSCRIPT][APPEND_BLOCKED]', {
         v3ProbingActive,
         effectiveItemType: localEffectiveItemType,
         loopKey,
-        reason: 'V3 probing not active - skipping history append to prevent out-of-order'
+        reason: 'V3 probing not active - skipping append'
       });
     }
     
@@ -7046,7 +7070,7 @@ export default function CandidateInterview() {
   // ITEM-SCOPED COMMIT TRACKING: Track which item is being submitted
   const committingItemIdRef = useRef(null);
 
-  // FIX A: V3 UI history - append question when prompt becomes active
+  // FIX A: V3 transcript append - write probe question to DB when shown
   useEffect(() => {
     if (v3PromptPhase !== 'ANSWER_NEEDED') return;
     if (!v3ProbingActive || !v3ProbingContext) return;
@@ -7057,29 +7081,50 @@ export default function CandidateInterview() {
     
     if (!promptId || !promptText) return;
     
-    const qStableKey = `v3-ui:${loopKey}:${promptId}:q`;
+    const qStableKey = `v3-probe-q:${loopKey}:${promptId}`;
     
-    setV3ProbeDisplayHistory(prev => {
-      // Dedupe: skip if already exists
-      if (prev.some(e => e.stableKey === qStableKey)) {
-        console.log('[V3_UI_HISTORY][DEDUPED]', { stableKey: qStableKey, type: 'q' });
-        return prev;
+    // Append to DB transcript (legal record)
+    const appendV3Question = async () => {
+      try {
+        const session = await base44.entities.InterviewSession.get(sessionId);
+        const existingTranscript = session.transcript_snapshot || [];
+        
+        // Dedupe: check if already in DB transcript
+        if (existingTranscript.some(e => e.stableKey === qStableKey)) {
+          console.log('[V3_TRANSCRIPT][DEDUPE_Q]', { stableKey: qStableKey });
+          return;
+        }
+        
+        const updated = await appendAssistantMessageImport(sessionId, existingTranscript, promptText, {
+          id: `v3-probe-q-${sessionId}-${loopKey}-${promptId}`,
+          stableKey: qStableKey,
+          messageType: 'V3_PROBE_QUESTION',
+          meta: {
+            packId: v3ProbingContext.packId,
+            categoryId: v3ProbingContext.categoryId,
+            loopKey,
+            instanceNumber: v3ProbingContext.instanceNumber,
+            promptId,
+            incidentId: v3ProbingContext.incidentId
+          },
+          visibleToCandidate: true // V3 probe Q/A now in legal record
+        });
+        
+        console.log('[V3_TRANSCRIPT][APPEND_Q]', { 
+          stableKey: qStableKey, 
+          qPreview: promptText?.substring(0, 50),
+          transcriptLen: updated.length
+        });
+        
+        // Refresh local DB mirror
+        await refreshTranscriptFromDB('v3_probe_q_shown');
+      } catch (err) {
+        console.error('[V3_TRANSCRIPT][APPEND_Q_ERROR]', { error: err.message });
       }
-      
-      const qEntry = {
-        kind: 'v3_probe_q',
-        loopKey,
-        promptId,
-        text: promptText,
-        ts: Date.now(),
-        stableKey: qStableKey
-      };
-      
-      console.log('[V3_UI_HISTORY][APPEND_Q]', { stableKey: qStableKey, qPreview: promptText?.substring(0, 50) });
-      
-      return [...prev, qEntry];
-    });
-  }, [v3PromptPhase, v3ProbingActive, v3ProbingContext?.promptId, v3ActivePromptText, sessionId]);
+    };
+    
+    appendV3Question();
+  }, [v3PromptPhase, v3ProbingActive, v3ProbingContext?.promptId, v3ActivePromptText, sessionId, refreshTranscriptFromDB]);
   
   // FIX B: V3 draft restore - load draft when V3 prompt becomes active
   useEffect(() => {
@@ -8074,25 +8119,13 @@ export default function CandidateInterview() {
   // ============================================================================
   // CANONICAL RENDER STREAM - Single source of truth (component scope, always defined)
   // ============================================================================
-  // PART A: Build unified stream from three sources (transcript + v3UI + activeCard)
+  // PART A: Build unified stream from DB transcript only (no ephemeral UI history)
+  // V3 UPDATE: V3 probe Q/A now in DB transcript, v3UiRenderable deprecated for display
   const transcriptRenderable = renderedTranscriptSnapshotRef.current || renderedTranscript;
-  let v3UiRenderable = v3ProbeDisplayHistory || [];
   
-  // FIX A: HARD LANE GATING - Suppress V3 UI when base question is active
-  if (effectiveItemType === 'question' && currentItem?.type === 'question' && v3UiRenderable.length > 0) {
-    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
-    
-    console.log('[V3_UI][RENDER_SUPPRESSED_AFTER_ADVANCE]', {
-      reason: 'BASE_QUESTION_ACTIVE',
-      v3UiHistoryLen: v3UiRenderable.length,
-      v3ProbingActive,
-      loopKey,
-      currentQuestionId: currentItem.id,
-      suppressedItemsPreview: v3UiRenderable.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) }))
-    });
-    
-    v3UiRenderable = []; // Clear V3 UI history from render stream
-  }
+  // V3 UPDATE: v3UiRenderable kept for backwards compat but not used for final render
+  // All V3 content renders from transcript (single source of truth)
+  const v3UiRenderable = [];
   
   // Active card (exactly ONE, derived from activeUiItem.kind precedence)
   let activeCard = null;
@@ -9163,10 +9196,48 @@ export default function CandidateInterview() {
                     return null;
                   }
                   
-                  // V3 UI history cards (v3_probe_q / v3_probe_a)
+                  // V3 transcript entries (from DB - legal record)
+                  // V3_PROBE_QUESTION (assistant)
+                  if (entry.role === 'assistant' && entry.messageType === 'V3_PROBE_QUESTION') {
+                    return (
+                      <div key={entry.stableKey || entry.id || `v3-q-${index}`}>
+                        <ContentContainer>
+                          <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
+                              {entry.meta?.instanceNumber > 1 && (
+                                <>
+                                  <span className="text-xs text-slate-500">•</span>
+                                  <span className="text-xs text-slate-400">Instance {entry.meta.instanceNumber}</span>
+                                </>
+                              )}
+                            </div>
+                            <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                          </div>
+                        </ContentContainer>
+                      </div>
+                    );
+                  }
+
+                  // V3_PROBE_ANSWER (user)
+                  if (entry.role === 'user' && entry.messageType === 'V3_PROBE_ANSWER') {
+                    return (
+                      <div key={entry.stableKey || entry.id || `v3-a-${index}`} style={{ marginBottom: 10 }}>
+                        <ContentContainer>
+                          <div className="flex justify-end">
+                            <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                              <p className="text-white text-sm">{entry.text}</p>
+                            </div>
+                          </div>
+                        </ContentContainer>
+                      </div>
+                    );
+                  }
+
+                  // V3 UI-only history cards (ephemeral - for immediate display)
                   if (entry.kind === 'v3_probe_q') {
                     return (
-                      <div key={entry.stableKey || `v3-q-${index}`}>
+                      <div key={entry.stableKey || `v3-ui-q-${index}`}>
                         <ContentContainer>
                           <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-1">
@@ -9178,10 +9249,10 @@ export default function CandidateInterview() {
                       </div>
                     );
                   }
-                  
+
                   if (entry.kind === 'v3_probe_a') {
                     return (
-                      <div key={entry.stableKey || `v3-a-${index}`} style={{ marginBottom: 10 }}>
+                      <div key={entry.stableKey || `v3-ui-a-${index}`} style={{ marginBottom: 10 }}>
                         <ContentContainer>
                           <div className="flex justify-end">
                             <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -9200,25 +9271,18 @@ export default function CandidateInterview() {
                   const isProbePrompt = entry?.isProbePrompt === true;
                   const hasFieldKey = !!entry?.fieldKey;
 
-                  // Comprehensive V3 probe detection
-                  const isV3ProbeInTranscript = 
-                   mt === 'v3_probe_question' ||
+                  // V3 UPDATE: V3_PROBE_QUESTION and V3_PROBE_ANSWER now allowed (renders above)
+                  // Only block internal system events
+                  const isV3SystemEvent = 
                    mt === 'V3_PROBE_ASKED' ||
                    mt === 'V3_PROBE_PROMPT' ||
-                   mt === 'V3_PROMPT' ||
                    mt === 'V3_PROBE' ||
-                   (mt === 'ai_probe_question' && (entrySource.includes('v3') || v3ProbingActive)) ||
-                   (entry?.role === 'assistant' && isProbePrompt && entrySource.includes('v3')) ||
-                   (hasFieldKey && mt.includes('probe') && v3ProbingActive);
+                   (mt === 'ai_probe_question' && entrySource.includes('v3_internal'));
 
-                  if (isV3ProbeInTranscript) {
-                   console.warn("[UI_CONTRACT][BLOCK_RENDER_TRANSCRIPT_V3_PROBE_PROMPT]", { 
-                     preview: textPreview.slice(0, 80),
+                  if (isV3SystemEvent) {
+                   console.log("[V3_SYSTEM_EVENT][BLOCKED]", { 
                      messageType: mt,
-                     source: entrySource,
-                     fieldKey: entry?.fieldKey || null,
-                     v3ProbingActive,
-                     reason: 'V3 probe prompts must ONLY render in input placeholder, NEVER in main body'
+                     reason: 'Internal V3 system event - not legal record'
                    });
                    return null;
                   }
@@ -9432,38 +9496,8 @@ export default function CandidateInterview() {
                 </div>
               )}
 
-              {/* V3 probe questions: BLOCKED from transcript (UI contract enforcement) */}
-              {entry.role === 'assistant' && entry.messageType === 'v3_probe_question' && (() => {
-                console.log('[V3_UI_CONTRACT]', { 
-                  action: 'TRANSCRIPT_RENDER_BLOCKED', 
-                  messageType: entry.messageType,
-                  reason: 'V3 probes must only appear in V3ProbingLoop UI, not main transcript'
-                });
-                return null;
-              })()}
-
-              {/* V3 Recap/Completion Message - SUPPRESSED (scope creep removal) */}
-              {entry.role === 'assistant' && entry.messageType === 'V3_PACK_RECAP' && (() => {
-                console.log('[V3_UI_CONTRACT][RECAP_SUPPRESSED]', {
-                  packId: entry.packId,
-                  instanceNumber: entry.instanceNumber,
-                  loopKey: `${sessionId}:${entry.categoryId}:${entry.instanceNumber}`,
-                  reason: 'Scope creep — recap UI disabled'
-                });
-                return null; // Do not render recap card
-              })()}
-
-              {entry.role === 'user' && entry.messageType === 'v3_probe_answer' && (
-                <div style={{ marginBottom: 10 }}>
-                  <ContentContainer>
-                  <div className="flex justify-end">
-                    <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                      <p className="text-white text-sm">{entry.text}</p>
-                    </div>
-                  </div>
-                  </ContentContainer>
-                </div>
-              )}
+              {/* V3 probe question and answer now render from transcript (legal record) */}
+              {/* Moved to transcript stream above (lines ~9166-9194) - renders with proper styling */}
 
               {/* Base question (assistant) */}
               {entry.role === 'assistant' && entry.type === 'base_question' && (
