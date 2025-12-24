@@ -6544,7 +6544,7 @@ export default function CandidateInterview() {
       if (promptId) {
         const aStableKey = `v3-probe-a:${loopKey}:${promptId}`;
         
-        // Append to DB transcript immediately
+        // Append to DB transcript immediately (fire-and-forget)
         const appendV3Answer = async () => {
           try {
             const session = await base44.entities.InterviewSession.get(sessionId);
@@ -6583,7 +6583,7 @@ export default function CandidateInterview() {
           }
         };
         
-        await appendV3Answer();
+        appendV3Answer(); // Fire-and-forget (non-blocking)
       }
       
       // Clear active probe question after answering
