@@ -272,6 +272,76 @@ const ContentContainer = ({ children, className = "" }) => (
 );
 
 // ============================================================================
+// LEGACY TRANSCRIPT CLEANUP - Remove V3 probe prompts from stored transcripts
+// ============================================================================
+// CHANGE 1: Load-time cleanup for existing sessions with V3 probe pollution
+const cleanedSessionIdsRef = new Set(); // ONE-TIME guard per sessionId
+
+const cleanLegacyV3ProbePrompts = (transcript, sessionId) => {
+  if (!Array.isArray(transcript)) return transcript;
+  
+  const cleaned = transcript.filter(entry => {
+    const mt = entry.messageType || entry.type;
+    const stableKey = entry.stableKey || '';
+    const kind = entry.kind || '';
+    
+    // Detect V3 probe prompt/question (NOT answers)
+    const isV3ProbePrompt = 
+      mt === 'V3_PROBE_QUESTION' ||
+      mt === 'V3_PROBE_PROMPT' ||
+      mt === 'AI_FOLLOWUP_QUESTION' ||
+      kind === 'v3_probe_q' ||
+      kind === 'v3_probe_prompt' ||
+      stableKey.startsWith('v3-probe-q:') ||
+      stableKey.startsWith('v3-probe-prompt:') ||
+      stableKey.includes(':V3_PROBING:');
+    
+    return !isV3ProbePrompt; // Keep everything except V3 probe prompts
+  });
+  
+  const removedCount = transcript.length - cleaned.length;
+  if (removedCount > 0) {
+    const removedKeys = transcript
+      .filter(e => {
+        const mt = e.messageType || e.type;
+        const stableKey = e.stableKey || '';
+        return mt === 'V3_PROBE_QUESTION' || stableKey.startsWith('v3-probe-q:');
+      })
+      .map(e => e.stableKey || e.id);
+    
+    console.log('[V3_UI_CONTRACT][LEGACY_TRANSCRIPT_CLEANED]', {
+      sessionId,
+      removedCount,
+      sampleKeysPreview: removedKeys.slice(0, 5),
+      cleanedLen: cleaned.length,
+      originalLen: transcript.length
+    });
+    
+    // CHANGE 2: ONE-TIME DB REPAIR - Write cleaned transcript back to DB
+    if (sessionId && !cleanedSessionIdsRef.has(sessionId)) {
+      cleanedSessionIdsRef.add(sessionId);
+      
+      base44.entities.InterviewSession.update(sessionId, {
+        transcript_snapshot: cleaned
+      }).then(() => {
+        console.log('[V3_UI_CONTRACT][LEGACY_DB_REPAIR_APPLIED]', {
+          sessionId,
+          removedCount,
+          newLen: cleaned.length
+        });
+      }).catch(err => {
+        console.warn('[V3_UI_CONTRACT][LEGACY_DB_REPAIR_ERROR]', {
+          sessionId,
+          error: err.message
+        });
+      });
+    }
+  }
+  
+  return cleaned;
+};
+
+// ============================================================================
 // SECTION-BASED HELPER FUNCTIONS (HOISTED)
 // ============================================================================
 
@@ -2521,17 +2591,22 @@ export default function CandidateInterview() {
           const loadedSession = await base44.entities.InterviewSession.get(sessionId);
           if (loadedSession) {
             setSession(loadedSession);
-            setDbTranscriptSafe(loadedSession.transcript_snapshot || []);
+
+            // CHANGE 1: Clean legacy V3 probe prompts on load
+            const rawTranscript = loadedSession.transcript_snapshot || [];
+            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            setDbTranscriptSafe(cleanedTranscript);
+
             setQueue(loadedSession.queue_snapshot || []);
             setCurrentItem(loadedSession.current_item_snapshot || null);
             setIsLoading(false);
             setShowLoadingRetry(false);
-            
-            const hasAnyResponses = loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0;
+
+            const hasAnyResponses = cleanedTranscript && cleanedTranscript.length > 0;
             setIsNewSession(!hasAnyResponses);
             setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
-            
-            console.log('[MOUNT_GUARD][QUICK_RESTORE]', { transcriptLen: loadedSession.transcript_snapshot?.length || 0 });
+
+            console.log('[MOUNT_GUARD][QUICK_RESTORE]', { transcriptLen: cleanedTranscript?.length || 0 });
           }
         } catch (err) {
           console.error('[MOUNT_GUARD][QUICK_RESTORE][ERROR]', err);
@@ -2665,7 +2740,9 @@ export default function CandidateInterview() {
         return;
       }
       
-      const freshTranscript = loadedSession.transcript_snapshot || [];
+      // CHANGE 1: Clean legacy V3 probe prompts on resume
+      const rawTranscript = loadedSession.transcript_snapshot || [];
+      const freshTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
       
       // MERGE STRATEGY: Use functional update to guarantee latest canonical state
       setDbTranscriptSafe(prev => {
@@ -2927,7 +3004,10 @@ export default function CandidateInterview() {
   };
 
   const restoreFromSnapshots = async (engineData, loadedSession) => {
-    const restoredTranscript = loadedSession.transcript_snapshot || [];
+    // CHANGE 1: Clean legacy V3 probe prompts on restore
+    const rawTranscript = loadedSession.transcript_snapshot || [];
+    const restoredTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+    
     const restoredQueue = loadedSession.queue_snapshot || [];
     const restoredCurrentItem = loadedSession.current_item_snapshot || null;
 
@@ -3003,12 +3083,15 @@ export default function CandidateInterview() {
         }
       }
 
+      // CHANGE 1: Clean legacy V3 probe prompts on rebuild
+      const cleanedRestoredTranscript = cleanLegacyV3ProbePrompts(restoredTranscript, sessionId);
+
       // MERGE STRATEGY: Use functional update to guarantee latest canonical state
       let finalLen;
       setDbTranscriptSafe(prev => {
-        const merged = mergeTranscript(prev, restoredTranscript, sessionId);
+        const merged = mergeTranscript(prev, cleanedRestoredTranscript, sessionId);
         finalLen = merged.length;
-        console.log('[REBUILD][MERGE]', { prevLen: prev.length, restoredLen: restoredTranscript.length, mergedLen: merged.length });
+        console.log('[REBUILD][MERGE]', { prevLen: prev.length, restoredLen: cleanedRestoredTranscript.length, mergedLen: merged.length });
         return merged;
       });
       
