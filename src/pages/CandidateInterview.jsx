@@ -4466,8 +4466,11 @@ export default function CandidateInterview() {
 
         console.log("[V3_OPENER][TRANSCRIPT_BEFORE]", { length: currentTranscript.length });
 
-        // Append user opener answer only (question already in transcript via FOLLOWUP_CARD_SHOWN)
+        // REGRESSION FIX: Append user opener answer with stableKey for dedupe protection
+        const openerAnswerStableKey = `v3-opener-a:${packId}:${instanceNumber}`;
         const transcriptAfterAnswer = await appendUserMessage(sessionId, currentTranscript, value, {
+          id: `v3-opener-answer-${sessionId}-${packId}-${instanceNumber}`,
+          stableKey: openerAnswerStableKey,
           messageType: 'v3_opener_answer',
           packId,
           categoryId,
@@ -4475,6 +4478,14 @@ export default function CandidateInterview() {
           baseQuestionId
         });
 
+        console.log('[CQ_TRANSCRIPT][USER_APPEND_OK]', {
+          sessionId,
+          stableKey: openerAnswerStableKey,
+          packId,
+          instanceNumber,
+          answerLen: value?.length || 0,
+          transcriptLenAfter: transcriptAfterAnswer.length
+        });
         console.log('[V3_OPENER][SUBMITTED_OK]', {
           sessionId,
           packId,
