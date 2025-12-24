@@ -8377,7 +8377,14 @@ export default function CandidateInterview() {
       v3PromptPhase,
       reason: "Initial decide cycle - showing thinking card"
     });
-  } else if (activeUiItem.kind === "MI_GATE") {
+  }
+  
+  // Clear V3 prompt tracker when kind changes away from V3_PROMPT
+  if (activeUiItem.kind !== "V3_PROMPT" && lastRenderedV3PromptKeyRef.current) {
+    lastRenderedV3PromptKeyRef.current = null;
+  }
+  
+  if (activeUiItem.kind === "MI_GATE") {
     const miGatePrompt = currentItem?.promptText || multiInstanceGate?.promptText || `Do you have another incident to report?`;
     const stableKey = `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`;
     
