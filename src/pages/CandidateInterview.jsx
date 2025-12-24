@@ -3255,19 +3255,51 @@ export default function CandidateInterview() {
     // Reload transcript
     await refreshTranscriptFromDB(`gate_${answer.toLowerCase()}_answered`);
 
-    // FIX A2: Clear gate state immediately to prevent re-render
-    setMultiInstanceGate(null);
-
-    // FIX A2: Clear currentItem if it's still the gate (prevents stale MI_GATE render)
-    if (currentItem?.type === 'multi_instance_gate' && currentItem?.packId === gate.packId && currentItem?.instanceNumber === gate.instanceNumber) {
-      console.log('[MI_GATE][CLEAR_CURRENT_ITEM_ON_ANSWER]', {
-        packId: gate.packId,
-        instanceNumber: gate.instanceNumber,
-        answer,
-        reason: 'Prevent MI_GATE re-render during advance'
+    // FIX A: Clear gate state + set next question ATOMICALLY (no null frame)
+    if (answer === 'No') {
+      // FIX A: Compute next question SYNCHRONOUSLY before clearing gate
+      const nextQuestionId = computeNextQuestionId(engine, gate.baseQuestionId, 'Yes');
+      
+      if (!nextQuestionId || !engine.QById[nextQuestionId]) {
+        console.log('[MI_GATE][NO_NEXT_QUESTION]', { 
+          baseQuestionId: gate.baseQuestionId,
+          reason: 'No next question - completing interview' 
+        });
+        
+        // ATOMIC: Clear gate + set null currentItem
+        unstable_batchedUpdates(() => {
+          setMultiInstanceGate(null);
+          setCurrentItem(null);
+        });
+        
+        await persistStateToDatabase(null, [], null);
+        setShowCompletionModal(true);
+        return;
+      }
+      
+      const nextQuestion = engine.QById[nextQuestionId];
+      const nextItem = { id: nextQuestionId, type: 'question' };
+      
+      console.log('[MI_GATE][ADVANCE_ATOMIC]', {
+        fromGateId: `mi-gate:${gate.packId}:${gate.instanceNumber}`,
+        toQuestionId: nextQuestionId,
+        toQuestionNumber: nextQuestion.question_number,
+        hadNullFrame: false,
+        reason: 'Atomic transition - no intermediate null currentItem'
       });
-      setCurrentItem(null);
+      
+      // ATOMIC STATE TRANSITION: Clear gate + set next question in one batch
+      unstable_batchedUpdates(() => {
+        setMultiInstanceGate(null);
+        setCurrentItem(nextItem);
+      });
+      
+      await persistStateToDatabase(null, [], nextItem);
+      return;
     }
+
+    // Clear gate state for "Yes" path
+    setMultiInstanceGate(null);
 
     if (answer === 'Yes') {
       const nextInstanceNumber = (gate.instanceNumber || 1) + 1;
@@ -7607,6 +7639,24 @@ export default function CandidateInterview() {
       const sectionName = sectionEntity?.section_name || question.category || '';
       const questionNumber = getQuestionDisplayNumber(effectiveCurrentItem.id);
 
+      // FIX C: Guard against logging QUESTION_SHOWN when currentItem is null
+      if (!currentItem || currentItem.type !== 'question') {
+        console.log('[STREAM][GUARD_NO_NULL_CURRENT_ITEM_ON_QUESTION_SHOWN]', {
+          blocked: true,
+          reason: 'currentItem is null or not a question',
+          currentItemType: currentItem?.type,
+          effectiveCurrentItemId: effectiveCurrentItem.id,
+          screenMode
+        });
+        return null; // Skip rendering and logging
+      }
+      
+      console.log('[STREAM][GUARD_NO_NULL_CURRENT_ITEM_ON_QUESTION_SHOWN]', {
+        blocked: false,
+        currentItemType: currentItem.type,
+        questionId: effectiveCurrentItem.id
+      });
+      
       // RENDER-POINT LOGGING: Log question when it's shown (once per question)
       const itemSig = `question:${effectiveCurrentItem.id}::`;
       const lastLoggedSig = lastLoggedFollowupCardIdRef.current;
@@ -7628,6 +7678,36 @@ export default function CandidateInterview() {
             freshLen: normalizedFresh.length,
             wasArray: Array.isArray(freshTranscript)
           });
+          
+          // FIX B: Hard-pin scroll to bottom after QUESTION_SHOWN
+          if (shouldAutoScrollRef.current) {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                const scrollContainer = historyRef.current;
+                if (!scrollContainer) return;
+                
+                const scrollTopBefore = scrollContainer.scrollTop;
+                const scrollHeight = scrollContainer.scrollHeight;
+                const clientHeight = scrollContainer.clientHeight;
+                const targetScrollTop = Math.max(0, scrollHeight - clientHeight);
+                
+                scrollContainer.scrollTop = targetScrollTop;
+                
+                const scrollTopAfter = scrollContainer.scrollTop;
+                const didScroll = Math.abs(scrollTopAfter - scrollTopBefore) > 1;
+                
+                console.log('[SCROLL][PIN_ON_QUESTION_SHOWN]', {
+                  questionNumber,
+                  didScroll,
+                  scrollTopBefore: Math.round(scrollTopBefore),
+                  scrollTopAfter: Math.round(scrollTopAfter),
+                  targetScrollTop: Math.round(targetScrollTop),
+                  scrollHeight: Math.round(scrollHeight),
+                  clientHeight: Math.round(clientHeight)
+                });
+              });
+            });
+          }
         }).catch(err => console.warn('[LOG_QUESTION] Failed:', err));
       }
 
