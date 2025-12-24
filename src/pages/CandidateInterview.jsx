@@ -161,7 +161,13 @@ const resetMountTracker = (sid) => {
 
     const mt = t.messageType || t.type;
     
-    // FAIL-OPEN: Always render user messages (regardless of visibleToCandidate flag)
+    // PRIORITY 1: LEGAL RECORD - visibleToCandidate=true ALWAYS renders
+    // This ensures all candidate-visible entries appear in UI (no drops)
+    if (t.visibleToCandidate === true) {
+      return true;
+    }
+    
+    // PRIORITY 2: User messages always render (fail-open for legacy entries)
     if (t.role === 'user' || t.kind === 'user') {
       // Still block system event types
       if (mt === 'SYSTEM_EVENT') return false;
@@ -169,20 +175,11 @@ const resetMountTracker = (sid) => {
       return true;
     }
 
-    // Never show SYSTEM_EVENT or internal markers
+    // PRIORITY 3: Block internal system events (visibleToCandidate=false or undefined)
     if (mt === 'SYSTEM_EVENT') return false;
+    if (t.visibleToCandidate === false) return false;
+    if (TRANSCRIPT_DENYLIST.has(mt)) return false;
     
-    // UI CONTRACT: DO NOT hide "Got it — Let's Begin" - it's a normal user answer
-    // Only hide if it's marked as WELCOME_ACKNOWLEDGED system type
-    if (mt === 'WELCOME_ACKNOWLEDGED' && t.visibleToCandidate === false) {
-      return false;
-    }
-    
-    // V3 UI CONTRACT: Block V3 probe prompts from transcript (narrow type-based filter)
-    if (isV3PromptTranscriptItem(t)) {
-      return false;
-    }
-
     // Never show typing/thinking/loading placeholders (prevents flicker)
     if (
       mt === 'ASSISTANT_TYPING' ||
@@ -196,17 +193,10 @@ const resetMountTracker = (sid) => {
       mt === 'REVIEWING' ||
       mt === 'AI_THINKING'
     ) return false;
-
-    // Apply denylist FIRST (primary contract enforcement)
-    if (TRANSCRIPT_DENYLIST.has(mt)) return false;
-
-    // Block explicitly hidden messages (stable denylist, not allowlist)
-    if (t.visibleToCandidate === false) return false;
     
-    // FOLLOWUP_CARD_SHOWN: Always render unless blocked by denylist or visibleToCandidate
-    // (This special case is redundant now - already passed above checks, but kept for clarity)
-    if (mt === 'FOLLOWUP_CARD_SHOWN') {
-      return true; // Render opener/field cards (already passed denylist + visibility checks)
+    // V3 UI CONTRACT: Block internal V3 system events only (visibleToCandidate handles legal record)
+    if (isV3PromptTranscriptItem(t)) {
+      return false;
     }
 
     return true;
@@ -1860,6 +1850,19 @@ export default function CandidateInterview() {
     const filtered = base.filter(entry => isRenderableTranscriptEntry(entry));
     const deduped = dedupeByStableKey(filtered);
     
+    // GUARD: Detect candidate-visible entries being filtered
+    const candidateVisibleInBase = base.filter(e => e.visibleToCandidate === true).length;
+    const candidateVisibleInFiltered = deduped.filter(e => e.visibleToCandidate === true).length;
+    
+    if (candidateVisibleInFiltered < candidateVisibleInBase) {
+      console.error('[TRANSCRIPT_FILTER][ILLEGAL_DROP]', {
+        baseLen: base.length,
+        candidateVisibleInBase,
+        candidateVisibleInFiltered,
+        droppedCount: candidateVisibleInBase - candidateVisibleInFiltered
+      });
+    }
+    
     // FALLBACK: If filter hides all messages but we have canonical data, use last 10
     if (base.length > 0 && deduped.length === 0) {
       console.warn('[TRANSCRIPT_FILTER_FALLBACK]', {
@@ -1963,7 +1966,7 @@ export default function CandidateInterview() {
     // DEDUPE BY CANONICAL KEY: Preserve insertion order, keep FIRST occurrence
     const canonicalKeySet = new Set();
     const finalFiltered = [];
-    let activeGateRemovedCount = 0; // Keep counter but should be 0 now
+    let activeGateRemovedCount = 0;
     
     for (const entry of normalized) {
       const ck = entry.__canonicalKey;
@@ -1973,12 +1976,22 @@ export default function CandidateInterview() {
         continue;
       }
       
-      // PART 4: ACTIVE_GATE_FILTER removed - gates append after answer only (no conflict)
-      
       if (!canonicalKeySet.has(ck)) {
         canonicalKeySet.add(ck);
         finalFiltered.push(entry);
       } else {
+        // GUARD: Never drop visibleToCandidate=true entries (legal record)
+        if (entry.visibleToCandidate === true) {
+          console.error('[TRANSCRIPT_RENDER][ILLEGAL_DROP_PREVENTED]', {
+            canonicalKey: ck,
+            messageType: entry.messageType || entry.type,
+            textPreview: (entry.text || '').substring(0, 40),
+            reason: 'Attempted to dedupe candidate-visible entry - adding anyway'
+          });
+          finalFiltered.push(entry); // Add even if duplicate key (prevents legal record loss)
+          continue;
+        }
+        
         // DUPLICATE DETECTED: Log for V3 opener cards
         const messageType = entry.messageType || entry.type;
         if (messageType === 'FOLLOWUP_CARD_SHOWN') {
@@ -2011,16 +2024,45 @@ export default function CandidateInterview() {
     
     // AUDIT: Verify no synthetic injection (append-only contract) - CORRECTED
     const renderableDbLen = base.filter(entry => isRenderableTranscriptEntry(entry)).length;
+    const candidateVisibleDbLen = base.filter(entry => entry.visibleToCandidate === true).length;
+    
     console.log('[TRANSCRIPT_AUDIT][SOURCE_OF_TRUTH]', {
       dbLen: base.length,
       renderableDbLen,
+      candidateVisibleDbLen,
       renderedLen: finalFiltered.length,
       syntheticEnabled: ENABLE_SYNTHETIC_TRANSCRIPT
     });
     
+    // GUARD: Detect candidate-visible entries being filtered out (ILLEGAL)
+    const candidateVisibleRenderedLen = finalFiltered.filter(e => e.visibleToCandidate === true).length;
+    if (candidateVisibleRenderedLen < candidateVisibleDbLen) {
+      const droppedCount = candidateVisibleDbLen - candidateVisibleRenderedLen;
+      const droppedEntries = base.filter(e => 
+        e.visibleToCandidate === true && 
+        !finalFiltered.some(r => (r.stableKey && r.stableKey === e.stableKey) || (r.id && r.id === e.id))
+      );
+      
+      console.error('[TRANSCRIPT_RENDER][ILLEGAL_DROP_VISIBLE]', {
+        candidateVisibleDbLen,
+        candidateVisibleRenderedLen,
+        droppedCount,
+        droppedKeys: droppedEntries.map(e => ({ 
+          key: e.stableKey || e.id,
+          type: e.messageType || e.type,
+          textPreview: (e.text || '').substring(0, 40)
+        }))
+      });
+    }
+    
     // DIAGNOSTIC: Detect when filters are hiding items - CORRECTED (use renderableDbLen)
     const hiddenCount = renderableDbLen - finalFiltered.length;
-    if (hiddenCount >= 2) {
+    if (hiddenCount >= 1) {
+      const hiddenEntries = base.filter(e => 
+        isRenderableTranscriptEntry(e) && 
+        !finalFiltered.some(r => (r.stableKey && r.stableKey === e.stableKey) || (r.id && r.id === e.id))
+      );
+      
       console.warn('[TRANSCRIPT_AUDIT][LEN_MISMATCH]', {
         dbLen: base.length,
         renderableDbLen,
@@ -2028,20 +2070,12 @@ export default function CandidateInterview() {
         hiddenCount,
         screenMode,
         currentItemType: currentItem?.type,
-        v3ProbingActive,
-        v3GateActive,
-        pendingSectionTransition
-      });
-      
-      console.warn('[TRANSCRIPT_AUDIT][MISMATCH_SNAPSHOT]', {
-        dbLen: base.length,
-        renderableDbLen,
-        renderedLen: finalFiltered.length,
-        hiddenCount,
-        screenMode,
-        currentItemType: currentItem?.type,
-        lastCanonical: base.slice(-8).map(e => ({ t: e.messageType || e.type, k: e.stableKey || e.id })),
-        lastRendered: finalFiltered.slice(-8).map(e => ({ t: e.messageType || e.type, k: e.stableKey || e.id }))
+        hiddenKeys: hiddenEntries.map(e => ({
+          key: e.stableKey || e.id,
+          type: e.messageType || e.type,
+          visible: e.visibleToCandidate,
+          textPreview: (e.text || '').substring(0, 40)
+        }))
       });
     }
     
@@ -2065,12 +2099,18 @@ export default function CandidateInterview() {
     const shrinkDetected = prevRenderedLen !== null && nextRenderedLen < prevRenderedLen;
     
     if (shrinkDetected) {
+      // TASK D: If rendered shrinks but DB didn't, this is illegal filtering
+      const droppedKeys = prevRenderedLen > 0 ? 
+        `${prevRenderedLen - nextRenderedLen} entries dropped by filter` : 
+        'unknown';
+      
       console.error('[REGRESSION][TRANSCRIPT_SHRINK]', {
         prevLen: prevRenderedLen,
         nextLen: nextRenderedLen,
         delta: prevRenderedLen - nextRenderedLen,
         screenMode,
-        currentItemType: currentItem?.type
+        currentItemType: currentItem?.type,
+        droppedKeys
       });
     }
     
