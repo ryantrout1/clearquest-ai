@@ -276,6 +276,7 @@ const processRetryQueue = async () => {
             });
             
             // CHANGE 1: Conflict detection when contention suspected
+            let didRemerge = false; // Track if we performed a remerge
             if (suspectContention) {
               const verifySession = await base44.entities.InterviewSession.get(item.sessionId);
               const latestTranscript = verifySession.transcript_snapshot || [];
@@ -311,6 +312,7 @@ const processRetryQueue = async () => {
                   
                   // Update workingTranscript to remerged version
                   workingTranscript = remergedTranscript;
+                  didRemerge = true;
                 }
               }
             }
@@ -321,8 +323,8 @@ const processRetryQueue = async () => {
               compositeKey
             });
             
-            // CHANGE 2: Update workingTranscript for next iteration (if not already updated by remerge)
-            if (!suspectContention || workingTranscript.some(e => e.stableKey === item.stableKey)) {
+            // CHANGE 2: Update workingTranscript for next iteration (only if we didn't remerge)
+            if (!didRemerge) {
               workingTranscript = nextTranscript;
             }
             
