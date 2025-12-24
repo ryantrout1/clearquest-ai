@@ -56,7 +56,8 @@ import {
   mergeTranscript,
   appendUserMessage as appendUserMessageImport,
   appendAssistantMessage as appendAssistantMessageImport,
-  getNextIndex
+  getNextIndex,
+  flushRetryQueueOnce
 } from "../components/utils/chatTranscriptHelpers";
 
 // ============================================================================
@@ -2685,8 +2686,31 @@ export default function CandidateInterview() {
       WARNING: candidateInterviewMountCount > 1 ? '⚠️ REMOUNT DETECTED - This should only mount ONCE per session' : '✓ First mount'
     });
     
-    // FORENSIC: Global crash logger
-    const handleError = (event) => {
+    // ABANDONMENT SAFETY: Flush retry queue on unload/visibility change
+    const handleBeforeUnload = () => {
+      if (flushRetryQueueOnce) {
+        flushRetryQueueOnce();
+      }
+    };
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        if (flushRetryQueueOnce) {
+          flushRetryQueueOnce();
+        }
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+
+    // Return cleanup function
+    return () => {
       console.error('[FORENSIC][CRASH]', {
         type: 'error',
         message: event.message || event.error?.message,
@@ -2739,7 +2763,7 @@ export default function CandidateInterview() {
       window.removeEventListener('error', handleError);
       window.removeEventListener('unhandledrejection', handleRejection);
     };
-  }, []);
+  }, [sessionId]);
 
   const resumeFromDB = async () => {
     try {

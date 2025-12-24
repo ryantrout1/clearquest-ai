@@ -17,28 +17,34 @@ import { base44 } from "@/api/base44Client";
 // ============================================================================
 // PERSIST RETRY QUEUE - Handle transient network failures
 // ============================================================================
-const retryQueue = new Map(); // Map<stableKey, { sessionId, transcript, attempts, nextRetryAt }>
+// CRITICAL FIX: Store only the ENTRY (not full transcript) to prevent snapshot overwrite
+const retryQueue = new Map(); // Map<`${sessionId}|${stableKey}`, { sessionId, stableKey, entry, attempts, nextRetryAt }>
 const MAX_RETRY_ATTEMPTS = 5;
 const RETRY_BACKOFF_MS = [1000, 3000, 10000, 30000, 60000]; // 1s, 3s, 10s, 30s, 60s
 
-const queueFailedPersist = (sessionId, stableKey, transcript) => {
-  if (retryQueue.has(stableKey)) {
-    console.log('[PERSIST][RETRY_ALREADY_QUEUED]', { sessionId, stableKey });
+const queueFailedPersist = (sessionId, stableKey, entry) => {
+  // COMPOSITE KEY: Prevent cross-session collisions
+  const compositeKey = `${sessionId}|${stableKey}`;
+  
+  if (retryQueue.has(compositeKey)) {
+    console.log('[PERSIST][RETRY_ALREADY_QUEUED]', { sessionId, stableKey, compositeKey });
     return;
   }
   
   const retryItem = {
     sessionId,
-    transcript,
+    stableKey,
+    entry, // Store ONLY the entry, not full transcript
     attempts: 0,
     nextRetryAt: Date.now() + RETRY_BACKOFF_MS[0]
   };
   
-  retryQueue.set(stableKey, retryItem);
+  retryQueue.set(compositeKey, retryItem);
   
   console.log('[PERSIST][RETRY_QUEUED]', {
     sessionId,
     stableKey,
+    compositeKey,
     attempt: 1,
     nextRetryIn: RETRY_BACKOFF_MS[0]
   });
@@ -59,7 +65,7 @@ const scheduleNextRetry = () => {
   const now = Date.now();
   let nextRetryDelay = Infinity;
   
-  for (const [stableKey, item] of retryQueue.entries()) {
+  for (const [compositeKey, item] of retryQueue.entries()) {
     const delay = item.nextRetryAt - now;
     if (delay < nextRetryDelay) {
       nextRetryDelay = delay;
@@ -74,7 +80,7 @@ const scheduleNextRetry = () => {
 const processRetryQueue = async () => {
   const now = Date.now();
   
-  for (const [stableKey, item] of retryQueue.entries()) {
+  for (const [compositeKey, item] of retryQueue.entries()) {
     if (item.nextRetryAt > now) continue;
     
     item.attempts++;
@@ -82,39 +88,66 @@ const processRetryQueue = async () => {
     if (item.attempts > MAX_RETRY_ATTEMPTS) {
       console.error('[PERSIST][RETRY_GIVEUP]', {
         sessionId: item.sessionId,
-        stableKey,
+        stableKey: item.stableKey,
+        compositeKey,
         attempts: item.attempts
       });
-      retryQueue.delete(stableKey);
+      retryQueue.delete(compositeKey);
       continue;
     }
     
     console.log('[PERSIST][RETRY_ATTEMPT]', {
       sessionId: item.sessionId,
-      stableKey,
+      stableKey: item.stableKey,
+      compositeKey,
       attempt: item.attempts
     });
     
     try {
+      // CRITICAL FIX: Fetch latest transcript and merge entry (prevents snapshot overwrite)
+      const latestSession = await base44.entities.InterviewSession.get(item.sessionId);
+      const latestTranscript = latestSession.transcript_snapshot || [];
+      
+      // Dedupe: Check if entry already exists in latest transcript
+      const alreadyExists = latestTranscript.some(e => 
+        e.stableKey === item.stableKey || e.id === item.entry.id
+      );
+      
+      if (alreadyExists) {
+        console.log('[PERSIST][RETRY_DEDUPED]', {
+          sessionId: item.sessionId,
+          stableKey: item.stableKey,
+          compositeKey,
+          reason: 'stableKey already present in DB'
+        });
+        retryQueue.delete(compositeKey);
+        continue;
+      }
+      
+      // APPEND-ONLY: Merge entry into latest transcript (prevents overwrite)
+      const nextTranscript = [...latestTranscript, item.entry];
+      
       await base44.entities.InterviewSession.update(item.sessionId, {
-        transcript_snapshot: item.transcript
+        transcript_snapshot: nextTranscript
       });
       
       console.log('[PERSIST][RETRY_OK]', {
         sessionId: item.sessionId,
-        stableKey
+        stableKey: item.stableKey,
+        compositeKey
       });
       
-      retryQueue.delete(stableKey);
+      retryQueue.delete(compositeKey);
     } catch (err) {
       // Check if error is duplicate (already exists in DB)
       if (err.message?.includes('already exists') || err.message?.includes('duplicate')) {
         console.log('[PERSIST][RETRY_DEDUPED]', {
           sessionId: item.sessionId,
-          stableKey,
+          stableKey: item.stableKey,
+          compositeKey,
           reason: 'Server confirmed already exists'
         });
-        retryQueue.delete(stableKey);
+        retryQueue.delete(compositeKey);
       } else {
         // Schedule next retry with backoff
         const nextBackoff = RETRY_BACKOFF_MS[Math.min(item.attempts, RETRY_BACKOFF_MS.length - 1)];
@@ -122,7 +155,8 @@ const processRetryQueue = async () => {
         
         console.log('[PERSIST][RETRY_FAILED]', {
           sessionId: item.sessionId,
-          stableKey,
+          stableKey: item.stableKey,
+          compositeKey,
           attempt: item.attempts,
           nextRetryIn: nextBackoff,
           error: err.message
@@ -149,16 +183,45 @@ const processRetryQueue = async () => {
   }
 };
 
+// Flush retry queue immediately (best-effort, non-blocking)
+export const flushRetryQueueOnce = () => {
+  const queuedCount = retryQueue.size;
+  if (queuedCount > 0) {
+    console.log('[PERSIST][FLUSH_ON_UNLOAD]', { queuedCount });
+    processRetryQueue(); // Fire and forget - no await
+  }
+};
+
 // Load retry queue from localStorage on module init
 if (typeof window !== 'undefined') {
   try {
     const stored = localStorage.getItem('cq_persist_retry_queue');
     if (stored) {
       const entries = JSON.parse(stored);
-      for (const [stableKey, item] of entries) {
-        retryQueue.set(stableKey, item);
+      let validCount = 0;
+      
+      for (const [compositeKey, item] of entries) {
+        // Validate item structure
+        if (!item.sessionId || !item.stableKey || !item.entry) {
+          console.warn('[PERSIST][RETRY_QUEUE_INVALID_ITEM]', {
+            compositeKey,
+            reason: 'Missing required fields',
+            hasSessionId: !!item.sessionId,
+            hasStableKey: !!item.stableKey,
+            hasEntry: !!item.entry
+          });
+          continue;
+        }
+        
+        retryQueue.set(compositeKey, item);
+        validCount++;
       }
-      console.log('[PERSIST][RETRY_QUEUE_RESTORED]', { count: retryQueue.size });
+      
+      console.log('[PERSIST][RETRY_QUEUE_RESTORED]', { 
+        count: validCount,
+        invalid: entries.length - validCount
+      });
+      
       if (retryQueue.size > 0) {
         scheduleNextRetry();
       }
