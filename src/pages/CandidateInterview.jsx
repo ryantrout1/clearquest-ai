@@ -8755,14 +8755,14 @@ export default function CandidateInterview() {
     const reinjectKey = `${sessionId}:${packId}:${instanceNumber}`;
     
     if (packId && !reinjectedOpenerAnswersRef.current.has(reinjectKey)) {
-      // Check if opener answer exists in dbTranscript
+      // Check if opener answer exists in dbTranscript (identity check: messageType + packId + instanceNumber)
       const openerAnswerInDb = dbTranscript.find(e => 
         e.messageType === 'v3_opener_answer' && 
         e.packId === packId && 
         e.instanceNumber === instanceNumber
       );
       
-      // Check if it exists in baseRenderStream
+      // Check if it exists in baseRenderStream (SAME identity logic - tolerates meta.instanceNumber)
       const openerAnswerInRender = baseRenderStream.find(e => 
         (e.messageType === 'v3_opener_answer' || e.kind === 'v3_opener_a') &&
         e.packId === packId && 
@@ -8770,6 +8770,8 @@ export default function CandidateInterview() {
       );
       
       if (openerAnswerInDb && !openerAnswerInRender) {
+        const baseLen = baseRenderStream.length;
+        
         console.error('[CQ_TRANSCRIPT][REPAIR_REINJECTED_OPENER_ANSWER]', {
           packId,
           instanceNumber,
@@ -8777,11 +8779,19 @@ export default function CandidateInterview() {
           textPreview: (openerAnswerInDb.text || '').substring(0, 60),
           reason: 'Opener answer in dbTranscript but missing from renderStream - re-injecting',
           dbTranscriptLen: dbTranscript.length,
-          baseRenderStreamLen: baseRenderStream.length
+          baseRenderStreamLen: baseLen
         });
         
         // IMMUTABLE: Create new array with reinjected entry (guarantees React re-render)
         finalRenderStream = [...baseRenderStream, openerAnswerInDb];
+        
+        console.log('[CQ_TRANSCRIPT][REPAIR_IMMUTABLE_OK]', {
+          baseLen,
+          finalLen: finalRenderStream.length,
+          didCreateNewArray: true,
+          reinjectKey
+        });
+        
         reinjectedOpenerAnswersRef.current.add(reinjectKey);
       }
     }
@@ -9611,15 +9621,30 @@ export default function CandidateInterview() {
             const packId = currentItem?.packId || v3ProbingContext?.packId;
             const instanceNumber = currentItem?.instanceNumber || v3ProbingContext?.instanceNumber || 1;
             const openerAnswerStableKeyForLog = `v3-opener-a:${sessionId}:${packId}:${instanceNumber}`;
-            const hasOpenerAnswerInRenderList = transcriptToRender.some(e => 
-              (e.messageType === 'v3_opener_answer' || e.kind === 'v3_opener_a') &&
+            
+            // STRICT: Check by exact stableKey match
+            const hasOpenerAnswerByStableKey = transcriptToRender.some(e => 
               e.stableKey === openerAnswerStableKeyForLog
             );
+            
+            // LOOSE: Check by identity (messageType + packId + instanceNumber)
+            const openerAnswerByIdentity = transcriptToRender.find(e => 
+              (e.messageType === 'v3_opener_answer' || e.kind === 'v3_opener_a') &&
+              e.packId === packId && 
+              (e.instanceNumber === instanceNumber || e.meta?.instanceNumber === instanceNumber)
+            );
+            const hasOpenerAnswerByIdentity = !!openerAnswerByIdentity;
+            
+            // COMBINED: Pass if found by either method
+            const hasOpenerAnswer = hasOpenerAnswerByStableKey || hasOpenerAnswerByIdentity;
             
             console.log('[CQ_RENDER_SOT][BEFORE_MAP]', {
               listName: 'finalRenderStream',
               len: transcriptToRender.length,
-              hasOpenerAnswer: hasOpenerAnswerInRenderList,
+              hasOpenerAnswer,
+              hasOpenerAnswerByStableKey,
+              hasOpenerAnswerByIdentity,
+              foundStableKey: openerAnswerByIdentity?.stableKey || null,
               verifyStableKey: openerAnswerStableKeyForLog,
               last3: transcriptToRender.slice(-3).map(e => ({
                 stableKey: e.stableKey || e.id,
