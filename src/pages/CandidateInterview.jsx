@@ -6299,6 +6299,14 @@ export default function CandidateInterview() {
       promptId,
       preview: promptText?.substring(0, 60)
     });
+    
+    // FIX A: Log stable promptId assignment
+    console.log('[V3_PROMPT][PROMPT_ID_ASSIGNED]', {
+      loopKey,
+      promptId,
+      reason: 'fallback',
+      promptPreview: promptText?.substring(0, 60) || ''
+    });
 
     // SNAPSHOT: Capture expected state BEFORE atomic update
     const snapshot = {
@@ -6333,6 +6341,13 @@ export default function CandidateInterview() {
 
     // LIFECYCLE: Set phase to ANSWER_NEEDED (prompt is now active)
     setV3PromptPhase("ANSWER_NEEDED");
+    
+    // FIX A: Store promptId in v3ProbingContext for draft persistence
+    setV3ProbingContext(prev => ({
+      ...prev,
+      promptId,
+      currentPromptText: promptText
+    }));
 
     // Clear typing lock (allow user input)
     setIsUserTyping(false);
@@ -6385,6 +6400,18 @@ export default function CandidateInterview() {
     };
     
     console.log('[V3_ANSWER_SUBMIT]', { submitId, answerPreview: answerText?.substring(0, 50), loopKey });
+    
+    // FIX C: Clear V3 draft on successful submit
+    const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+    if (sessionId && loopKey && promptId) {
+      const v3DraftKey = `cq_v3draft_${sessionId}_${loopKey}_${promptId}`;
+      try {
+        window.sessionStorage.removeItem(v3DraftKey);
+        console.log('[V3_DRAFT][CLEAR_ON_SUBMIT]', { keyPreview: v3DraftKey });
+      } catch (e) {
+        console.warn('[V3_DRAFT][CLEAR_FAILED]', { error: e.message });
+      }
+    }
     
     // LIFECYCLE: Clear active prompt text immediately to prevent stale rendering
     // This makes hasV3PromptText false so the prompt doesn't continue to render
@@ -6953,9 +6980,67 @@ export default function CandidateInterview() {
   // ITEM-SCOPED COMMIT TRACKING: Track which item is being submitted
   const committingItemIdRef = useRef(null);
 
+  // FIX B: V3 draft restore - load draft when V3 prompt becomes active
+  useEffect(() => {
+    if (!v3ProbingActive || !v3ProbingContext) return;
+    
+    const loopKey = `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`;
+    const promptId = v3ProbingContext.promptId || lastV3PromptSnapshotRef.current?.promptId;
+    
+    if (!promptId || promptId === 'noid') {
+      console.warn('[V3_DRAFT][LOAD_BLOCKED]', { reason: 'Missing stable promptId', loopKey });
+      return;
+    }
+    
+    const v3DraftKey = `cq_v3draft_${sessionId}_${loopKey}_${promptId}`;
+    
+    try {
+      const savedDraft = window.sessionStorage.getItem(v3DraftKey);
+      if (savedDraft && savedDraft.trim()) {
+        console.log('[V3_DRAFT][LOAD]', { found: true, keyPreview: v3DraftKey, len: savedDraft.length });
+        setInput(savedDraft);
+      } else {
+        console.log('[V3_DRAFT][LOAD]', { found: false, keyPreview: v3DraftKey });
+        setInput("");
+      }
+    } catch (e) {
+      console.warn('[V3_DRAFT][LOAD_FAILED]', { error: e.message });
+      setInput("");
+    }
+  }, [v3ProbingActive, v3ProbingContext?.promptId, sessionId]);
+  
+  // FIX B: V3 draft save - persist draft on input change during V3 probing
+  useEffect(() => {
+    if (!v3ProbingActive || !v3ProbingContext) return;
+    
+    const loopKey = `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`;
+    const promptId = v3ProbingContext.promptId || lastV3PromptSnapshotRef.current?.promptId;
+    
+    if (!promptId || promptId === 'noid') {
+      return; // Skip save if no stable promptId
+    }
+    
+    const v3DraftKey = `cq_v3draft_${sessionId}_${loopKey}_${promptId}`;
+    
+    try {
+      if (input && input.trim()) {
+        window.sessionStorage.setItem(v3DraftKey, input);
+        console.log('[V3_DRAFT][SAVE]', { keyPreview: v3DraftKey, len: input.length });
+      }
+    } catch (e) {
+      console.warn('[V3_DRAFT][SAVE_FAILED]', { error: e.message });
+    }
+  }, [input, v3ProbingActive, v3ProbingContext?.promptId, sessionId]);
+
   // UX: Restore draft when currentItem changes
   useEffect(() => {
     if (!currentItem || !sessionId) return;
+    
+    // FIX B: Skip normal draft restore for V3 probing (uses V3-specific draft above)
+    if (v3ProbingActive) {
+      console.log('[DRAFT][SKIP_NORMAL_RESTORE_FOR_V3]', { v3ProbingActive: true });
+      return;
+    }
 
     const packId = currentItem?.packId || null;
     const fieldKey = currentItem?.fieldKey || currentItem?.id || null;
@@ -7026,7 +7111,7 @@ export default function CandidateInterview() {
       console.warn("[UX][DRAFT] Failed to restore draft", e);
       setInput(""); // UI CONTRACT: NEVER use prompt as fallback
     }
-  }, [currentItem, sessionId, buildDraftKey]);
+  }, [currentItem, sessionId, buildDraftKey, v3ProbingActive]);
 
   // Measure question card height dynamically
   useEffect(() => {
@@ -7811,7 +7896,8 @@ export default function CandidateInterview() {
   if (activeUiItem.kind === "V3_PROMPT") {
     const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
-    const promptId = v3ProbingContext?.promptId || 'noid';
+    // FIX A: Use promptId from context or snapshot (never 'noid')
+    const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId || `${loopKey}:fallback`;
     // Inline normalization to avoid TDZ error (normalizeTextForMatch declared later in component)
     const normalizedPromptText = (v3PromptText || "").toLowerCase().trim().replace(/\s+/g, " ");
     // Stable key includes loopKey + promptId + text preview to prevent "new card" feeling across watchdog re-renders
