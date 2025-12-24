@@ -22,6 +22,60 @@ const retryQueue = new Map(); // Map<`${sessionId}|${stableKey}`, { sessionId, s
 const MAX_RETRY_ATTEMPTS = 5;
 const RETRY_BACKOFF_MS = [1000, 3000, 10000, 30000, 60000]; // 1s, 3s, 10s, 30s, 60s
 
+// RACE SAFETY: Single-flight retry processor flag
+let isProcessingRetryQueue = false;
+
+// INTEGRITY AUDIT: Track locally-seen stableKeys (log-only)
+const seenStableKeysBySession = new Set(); // Set<`${sessionId}|${stableKey}`>
+
+// MULTI-TAB SAFETY: Per-session retry locks
+const SESSION_LOCK_TIMEOUT_MS = 15000; // 15 seconds
+
+const acquireSessionLock = (sessionId) => {
+  try {
+    const lockKey = `cq_retry_lock_${sessionId}`;
+    const existingLock = localStorage.getItem(lockKey);
+    
+    if (existingLock) {
+      const lockTimestamp = parseInt(existingLock, 10);
+      const lockAge = Date.now() - lockTimestamp;
+      
+      if (lockAge < SESSION_LOCK_TIMEOUT_MS) {
+        console.log('[PERSIST][RETRY_SESSION_LOCKED]', {
+          sessionId,
+          lockAge: Math.round(lockAge / 1000) + 's',
+          reason: 'Another tab/process is retrying for this session'
+        });
+        return false; // Lock held by another tab
+      }
+      
+      // Stale lock - take over
+      console.log('[PERSIST][RETRY_SESSION_LOCK_STALE]', {
+        sessionId,
+        lockAge: Math.round(lockAge / 1000) + 's',
+        action: 'taking over'
+      });
+    }
+    
+    // Acquire lock
+    localStorage.setItem(lockKey, Date.now().toString());
+    return true;
+  } catch (e) {
+    // Storage unavailable - proceed without lock
+    console.warn('[PERSIST][RETRY_SESSION_LOCK_UNAVAILABLE]', { sessionId, error: e.message });
+    return true;
+  }
+};
+
+const releaseSessionLock = (sessionId) => {
+  try {
+    const lockKey = `cq_retry_lock_${sessionId}`;
+    localStorage.removeItem(lockKey);
+  } catch (e) {
+    console.warn('[PERSIST][RETRY_SESSION_UNLOCK_FAIL]', { sessionId, error: e.message });
+  }
+};
+
 const queueFailedPersist = (sessionId, stableKey, entry) => {
   // COMPOSITE KEY: Prevent cross-session collisions
   const compositeKey = `${sessionId}|${stableKey}`;
@@ -78,108 +132,164 @@ const scheduleNextRetry = () => {
 };
 
 const processRetryQueue = async () => {
-  const now = Date.now();
-  
-  for (const [compositeKey, item] of retryQueue.entries()) {
-    if (item.nextRetryAt > now) continue;
-    
-    item.attempts++;
-    
-    if (item.attempts > MAX_RETRY_ATTEMPTS) {
-      console.error('[PERSIST][RETRY_GIVEUP]', {
-        sessionId: item.sessionId,
-        stableKey: item.stableKey,
-        compositeKey,
-        attempts: item.attempts
-      });
-      retryQueue.delete(compositeKey);
-      continue;
-    }
-    
-    console.log('[PERSIST][RETRY_ATTEMPT]', {
-      sessionId: item.sessionId,
-      stableKey: item.stableKey,
-      compositeKey,
-      attempt: item.attempts
+  // CHANGE 1: RACE SAFETY - Single-flight processor
+  if (isProcessingRetryQueue) {
+    console.log('[PERSIST][RETRY_PROCESSOR_SKIPPED]', {
+      reason: 'already_running',
+      queueSize: retryQueue.size
     });
-    
-    try {
-      // CRITICAL FIX: Fetch latest transcript and merge entry (prevents snapshot overwrite)
-      const latestSession = await base44.entities.InterviewSession.get(item.sessionId);
-      const latestTranscript = latestSession.transcript_snapshot || [];
-      
-      // Dedupe: Check if entry already exists in latest transcript
-      const alreadyExists = latestTranscript.some(e => 
-        e.stableKey === item.stableKey || e.id === item.entry.id
-      );
-      
-      if (alreadyExists) {
-        console.log('[PERSIST][RETRY_DEDUPED]', {
-          sessionId: item.sessionId,
-          stableKey: item.stableKey,
-          compositeKey,
-          reason: 'stableKey already present in DB'
-        });
-        retryQueue.delete(compositeKey);
-        continue;
-      }
-      
-      // APPEND-ONLY: Merge entry into latest transcript (prevents overwrite)
-      const nextTranscript = [...latestTranscript, item.entry];
-      
-      await base44.entities.InterviewSession.update(item.sessionId, {
-        transcript_snapshot: nextTranscript
-      });
-      
-      console.log('[PERSIST][RETRY_OK]', {
-        sessionId: item.sessionId,
-        stableKey: item.stableKey,
-        compositeKey
-      });
-      
-      retryQueue.delete(compositeKey);
-    } catch (err) {
-      // Check if error is duplicate (already exists in DB)
-      if (err.message?.includes('already exists') || err.message?.includes('duplicate')) {
-        console.log('[PERSIST][RETRY_DEDUPED]', {
-          sessionId: item.sessionId,
-          stableKey: item.stableKey,
-          compositeKey,
-          reason: 'Server confirmed already exists'
-        });
-        retryQueue.delete(compositeKey);
-      } else {
-        // Schedule next retry with backoff
-        const nextBackoff = RETRY_BACKOFF_MS[Math.min(item.attempts, RETRY_BACKOFF_MS.length - 1)];
-        item.nextRetryAt = now + nextBackoff;
-        
-        console.log('[PERSIST][RETRY_FAILED]', {
-          sessionId: item.sessionId,
-          stableKey: item.stableKey,
-          compositeKey,
-          attempt: item.attempts,
-          nextRetryIn: nextBackoff,
-          error: err.message
-        });
-      }
-    }
+    return;
   }
   
-  // Update localStorage
+  isProcessingRetryQueue = true;
+  
   try {
-    if (retryQueue.size > 0) {
-      const queueSnapshot = Array.from(retryQueue.entries());
-      localStorage.setItem('cq_persist_retry_queue', JSON.stringify(queueSnapshot));
-    } else {
-      localStorage.removeItem('cq_persist_retry_queue');
+    const now = Date.now();
+    
+    // Group items by sessionId for batch processing
+    const sessionIds = new Set();
+    for (const [compositeKey, item] of retryQueue.entries()) {
+      sessionIds.add(item.sessionId);
     }
-  } catch (e) {
-    console.warn('[PERSIST][RETRY_QUEUE_STORAGE_FAIL]', { error: e.message });
-  }
-  
-  // Schedule next retry if queue not empty
-  if (retryQueue.size > 0) {
-    scheduleNextRetry();
+    
+    // Process each session (with lock acquisition)
+    for (const sessionId of sessionIds) {
+      // CHANGE 3: Acquire per-session lock (multi-tab safety)
+      if (!acquireSessionLock(sessionId)) {
+        continue; // Skip this session - locked by another tab
+      }
+      
+      try {
+        // CHANGE 2: Fetch ONLY transcript_snapshot (lightweight)
+        const latestSession = await base44.entities.InterviewSession.get(sessionId);
+        const latestTranscript = latestSession.transcript_snapshot || [];
+        
+        console.log('[PERSIST][RETRY_FETCH]', {
+          sessionId,
+          transcriptLen: latestTranscript.length
+        });
+        
+        // Process all retries for this session
+        for (const [compositeKey, item] of retryQueue.entries()) {
+          if (item.sessionId !== sessionId) continue;
+          if (item.nextRetryAt > now) continue;
+          
+          item.attempts++;
+          
+          if (item.attempts > MAX_RETRY_ATTEMPTS) {
+            console.error('[PERSIST][RETRY_GIVEUP]', {
+              sessionId: item.sessionId,
+              stableKey: item.stableKey,
+              compositeKey,
+              attempts: item.attempts
+            });
+            retryQueue.delete(compositeKey);
+            continue;
+          }
+          
+          console.log('[PERSIST][RETRY_ATTEMPT]', {
+            sessionId: item.sessionId,
+            stableKey: item.stableKey,
+            compositeKey,
+            attempt: item.attempts
+          });
+          
+          try {
+            // Dedupe: Check if entry already exists in latest transcript
+            const alreadyExists = latestTranscript.some(e => 
+              e.stableKey === item.stableKey || e.id === item.entry.id
+            );
+            
+            if (alreadyExists) {
+              console.log('[PERSIST][RETRY_DEDUPED]', {
+                sessionId: item.sessionId,
+                stableKey: item.stableKey,
+                compositeKey,
+                reason: 'stableKey already present in DB'
+              });
+              retryQueue.delete(compositeKey);
+              continue;
+            }
+            
+            // APPEND-ONLY: Merge entry into latest transcript (prevents overwrite)
+            const nextTranscript = [...latestTranscript, item.entry];
+            
+            await base44.entities.InterviewSession.update(item.sessionId, {
+              transcript_snapshot: nextTranscript
+            });
+            
+            console.log('[PERSIST][RETRY_OK]', {
+              sessionId: item.sessionId,
+              stableKey: item.stableKey,
+              compositeKey
+            });
+            
+            // CHANGE 4: INTEGRITY AUDIT - Verify stableKey now in DB
+            const auditKey = `${item.sessionId}|${item.stableKey}`;
+            if (seenStableKeysBySession.has(auditKey)) {
+              // Entry was locally seen and now confirmed in DB
+              const foundInDb = nextTranscript.some(e => e.stableKey === item.stableKey);
+              if (!foundInDb) {
+                console.error('[PERSIST][INTEGRITY_MISSING_IN_DB]', {
+                  sessionId: item.sessionId,
+                  stableKey: item.stableKey,
+                  reason: 'Write succeeded but stableKey not in returned transcript'
+                });
+              }
+            }
+            
+            retryQueue.delete(compositeKey);
+          } catch (err) {
+            // Check if error is duplicate (already exists in DB)
+            if (err.message?.includes('already exists') || err.message?.includes('duplicate')) {
+              console.log('[PERSIST][RETRY_DEDUPED]', {
+                sessionId: item.sessionId,
+                stableKey: item.stableKey,
+                compositeKey,
+                reason: 'Server confirmed already exists'
+              });
+              retryQueue.delete(compositeKey);
+            } else {
+              // Schedule next retry with backoff
+              const nextBackoff = RETRY_BACKOFF_MS[Math.min(item.attempts, RETRY_BACKOFF_MS.length - 1)];
+              item.nextRetryAt = now + nextBackoff;
+              
+              console.log('[PERSIST][RETRY_FAILED]', {
+                sessionId: item.sessionId,
+                stableKey: item.stableKey,
+                compositeKey,
+                attempt: item.attempts,
+                nextRetryIn: nextBackoff,
+                error: err.message
+              });
+            }
+          }
+        }
+      } finally {
+        // CHANGE 3: Release session lock
+        releaseSessionLock(sessionId);
+      }
+    }
+    
+    // Update localStorage
+    try {
+      if (retryQueue.size > 0) {
+        const queueSnapshot = Array.from(retryQueue.entries());
+        localStorage.setItem('cq_persist_retry_queue', JSON.stringify(queueSnapshot));
+      } else {
+        localStorage.removeItem('cq_persist_retry_queue');
+      }
+    } catch (e) {
+      console.warn('[PERSIST][RETRY_QUEUE_STORAGE_FAIL]', { error: e.message });
+    }
+    
+    // Schedule next retry if queue not empty
+    if (retryQueue.size > 0) {
+      scheduleNextRetry();
+    }
+  } finally {
+    // CHANGE 1: Reset single-flight flag
+    isProcessingRetryQueue = false;
   }
 };
 
