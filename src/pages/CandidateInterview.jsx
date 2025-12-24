@@ -1846,17 +1846,61 @@ export default function CandidateInterview() {
   // CRITICAL: This memo MUST NOT trigger component remount
   const nextRenderable = React.useMemo(() => {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
+    
+    // CHANGE 2: RENDER-TIME SAFETY NET - Remove V3 probe prompts if they exist
+    const baseWithoutV3Probes = base.filter(entry => {
+      const mt = entry.messageType || entry.type;
+      const stableKey = entry.stableKey || '';
+      const kind = entry.kind || '';
+      
+      // Detect V3 probe prompt/question
+      const isV3ProbePrompt = 
+        mt === 'V3_PROBE_QUESTION' ||
+        mt === 'V3_PROBE_PROMPT' ||
+        mt === 'AI_FOLLOWUP_QUESTION' ||
+        kind === 'v3_probe_q' ||
+        kind === 'v3_probe_prompt' ||
+        kind === 'v3_probing' ||
+        stableKey.startsWith('v3-probe-q:') ||
+        stableKey.startsWith('v3-probe-prompt:') ||
+        stableKey.includes(':V3_PROBING:');
+      
+      if (isV3ProbePrompt) {
+        return false; // Remove from render
+      }
+      
+      return true; // Keep
+    });
+    
+    // Log if any were removed
+    const removedCount = base.length - baseWithoutV3Probes.length;
+    if (removedCount > 0) {
+      const removedKeys = base
+        .filter(e => {
+          const mt = e.messageType || e.type;
+          const stableKey = e.stableKey || '';
+          return mt === 'V3_PROBE_QUESTION' || stableKey.startsWith('v3-probe-q:');
+        })
+        .map(e => e.stableKey || e.id);
+      
+      console.log('[V3_UI_CONTRACT][RENDER_FILTER_REMOVED]', {
+        removedCount,
+        sampleKeysPreview: removedKeys.slice(0, 3),
+        reason: 'V3 probe prompts found in transcript - filtering for render'
+      });
+    }
+    
     // REQUIREMENT: Filter first, then dedupe (preserve insertion order)
-    const filtered = base.filter(entry => isRenderableTranscriptEntry(entry));
+    const filtered = baseWithoutV3Probes.filter(entry => isRenderableTranscriptEntry(entry));
     const deduped = dedupeByStableKey(filtered);
     
     // GUARD: Detect candidate-visible entries being filtered
-    const candidateVisibleInBase = base.filter(e => e.visibleToCandidate === true).length;
+    const candidateVisibleInBase = baseWithoutV3Probes.filter(e => e.visibleToCandidate === true).length;
     const candidateVisibleInFiltered = deduped.filter(e => e.visibleToCandidate === true).length;
     
     if (candidateVisibleInFiltered < candidateVisibleInBase) {
       console.error('[TRANSCRIPT_FILTER][ILLEGAL_DROP]', {
-        baseLen: base.length,
+        baseLen: baseWithoutV3Probes.length,
         candidateVisibleInBase,
         candidateVisibleInFiltered,
         droppedCount: candidateVisibleInBase - candidateVisibleInFiltered
@@ -1864,18 +1908,18 @@ export default function CandidateInterview() {
     }
     
     // FALLBACK: If filter hides all messages but we have canonical data, use last 10
-    if (base.length > 0 && deduped.length === 0) {
+    if (baseWithoutV3Probes.length > 0 && deduped.length === 0) {
       console.warn('[TRANSCRIPT_FILTER_FALLBACK]', {
-        canonicalLen: base.length,
+        canonicalLen: baseWithoutV3Probes.length,
         currentItemType: currentItem?.type,
         screenMode,
-        messageTypeCounts: base.reduce((acc, e) => {
+        messageTypeCounts: baseWithoutV3Probes.reduce((acc, e) => {
           const mt = e.messageType || e.type || 'unknown';
           acc[mt] = (acc[mt] || 0) + 1;
           return acc;
         }, {})
       });
-      return base.slice(-10); // Show last 10 messages as fallback
+      return baseWithoutV3Probes.slice(-10); // Show last 10 messages as fallback
     }
     
     return deduped;
@@ -1887,8 +1931,48 @@ export default function CandidateInterview() {
   // STABLE RENDER LIST: Pure deterministic filtering (no UI-state-dependent shrink/grow)
   const renderedTranscript = useMemo(() => {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
+    
+    // CHANGE 2: RENDER-TIME SAFETY NET - Filter out V3 probe prompts/questions
+    const baseFiltered = base.filter(entry => {
+      const mt = entry.messageType || entry.type;
+      const stableKey = entry.stableKey || '';
+      const kind = entry.kind || '';
+      
+      // Detect V3 probe prompt/question
+      const isV3ProbePrompt = 
+        mt === 'V3_PROBE_QUESTION' ||
+        mt === 'V3_PROBE_PROMPT' ||
+        mt === 'AI_FOLLOWUP_QUESTION' ||
+        kind === 'v3_probe_q' ||
+        kind === 'v3_probe_prompt' ||
+        kind === 'v3_probing' ||
+        stableKey.startsWith('v3-probe-q:') ||
+        stableKey.startsWith('v3-probe-prompt:') ||
+        stableKey.includes(':V3_PROBING:');
+      
+      return !isV3ProbePrompt; // Keep only non-probe items
+    });
+    
+    // Log if any V3 probe prompts were removed
+    const removedCount = base.length - baseFiltered.length;
+    if (removedCount > 0) {
+      const removedKeys = base
+        .filter(e => {
+          const mt = e.messageType || e.type;
+          const stableKey = e.stableKey || '';
+          return mt === 'V3_PROBE_QUESTION' || stableKey.startsWith('v3-probe-q:');
+        })
+        .map(e => ({ key: e.stableKey || e.id, preview: (e.text || '').substring(0, 40) }));
+      
+      console.log('[V3_UI_CONTRACT][RENDER_FILTER_REMOVED]', {
+        removedCount,
+        sampleKeysPreview: removedKeys.slice(0, 3),
+        reason: 'V3 probe prompts found in transcript - filtering for render'
+      });
+    }
+    
     // REQUIREMENT: Filter first, then dedupe, preserving insertion order
-    const filteredFirst = base.filter(entry => isRenderableTranscriptEntry(entry));
+    const filteredFirst = baseFiltered.filter(entry => isRenderableTranscriptEntry(entry));
     
     // SCOPED DEDUPE: Only dedupe specific messageTypes that can legitimately duplicate
     // DO NOT dedupe normal Q/A entries - they must render exactly as logged
@@ -6497,72 +6581,18 @@ export default function CandidateInterview() {
     };
     lastV3PromptSnapshotRef.current = snapshot;
     
-    // CRITICAL: Append V3 probe question to DB transcript BEFORE state update
-    const qStableKey = `v3-probe-q:${loopKey}:${promptId}`;
-    let didAppendQ = false;
+    // CHANGE 1: HARD BLOCK - V3 probe prompts MUST NOT write to transcript (UI contract)
+    // They render ONLY in prompt lane card, never as chat history
+    console.log('[V3_UI_CONTRACT][BLOCK_TRANSCRIPT_WRITE]', {
+      reason: 'V3 probe prompts render in prompt lane only - blocking transcript append',
+      stableKey: `v3-probe-q:${loopKey}:${promptId}`,
+      loopKey,
+      promptId,
+      preview: promptText?.substring(0, 60) || null,
+      action: 'BLOCKED'
+    });
     
-    try {
-      // Use in-memory dbTranscript state (no fresh DB fetch)
-      setDbTranscriptSafe(prev => {
-        // Dedupe: skip if already exists
-        if (prev.some(e => e.stableKey === qStableKey)) {
-          console.log('[V3_TRANSCRIPT][DEDUPE_Q]', { stableKey: qStableKey });
-          return prev;
-        }
-        
-        // Mark that we're appending (for log gating)
-        didAppendQ = true;
-        
-        // Append locally first
-        const qEntry = {
-          id: `v3-probe-q-${sessionId}-${loopKey}-${promptId}`,
-          stableKey: qStableKey,
-          index: getNextIndex(prev),
-          role: "assistant",
-          text: promptText,
-          timestamp: new Date().toISOString(),
-          createdAt: Date.now(),
-          messageType: 'V3_PROBE_QUESTION',
-          meta: {
-            packId,
-            categoryId: v3ProbingContext?.categoryId,
-            loopKey,
-            instanceNumber,
-            promptId,
-            incidentId: v3ProbingContext?.incidentId
-          },
-          visibleToCandidate: true
-        };
-        
-        const updated = [...prev, qEntry];
-        
-        // Write to DB async - only log if we actually appended
-        base44.entities.InterviewSession.update(sessionId, {
-          transcript_snapshot: updated
-        }).then(() => {
-          // TASK C: Only log when actual append occurred (not on dedupe)
-          if (didAppendQ) {
-            console.log('[V3_TRANSCRIPT][APPEND_Q_OK]', {
-              stableKey: qStableKey,
-              loopKey,
-              promptId,
-              transcriptLen: updated.length
-            });
-            console.log('[V3_TRANSCRIPT][APPEND_Q_DB_OK]', {
-              stableKey: qStableKey,
-              loopKey,
-              promptId
-            });
-          }
-        }).catch(err => {
-          console.error('[V3_TRANSCRIPT][APPEND_Q_ERROR]', { error: err.message });
-        });
-        
-        return updated;
-      });
-    } catch (err) {
-      console.error('[V3_TRANSCRIPT][APPEND_Q_ERROR]', { error: err.message });
-    }
+    // DO NOT append to transcript - return early
 
     // ATOMIC STATE UPDATE: All V3 prompt activation in one place
     unstable_batchedUpdates(() => {
@@ -8259,18 +8289,27 @@ export default function CandidateInterview() {
   // Active card (exactly ONE, derived from activeUiItem.kind precedence)
   let activeCard = null;
   
+  // CHANGE 3: Track last rendered promptId to prevent duplicate active cards
+  const currentPromptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+  
   if (activeUiItem.kind === "V3_PROMPT") {
     const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
-    // FIX A: Use promptId from context or snapshot (never 'noid')
-    const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId || `${loopKey}:fallback`;
-    // Inline normalization to avoid TDZ error (normalizeTextForMatch declared later in component)
-    const normalizedPromptText = (v3PromptText || "").toLowerCase().trim().replace(/\s+/g, " ");
-    // Stable key includes loopKey + promptId + text preview to prevent "new card" feeling across watchdog re-renders
-    const stableKey = loopKey ? `v3-active:${loopKey}:${promptId}:${normalizedPromptText.slice(0,32)}` : null;
+    const promptId = currentPromptId || `${loopKey}:fallback`;
     
-    // FIX A: ALWAYS create activeCard when V3_PROMPT is active (UI contract requirement)
-    if (v3PromptText && hasActiveV3Prompt) {
+    // CHANGE 3: Dedupe active card by promptId
+    if (lastRenderedV3PromptKeyRef.current === promptId && v3PromptText && hasActiveV3Prompt) {
+      console.log('[V3_UI_CONTRACT][PROMPT_CARD_DEDUPED]', {
+        promptId,
+        loopKey,
+        reason: 'Already rendered active card for this promptId'
+      });
+      // Skip adding duplicate active card
+    } else if (v3PromptText && hasActiveV3Prompt) {
+      // Inline normalization to avoid TDZ error
+      const normalizedPromptText = (v3PromptText || "").toLowerCase().trim().replace(/\s+/g, " ");
+      const stableKey = loopKey ? `v3-active:${loopKey}:${promptId}:${normalizedPromptText.slice(0,32)}` : null;
+      
       activeCard = {
         __activeCard: true,
         kind: "v3_probe_q",
@@ -8280,11 +8319,19 @@ export default function CandidateInterview() {
         instanceNumber: v3ProbingContext?.instanceNumber
       };
       
+      // Mark this promptId as rendered
+      lastRenderedV3PromptKeyRef.current = promptId;
+      
       console.log("[V3_PROMPT][ACTIVE_CARD_ADDED]", { 
         loopKey, 
         promptId,
         promptPreview: v3PromptText.slice(0, 60)
       });
+    }
+  } else {
+    // Clear tracker when not V3_PROMPT
+    if (lastRenderedV3PromptKeyRef.current) {
+      lastRenderedV3PromptKeyRef.current = null;
     }
   } else if (activeUiItem.kind === "V3_OPENER") {
     const openerText = currentItem?.openerText || "";

@@ -109,19 +109,36 @@ const inFlightTranscriptIds = new Set();
  * @returns {Promise<object>} Updated transcript
  */
 export async function appendAssistantMessage(sessionId, existingTranscript = [], text, metadata = {}) {
-  // V3 TRANSCRIPT UPDATE: V3_PROBE_QUESTION now allowed in transcript (legal record)
-  // Only block internal system events like V3_PROBE_ASKED
-  const V3_BLOCKED_TYPES = ['V3_PROBE_ASKED', 'V3_PROBE', 'v3_probe', 'v3_probe_complete'];
-  if (V3_BLOCKED_TYPES.includes(metadata.messageType)) {
-    console.error('[V3_UI_CONTRACT]', {
-      action: 'TRANSCRIPT_APPEND_BLOCKED',
-      messageType: metadata.messageType,
-      reason: 'Internal V3 system events must NOT be in transcript - use logSystemEvent',
-      caller: new Error().stack?.split('\n')[2]?.trim(),
-      textPreview: text?.substring(0, 60) || null
-    });
-    return existingTranscript; // Block append, return unchanged
-  }
+    // CHANGE 1: HARD BLOCK V3 probe prompts/questions from transcript (UI contract)
+    // V3 probe prompts render ONLY in prompt lane card, NEVER in transcript
+    const V3_PROBE_PROMPT_TYPES = [
+      'V3_PROBE_QUESTION',
+      'V3_PROBE_PROMPT', 
+      'AI_FOLLOWUP_QUESTION',
+      'V3_PROBE_ASKED',
+      'V3_PROBE',
+      'v3_probe',
+      'v3_probe_complete'
+    ];
+
+    const isV3ProbePrompt = V3_PROBE_PROMPT_TYPES.includes(metadata.messageType) ||
+                           metadata.kind === 'v3_probe_q' ||
+                           metadata.kind === 'v3_probe_prompt' ||
+                           (metadata.stableKey && metadata.stableKey.startsWith('v3-probe-q:')) ||
+                           (metadata.loopKey && metadata.promptId && metadata.messageType);
+
+    if (isV3ProbePrompt) {
+      console.log('[V3_UI_CONTRACT][BLOCK_TRANSCRIPT_WRITE]', {
+        reason: 'V3 probe prompts render in prompt lane only - blocking transcript append',
+        messageType: metadata.messageType,
+        stableKey: metadata.stableKey,
+        loopKey: metadata.loopKey,
+        promptId: metadata.promptId,
+        preview: text?.substring(0, 60) || null,
+        action: 'BLOCKED'
+      });
+      return existingTranscript; // Block append, return unchanged
+    }
   
   // HARDENED CONTRACT: Default visibleToCandidate to false if not provided
   if (metadata.visibleToCandidate === undefined || metadata.visibleToCandidate === null) {
