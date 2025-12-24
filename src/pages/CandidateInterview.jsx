@@ -6441,6 +6441,8 @@ export default function CandidateInterview() {
     
     // CRITICAL: Append V3 probe question to DB transcript BEFORE state update
     const qStableKey = `v3-probe-q:${loopKey}:${promptId}`;
+    let didAppendQ = false;
+    
     try {
       // Use in-memory dbTranscript state (no fresh DB fetch)
       setDbTranscriptSafe(prev => {
@@ -6449,6 +6451,9 @@ export default function CandidateInterview() {
           console.log('[V3_TRANSCRIPT][DEDUPE_Q]', { stableKey: qStableKey });
           return prev;
         }
+        
+        // Mark that we're appending (for log gating)
+        didAppendQ = true;
         
         // Append locally first
         const qEntry = {
@@ -6473,21 +6478,24 @@ export default function CandidateInterview() {
         
         const updated = [...prev, qEntry];
         
-        // Write to DB async (but update local state immediately)
+        // Write to DB async - only log if we actually appended
         base44.entities.InterviewSession.update(sessionId, {
           transcript_snapshot: updated
         }).then(() => {
-          console.log('[V3_TRANSCRIPT][APPEND_Q_OK]', {
-            stableKey: qStableKey,
-            loopKey,
-            promptId,
-            transcriptLen: updated.length
-          });
-          console.log('[V3_TRANSCRIPT][APPEND_Q_DB_OK]', {
-            stableKey: qStableKey,
-            loopKey,
-            promptId
-          });
+          // TASK C: Only log when actual append occurred (not on dedupe)
+          if (didAppendQ) {
+            console.log('[V3_TRANSCRIPT][APPEND_Q_OK]', {
+              stableKey: qStableKey,
+              loopKey,
+              promptId,
+              transcriptLen: updated.length
+            });
+            console.log('[V3_TRANSCRIPT][APPEND_Q_DB_OK]', {
+              stableKey: qStableKey,
+              loopKey,
+              promptId
+            });
+          }
         }).catch(err => {
           console.error('[V3_TRANSCRIPT][APPEND_Q_ERROR]', { error: err.message });
         });
@@ -6623,6 +6631,7 @@ export default function CandidateInterview() {
       
       if (promptId) {
         const aStableKey = `v3-probe-a:${loopKey}:${promptId}`;
+        let didAppendA = false;
         
         // CRITICAL: Use in-memory transcript state (no DB fetch)
         // Append locally and write to DB synchronously
@@ -6634,6 +6643,9 @@ export default function CandidateInterview() {
               resolve(false);
               return prev;
             }
+            
+            // Mark that we're appending (for log gating)
+            didAppendA = true;
             
             const aEntry = {
               id: `v3-probe-a-${sessionId}-${loopKey}-${promptId}`,
@@ -6657,22 +6669,25 @@ export default function CandidateInterview() {
             
             const updated = [...prev, aEntry];
             
-            // Write to DB async
+            // Write to DB async - only log if we actually appended
             base44.entities.InterviewSession.update(sessionId, {
               transcript_snapshot: updated
             }).then(() => {
-              console.log('[V3_TRANSCRIPT][APPEND_A_OK]', {
-                stableKey: aStableKey,
-                loopKey,
-                promptId,
-                aPreview: answerText?.substring(0, 50),
-                transcriptLen: updated.length
-              });
-              console.log('[V3_TRANSCRIPT][APPEND_A_DB_OK]', {
-                stableKey: aStableKey,
-                loopKey,
-                promptId
-              });
+              // TASK C: Only log when actual append occurred (not on dedupe)
+              if (didAppendA) {
+                console.log('[V3_TRANSCRIPT][APPEND_A_OK]', {
+                  stableKey: aStableKey,
+                  loopKey,
+                  promptId,
+                  aPreview: answerText?.substring(0, 50),
+                  transcriptLen: updated.length
+                });
+                console.log('[V3_TRANSCRIPT][APPEND_A_DB_OK]', {
+                  stableKey: aStableKey,
+                  loopKey,
+                  promptId
+                });
+              }
               resolve(true);
             }).catch(err => {
               console.error('[V3_TRANSCRIPT][APPEND_A_ERROR]', { error: err.message });
@@ -8180,8 +8195,7 @@ export default function CandidateInterview() {
   // V3 UPDATE: V3 probe Q/A now in DB transcript, v3UiRenderable deprecated for display
   const transcriptRenderable = renderedTranscriptSnapshotRef.current || renderedTranscript;
   
-  // V3 UPDATE: v3UiRenderable kept for backwards compat but not used for final render
-  // All V3 content renders from transcript (single source of truth)
+  // V3 UPDATE: v3UiRenderable deprecated (always empty - all content from transcript)
   const v3UiRenderable = [];
   
   // Active card (exactly ONE, derived from activeUiItem.kind precedence)
@@ -8213,37 +8227,6 @@ export default function CandidateInterview() {
         promptId,
         promptPreview: v3PromptText.slice(0, 60)
       });
-      
-      // FIX B: Filter out duplicate from v3UiRenderable (prevent double-render)
-      const matchKey = `v3-ui:${loopKey}:${promptId}:q`;
-      const initialLen = v3UiRenderable.length;
-      
-      v3UiRenderable = v3UiRenderable.filter(e => {
-        // Keep if not a question entry
-        if (e.kind !== 'v3_probe_q') return true;
-        
-        // Filter by stableKey match
-        if (e.stableKey === matchKey) return false;
-        
-        // Filter by loopKey + promptId match
-        if (e.loopKey === loopKey && e.promptId === promptId) return false;
-        
-        // Filter by text match (same prompt text)
-        const eTextNormalized = (e.text || "").toLowerCase().trim().replace(/\s+/g, " ");
-        if (e.loopKey === loopKey && eTextNormalized === normalizedPromptText) return false;
-        
-        return true; // Keep other entries
-      });
-      
-      const removedCount = initialLen - v3UiRenderable.length;
-      if (removedCount > 0) {
-        console.log('[V3_PROMPT][STREAM_FILTER_DUPLICATE_FROM_V3UI]', {
-          removedCount,
-          loopKey,
-          promptId,
-          activeStableKeyPreview: matchKey
-        });
-      }
     }
   } else if (activeUiItem.kind === "V3_OPENER") {
     const openerText = currentItem?.openerText || "";
@@ -8269,6 +8252,26 @@ export default function CandidateInterview() {
     } else if (alreadyInStream) {
       console.log("[STREAM][ACTIVE_CARD_DEDUPED]", { kind: "V3_OPENER", reason: "already_in_transcriptRenderable" });
     }
+  } else if (v3ProbingActive && !hasActiveV3Prompt && v3PromptPhase !== "IDLE") {
+    // TASK B: V3 probing active but no prompt yet (initial decide cycle)
+    // Show stable "thinking" placeholder
+    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+    activeCard = {
+      __activeCard: true,
+      kind: "v3_thinking",
+      stableKey: `v3-thinking:${loopKey}`,
+      text: "Processing your response...",
+      packId: v3ProbingContext?.packId,
+      instanceNumber: v3ProbingContext?.instanceNumber || 1
+    };
+    
+    console.log("[V3_PROMPT_PENDING]", {
+      loopKey,
+      packId: v3ProbingContext?.packId,
+      instanceNumber: v3ProbingContext?.instanceNumber,
+      v3PromptPhase,
+      reason: "Initial decide cycle - showing thinking card"
+    });
   } else if (activeUiItem.kind === "MI_GATE") {
     const miGatePrompt = currentItem?.promptText || multiInstanceGate?.promptText || `Do you have another incident to report?`;
     const stableKey = `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`;
@@ -8756,12 +8759,24 @@ export default function CandidateInterview() {
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
     const hasRecapReady = loopKey && v3RecapReadyRef.current.has(loopKey);
     
+    // TASK B: Don't log error if V3 probing active but no prompt yet (initial decide)
+    const isV3InitialDecide = v3ProbingActive && effectiveItemType === 'v3_probing' && v3PromptPhase !== "ANSWER_NEEDED";
+    
     if (hasRecapReady) {
       console.log('[V3_RECAP][PENDING_ROUTE]', {
         loopKey,
         packId: currentItem?.packId,
         instanceNumber: currentItem?.instanceNumber,
         reason: 'Recap ready - routing imminent, prompt missing is expected'
+      });
+    } else if (isV3InitialDecide) {
+      // TASK B: Info-level log for initial decide (not an error)
+      console.log('[V3_PROMPT_PENDING]', {
+        loopKey,
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+        v3PromptPhase,
+        reason: 'V3 initial decide cycle - prompt not yet available (expected)'
       });
     } else {
       const diagKey = `${sessionId}:${effectiveItemType}:${currentItem.packId}:${currentItem.fieldKey}:${currentItem.instanceNumber}:${currentItem.id}`;
@@ -9245,6 +9260,20 @@ export default function CandidateInterview() {
                           <ContentContainer>
                             <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
                               <p className="text-white text-base leading-relaxed">{entry.text}</p>
+                            </div>
+                          </ContentContainer>
+                        </div>
+                      );
+                    } else if (cardKind === "v3_thinking") {
+                      // TASK B: V3 thinking placeholder during initial decide
+                      return (
+                        <div key={cardKey}>
+                          <ContentContainer>
+                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                                <span className="text-sm text-purple-300">{entry.text}</span>
+                              </div>
                             </div>
                           </ContentContainer>
                         </div>
@@ -10361,12 +10390,12 @@ export default function CandidateInterview() {
               No
             </Button>
           </div>
-          ) : bottomBarMode === "DISABLED" ? (
+          ) : bottomBarMode === "DISABLED" || (v3ProbingActive && !hasActiveV3Prompt) ? (
            <div className="space-y-2">
              <div className="flex gap-3">
                <Textarea
                  value=""
-                 placeholder="Please wait..."
+                 placeholder={v3ProbingActive && !hasActiveV3Prompt ? "Processing..." : "Please wait..."}
                  className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-slate-600 text-white placeholder:text-slate-500 transition-all duration-200"
                  disabled={true}
                  rows={1}
