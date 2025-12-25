@@ -9676,8 +9676,9 @@ export default function CandidateInterview() {
             // UI CONTRACT: MI_GATE renders in main pane (NO suppression)
             // Sentinel logic DISABLED - active MI_GATE must show in main pane per ClearQuest contract
             
-            // ORDER GATING: Suppress base QUESTION_SHOWN during active V3 probing
+            // ORDER GATING: Suppress UNANSWERED base QUESTION_SHOWN during active V3 probing
             // Prevents Q2 from rendering above active V3 probe prompt card
+            // But KEEP answered base questions in transcript history (e.g., Q001 after user answered it)
             const v3UiHistoryLen = v3UiRenderable.length;
             const hasVisibleV3PromptCard = v3HasVisiblePromptCard;
             const shouldSuppressBaseQuestions = v3ProbingActive || hasVisibleV3PromptCard;
@@ -9690,21 +9691,42 @@ export default function CandidateInterview() {
                   // Keep question if it's part of V3 pack (has packId)
                   if (entry.meta?.packId) return true;
                   
-                  // Suppress standalone base questions during V3 probing
                   const suppressedQuestionId = entry.meta?.questionDbId || entry.questionId;
                   const suppressedQuestionCode = entry.meta?.questionCode || 'unknown';
                   
-                  console.log('[ORDER][BASE_QUESTION_SUPPRESSED_DURING_V3]', {
+                  // REGRESSION FIX: Check if this question has been answered
+                  // If answered (user answer entry exists after it in transcript), KEEP it
+                  const hasAnswerAfter = transcriptToRender
+                    .slice(idx + 1) // Check entries AFTER this question
+                    .some(laterEntry => 
+                      laterEntry.role === 'user' && 
+                      laterEntry.messageType === 'ANSWER' &&
+                      (laterEntry.questionDbId === suppressedQuestionId || laterEntry.meta?.questionDbId === suppressedQuestionId)
+                    );
+                  
+                  if (hasAnswerAfter) {
+                    console.log('[CQ_TRANSCRIPT][BASE_Q_PRESERVED_DURING_V3]', {
+                      suppressedQuestionId,
+                      suppressedQuestionCode,
+                      reason: 'Question answered - keeping in transcript history',
+                      v3ProbingActive,
+                      loopKey: v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null
+                    });
+                    return true; // Keep answered question
+                  }
+                  
+                  // Suppress unanswered standalone base questions during V3 probing
+                  console.log('[ORDER][BASE_Q_SUPPRESSED_ONLY_ACTIVE]', {
                     suppressedQuestionId,
                     suppressedQuestionCode,
-                    reason: 'V3_PROBING_ACTIVE_OR_VISIBLE_PROMPT_CARD',
+                    reason: 'V3_PROBING_ACTIVE - unanswered question suppressed',
                     v3ProbingActive,
                     v3UiHistoryLen,
                     hasVisibleV3PromptCard,
                     loopKey: v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null
                   });
                   
-                  return false; // Suppress this question
+                  return false; // Suppress unanswered question
                 })
               : transcriptToRender;
             
