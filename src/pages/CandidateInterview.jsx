@@ -7925,74 +7925,62 @@ export default function CandidateInterview() {
     });
   }
 
-  // STICKY AUTOSCROLL: Scroll to bottom on transcript growth, active item changes, footer changes
+  // SMOOTH GLIDE AUTOSCROLL: ChatGPT-style smooth scrolling on new content
   React.useLayoutEffect(() => {
     const scrollContainer = historyRef.current;
-    if (!scrollContainer) return;
+    if (!scrollContainer || !bottomAnchorRef.current) return;
     
-    // GUARD: Never auto-scroll while user is typing (inline check, not dependency)
+    // GUARD: Never auto-scroll while user is typing
     if (isUserTyping) return;
     
-    // GUARD: Only auto-scroll if shouldAutoScrollRef is true
-    if (!shouldAutoScrollRef.current) return;
+    // GUARD: Only auto-scroll if user is near bottom (ChatGPT behavior)
+    const scrollHeight = scrollContainer.scrollHeight;
+    const clientHeight = scrollContainer.clientHeight;
+    const scrollTop = scrollContainer.scrollTop;
+    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+    const NEAR_BOTTOM_THRESHOLD_PX = 120;
+    const isNearBottom = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD_PX;
     
-    // Double RAF for layout stability
+    // Update sticky autoscroll state
+    if (isNearBottom !== shouldAutoScrollRef.current) {
+      shouldAutoScrollRef.current = isNearBottom;
+    }
+    
+    // Only scroll if user is near bottom
+    if (!shouldAutoScrollRef.current) {
+      console.log('[SCROLL][GLIDE_SKIPPED]', {
+        reason: 'user_not_near_bottom',
+        distanceFromBottom: Math.round(distanceFromBottom)
+      });
+      return;
+    }
+    
+    // RAF for layout stability + smooth scroll
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (!scrollContainer || !shouldAutoScrollRef.current) return;
-        
-        const scrollTopBefore = scrollContainer.scrollTop;
-        const scrollHeight = scrollContainer.scrollHeight;
-        const clientHeight = scrollContainer.clientHeight;
-        
-        // CORRECT MATH: Absolute bottom position
-        const targetScrollTop = Math.max(0, scrollHeight - clientHeight);
-        scrollContainer.scrollTop = targetScrollTop;
-        
-        const scrollTopAfter = scrollContainer.scrollTop;
-        
-        // FIX B: Enhanced logging for MI_GATE and gate exit transitions
-        const didScroll = Math.abs(scrollTopAfter - scrollTopBefore) > 1;
-        
-        // Detect MI_GATE -> question transition for gate exit logging
-        const prevKind = lastActiveUiItemKindRef.current;
-        const currentKind = activeUiItem?.kind;
-        const isGateExitTransition = prevKind === "MI_GATE" && currentKind === "DEFAULT" && currentItem?.type === 'question';
-        
-        const logLabel = activeUiItem?.kind === "MI_GATE" ? '[SCROLL][PIN_ON_MI_GATE]' : 
-                        isGateExitTransition ? '[SCROLL][PIN_AFTER_GATE_EXIT]' :
-                        '[SCROLL][AUTO_SCROLL]';
-        
-        console.log(logLabel, {
-          trigger: activeUiItem?.kind === "MI_GATE" ? 'mi_gate_activation' :
-                   isGateExitTransition ? 'gate_exit_to_question' :
-                   'transcript_or_state_change',
-          didScroll,
-          shouldAutoScroll: shouldAutoScrollRef.current,
-          scrollTopBefore: Math.round(scrollTopBefore),
-          targetScrollTop: Math.round(targetScrollTop),
-          scrollTopAfter: Math.round(scrollTopAfter),
-          scrollHeight: Math.round(scrollHeight),
-          clientHeight: Math.round(clientHeight),
-          ...(isGateExitTransition ? { from: 'MI_GATE', to: 'question' } : {})
+      if (!bottomAnchorRef.current || !scrollContainer) return;
+      
+      const lenBefore = lastRenderStreamLenRef.current;
+      const lenNow = renderStreamLen;
+      const lenDelta = lenNow - lenBefore;
+      
+      // Only scroll on list growth
+      if (lenDelta > 0) {
+        bottomAnchorRef.current.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'end' 
         });
         
-        // PIN VERIFICATION: Check if we actually reached bottom
-        const distanceFromBottom = scrollHeight - (scrollContainer.scrollTop + clientHeight);
-        if (distanceFromBottom > 24) {
-          console.warn('[SCROLL][PIN_FAIL]', {
-            distanceFromBottom: Math.round(distanceFromBottom),
-            scrollTop: Math.round(scrollContainer.scrollTop),
-            scrollHeight: Math.round(scrollHeight),
-            clientHeight: Math.round(clientHeight),
-            footerSafePaddingPx
-          });
-        }
-      });
+        console.log('[SCROLL][GLIDE]', {
+          reason: 'append',
+          lenDelta,
+          nearBottom: true,
+          distanceFromBottom: Math.round(distanceFromBottom)
+        });
+      }
     });
   }, [
-    dbTranscript.length,
-    v3ProbeDisplayHistory.length,
+    renderStreamLen,
+    isUserTyping,
     activeUiItem?.kind,
     footerSafePaddingPx
   ]);
@@ -9770,14 +9758,18 @@ export default function CandidateInterview() {
                   // CANONICAL STREAM: Handle both transcript entries AND active cards
                   const isActiveCard = entry.__activeCard === true;
                   
+                  // STABLE KEY: Use helper for all entries (prevents React refresh)
+                  const entryKey = isActiveCard 
+                    ? (entry.stableKey || `active-${entry.kind}-${entry.packId || 'none'}-${entry.instanceNumber || 0}`)
+                    : getTranscriptEntryKey(entry);
+                  
                   // Render active cards from stream (V3_PROMPT, V3_OPENER, MI_GATE)
                   if (isActiveCard) {
                     const cardKind = entry.kind;
-                    const cardKey = entry.stableKey || `active-${cardKind}-${index}`;
                     
                     if (cardKind === "v3_probe_q") {
                       return (
-                        <div key={cardKey}>
+                        <div key={entryKey}>
                           <ContentContainer>
                             <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                               <div className="flex items-center gap-2 mb-1">
@@ -9796,7 +9788,7 @@ export default function CandidateInterview() {
                       );
                     } else if (cardKind === "v3_pack_opener") {
                       return (
-                        <div key={cardKey}>
+                        <div key={entryKey}>
                           <ContentContainer>
                             <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                               {entry.categoryLabel && (
@@ -9826,7 +9818,7 @@ export default function CandidateInterview() {
                       }
                       
                       return (
-                        <div key={cardKey}>
+                        <div key={entryKey}>
                           <ContentContainer>
                             <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
                               <p className="text-white text-base leading-relaxed">{entry.text}</p>
@@ -9837,7 +9829,7 @@ export default function CandidateInterview() {
                     } else if (cardKind === "v3_thinking") {
                       // TASK B: V3 thinking placeholder during initial decide
                       return (
-                        <div key={cardKey}>
+                        <div key={entryKey}>
                           <ContentContainer>
                             <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                               <div className="flex items-center gap-2">
@@ -9856,7 +9848,7 @@ export default function CandidateInterview() {
                   // V3_PROBE_QUESTION (assistant)
                   if (entry.role === 'assistant' && entry.messageType === 'V3_PROBE_QUESTION') {
                     return (
-                      <div key={entry.stableKey || entry.id || `v3-q-${index}`}>
+                      <div key={entryKey}>
                         <ContentContainer>
                           <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-1">
@@ -9878,7 +9870,7 @@ export default function CandidateInterview() {
                   // V3_PROBE_ANSWER (user)
                   if (entry.role === 'user' && entry.messageType === 'V3_PROBE_ANSWER') {
                     return (
-                      <div key={entry.stableKey || entry.id || `v3-a-${index}`} style={{ marginBottom: 10 }}>
+                      <div key={entryKey} style={{ marginBottom: 10 }}>
                         <ContentContainer>
                           <div className="flex justify-end">
                             <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -9893,7 +9885,7 @@ export default function CandidateInterview() {
                   // V3 UI-only history cards (ephemeral - for immediate display)
                   if (entry.kind === 'v3_probe_q') {
                     return (
-                      <div key={entry.stableKey || `v3-ui-q-${index}`}>
+                      <div key={entryKey}>
                         <ContentContainer>
                           <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-1">
@@ -9908,7 +9900,7 @@ export default function CandidateInterview() {
 
                   if (entry.kind === 'v3_probe_a') {
                     return (
-                      <div key={entry.stableKey || `v3-ui-a-${index}`} style={{ marginBottom: 10 }}>
+                      <div key={entryKey} style={{ marginBottom: 10 }}>
                         <ContentContainer>
                           <div className="flex justify-end">
                             <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -9946,7 +9938,7 @@ export default function CandidateInterview() {
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
             if (entry.role === 'assistant' && entry.messageType === 'QUESTION_SHOWN') {
               return (
-                <div key={entry.id}>
+                <div key={entryKey}>
                   <ContentContainer>
                   <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-2">
@@ -9970,7 +9962,7 @@ export default function CandidateInterview() {
             // User answer (ANSWER from chatTranscriptHelpers)
             if (entry.role === 'user' && entry.messageType === 'ANSWER') {
               return (
-                <div key={entry.id} style={{ marginBottom: 10 }}>
+                <div key={entryKey} style={{ marginBottom: 10 }}>
                   <ContentContainer>
                   <div className="flex justify-end">
                     <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -10015,7 +10007,7 @@ export default function CandidateInterview() {
               }
               
               return (
-                <div key={entry.id}>
+                <div key={entryKey}>
                   <ContentContainer>
                   <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
                     <p className="text-white text-base leading-relaxed">{entry.text}</p>
@@ -10028,7 +10020,7 @@ export default function CandidateInterview() {
             // Multi-instance gate answer (user's Yes/No)
             if (entry.role === 'user' && entry.messageType === 'MULTI_INSTANCE_GATE_ANSWER') {
               return (
-                <div key={entry.id} style={{ marginBottom: 10 }}>
+                <div key={entryKey} style={{ marginBottom: 10 }}>
                   <ContentContainer>
                   <div className="flex justify-end">
                     <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -10066,13 +10058,13 @@ export default function CandidateInterview() {
             // Gate prompts are part of append-only transcript history; do not suppress
 
             // Skip entries without stable IDs (safety guard)
-            if (!entry.id && !entry.stableKey) {
+            if (!entry.id && !entry.stableKey && !entry.__canonicalKey) {
               console.warn('[TRANSCRIPT][RENDER] Entry missing stable ID/key, skipping:', entry);
               return null;
             }
             
             return (
-            <div key={getTranscriptEntryKey(entry)}>
+            <div key={entryKey}>
 
               {/* Welcome message (from transcript) - READ-ONLY history only */}
               {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
