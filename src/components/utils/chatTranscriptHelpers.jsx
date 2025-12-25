@@ -555,31 +555,19 @@ const inFlightTranscriptIds = new Set();
  * @returns {Promise<object>} Updated transcript
  */
 export async function appendAssistantMessage(sessionId, existingTranscript = [], text, metadata = {}) {
-    // CHANGE 1: HARD BLOCK V3 probe prompts/questions from transcript (UI contract)
-    // V3 probe prompts render ONLY in prompt lane card, NEVER in transcript
-    const V3_PROBE_PROMPT_TYPES = [
-      'V3_PROBE_QUESTION',
-      'V3_PROBE_PROMPT', 
-      'AI_FOLLOWUP_QUESTION',
-      'V3_PROBE_ASKED',
-      'V3_PROBE',
-      'v3_probe',
-      'v3_probe_complete'
+    // V3 probe questions are NOW ALLOWED in transcript (product requirement: chat history = transcript)
+    // Only block the obsolete completion message types
+    const BLOCKED_TYPES = [
+      'v3_probe_complete', // Legacy completion messages (still use system events)
+      'V3_PROBE_PROMPT' // Obsolete alias
     ];
 
-    const isV3ProbePrompt = V3_PROBE_PROMPT_TYPES.includes(metadata.messageType) ||
-                           metadata.kind === 'v3_probe_q' ||
-                           metadata.kind === 'v3_probe_prompt' ||
-                           (metadata.stableKey && metadata.stableKey.startsWith('v3-probe-q:')) ||
-                           (metadata.loopKey && metadata.promptId && metadata.messageType);
+    const isBlocked = BLOCKED_TYPES.includes(metadata.messageType);
 
-    if (isV3ProbePrompt) {
+    if (isBlocked) {
       console.log('[V3_UI_CONTRACT][BLOCK_TRANSCRIPT_WRITE]', {
-        reason: 'V3 probe prompts render in prompt lane only - blocking transcript append',
+        reason: 'Only legacy completion types blocked - V3 questions now allowed',
         messageType: metadata.messageType,
-        stableKey: metadata.stableKey,
-        loopKey: metadata.loopKey,
-        promptId: metadata.promptId,
         preview: text?.substring(0, 60) || null,
         action: 'BLOCKED'
       });
