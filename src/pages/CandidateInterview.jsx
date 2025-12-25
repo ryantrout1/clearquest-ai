@@ -7778,6 +7778,14 @@ export default function CandidateInterview() {
   useEffect(() => {
     if (!footerRef.current) return;
     
+    // DIAGNOSTIC: Verify footer container ref (cqdiag only, once per mount)
+    if (cqDiagEnabled) {
+      console.log('[FOOTER][CONTAINER_REF_CHECK]', {
+        hasFooterRef: !!footerRef.current,
+        nodeTag: footerRef.current?.tagName
+      });
+    }
+    
     let rafId = null;
     let pendingMeasurement = false;
     
@@ -7787,6 +7795,7 @@ export default function CandidateInterview() {
       const measured = Math.round(rect.height || footerRef.current.offsetHeight || 0);
       
       // DIAGNOSTIC: Verify observer + measurement target (cqdiag only)
+      // Uses cqDiagEnabled from closure (stable - no observer recreation)
       if (cqDiagEnabled) {
         console.log('[FOOTER][OBSERVE_CHECK]', {
           observing: true,
@@ -7829,7 +7838,7 @@ export default function CandidateInterview() {
       resizeObserver.disconnect();
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [cqDiagEnabled]);
+  }, []); // STABLE: Observer created once per mount (cqDiagEnabled accessed via closure)
 
   // Re-anchor bottom on footer height changes when auto-scroll is enabled
   useEffect(() => {
@@ -8050,6 +8059,7 @@ export default function CandidateInterview() {
     if (cqDiagEnabled) {
       console.log('[FOOTER][REF_CHECK]', {
         hasTextareaRef: !!footerTextareaRef.current,
+        tagName: footerTextareaRef.current?.tagName,
         bottomBarMode,
         effectiveItemType
       });
@@ -8078,7 +8088,7 @@ export default function CandidateInterview() {
       });
       lastAutoGrowHeightRef.current = newHeight;
     }
-  }, [input, openerDraft, bottomBarMode, cqDiagEnabled, effectiveItemType]);
+  }, [input, openerDraft, bottomBarMode]);
 
   // DEFENSIVE GUARD: Force exit WELCOME mode when interview has progressed
   useEffect(() => {
