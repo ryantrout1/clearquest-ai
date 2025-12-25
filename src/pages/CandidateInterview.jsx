@@ -1546,7 +1546,7 @@ export default function CandidateInterview() {
   
   // AUTO-GROWING INPUT: Refs for textarea auto-resize
   const footerTextareaRef = useRef(null);
-  const [footerMeasuredHeightPx, setFooterMeasuredHeightPx] = useState(120);
+  const [footerMeasuredHeightPx, setFooterMeasuredHeightPx] = useState(0); // Start at 0 (prevents initial jump)
   const lastAutoGrowHeightRef = useRef(0); // Stable throttle (no dataset mutation)
   
   // V3 UI-ONLY HISTORY: Display V3 probe Q/A without polluting transcript
@@ -7786,6 +7786,16 @@ export default function CandidateInterview() {
       const rect = footerRef.current.getBoundingClientRect();
       const measured = Math.round(rect.height || footerRef.current.offsetHeight || 0);
       
+      // DIAGNOSTIC: Verify observer + measurement target (cqdiag only)
+      if (cqDiagEnabled) {
+        console.log('[FOOTER][OBSERVE_CHECK]', {
+          observing: true,
+          nodeTag: footerRef.current?.tagName,
+          measured,
+          hasBoundingClientRect: !!rect
+        });
+      }
+      
       // HARDENED: Only update if delta >= 2px (prevents thrash + loops)
       setFooterMeasuredHeightPx(prev => {
         const delta = Math.abs(measured - prev);
@@ -7819,7 +7829,7 @@ export default function CandidateInterview() {
       resizeObserver.disconnect();
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, []);
+  }, [cqDiagEnabled]);
 
   // Re-anchor bottom on footer height changes when auto-scroll is enabled
   useEffect(() => {
@@ -8036,6 +8046,15 @@ export default function CandidateInterview() {
     const textarea = footerTextareaRef.current || inputRef.current;
     if (!textarea) return;
 
+    // DIAGNOSTIC: Verify ref connection (cqdiag only)
+    if (cqDiagEnabled) {
+      console.log('[FOOTER][REF_CHECK]', {
+        hasTextareaRef: !!footerTextareaRef.current,
+        bottomBarMode,
+        effectiveItemType
+      });
+    }
+
     // Reset to auto to measure natural height
     textarea.style.height = 'auto';
 
@@ -8059,7 +8078,7 @@ export default function CandidateInterview() {
       });
       lastAutoGrowHeightRef.current = newHeight;
     }
-  }, [input, openerDraft, bottomBarMode]);
+  }, [input, openerDraft, bottomBarMode, cqDiagEnabled, effectiveItemType]);
 
   // DEFENSIVE GUARD: Force exit WELCOME mode when interview has progressed
   useEffect(() => {
