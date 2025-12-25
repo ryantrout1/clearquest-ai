@@ -1544,6 +1544,10 @@ export default function CandidateInterview() {
   // RENDER STREAM SNAPSHOT: Track last stream length for change detection (PART E)
   const lastRenderStreamLenRef = useRef(0);
   
+  // AUTO-GROWING INPUT: Refs for textarea auto-resize
+  const footerTextareaRef = useRef(null);
+  const [footerMeasuredHeightPx, setFooterMeasuredHeightPx] = useState(120);
+  
   // V3 UI-ONLY HISTORY: Display V3 probe Q/A without polluting transcript
   // MOVED UP: Must be declared before refreshTranscriptFromDB (TDZ fix)
   const v3ActiveProbeQuestionRef = useRef(null);
@@ -7769,7 +7773,7 @@ export default function CandidateInterview() {
     }
   }, [currentItem, validationHint]);
 
-  // Legacy footer measurement (kept for compatibility)
+  // AUTO-GROWING INPUT: Measure footer height dynamically (includes growing textarea)
   useEffect(() => {
     if (!footerRef.current) return;
     
@@ -7780,7 +7784,20 @@ export default function CandidateInterview() {
       if (!footerRef.current) return;
       const rect = footerRef.current.getBoundingClientRect();
       const measured = Math.round(rect.height || footerRef.current.offsetHeight || 0);
-      setFooterHeightPx(measured);
+      
+      // Only update if changed (prevents state thrash)
+      setFooterMeasuredHeightPx(prev => {
+        if (prev === measured) return prev;
+        
+        console.log('[FOOTER][HEIGHT_MEASURED]', {
+          footerMeasuredHeightPx: measured,
+          appliedPaddingPx: measured + 8,
+          delta: measured - prev
+        });
+        
+        return measured;
+      });
+      
       pendingMeasurement = false;
     };
     
@@ -7884,11 +7901,11 @@ export default function CandidateInterview() {
   const shouldRenderFooter = screenMode === 'QUESTION' && 
                              (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
   
-  // Step 6: Compute footer padding (TDZ-safe - all deps declared above)
+  // Step 6: Compute footer padding (TDZ-safe - uses measured height from auto-growing input)
   const SAFETY_MARGIN_PX = 8;
   const MIN_FOOTER_FALLBACK_PX = 80;
   const footerSafePaddingPx = shouldRenderFooter 
-    ? (footerHeightPx > 0 ? footerHeightPx : MIN_FOOTER_FALLBACK_PX) + SAFETY_MARGIN_PX
+    ? (footerMeasuredHeightPx > 0 ? footerMeasuredHeightPx : MIN_FOOTER_FALLBACK_PX) + SAFETY_MARGIN_PX
     : 0;
   
   const dynamicBottomPaddingPx = footerSafePaddingPx;
@@ -8012,28 +8029,34 @@ export default function CandidateInterview() {
     });
   }, [v3ProbingActive, v3ActivePromptText, isUserTyping]);
 
-  // UX: Auto-resize textarea based on content (max 5 lines)
+  // AUTO-GROWING INPUT: Auto-resize textarea based on content (ChatGPT-style)
   useEffect(() => {
-    if (!inputRef.current) return;
+    const textarea = footerTextareaRef.current || inputRef.current;
+    if (!textarea) return;
 
-    const textarea = inputRef.current;
+    // Reset to auto to measure natural height
     textarea.style.height = 'auto';
 
-    const lineHeight = 24; // Approximate line height in pixels
-    const maxLines = 5;
-    const maxHeight = lineHeight * maxLines;
+    const MAX_HEIGHT_PX = 200; // ~8 lines max
     const scrollHeight = textarea.scrollHeight;
-
-    if (scrollHeight <= maxHeight) {
-      textarea.style.height = `${scrollHeight}px`;
-      textarea.style.overflowY = 'hidden';
-      setTextareaRows(Math.min(Math.ceil(scrollHeight / lineHeight), maxLines));
-    } else {
-      textarea.style.height = `${maxHeight}px`;
-      textarea.style.overflowY = 'auto';
-      setTextareaRows(maxLines);
+    const newHeight = Math.min(scrollHeight, MAX_HEIGHT_PX);
+    
+    // Apply new height
+    textarea.style.height = `${newHeight}px`;
+    textarea.style.overflowY = scrollHeight > MAX_HEIGHT_PX ? 'auto' : 'hidden';
+    
+    // Log on height change only (throttled)
+    const heightChanged = Math.abs(newHeight - (parseInt(textarea.dataset.lastHeight || '0', 10))) > 4;
+    if (heightChanged) {
+      console.log('[FOOTER][AUTO_GROW]', {
+        heightPx: newHeight,
+        scrollHeight,
+        overflowY: scrollHeight > MAX_HEIGHT_PX ? 'auto' : 'hidden',
+        maxReached: scrollHeight > MAX_HEIGHT_PX
+      });
+      textarea.dataset.lastHeight = newHeight.toString();
     }
-  }, [input]);
+  }, [input, openerDraft, bottomBarMode]);
 
   // DEFENSIVE GUARD: Force exit WELCOME mode when interview has progressed
   useEffect(() => {
@@ -11034,11 +11057,11 @@ export default function CandidateInterview() {
 
           <div className="flex gap-3">
           <Textarea
-            ref={inputRef}
-            value={currentItem?.type === 'v3_pack_opener' ? (openerDraft ?? "") : (input ?? "")}
-            onChange={(e) => {
-              const value = e.target.value;
-              markUserTyping();
+           ref={footerTextareaRef}
+           value={currentItem?.type === 'v3_pack_opener' ? (openerDraft ?? "") : (input ?? "")}
+           onChange={(e) => {
+             const value = e.target.value;
+             markUserTyping();
 
               // V3 OPENER: Use dedicated openerDraft state (ALWAYS allow updates - no v3ProbingActive gate)
               if (currentItem?.type === 'v3_pack_opener') {
