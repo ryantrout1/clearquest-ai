@@ -9019,8 +9019,22 @@ export default function CandidateInterview() {
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
     const promptId = currentPromptId || `${loopKey}:fallback`;
     
-    // CHANGE 3: Dedupe active card by promptId
-    if (lastRenderedV3PromptKeyRef.current === promptId && v3PromptText && hasActiveV3Prompt) {
+    // DEDUPE: Check if transcript already has V3_PROBE_QUESTION for this promptId
+    const qStableKey = `v3-probe-q:${promptId}`;
+    const alreadyInTranscript = transcriptRenderable.some(e => 
+      e.stableKey === qStableKey || 
+      (e.messageType === 'V3_PROBE_QUESTION' && e.meta?.promptId === promptId)
+    );
+    
+    if (alreadyInTranscript) {
+      console.log('[V3_PROMPT][ACTIVE_CARD_SKIPPED_ALREADY_IN_TRANSCRIPT]', {
+        promptId,
+        loopKey,
+        stableKey: qStableKey,
+        reason: 'transcript_has_question'
+      });
+      // Skip adding active card - transcript render is canonical
+    } else if (lastRenderedV3PromptKeyRef.current === promptId && v3PromptText && hasActiveV3Prompt) {
       console.log('[V3_UI_CONTRACT][PROMPT_CARD_DEDUPED]', {
         promptId,
         loopKey,
@@ -9049,6 +9063,16 @@ export default function CandidateInterview() {
         promptId,
         promptPreview: v3PromptText.slice(0, 60)
       });
+      
+      // REGRESSION GUARD: Log if we're about to render duplicate
+      if (cqDiagEnabled) {
+        console.log('[REGRESSION][V3_PROBE_DOUBLE_RENDER_PREVENTED]', {
+          promptId,
+          transcriptHas: false,
+          activeCardWillAdd: true,
+          totalRendersForPromptId: 1
+        });
+      }
     }
     
     // Clear tracker when not actively rendering V3_PROMPT card
