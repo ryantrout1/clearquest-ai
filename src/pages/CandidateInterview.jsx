@@ -1285,8 +1285,9 @@ export default function CandidateInterview() {
   const [contentOverflows, setContentOverflows] = useState(false); // Track if scroll container overflows
   
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
-  const ACTIVE_CARD_TO_FOOTER_GAP_PX = 12; // Tight gap between active card and footer (reduces ~75% from default)
-  const ACTIVE_CARD_BREATHING_ROOM_MULTIPLIER = 0.25; // Reduce breathing room by 75% for active cards
+  const SAFE_FOOTER_CLEARANCE_PX = 12; // Small safety buffer above footer for active cards (~75% reduction)
+  const MIN_BREATHING_ROOM_PX = 8; // Minimal visual gap
+  const HISTORY_GAP_PX = 24; // Normal spacing for transcript history items
   
   // HOOK ORDER FIX: Overflow detection MUST be top-level (before early returns)
   // Computes if scroll container content exceeds viewport - drives dynamic footer padding
@@ -8050,9 +8051,7 @@ export default function CandidateInterview() {
   const shouldRenderFooter = screenMode === 'QUESTION' && 
                              (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT' || bottomBarMode === 'V3_WAITING');
   
-  // Step 6: Compute footer padding (TDZ-safe - uses measured height from auto-growing input)
-  const SAFETY_MARGIN_PX = 8;
-  const MIN_BREATHING_ROOM_PX = 24; // Default breathing room for transcript history items
+  // Step 6: Compute footer padding (TDZ-safe - unified across all modes including WELCOME)
   
   // ACTIVE CARD DETECTION: Determine if an active card is currently present
   const hasActiveCard = 
@@ -8063,52 +8062,39 @@ export default function CandidateInterview() {
     (v3ProbingActive && hasActiveV3Prompt) || // V3 probe active
     (currentItem?.type === 'multi_instance_gate'); // MI_GATE active
   
-  // DETERMINISTIC PADDING: Use measured height + context-aware minimum
-  let chosenHeight = 0;
-  let chosenSource = 'none';
+  // UNIFIED PADDING FORMULA: Same logic for ALL modes (including WELCOME)
+  // Target: ~12-20px visible gap for active cards, ~24px for history
+  const targetGapPx = hasActiveCard 
+    ? (SAFE_FOOTER_CLEARANCE_PX + MIN_BREATHING_ROOM_PX) // ~20px for active
+    : HISTORY_GAP_PX; // 24px for history
   
-  if (!shouldRenderFooter) {
-    chosenHeight = 0;
-    chosenSource = 'footer_hidden';
-  } else if (footerMeasuredHeightPx > 0) {
-    chosenHeight = footerMeasuredHeightPx;
-    chosenSource = 'measured';
-  } else {
-    // Fallback: use minimum height for current mode
-    chosenHeight = bottomBarMode === 'YES_NO' ? 64 : 
-                   bottomBarMode === 'V3_WAITING' ? 64 : 
-                   80; // TEXT_INPUT default
-    chosenSource = 'fallback';
-  }
-  
-  // ACTIVE CARD GAP: Reduce breathing room by 75% for active cards
-  const activeBreathingRoomPx = Math.round(SAFETY_MARGIN_PX * ACTIVE_CARD_BREATHING_ROOM_MULTIPLIER);
-  const effectiveBreathingRoomPx = hasActiveCard ? activeBreathingRoomPx : SAFETY_MARGIN_PX;
-  
-  const measuredFooterPaddingPx = chosenHeight + (chosenHeight > 0 ? effectiveBreathingRoomPx : 0);
-  
-  // Additional minimum gap (only for history items, not active cards)
-  const additionalMinGapPx = hasActiveCard ? 0 : (MIN_BREATHING_ROOM_PX - SAFETY_MARGIN_PX);
-  
+  // Use measured footer height when available (for dynamic footer sizing)
+  // Otherwise use target gap directly
   const dynamicBottomPaddingPx = shouldRenderFooter 
-    ? measuredFooterPaddingPx + additionalMinGapPx
+    ? (footerMeasuredHeightPx > 0 ? Math.max(targetGapPx, footerMeasuredHeightPx + MIN_BREATHING_ROOM_PX) : targetGapPx)
     : 0;
   
   // DIAGNOSTIC LOG: Show padding computation (always on)
   console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
-    chosenHeight,
-    chosenSource,
+    bottomBarMode,
     footerMeasuredHeightPx,
     hasActiveCard,
-    effectiveBreathingRoomPx,
-    activeBreathingRoomPx,
-    additionalMinGapPx,
-    measuredFooterPaddingPx,
-    dynamicBottomPaddingPx,
+    targetGapPx,
+    safeFooterClearancePx: SAFE_FOOTER_CLEARANCE_PX,
+    minBreathingRoomPx: MIN_BREATHING_ROOM_PX,
+    computedPaddingPx: dynamicBottomPaddingPx,
     gapReduction: hasActiveCard ? '~75%' : 'none',
-    shouldRenderFooter,
-    bottomBarMode
+    shouldRenderFooter
   });
+  
+  // WELCOME-specific log to confirm unified path
+  if (screenMode === 'WELCOME') {
+    console.log('[WELCOME][FOOTER_PADDING_SOT]', {
+      bottomBarMode,
+      computedPaddingPx: dynamicBottomPaddingPx,
+      usesUnifiedLogic: true
+    });
+  }
   
   // Step 7: Semantic helper flags
   const isV3Gate = effectiveItemType === "v3_gate";
