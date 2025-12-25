@@ -1,3 +1,4 @@
+import React from "react";
 import { createContext, useContext, useState, useEffect } from "react";
 
 /**
@@ -22,6 +23,14 @@ const AuthContext = createContext({
 });
 
 export function AuthProvider({ children }) {
+  // GUARD: Detect duplicate React instances at runtime
+  if (!React || !React.version) {
+    console.error('[AUTH_CONTEXT][FATAL] React is undefined or invalid - likely duplicate React bundles');
+    return <div style={{ padding: '20px', color: 'red', background: 'white' }}>
+      <h1>Build Configuration Error</h1>
+      <p>Multiple React instances detected. Please contact support.</p>
+    </div>;
+  }
   const [authState, setAuthState] = useState(() => {
     // Check sessionStorage for admin flag on mount
     try {
