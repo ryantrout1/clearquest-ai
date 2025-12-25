@@ -8348,9 +8348,22 @@ export default function CandidateInterview() {
     const scrollHeight = textarea.scrollHeight;
     const newHeight = Math.min(scrollHeight, MAX_HEIGHT_PX);
     
-    // Apply new height
+    // Always apply new height (visual feedback)
     textarea.style.height = `${newHeight}px`;
     textarea.style.overflowY = scrollHeight > MAX_HEIGHT_PX ? 'auto' : 'hidden';
+    
+    // ROW-CHANGE GATE: Only trigger layout updates when rows actually change
+    const lastScrollHeight = lastTextareaScrollHeightRef.current;
+    const heightDelta = Math.abs(scrollHeight - lastScrollHeight);
+    
+    // If height change < 16px (≈ one line), treat as same row - skip layout-affecting logs
+    if (heightDelta < 16 && lastScrollHeight !== 0) {
+      // Same row - textarea height updated but no layout state changes needed
+      return;
+    }
+    
+    // Row changed - update ref to track new baseline
+    lastTextareaScrollHeightRef.current = scrollHeight;
     
     // HARDENED: Throttle logs using ref (no dataset mutation)
     const delta = Math.abs(newHeight - lastAutoGrowHeightRef.current);
@@ -8360,7 +8373,8 @@ export default function CandidateInterview() {
         scrollHeight,
         overflowY: scrollHeight > MAX_HEIGHT_PX ? 'auto' : 'hidden',
         maxReached: scrollHeight > MAX_HEIGHT_PX,
-        delta
+        delta,
+        rowChanged: true
       });
       lastAutoGrowHeightRef.current = newHeight;
     }
