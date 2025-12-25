@@ -1285,9 +1285,8 @@ export default function CandidateInterview() {
   const [contentOverflows, setContentOverflows] = useState(false); // Track if scroll container overflows
   
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
-  const SAFE_FOOTER_CLEARANCE_PX = 12; // Small safety buffer above footer for active cards (~75% reduction)
-  const MIN_BREATHING_ROOM_PX = 8; // Minimal visual gap
-  const HISTORY_GAP_PX = 24; // Normal spacing for transcript history items
+  const SAFE_FOOTER_CLEARANCE_PX = 8; // Minimal safety buffer (~75% reduction vs old 24px)
+  const HISTORY_GAP_PX = 16; // Normal spacing for transcript history items
   
   // HOOK ORDER FIX: Overflow detection MUST be top-level (before early returns)
   // Computes if scroll container content exceeds viewport - drives dynamic footer padding
@@ -2950,11 +2949,26 @@ export default function CandidateInterview() {
       });
       setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
 
-      // Add Welcome to transcript for new sessions (makes it part of chat history)
+      // PART A: Add Welcome to transcript for new sessions (REQUIRED for legal record)
       if (sessionIsNew) {
-        const withWelcome = await ensureWelcomeInTranscript(sessionId, loadedSession.transcript_snapshot || []);
-        if (withWelcome.length > (loadedSession.transcript_snapshot || []).length) {
-          await refreshTranscriptFromDB('welcome_appended');
+        try {
+          const withWelcome = await ensureWelcomeInTranscript(sessionId, loadedSession.transcript_snapshot || []);
+          if (withWelcome.length > (loadedSession.transcript_snapshot || []).length) {
+            console.log('[WELCOME][TRANSCRIPT_APPENDED]', {
+              sessionId,
+              transcriptLen: withWelcome.length,
+              reason: 'Welcome message added to transcript as legal record'
+            });
+            await refreshTranscriptFromDB('welcome_appended');
+          } else {
+            console.log('[WELCOME][TRANSCRIPT_EXISTS]', {
+              sessionId,
+              transcriptLen: withWelcome.length,
+              reason: 'Welcome message already in transcript'
+            });
+          }
+        } catch (err) {
+          console.error('[WELCOME][TRANSCRIPT_APPEND_ERROR]', { error: err.message });
         }
       }
 
@@ -8062,27 +8076,20 @@ export default function CandidateInterview() {
     (v3ProbingActive && hasActiveV3Prompt) || // V3 probe active
     (currentItem?.type === 'multi_instance_gate'); // MI_GATE active
   
-  // UNIFIED PADDING FORMULA: Same logic for ALL modes (including WELCOME)
-  // Target: ~12-20px visible gap for active cards, ~24px for history
-  const targetGapPx = hasActiveCard 
-    ? (SAFE_FOOTER_CLEARANCE_PX + MIN_BREATHING_ROOM_PX) // ~20px for active
-    : HISTORY_GAP_PX; // 24px for history
-  
-  // Use measured footer height when available (for dynamic footer sizing)
-  // Otherwise use target gap directly
+  // UNIFIED PADDING FORMULA: Reduced ~75% for active cards
+  // Active: footer + 8px gap, History: footer + 16px gap
   const dynamicBottomPaddingPx = shouldRenderFooter 
-    ? (footerMeasuredHeightPx > 0 ? Math.max(targetGapPx, footerMeasuredHeightPx + MIN_BREATHING_ROOM_PX) : targetGapPx)
+    ? footerMeasuredHeightPx + (hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX)
     : 0;
   
   // DIAGNOSTIC LOG: Show padding computation (always on)
   console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
-    bottomBarMode,
+    mode: bottomBarMode,
     footerMeasuredHeightPx,
-    hasActiveCard,
-    targetGapPx,
-    safeFooterClearancePx: SAFE_FOOTER_CLEARANCE_PX,
-    minBreathingRoomPx: MIN_BREATHING_ROOM_PX,
     computedPaddingPx: dynamicBottomPaddingPx,
+    safeFooterClearancePx: SAFE_FOOTER_CLEARANCE_PX,
+    hasActiveCard,
+    effectiveGap: hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX,
     gapReduction: hasActiveCard ? '~75%' : 'none',
     shouldRenderFooter
   });
@@ -10391,7 +10398,7 @@ export default function CandidateInterview() {
       </style>
 
       <main className="flex-1 overflow-y-auto cq-scroll scrollbar-thin" ref={historyRef} onScroll={handleTranscriptScroll}>
-        <div className="px-4 pt-6 flex flex-col min-h-full justify-end" style={{ paddingBottom: `${dynamicBottomPaddingPx}px` }}>
+        <div className="px-4 pt-6" style={{ paddingBottom: `${dynamicBottomPaddingPx}px` }}>
           <div className="space-y-3 relative isolate">
           {/* CANONICAL RENDER STREAM: Single source of truth for all main pane content */}
           {(() => {
