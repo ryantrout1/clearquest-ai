@@ -7925,65 +7925,7 @@ export default function CandidateInterview() {
     });
   }
 
-  // SMOOTH GLIDE AUTOSCROLL: ChatGPT-style smooth scrolling on new content
-  React.useLayoutEffect(() => {
-    const scrollContainer = historyRef.current;
-    if (!scrollContainer || !bottomAnchorRef.current) return;
-    
-    // GUARD: Never auto-scroll while user is typing
-    if (isUserTyping) return;
-    
-    // GUARD: Only auto-scroll if user is near bottom (ChatGPT behavior)
-    const scrollHeight = scrollContainer.scrollHeight;
-    const clientHeight = scrollContainer.clientHeight;
-    const scrollTop = scrollContainer.scrollTop;
-    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
-    const NEAR_BOTTOM_THRESHOLD_PX = 120;
-    const isNearBottom = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD_PX;
-    
-    // Update sticky autoscroll state
-    if (isNearBottom !== shouldAutoScrollRef.current) {
-      shouldAutoScrollRef.current = isNearBottom;
-    }
-    
-    // Only scroll if user is near bottom
-    if (!shouldAutoScrollRef.current) {
-      console.log('[SCROLL][GLIDE_SKIPPED]', {
-        reason: 'user_not_near_bottom',
-        distanceFromBottom: Math.round(distanceFromBottom)
-      });
-      return;
-    }
-    
-    // RAF for layout stability + smooth scroll
-    requestAnimationFrame(() => {
-      if (!bottomAnchorRef.current || !scrollContainer) return;
-      
-      const lenBefore = lastRenderStreamLenRef.current;
-      const lenNow = renderStreamLen;
-      const lenDelta = lenNow - lenBefore;
-      
-      // Only scroll on list growth
-      if (lenDelta > 0) {
-        bottomAnchorRef.current.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'end' 
-        });
-        
-        console.log('[SCROLL][GLIDE]', {
-          reason: 'append',
-          lenDelta,
-          nearBottom: true,
-          distanceFromBottom: Math.round(distanceFromBottom)
-        });
-      }
-    });
-  }, [
-    renderStreamLen,
-    isUserTyping,
-    activeUiItem?.kind,
-    footerSafePaddingPx
-  ]);
+  // SMOOTH GLIDE AUTOSCROLL: Moved to after renderStreamLen declaration (TDZ fix)
 
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
   useEffect(() => {
@@ -8831,6 +8773,66 @@ export default function CandidateInterview() {
       tail: finalRenderStream.slice(-3).map(x => ({ kind: x.kind, key: x.stableKey }))
     });
   }
+
+  // SMOOTH GLIDE AUTOSCROLL: ChatGPT-style smooth scrolling on new content (TDZ-safe placement)
+  React.useLayoutEffect(() => {
+    const scrollContainer = historyRef.current;
+    if (!scrollContainer || !bottomAnchorRef.current) return;
+    
+    // GUARD: Never auto-scroll while user is typing
+    if (isUserTyping) return;
+    
+    // GUARD: Only auto-scroll if user is near bottom (ChatGPT behavior)
+    const scrollHeight = scrollContainer.scrollHeight;
+    const clientHeight = scrollContainer.clientHeight;
+    const scrollTop = scrollContainer.scrollTop;
+    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+    const NEAR_BOTTOM_THRESHOLD_PX = 120;
+    const isNearBottom = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD_PX;
+    
+    // Update sticky autoscroll state
+    if (isNearBottom !== shouldAutoScrollRef.current) {
+      shouldAutoScrollRef.current = isNearBottom;
+    }
+    
+    // Only scroll if user is near bottom
+    if (!shouldAutoScrollRef.current) {
+      console.log('[SCROLL][GLIDE_SKIPPED]', {
+        reason: 'user_not_near_bottom',
+        distanceFromBottom: Math.round(distanceFromBottom)
+      });
+      return;
+    }
+    
+    // RAF for layout stability + smooth scroll
+    requestAnimationFrame(() => {
+      if (!bottomAnchorRef.current || !scrollContainer) return;
+      
+      const lenBefore = lastRenderStreamLenRef.current;
+      const lenNow = renderStreamLen;
+      const lenDelta = lenNow - lenBefore;
+      
+      // Only scroll on list growth
+      if (lenDelta > 0) {
+        bottomAnchorRef.current.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'end' 
+        });
+        
+        console.log('[SCROLL][GLIDE]', {
+          reason: 'append',
+          lenDelta,
+          nearBottom: true,
+          distanceFromBottom: Math.round(distanceFromBottom)
+        });
+      }
+    });
+  }, [
+    renderStreamLen,
+    isUserTyping,
+    activeUiItem?.kind,
+    footerSafePaddingPx
+  ]);
 
   // D) Verification instrumentation moved above early returns
   
