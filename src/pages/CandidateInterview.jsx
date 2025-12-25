@@ -8808,7 +8808,7 @@ export default function CandidateInterview() {
   // Use finalRenderStream for all rendering below (immutable - safe for React)
   
   // PART E: Stream snapshot log (only on length changes, with array guard)
-  const renderStreamLen = Array.isArray(renderStream) ? renderStream.length : 0;
+  const renderStreamLen = Array.isArray(finalRenderStream) ? finalRenderStream.length : 0;
   if (renderStreamLen !== lastRenderStreamLenRef.current) {
     console.log("[STREAM][SNAPSHOT]", {
       len: renderStreamLen,
@@ -8816,7 +8816,7 @@ export default function CandidateInterview() {
       v3UiLen: v3UiRenderable.length,
       hasActiveCard: !!activeCard,
       activeCardKind: activeCard?.kind || null,
-      tail: renderStream.slice(-6).map(x => ({
+      tail: finalRenderStream.slice(-6).map(x => ({
         type: x.messageType || x.type || x.kind,
         key: x.stableKey || x.id || x.__canonicalKey,
         isActive: x.__activeCard || false
@@ -8831,7 +8831,7 @@ export default function CandidateInterview() {
       reason: "activeKind=V3_PROMPT but activeCard is MI_GATE",
       activeUiItemKind: activeUiItem.kind,
       activeCardKind: activeCard.kind,
-      tail: renderStream.slice(-3).map(x => ({ kind: x.kind, key: x.stableKey }))
+      tail: finalRenderStream.slice(-3).map(x => ({ kind: x.kind, key: x.stableKey }))
     });
   }
   
@@ -8840,7 +8840,7 @@ export default function CandidateInterview() {
       reason: "activeKind=MI_GATE but activeCard is V3_PROBE",
       activeUiItemKind: activeUiItem.kind,
       activeCardKind: activeCard.kind,
-      tail: renderStream.slice(-3).map(x => ({ kind: x.kind, key: x.stableKey }))
+      tail: finalRenderStream.slice(-3).map(x => ({ kind: x.kind, key: x.stableKey }))
     });
   }
 
