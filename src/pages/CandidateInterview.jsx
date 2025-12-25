@@ -7846,6 +7846,34 @@ export default function CandidateInterview() {
     };
   }, []); // STABLE: Observer created once per mount (cqDiagEnabledRef supports runtime toggle)
 
+  // AUTO-GROWING INPUT: Re-measure footer on mode changes (prevents stale height during transitions)
+  React.useLayoutEffect(() => {
+    if (!footerRef.current) return;
+    
+    // Trigger measurement on next frame (after layout settles)
+    requestAnimationFrame(() => {
+      if (!footerRef.current) return;
+      const rect = footerRef.current.getBoundingClientRect();
+      const measured = Math.round(rect.height || footerRef.current.offsetHeight || 0);
+      
+      setFooterMeasuredHeightPx(prev => {
+        const delta = Math.abs(measured - prev);
+        if (delta < 2) return prev;
+        
+        console.log('[FOOTER][HEIGHT_REMEASURED_ON_MODE_CHANGE]', {
+          footerMeasuredHeightPx: measured,
+          appliedPaddingPx: measured + 8,
+          delta,
+          bottomBarMode,
+          shouldRenderFooter,
+          effectiveItemType
+        });
+        
+        return measured;
+      });
+    });
+  }, [bottomBarMode, shouldRenderFooter, effectiveItemType]);
+
   // Re-anchor bottom on footer height changes when auto-scroll is enabled
   useEffect(() => {
     if (!historyRef.current) return;
@@ -7931,11 +7959,35 @@ export default function CandidateInterview() {
   // Step 6: Compute footer padding (TDZ-safe - uses measured height from auto-growing input)
   const SAFETY_MARGIN_PX = 8;
   const MIN_FOOTER_FALLBACK_PX = 80;
-  const footerSafePaddingPx = shouldRenderFooter 
-    ? (footerMeasuredHeightPx > 0 ? footerMeasuredHeightPx : MIN_FOOTER_FALLBACK_PX) + SAFETY_MARGIN_PX
-    : 0;
   
+  // DETERMINISTIC PADDING: Clear fallback logic to prevent jitter
+  let chosenHeight = 0;
+  let chosenSource = 'none';
+  
+  if (!shouldRenderFooter) {
+    chosenHeight = 0;
+    chosenSource = 'footer_hidden';
+  } else if (footerMeasuredHeightPx > 0) {
+    chosenHeight = footerMeasuredHeightPx;
+    chosenSource = 'measured';
+  } else {
+    chosenHeight = MIN_FOOTER_FALLBACK_PX;
+    chosenSource = 'fallback';
+  }
+  
+  const footerSafePaddingPx = chosenHeight + (chosenHeight > 0 ? SAFETY_MARGIN_PX : 0);
   const dynamicBottomPaddingPx = footerSafePaddingPx;
+  
+  // DIAGNOSTIC LOG: Show padding computation (always on)
+  console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
+    chosenHeight,
+    chosenSource,
+    footerMeasuredHeightPx,
+    footerSafePaddingPx,
+    dynamicBottomPaddingPx,
+    shouldRenderFooter,
+    bottomBarMode
+  });
   
   // Step 7: Semantic helper flags
   const isV3Gate = effectiveItemType === "v3_gate";
@@ -7974,10 +8026,19 @@ export default function CandidateInterview() {
     const scrollContainer = historyRef.current;
     if (!scrollContainer || !bottomAnchorRef.current) return;
     
-    // GUARD: Never auto-scroll while user is typing
+    // GUARD A: Never auto-scroll while user is typing
     if (isUserTyping) return;
     
-    // GUARD: Only auto-scroll if user is near bottom (ChatGPT behavior)
+    // GUARD B: Only glide in TEXT_INPUT mode (prevent jumps during MI_GATE/YES_NO transitions)
+    if (bottomBarMode !== 'TEXT_INPUT') {
+      console.log('[SCROLL][GLIDE_SKIPPED]', {
+        reason: 'not_text_input_mode',
+        bottomBarMode
+      });
+      return;
+    }
+    
+    // GUARD C: Only auto-scroll if user is near bottom (ChatGPT behavior)
     const scrollHeight = scrollContainer.scrollHeight;
     const clientHeight = scrollContainer.clientHeight;
     const scrollTop = scrollContainer.scrollTop;
@@ -7999,6 +8060,18 @@ export default function CandidateInterview() {
       return;
     }
     
+    // GUARD D: Only glide if container actually overflows (prevent scroll when there's nothing to scroll)
+    const overflowPx = scrollHeight - clientHeight;
+    if (overflowPx <= 8) {
+      console.log('[SCROLL][GLIDE_SKIPPED]', {
+        reason: 'no_overflow',
+        scrollHeight,
+        clientHeight,
+        overflowPx
+      });
+      return;
+    }
+    
     // RAF for layout stability + smooth scroll
     requestAnimationFrame(() => {
       if (!bottomAnchorRef.current || !scrollContainer) return;
@@ -8007,26 +8080,48 @@ export default function CandidateInterview() {
       const lenNow = dbTranscript.length;
       const lenDelta = lenNow - lenBefore;
       
-      // Only scroll on list growth
-      if (lenDelta > 0) {
-        bottomAnchorRef.current.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'end' 
+      // GUARD E: Only scroll on small transcript appends (1-2 entries)
+      // Prevents mega-scroll bursts during bulk merges/refreshes
+      if (lenDelta <= 0) {
+        console.log('[SCROLL][GLIDE_SKIPPED]', {
+          reason: 'no_append',
+          lenDelta
         });
-        
-        console.log('[SCROLL][GLIDE]', {
-          reason: 'append',
-          lenDelta,
-          nearBottom: true,
-          distanceFromBottom: Math.round(distanceFromBottom)
-        });
+        return;
       }
+      
+      if (lenDelta > 2) {
+        console.log('[SCROLL][GLIDE_SKIPPED]', {
+          reason: 'bulk_append',
+          lenDelta,
+          note: 'Large delta indicates merge/refresh - not a single append'
+        });
+        return;
+      }
+      
+      // All guards passed - perform glide scroll
+      bottomAnchorRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'end' 
+      });
+      
+      console.log('[SCROLL][GLIDE]', {
+        reason: 'append',
+        lenDelta,
+        nearBottom: true,
+        bottomBarMode,
+        scrollHeight,
+        clientHeight,
+        overflowPx
+      });
+      
+      // Update length tracker
+      lastRenderStreamLenRef.current = lenNow;
     });
   }, [
     dbTranscript.length,
     isUserTyping,
-    activeUiItem?.kind,
-    footerSafePaddingPx
+    bottomBarMode
   ]);
 
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
@@ -8962,13 +9057,7 @@ export default function CandidateInterview() {
                       ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
   const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
   
-  console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
-    footerMeasuredHeightPx: footerHeightPx,
-    footerSafePaddingPx,
-    dynamicBottomPaddingPx,
-    shouldRenderFooter,
-    bottomBarMode
-  });
+
   
   // Auto-focus control props (pure values, no hooks)
   const focusEnabled = screenMode === 'QUESTION';
