@@ -1496,6 +1496,9 @@ export default function CandidateInterview() {
   // RENDER STREAM SNAPSHOT: Track last stream length for change detection (PART E)
   const lastRenderStreamLenRef = useRef(0);
   
+  // RECENT ANSWER ANCHOR: Track last submitted answer for viewport anchoring
+  const recentAnchorRef = useRef({ kind: null, stableKey: null, ts: 0 });
+  
   // AUTO-GROWING INPUT: Refs for textarea auto-resize
   const footerTextareaRef = useRef(null);
   const [footerMeasuredHeightPx, setFooterMeasuredHeightPx] = useState(0); // Start at 0 (prevents initial jump)
@@ -2363,6 +2366,22 @@ export default function CandidateInterview() {
     const distanceFromBottom = el.scrollHeight - (el.scrollTop + el.clientHeight);
     const nearBottom = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD_PX;
     
+    // GUARD: Don't flip auto-scroll state during system transitions
+    const recentAnchorAge = Date.now() - recentAnchorRef.current.ts;
+    const hasRecentAnchor = recentAnchorRef.current.kind === 'V3_PROBE_ANSWER' && recentAnchorAge < 1500;
+    
+    if (hasRecentAnchor) {
+      if (cqDiagEnabled) {
+        console.log('[SCROLL][AUTO_SCROLL_STATE][GUARD]', {
+          reason: 'recent_v3_answer_anchor',
+          ignored: true,
+          recentAnchorAge,
+          stableKey: recentAnchorRef.current.stableKey
+        });
+      }
+      return; // Ignore scroll events during anchor window
+    }
+    
     // Update sticky autoscroll state based on user scroll position
     const wasShouldAutoScroll = shouldAutoScrollRef.current;
     const nowShouldAutoScroll = nearBottom;
@@ -2376,7 +2395,7 @@ export default function CandidateInterview() {
         reason: nowShouldAutoScroll ? 'user_scrolled_to_bottom' : 'user_scrolled_up'
       });
     }
-  }, []);
+  }, [cqDiagEnabled]);
 
   const scrollToBottomSafely = useCallback((reason = 'default') => {
     if (!autoScrollEnabledRef.current) return;
@@ -7123,6 +7142,14 @@ export default function CandidateInterview() {
                 answerLen: answerText?.length || 0,
                 transcriptLenAfter: updated.length
               });
+              
+              // ANCHOR: Mark this answer for viewport anchoring
+              recentAnchorRef.current = {
+                kind: 'V3_PROBE_ANSWER',
+                stableKey: aStableKey,
+                ts: Date.now()
+              };
+              
               resolve(true);
             }).catch(err => {
               console.error('[CQ_TRANSCRIPT][V3_PROBE_A_ERROR]', { error: err.message });
@@ -8234,6 +8261,86 @@ export default function CandidateInterview() {
     bottomBarMode
   ]);
 
+  // ANCHOR LAST V3 ANSWER: Keep recently submitted answer visible during transitions
+  React.useLayoutEffect(() => {
+    if (recentAnchorRef.current.kind !== 'V3_PROBE_ANSWER') return;
+    
+    const recentAge = Date.now() - recentAnchorRef.current.ts;
+    if (recentAge > 2000) {
+      recentAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
+      return;
+    }
+    
+    const scrollContainer = historyRef.current;
+    if (!scrollContainer) return;
+    
+    const targetStableKey = recentAnchorRef.current.stableKey;
+    const targetEl = scrollContainer.querySelector(`[data-stablekey="${targetStableKey}"]`);
+    
+    if (!targetEl) {
+      if (cqDiagEnabled) {
+        console.warn('[SCROLL][ANCHOR_LAST_V3_ANSWER][NOT_FOUND]', {
+          stableKey: targetStableKey,
+          reason: 'Element not found in DOM'
+        });
+      }
+      return;
+    }
+    
+    requestAnimationFrame(() => {
+      if (!scrollContainer || !targetEl) return;
+      
+      const scrollTopBefore = scrollContainer.scrollTop;
+      
+      // Compute target position (answer visible above footer)
+      const elTop = targetEl.offsetTop;
+      const elHeight = targetEl.offsetHeight;
+      const containerHeight = scrollContainer.clientHeight;
+      const footerSafePx = dynamicBottomPaddingPx + 16; // Extra margin
+      
+      // Target: place answer at bottom of visible area (above footer)
+      const targetScrollTop = Math.max(0, (elTop + elHeight) - containerHeight + footerSafePx);
+      
+      // Only scroll if we're not already showing the element
+      const alreadyVisible = scrollTopBefore >= targetScrollTop - 20 && scrollTopBefore <= targetScrollTop + 20;
+      
+      if (alreadyVisible) {
+        if (cqDiagEnabled) {
+          console.log('[SCROLL][ANCHOR_LAST_V3_ANSWER]', {
+            stableKey: targetStableKey,
+            didScroll: false,
+            reason: 'already_visible',
+            bottomBarMode,
+            effectiveItemType
+          });
+        }
+        recentAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
+        return;
+      }
+      
+      scrollContainer.scrollTop = targetScrollTop;
+      
+      const scrollTopAfter = scrollContainer.scrollTop;
+      const didScroll = Math.abs(scrollTopAfter - scrollTopBefore) > 1;
+      
+      if (cqDiagEnabled) {
+        console.log('[SCROLL][ANCHOR_LAST_V3_ANSWER]', {
+          stableKey: targetStableKey,
+          didScroll,
+          bottomBarMode,
+          effectiveItemType,
+          scrollTopBefore: Math.round(scrollTopBefore),
+          scrollTopAfter: Math.round(scrollTopAfter),
+          elTop,
+          elHeight,
+          footerSafePx
+        });
+      }
+      
+      recentAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
+    });
+  }, [dbTranscript.length, bottomBarMode, effectiveItemType, dynamicBottomPaddingPx, cqDiagEnabled]);
+  
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
     // Only run for base questions with footer visible
@@ -10365,7 +10472,7 @@ export default function CandidateInterview() {
                    });
 
                    return (
-                     <div key={entryKey} style={{ marginBottom: 10 }}>
+                     <div key={entryKey} style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
                        <ContentContainer>
                        <div className="flex justify-end">
                          <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -10433,7 +10540,7 @@ export default function CandidateInterview() {
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
             if (entry.role === 'assistant' && entry.messageType === 'QUESTION_SHOWN') {
               return (
-                <div key={entryKey}>
+                <div key={entryKey} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
                   <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-2">
@@ -10457,7 +10564,7 @@ export default function CandidateInterview() {
             // User answer (ANSWER from chatTranscriptHelpers)
             if (entry.role === 'user' && entry.messageType === 'ANSWER') {
               return (
-                <div key={entryKey} style={{ marginBottom: 10 }}>
+                <div key={entryKey} style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
                     <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -10471,6 +10578,12 @@ export default function CandidateInterview() {
 
             // Multi-instance gate prompt shown (ALWAYS render - no suppression)
             if (entry.role === 'assistant' && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
+              // ANCHOR: Mark as system transition to prevent false scroll state changes
+              recentAnchorRef.current = {
+                kind: 'SYSTEM_TRANSITION',
+                stableKey: entry.stableKey || entry.id,
+                ts: Date.now()
+              };
               // UI CONTRACT: Active MI_GATE renders in main pane (above footer)
               const stableKey = entry.stableKey || entry.id;
               const isActiveGate = isMiGateActive && 
@@ -10502,7 +10615,7 @@ export default function CandidateInterview() {
               }
               
               return (
-                <div key={entryKey}>
+                <div key={entryKey} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
                   <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
                     <p className="text-white text-base leading-relaxed">{entry.text}</p>
@@ -10515,7 +10628,7 @@ export default function CandidateInterview() {
             // Multi-instance gate answer (user's Yes/No)
             if (entry.role === 'user' && entry.messageType === 'MULTI_INSTANCE_GATE_ANSWER') {
               return (
-                <div key={entryKey} style={{ marginBottom: 10 }}>
+                <div key={entryKey} style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
                     <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -10585,7 +10698,7 @@ export default function CandidateInterview() {
 
               {/* V3 probe answer - FALLBACK: Catch answers with stableKey pattern */}
               {entry.role === 'user' && entry.stableKey?.startsWith('v3-probe-a:') && (
-                <div style={{ marginBottom: 10 }}>
+                <div style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
                     <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -10598,7 +10711,7 @@ export default function CandidateInterview() {
 
               {/* User message - "Got it — Let's Begin" or any other user text */}
               {entry.role === 'user' && !entry.messageType?.includes('ANSWER') && !entry.messageType?.includes('v3_') && !entry.messageType?.includes('GATE') && (
-                <div style={{ marginBottom: 10 }}>
+                <div style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
                     <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -10641,7 +10754,7 @@ export default function CandidateInterview() {
               )}
 
               {entry.role === 'user' && entry.messageType === 'v3_opener_answer' && (
-                <div style={{ marginBottom: 10 }}>
+                <div style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
                     <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
