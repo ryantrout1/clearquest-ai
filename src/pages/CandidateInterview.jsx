@@ -8050,7 +8050,7 @@ export default function CandidateInterview() {
   
   // Step 6: Compute footer padding (TDZ-safe - uses measured height from auto-growing input)
   const SAFETY_MARGIN_PX = 8;
-  const MIN_BREATHING_ROOM_PX = 20; // Consistent small breathing room across all modes
+  const MIN_BREATHING_ROOM_PX = 24; // Consistent breathing room across all modes (16-24px range)
   
   // DETERMINISTIC PADDING: Use measured height + small minimum
   let chosenHeight = 0;
@@ -9117,7 +9117,10 @@ export default function CandidateInterview() {
     return null;
   };
 
-  if (isLoading) {
+  // GUARD: Only show full-screen loader on true initial mount (not during mid-flow transitions)
+  const shouldShowFullScreenLoader = isLoading && !engine && !session;
+  
+  if (shouldShowFullScreenLoader) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center space-y-4">
@@ -10868,26 +10871,35 @@ export default function CandidateInterview() {
             <div key={entryKey}>
 
               {/* Welcome message (from transcript) - READ-ONLY history only */}
-              {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
-                <ContentContainer>
-                <div className="w-full bg-slate-800/50 border border-slate-700/60 rounded-xl p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Shield className="w-5 h-5 text-blue-400" />
-                    <span className="text-base font-semibold text-blue-400">{entry.title || entry.text}</span>
-                  </div>
-                  {entry.lines && entry.lines.length > 0 && (
-                    <div className="space-y-2">
-                      {entry.lines.map((line, idx) => (
-                        <div key={idx} className="flex items-start gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                          <p className="text-slate-200 text-sm leading-relaxed">{line}</p>
-                        </div>
-                      ))}
+              {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (() => {
+                // ACTIVE CARD DETECTION: Check if WELCOME is currently active
+                const isActiveWelcome = screenMode === 'WELCOME';
+                
+                const activeClass = isActiveWelcome 
+                  ? 'ring-2 ring-blue-400/40 shadow-lg shadow-blue-500/20' 
+                  : '';
+                
+                return (
+                  <ContentContainer>
+                  <div className={`w-full bg-slate-800/50 border border-slate-700/60 rounded-xl p-5 transition-all duration-150 ${activeClass}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Shield className="w-5 h-5 text-blue-400" />
+                      <span className="text-base font-semibold text-blue-400">{entry.title || entry.text}</span>
                     </div>
-                  )}
-                </div>
-                </ContentContainer>
-              )}
+                    {entry.lines && entry.lines.length > 0 && (
+                      <div className="space-y-2">
+                        {entry.lines.map((line, idx) => (
+                          <div key={idx} className="flex items-start gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                            <p className="text-slate-200 text-sm leading-relaxed">{line}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  </ContentContainer>
+                );
+              })()}
 
               {/* V3 probe answer - FALLBACK: Catch answers with stableKey pattern */}
               {entry.role === 'user' && entry.stableKey?.startsWith('v3-probe-a:') && (
