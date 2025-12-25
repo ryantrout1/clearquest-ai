@@ -8050,56 +8050,41 @@ export default function CandidateInterview() {
   
   // Step 6: Compute footer padding (TDZ-safe - uses measured height from auto-growing input)
   const SAFETY_MARGIN_PX = 8;
-  const MIN_FOOTER_FALLBACK_PX = 80;
+  const MIN_BREATHING_ROOM_PX = 20; // Consistent small breathing room across all modes
   
-  // DETERMINISTIC PADDING: Clear fallback logic to prevent jitter
+  // DETERMINISTIC PADDING: Use measured height + small minimum
   let chosenHeight = 0;
   let chosenSource = 'none';
   
   if (!shouldRenderFooter) {
     chosenHeight = 0;
     chosenSource = 'footer_hidden';
-  } else if (bottomBarMode === 'V3_WAITING') {
-    // V3_WAITING: Keep stable padding (never 0) to prevent jump
-    if (footerMeasuredHeightPx > 0) {
-      chosenHeight = footerMeasuredHeightPx;
-      chosenSource = 'measured_v3_waiting';
-    } else {
-      chosenHeight = MIN_FOOTER_FALLBACK_PX;
-      chosenSource = 'fallback_v3_waiting';
-    }
   } else if (footerMeasuredHeightPx > 0) {
     chosenHeight = footerMeasuredHeightPx;
     chosenSource = 'measured';
   } else {
-    chosenHeight = MIN_FOOTER_FALLBACK_PX;
+    // Fallback: use minimum height for current mode
+    chosenHeight = bottomBarMode === 'YES_NO' ? 64 : 
+                   bottomBarMode === 'V3_WAITING' ? 64 : 
+                   80; // TEXT_INPUT default
     chosenSource = 'fallback';
   }
   
-  const footerSafePaddingPx = chosenHeight + (chosenHeight > 0 ? SAFETY_MARGIN_PX : 0);
-  const computedPaddingPx = footerSafePaddingPx;
+  const measuredFooterPaddingPx = chosenHeight + (chosenHeight > 0 ? SAFETY_MARGIN_PX : 0);
   
-  // STABLE PADDING FLOOR: Never decrease padding while footer visible (prevents jumps)
-  let dynamicBottomPaddingPx = 0;
-  
-  if (shouldRenderFooter) {
-    // Update stable floor (only increase, never decrease)
-    stableBottomPaddingRef.current = Math.max(stableBottomPaddingRef.current, computedPaddingPx);
-    // Use stable floor to prevent shrink
-    dynamicBottomPaddingPx = stableBottomPaddingRef.current;
-  } else {
-    // Footer hidden - reset floor
-    stableBottomPaddingRef.current = 0;
-    dynamicBottomPaddingPx = 0;
-  }
+  // UNIFIED PADDING: Use max(measured, minimum breathing room)
+  // No more 88px stableFloor - just measured + small consistent minimum
+  const dynamicBottomPaddingPx = shouldRenderFooter 
+    ? Math.max(measuredFooterPaddingPx, MIN_BREATHING_ROOM_PX)
+    : 0;
   
   // DIAGNOSTIC LOG: Show padding computation (always on)
   console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
     chosenHeight,
     chosenSource,
     footerMeasuredHeightPx,
-    computedPaddingPx,
-    stableFloor: stableBottomPaddingRef.current,
+    measuredFooterPaddingPx,
+    minBreathingRoomPx: MIN_BREATHING_ROOM_PX,
     dynamicBottomPaddingPx,
     shouldRenderFooter,
     bottomBarMode
