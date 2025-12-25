@@ -7918,6 +7918,10 @@ export default function CandidateInterview() {
   else if (pendingSectionTransition && currentItem?.type === 'section_transition') {
     bottomBarMode = "CTA";
   }
+  // V3_WAITING: V3 probing active but no prompt yet (engine deciding)
+  else if (effectiveItemType === 'v3_probing' && v3ProbingActive && !hasActiveV3Prompt) {
+    bottomBarMode = "V3_WAITING";
+  }
   // V3_PROMPT active (canonical routing via activeUiItem)
   else if (activeUiItem.kind === "V3_PROMPT") {
     bottomBarMode = "TEXT_INPUT";
@@ -7948,9 +7952,9 @@ export default function CandidateInterview() {
     bottomBarMode = "TEXT_INPUT";
   }
   
-  // Step 5: Compute footer rendering flag
+  // Step 5: Compute footer rendering flag (include V3_WAITING)
   const shouldRenderFooter = screenMode === 'QUESTION' && 
-                             (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT');
+                             (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT' || bottomBarMode === 'V3_WAITING');
   
   // Step 6: Compute footer padding (TDZ-safe - uses measured height from auto-growing input)
   const SAFETY_MARGIN_PX = 8;
@@ -7963,6 +7967,15 @@ export default function CandidateInterview() {
   if (!shouldRenderFooter) {
     chosenHeight = 0;
     chosenSource = 'footer_hidden';
+  } else if (bottomBarMode === 'V3_WAITING') {
+    // V3_WAITING: Keep stable padding (never 0) to prevent jump
+    if (footerMeasuredHeightPx > 0) {
+      chosenHeight = footerMeasuredHeightPx;
+      chosenSource = 'measured_v3_waiting';
+    } else {
+      chosenHeight = MIN_FOOTER_FALLBACK_PX;
+      chosenSource = 'fallback_v3_waiting';
+    }
   } else if (footerMeasuredHeightPx > 0) {
     chosenHeight = footerMeasuredHeightPx;
     chosenSource = 'measured';
@@ -8044,6 +8057,15 @@ export default function CandidateInterview() {
       console.log('[SCROLL][GLIDE_SKIPPED]', {
         reason: 'other_scroll_active',
         scrollIntentRef: true
+      });
+      return;
+    }
+    
+    // GUARD D: Skip during V3_WAITING (engine deciding)
+    if (bottomBarMode === 'V3_WAITING') {
+      console.log('[SCROLL][GLIDE_SKIPPED]', {
+        reason: 'v3_waiting_mode',
+        bottomBarMode
       });
       return;
     }
@@ -8158,6 +8180,15 @@ export default function CandidateInterview() {
     const scrollContainer = historyRef.current;
     if (!scrollContainer) return;
     
+    // Skip during V3_WAITING (no scroll adjustments during engine decide)
+    if (bottomBarMode === 'V3_WAITING') {
+      console.log('[SCROLL][PADDING_COMPENSATE_SKIP]', {
+        reason: 'v3_waiting_mode',
+        bottomBarMode
+      });
+      return;
+    }
+    
     // Only compensate when user is near bottom or in QUESTION mode
     const scrollHeight = scrollContainer.scrollHeight;
     const clientHeight = scrollContainer.clientHeight;
@@ -8180,7 +8211,7 @@ export default function CandidateInterview() {
       scrollTopBefore: scrollTop,
       scrollTopAfter: scrollTop + delta
     });
-  }, [dynamicBottomPaddingPx, screenMode, isUserTyping]);
+  }, [dynamicBottomPaddingPx, screenMode, isUserTyping, bottomBarMode]);
 
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
   useEffect(() => {
@@ -8197,7 +8228,16 @@ export default function CandidateInterview() {
       return;
     }
     
-    // GUARD A: Only run in TEXT_INPUT mode with footer rendered
+    // GUARD A: Skip during V3_WAITING (engine deciding)
+    if (bottomBarMode === 'V3_WAITING') {
+      console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
+        reason: 'v3_waiting_mode',
+        bottomBarMode
+      });
+      return;
+    }
+    
+    // GUARD B: Only run in TEXT_INPUT mode with footer rendered
     if (bottomBarMode !== 'TEXT_INPUT' || !shouldRenderFooter) {
       console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
         reason: 'wrong_mode',
@@ -11231,26 +11271,47 @@ export default function CandidateInterview() {
               No
             </Button>
           </div>
+          ) : bottomBarMode === "V3_WAITING" ? (
+          <div className="space-y-2">
+            <div className="flex gap-3">
+              <Textarea
+                ref={footerTextareaRef}
+                value=""
+                placeholder="Thinking..."
+                className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-slate-600 text-white placeholder:text-slate-500 transition-all duration-200"
+                disabled={true}
+                rows={1}
+              />
+              <Button
+                type="button"
+                disabled={true}
+                className="h-12 bg-indigo-600/50 px-5 opacity-50 cursor-not-allowed"
+              >
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Send
+              </Button>
+            </div>
+          </div>
           ) : bottomBarMode === "DISABLED" || (v3ProbingActive && !hasActiveV3Prompt) ? (
-           <div className="space-y-2">
-             <div className="flex gap-3">
-               <Textarea
-                 value=""
-                 placeholder={v3ProbingActive && !hasActiveV3Prompt ? "Processing..." : "Please wait..."}
-                 className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-slate-600 text-white placeholder:text-slate-500 transition-all duration-200"
-                 disabled={true}
-                 rows={1}
-               />
-               <Button
-                 type="button"
-                 disabled={true}
-                 className="h-12 bg-indigo-600/50 px-5 opacity-50 cursor-not-allowed"
-               >
-                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                 Send
-               </Button>
-             </div>
-           </div>
+          <div className="space-y-2">
+            <div className="flex gap-3">
+              <Textarea
+                value=""
+                placeholder={v3ProbingActive && !hasActiveV3Prompt ? "Processing..." : "Please wait..."}
+                className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-slate-600 text-white placeholder:text-slate-500 transition-all duration-200"
+                disabled={true}
+                rows={1}
+              />
+              <Button
+                type="button"
+                disabled={true}
+                className="h-12 bg-indigo-600/50 px-5 opacity-50 cursor-not-allowed"
+              >
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Send
+              </Button>
+            </div>
+          </div>
           ) : bottomBarMode === "SELECT" ? (
             <div className="flex flex-wrap gap-2">
               {currentPrompt?.options?.map((option) => (
