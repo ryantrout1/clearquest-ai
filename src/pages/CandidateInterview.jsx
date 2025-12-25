@@ -10354,6 +10354,19 @@ export default function CandidateInterview() {
                 </ContentContainer>
               )}
 
+              {/* V3 probe answer - FALLBACK: Catch answers with stableKey pattern */}
+              {entry.role === 'user' && entry.stableKey?.startsWith('v3-probe-a:') && (
+                <div style={{ marginBottom: 10 }}>
+                  <ContentContainer>
+                  <div className="flex justify-end">
+                    <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                      <p className="text-white text-sm">{entry.text || entry.message || '(answer)'}</p>
+                    </div>
+                  </div>
+                  </ContentContainer>
+                </div>
+              )}
+
               {/* User message - "Got it — Let's Begin" or any other user text */}
               {entry.role === 'user' && !entry.messageType?.includes('ANSWER') && !entry.messageType?.includes('v3_') && !entry.messageType?.includes('GATE') && (
                 <div style={{ marginBottom: 10 }}>
