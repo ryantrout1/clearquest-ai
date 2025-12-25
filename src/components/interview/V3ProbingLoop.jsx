@@ -372,50 +372,8 @@ export default function V3ProbingLoop({
       };
       setMessages(prev => [...prev, userMessage]);
 
-      // NEW: V3 probe answers NOW append to transcript (product requirement: chat history = transcript)
-      // Append answer to session transcript
-      const { appendUserMessage } = await import("../utils/chatTranscriptHelpers");
-      const sessionData = await base44.entities.InterviewSession.get(sessionId);
-      const currentTranscript = sessionData.transcript_snapshot || [];
-      
-      const aStableKey = `v3-probe-a:${loopKey}:${probeCount}`;
-      
-      // Dedupe: check if already in transcript
-      const answerAlreadyInTranscript = currentTranscript.some(e => 
-        e.stableKey === aStableKey || 
-        (e.meta?.promptId === probeCount && e.meta?.loopKey === loopKey && e.role === 'user')
-      );
-      
-      if (!answerAlreadyInTranscript) {
-        await appendUserMessage(sessionId, currentTranscript, answer, {
-          id: `v3-probe-a-${sessionId}-${loopKey}-${probeCount}`,
-          stableKey: aStableKey,
-          messageType: 'V3_PROBE_ANSWER',
-          type: 'V3_PROBE_ANSWER',
-          meta: {
-            packId: packData?.followup_pack_id,
-            instanceNumber: instanceNumber || 1,
-            categoryId,
-            loopKey,
-            promptId: probeCount,
-            source: 'v3'
-          }
-        });
-        
-        console.log('[CQ_TRANSCRIPT][V3_PROBE_A_APPEND_OK]', {
-          stableKey: aStableKey,
-          promptId: probeCount,
-          loopKey,
-          answerLen: answer?.length || 0,
-          transcriptLenAfter: currentTranscript.length + 1
-        });
-      } else {
-        console.log('[CQ_TRANSCRIPT][V3_PROBE_A_DEDUPED]', {
-          stableKey: aStableKey,
-          promptId: probeCount,
-          loopKey
-        });
-      }
+      // Transcript persistence moved to parent (CandidateInterview)
+      // V3ProbingLoop only notifies parent via callbacks
     }
 
     // Persist user message to local transcript (skip for initial call)
@@ -628,9 +586,17 @@ export default function V3ProbingLoop({
         setActivePromptId(`v3-prompt-${currentIncidentId}-${newProbeCount}`);
         setIsDeciding(false);
 
-        // HEADLESS MODE: Notify parent of new prompt (parent renders in prompt lane)
+        // HEADLESS MODE: Notify parent of new prompt with canonical promptId
+        const canonicalPromptId = `${loopKey}:${newProbeCount}`;
         if (onPromptChange) {
-          onPromptChange(normalizedPrompt);
+          onPromptChange({
+            promptText: normalizedPrompt,
+            promptId: canonicalPromptId,
+            loopKey,
+            packId: packData?.followup_pack_id,
+            instanceNumber: instanceNumber || 1,
+            categoryId
+          });
         }
 
         // HEADLESS MODE: Signal parent that answer is needed
@@ -651,52 +617,8 @@ export default function V3ProbingLoop({
           });
         }
 
-        // NEW: V3 probe questions NOW append to transcript (product requirement: chat history = transcript)
-        // Append probe question to session transcript
-        const { appendAssistantMessage } = await import("../utils/chatTranscriptHelpers");
-        const sessionData = await base44.entities.InterviewSession.get(sessionId);
-        const currentTranscript = sessionData.transcript_snapshot || [];
-        
-        const promptId = `${loopKey}:${newProbeCount}`;
-        const qStableKey = `v3-probe-q:${loopKey}:${promptId}`;
-        
-        // Dedupe: check if already in transcript
-        const alreadyInTranscript = currentTranscript.some(e => 
-          e.stableKey === qStableKey || 
-          (e.meta?.promptId === promptId && e.meta?.loopKey === loopKey)
-        );
-        
-        if (!alreadyInTranscript) {
-          await appendAssistantMessage(sessionId, currentTranscript, data.nextPrompt, {
-            id: `v3-probe-q-${sessionId}-${loopKey}-${promptId}`,
-            stableKey: qStableKey,
-            messageType: 'V3_PROBE_QUESTION',
-            type: 'V3_PROBE_QUESTION',
-            meta: {
-              packId: packData?.followup_pack_id,
-              instanceNumber: instanceNumber || 1,
-              categoryId,
-              loopKey,
-              promptId,
-              source: 'v3'
-            },
-            visibleToCandidate: true
-          });
-          
-          console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_APPEND_OK]', {
-            stableKey: qStableKey,
-            promptId,
-            loopKey,
-            promptLen: data.nextPrompt?.length || 0,
-            transcriptLenAfter: currentTranscript.length + 1
-          });
-        } else {
-          console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_DEDUPED]', {
-            stableKey: qStableKey,
-            promptId,
-            loopKey
-          });
-        }
+        // Transcript persistence moved to parent (CandidateInterview)
+        // V3ProbingLoop only notifies parent via callbacks
       } else if (data.nextAction === "RECAP" || data.nextAction === "STOP") {
         setIsDeciding(false);
         setActivePromptText(null);
