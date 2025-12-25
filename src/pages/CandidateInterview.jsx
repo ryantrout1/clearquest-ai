@@ -1547,6 +1547,7 @@ export default function CandidateInterview() {
   // AUTO-GROWING INPUT: Refs for textarea auto-resize
   const footerTextareaRef = useRef(null);
   const [footerMeasuredHeightPx, setFooterMeasuredHeightPx] = useState(120);
+  const lastAutoGrowHeightRef = useRef(0); // Stable throttle (no dataset mutation)
   
   // V3 UI-ONLY HISTORY: Display V3 probe Q/A without polluting transcript
   // MOVED UP: Must be declared before refreshTranscriptFromDB (TDZ fix)
@@ -7785,14 +7786,15 @@ export default function CandidateInterview() {
       const rect = footerRef.current.getBoundingClientRect();
       const measured = Math.round(rect.height || footerRef.current.offsetHeight || 0);
       
-      // Only update if changed (prevents state thrash)
+      // HARDENED: Only update if delta >= 2px (prevents thrash + loops)
       setFooterMeasuredHeightPx(prev => {
-        if (prev === measured) return prev;
+        const delta = Math.abs(measured - prev);
+        if (delta < 2) return prev; // Ignore sub-pixel jitter
         
         console.log('[FOOTER][HEIGHT_MEASURED]', {
           footerMeasuredHeightPx: measured,
           appliedPaddingPx: measured + 8,
-          delta: measured - prev
+          delta
         });
         
         return measured;
@@ -8045,16 +8047,17 @@ export default function CandidateInterview() {
     textarea.style.height = `${newHeight}px`;
     textarea.style.overflowY = scrollHeight > MAX_HEIGHT_PX ? 'auto' : 'hidden';
     
-    // Log on height change only (throttled)
-    const heightChanged = Math.abs(newHeight - (parseInt(textarea.dataset.lastHeight || '0', 10))) > 4;
-    if (heightChanged) {
+    // HARDENED: Throttle logs using ref (no dataset mutation)
+    const delta = Math.abs(newHeight - lastAutoGrowHeightRef.current);
+    if (delta >= 4) {
       console.log('[FOOTER][AUTO_GROW]', {
         heightPx: newHeight,
         scrollHeight,
         overflowY: scrollHeight > MAX_HEIGHT_PX ? 'auto' : 'hidden',
-        maxReached: scrollHeight > MAX_HEIGHT_PX
+        maxReached: scrollHeight > MAX_HEIGHT_PX,
+        delta
       });
-      textarea.dataset.lastHeight = newHeight.toString();
+      lastAutoGrowHeightRef.current = newHeight;
     }
   }, [input, openerDraft, bottomBarMode]);
 
@@ -10698,7 +10701,7 @@ export default function CandidateInterview() {
               </main>
 
               <footer className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
-        <div className="max-w-5xl mx-auto">
+        <div ref={footerRef} className="max-w-5xl mx-auto">
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
           {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarMode guard above */}
           {bottomBarMode === "CTA" && screenMode === 'WELCOME' ? (
@@ -11215,9 +11218,9 @@ export default function CandidateInterview() {
               effectiveItemType,
               v3ProbingActive
             });
-            
+
             return shouldRenderFooter ? (
-              <p ref={footerRef} className="text-xs text-slate-400 text-center mt-3">
+              <p className="text-xs text-slate-400 text-center mt-3">
                 Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
               </p>
             ) : null;
