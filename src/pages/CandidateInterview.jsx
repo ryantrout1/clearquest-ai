@@ -2225,6 +2225,26 @@ export default function CandidateInterview() {
           textPreview: (e.text || '').substring(0, 40)
         }))
       });
+      
+      // REGRESSION ASSERT: Detect V3 probe answers specifically
+      const droppedV3Answers = droppedEntries.filter(e => 
+        (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER') &&
+        e.role === 'user'
+      );
+      
+      if (droppedV3Answers.length > 0) {
+        console.error('[CQ_TRANSCRIPT][V3_PROBE_ANSWER_MISSING_REGRESSION]', {
+          droppedCount: droppedV3Answers.length,
+          dbLen: base.length,
+          renderLen: finalFiltered.length,
+          droppedKeys: droppedV3Answers.map(e => ({
+            stableKey: e.stableKey || e.id,
+            promptId: e.meta?.promptId,
+            loopKey: e.meta?.loopKey,
+            textPreview: (e.text || '').substring(0, 40)
+          }))
+        });
+      }
     }
     
     // DIAGNOSTIC: Detect when filters are hiding items - CORRECTED (use renderableDbLen)
@@ -6982,15 +7002,14 @@ export default function CandidateInterview() {
     });
     
     // FIX C: Append answer to DB transcript (legal record) - AWAITED
+    // CRITICAL: V3 probe ANSWERS must always append to transcript (candidate-visible)
     if (v3ProbingActive && localEffectiveItemType === 'v3_probing' && loopKey && answerText?.trim()) {
       const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
       
       if (promptId) {
         const aStableKey = `v3-probe-a:${loopKey}:${promptId}`;
-        let didAppendA = false;
         
-        // CRITICAL: Use in-memory transcript state (no DB fetch)
-        // Append locally and write to DB synchronously
+        // GUARANTEED APPEND: Synchronous state update + async DB write
         const appendSuccess = await new Promise((resolve) => {
           setDbTranscriptSafe(prev => {
             // Dedupe: skip if already exists
@@ -6999,9 +7018,6 @@ export default function CandidateInterview() {
               resolve(false);
               return prev;
             }
-            
-            // Mark that we're appending (for log gating)
-            didAppendA = true;
             
             const aEntry = {
               id: `v3-probe-a-${sessionId}-${loopKey}-${promptId}`,
@@ -7012,6 +7028,7 @@ export default function CandidateInterview() {
               timestamp: new Date().toISOString(),
               createdAt: Date.now(),
               messageType: 'V3_PROBE_ANSWER',
+              type: 'V3_PROBE_ANSWER', // Add type alias for legacy compatibility
               meta: {
                 packId: v3ProbingContext.packId,
                 categoryId: v3ProbingContext.categoryId,
@@ -7025,25 +7042,22 @@ export default function CandidateInterview() {
             
             const updated = [...prev, aEntry];
             
-            // Write to DB async - only log if we actually appended
+            // Write to DB async
             base44.entities.InterviewSession.update(sessionId, {
               transcript_snapshot: updated
             }).then(() => {
-              // TASK C: Only log when actual append occurred (not on dedupe)
-              if (didAppendA) {
-                console.log('[V3_TRANSCRIPT][APPEND_A_OK]', {
-                  stableKey: aStableKey,
-                  loopKey,
-                  promptId,
-                  aPreview: answerText?.substring(0, 50),
-                  transcriptLen: updated.length
-                });
-                console.log('[V3_TRANSCRIPT][APPEND_A_DB_OK]', {
-                  stableKey: aStableKey,
-                  loopKey,
-                  promptId
-                });
-              }
+              console.log('[CQ_TRANSCRIPT][V3_PROBE_ANSWER_APPEND_OK]', {
+                stableKey: aStableKey,
+                loopKey,
+                promptId,
+                answerLen: answerText?.length || 0,
+                transcriptLenAfter: updated.length
+              });
+              console.log('[V3_TRANSCRIPT][APPEND_A_DB_OK]', {
+                stableKey: aStableKey,
+                loopKey,
+                promptId
+              });
               resolve(true);
             }).catch(err => {
               console.error('[V3_TRANSCRIPT][APPEND_A_ERROR]', { error: err.message });
@@ -7057,6 +7071,13 @@ export default function CandidateInterview() {
         if (!appendSuccess) {
           console.warn('[V3_TRANSCRIPT][APPEND_A_SKIPPED]', { stableKey: aStableKey });
         }
+      } else {
+        console.error('[V3_TRANSCRIPT][APPEND_FAILED_NO_PROMPTID]', {
+          loopKey,
+          hasV3Context: !!v3ProbingContext,
+          hasSnapshot: !!lastV3PromptSnapshotRef.current,
+          reason: 'Cannot append without stable promptId'
+        });
       }
       
       // Clear active probe question after answering
@@ -7068,7 +7089,16 @@ export default function CandidateInterview() {
         v3ProbingActive,
         effectiveItemType: localEffectiveItemType,
         loopKey,
+        answerTextLen: answerText?.length || 0,
         reason: 'V3 probing not active - skipping append'
+      });
+    } else {
+      console.error('[V3_TRANSCRIPT][APPEND_FAILED_PRECONDITIONS]', {
+        v3ProbingActive,
+        effectiveItemType: localEffectiveItemType,
+        hasLoopKey: !!loopKey,
+        hasAnswerText: !!(answerText?.trim()),
+        reason: 'Preconditions not met for V3 answer append'
       });
     }
     
@@ -10095,16 +10125,24 @@ export default function CandidateInterview() {
                     );
                   }
 
-                  // V3_PROBE_ANSWER (user)
-                  if (entry.role === 'user' && entry.messageType === 'V3_PROBE_ANSWER') {
+                  // V3_PROBE_ANSWER (user) - CRITICAL: Must always render
+                  if (entry.role === 'user' && (entry.messageType === 'V3_PROBE_ANSWER' || entry.type === 'V3_PROBE_ANSWER')) {
+                    // REGRESSION GUARD: Log render to confirm visibility
+                    console.log('[CQ_TRANSCRIPT][V3_PROBE_ANSWER_RENDERED]', {
+                      stableKey: entry.stableKey || entry.id,
+                      promptId: entry.meta?.promptId,
+                      loopKey: entry.meta?.loopKey,
+                      textPreview: (entry.text || '').substring(0, 40)
+                    });
+
                     return (
                       <div key={entryKey} style={{ marginBottom: 10 }}>
                         <ContentContainer>
-                          <div className="flex justify-end">
-                            <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                              <p className="text-white text-sm">{entry.text}</p>
-                            </div>
+                        <div className="flex justify-end">
+                          <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                            <p className="text-white text-sm">{entry.text || entry.message || entry.content || '(answer)'}</p>
                           </div>
+                        </div>
                         </ContentContainer>
                       </div>
                     );
