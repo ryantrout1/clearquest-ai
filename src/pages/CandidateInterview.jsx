@@ -1328,6 +1328,8 @@ export default function CandidateInterview() {
   const scrollIntentRef = useRef(false); // Coordination flag for scroll controllers
   const prevPaddingRef = useRef(0); // Track previous padding for compensation
   const stableBottomPaddingRef = useRef(0); // Stable padding floor (never decreases while footer visible)
+  const frozenRenderStreamRef = useRef(null); // Frozen transcript during typing (prevents flash)
+  const lastTextareaScrollHeightRef = useRef(0); // Track textarea row changes
   const inputRef = useRef(null);
   const yesButtonRef = useRef(null);
   const noButtonRef = useRef(null);
