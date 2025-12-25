@@ -6873,7 +6873,8 @@ export default function CandidateInterview() {
     }
     
     const effectiveLoopKey = loopKey || `${sessionId}:${categoryId}:${instanceNumber}`;
-    const qStableKey = `v3-probe-q:${sessionId}:${canonicalPromptId}`;
+    // FIX: promptId already contains sessionId via loopKey - don't duplicate
+    const qStableKey = `v3-probe-q:${canonicalPromptId}`;
     
     // OPTIMISTIC APPEND: Check + append in single functional update
     const appendSuccess = await new Promise((resolve) => {
@@ -6890,7 +6891,7 @@ export default function CandidateInterview() {
         }
         
         const qEntry = {
-          id: `v3-probe-q-${sessionId}-${canonicalPromptId}`,
+          id: `v3-probe-q-${canonicalPromptId}`,
           stableKey: qStableKey,
           index: getNextIndex(prev),
           role: "assistant",
@@ -7021,8 +7022,9 @@ export default function CandidateInterview() {
           reason: 'Cannot append without stable promptId'
         });
       } else {
-        const qStableKey = `v3-probe-q:${sessionId}:${promptId}`;
-        const aStableKey = `v3-probe-a:${sessionId}:${promptId}`;
+        // FIX: promptId already contains sessionId via loopKey - don't duplicate
+        const qStableKey = `v3-probe-q:${promptId}`;
+        const aStableKey = `v3-probe-a:${promptId}`;
         
         // OPTIMISTIC APPEND: Use functional update to work with latest local state
         await new Promise((resolve) => {
@@ -7048,7 +7050,7 @@ export default function CandidateInterview() {
               const promptText = lastV3PromptSnapshotRef.current?.promptText || v3ActivePromptText || "(Question text unavailable)";
               
               const qEntry = {
-                id: `v3-probe-q-${sessionId}-${promptId}`,
+                id: `v3-probe-q-${promptId}`,
                 stableKey: qStableKey,
                 index: getNextIndex(working),
                 role: "assistant",
@@ -7088,7 +7090,7 @@ export default function CandidateInterview() {
             
             // Append answer
             const aEntry = {
-              id: `v3-probe-a-${sessionId}-${promptId}`,
+              id: `v3-probe-a-${promptId}`,
               stableKey: aStableKey,
               index: getNextIndex(working),
               role: "user",
