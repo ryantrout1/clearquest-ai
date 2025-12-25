@@ -9124,10 +9124,33 @@ export default function CandidateInterview() {
     }
   }
   
-  // Use finalRenderStream for all rendering below (immutable - safe for React)
+  // FREEZE TRANSCRIPT DURING TYPING: Prevent flash on every keystroke
+  const wasTypingRef = useRef(false);
+  
+  if (!isUserTyping && wasTypingRef.current) {
+    // Just stopped typing - unfreeze
+    console.log('[TRANSCRIPT][UNFREEZE_ON_TYPING_END]', { len: finalRenderStream.length });
+    frozenRenderStreamRef.current = null;
+    wasTypingRef.current = false;
+  } else if (isUserTyping && !wasTypingRef.current) {
+    // Just started typing - freeze current stream
+    console.log('[TRANSCRIPT][FREEZE_ON_TYPING]', { len: finalRenderStream.length });
+    frozenRenderStreamRef.current = finalRenderStream;
+    wasTypingRef.current = true;
+  } else if (!isUserTyping) {
+    // Not typing - keep stream fresh
+    frozenRenderStreamRef.current = finalRenderStream;
+  }
+  
+  // Use frozen stream while typing, live stream otherwise
+  const renderableTranscriptStream = isUserTyping && frozenRenderStreamRef.current 
+    ? frozenRenderStreamRef.current 
+    : finalRenderStream;
+  
+  // Use renderableTranscriptStream for all rendering below (immutable - safe for React)
   
   // PART E: Stream snapshot log (only on length changes, with array guard)
-  const renderStreamLen = Array.isArray(finalRenderStream) ? finalRenderStream.length : 0;
+  const renderStreamLen = Array.isArray(renderableTranscriptStream) ? renderableTranscriptStream.length : 0;
   if (renderStreamLen !== lastRenderStreamLenRef.current) {
     console.log("[STREAM][SNAPSHOT]", {
       len: renderStreamLen,
@@ -9135,7 +9158,8 @@ export default function CandidateInterview() {
       v3UiLen: v3UiRenderable.length,
       hasActiveCard: !!activeCard,
       activeCardKind: activeCard?.kind || null,
-      tail: finalRenderStream.slice(-6).map(x => ({
+      isFrozen: isUserTyping && !!frozenRenderStreamRef.current,
+      tail: renderableTranscriptStream.slice(-6).map(x => ({
         type: x.messageType || x.type || x.kind,
         key: x.stableKey || x.id || x.__canonicalKey,
         isActive: x.__activeCard || false
@@ -9937,8 +9961,8 @@ export default function CandidateInterview() {
           <div className="space-y-2 relative isolate">
           {/* CANONICAL RENDER STREAM: Single source of truth for all main pane content */}
           {(() => {
-            // Use finalRenderStream (immutable - includes safety net repairs)
-            const transcriptToRender = finalRenderStream;
+            // Use renderableTranscriptStream (frozen during typing to prevent flash)
+            const transcriptToRender = renderableTranscriptStream;
             
             // REGRESSION LOG: Prove what we're about to render (source of truth for UI)
             const packId = currentItem?.packId || v3ProbingContext?.packId;
