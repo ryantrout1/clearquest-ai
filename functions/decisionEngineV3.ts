@@ -1265,15 +1265,17 @@ async function decisionEngineV3Probe(base44, {
   // RECOMPUTE missing fields AFTER exact writes
   const missingFieldsAfter = getMissingRequiredFields(factState, incidentId, factModel);
   
+  // DETERMINISTIC DETECTION: Extract month/year from opener FIRST (single source of truth)
+  const detectedMonthYearNormalized = isInitialCall ? extractMonthYear(latestAnswerText || '') : null;
+  
   // LOAD-BEARING DIAGNOSTIC: Initial call truth log
   const extractedMonthYearKey = Object.keys(extractedFacts).find(k => 
     ['date', 'month', 'year', 'when', 'time', 'approx'].some(kw => canon(k).includes(kw))
   );
   const extractedMonthYearRaw = extractedMonthYearKey ? extractedFacts[extractedMonthYearKey] : null;
-  const openerHasMonthYear = isInitialCall && hasMonthYear(latestAnswerText || '');
   
-  // DETERMINISTIC DETECTION: Extract month/year from opener (overrides fact extraction)
-  const detectedMonthYearNormalized = isInitialCall ? extractMonthYear(latestAnswerText || '') : null;
+  // DETERMINISTIC FLAG: Use extractMonthYear result (not legacy hasMonthYear pattern)
+  const openerHasMonthYear = Boolean(detectedMonthYearNormalized);
   
   // PART 1: DIAGNOSTIC - Show which keys engine checks for month/year + their current values
   if (isInitialCall && categoryId === 'PRIOR_LE_APPS') {
@@ -1777,8 +1779,8 @@ async function decisionEngineV3Probe(base44, {
     categoryId
   }) : false;
   
-  // ENHANCED DEBUG: Include deterministic extraction status
-  const detectedMonthYearNormalized = extractedMonthYearRaw || (isInitialCall ? extractMonthYear(latestAnswerText || '') : null);
+  // ENHANCED DEBUG: Use already-computed detectedMonthYearNormalized (declared at line ~1269)
+  // NOTE: Variable already declared above - reusing existing value
   
   const debugInfo = categoryId === 'PRIOR_LE_APPS' ? {
     categoryId,
