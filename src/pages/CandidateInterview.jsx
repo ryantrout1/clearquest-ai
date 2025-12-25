@@ -274,73 +274,14 @@ const ContentContainer = ({ children, className = "" }) => (
 );
 
 // ============================================================================
-// LEGACY TRANSCRIPT CLEANUP - Remove V3 probe prompts from stored transcripts
+// LEGACY TRANSCRIPT CLEANUP - DISABLED (V3 probe Q/A now allowed in transcript)
 // ============================================================================
-// CHANGE 1: Load-time cleanup for existing sessions with V3 probe pollution
-const cleanedSessionIdsRef = new Set(); // ONE-TIME guard per sessionId
+const cleanedSessionIdsRef = new Set(); // Kept for compatibility
 
 const cleanLegacyV3ProbePrompts = (transcript, sessionId) => {
-  if (!Array.isArray(transcript)) return transcript;
-  
-  const cleaned = transcript.filter(entry => {
-    const mt = entry.messageType || entry.type;
-    const stableKey = entry.stableKey || '';
-    const kind = entry.kind || '';
-    
-    // Detect V3 probe prompt/question (NOT answers)
-    const isV3ProbePrompt = 
-      mt === 'V3_PROBE_QUESTION' ||
-      mt === 'V3_PROBE_PROMPT' ||
-      mt === 'AI_FOLLOWUP_QUESTION' ||
-      kind === 'v3_probe_q' ||
-      kind === 'v3_probe_prompt' ||
-      stableKey.startsWith('v3-probe-q:') ||
-      stableKey.startsWith('v3-probe-prompt:') ||
-      stableKey.includes(':V3_PROBING:');
-    
-    return !isV3ProbePrompt; // Keep everything except V3 probe prompts
-  });
-  
-  const removedCount = transcript.length - cleaned.length;
-  if (removedCount > 0) {
-    const removedKeys = transcript
-      .filter(e => {
-        const mt = e.messageType || e.type;
-        const stableKey = e.stableKey || '';
-        return mt === 'V3_PROBE_QUESTION' || stableKey.startsWith('v3-probe-q:');
-      })
-      .map(e => e.stableKey || e.id);
-    
-    console.log('[V3_UI_CONTRACT][LEGACY_TRANSCRIPT_CLEANED]', {
-      sessionId,
-      removedCount,
-      sampleKeysPreview: removedKeys.slice(0, 5),
-      cleanedLen: cleaned.length,
-      originalLen: transcript.length
-    });
-    
-    // CHANGE 2: ONE-TIME DB REPAIR - Write cleaned transcript back to DB
-    if (sessionId && !cleanedSessionIdsRef.has(sessionId)) {
-      cleanedSessionIdsRef.add(sessionId);
-      
-      base44.entities.InterviewSession.update(sessionId, {
-        transcript_snapshot: cleaned
-      }).then(() => {
-        console.log('[V3_UI_CONTRACT][LEGACY_DB_REPAIR_APPLIED]', {
-          sessionId,
-          removedCount,
-          newLen: cleaned.length
-        });
-      }).catch(err => {
-        console.warn('[V3_UI_CONTRACT][LEGACY_DB_REPAIR_ERROR]', {
-          sessionId,
-          error: err.message
-        });
-      });
-    }
-  }
-  
-  return cleaned;
+// NO LONGER CLEANING - V3 probe Q/A are now legal record
+if (!Array.isArray(transcript)) return transcript;
+return transcript;
 };
 
 // ============================================================================
@@ -1942,30 +1883,8 @@ export default function CandidateInterview() {
   const nextRenderable = React.useMemo(() => {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
     
-    // CHANGE 2: RENDER-TIME SAFETY NET - Remove V3 probe prompts if they exist
-    const baseWithoutV3Probes = base.filter(entry => {
-      const mt = entry.messageType || entry.type;
-      const stableKey = entry.stableKey || '';
-      const kind = entry.kind || '';
-      
-      // Detect V3 probe prompt/question
-      const isV3ProbePrompt = 
-        mt === 'V3_PROBE_QUESTION' ||
-        mt === 'V3_PROBE_PROMPT' ||
-        mt === 'AI_FOLLOWUP_QUESTION' ||
-        kind === 'v3_probe_q' ||
-        kind === 'v3_probe_prompt' ||
-        kind === 'v3_probing' ||
-        stableKey.startsWith('v3-probe-q:') ||
-        stableKey.startsWith('v3-probe-prompt:') ||
-        stableKey.includes(':V3_PROBING:');
-      
-      if (isV3ProbePrompt) {
-        return false; // Remove from render
-      }
-      
-      return true; // Keep
-    });
+    // V3 probe Q/A now allowed in transcript (no longer filtered)
+    const baseWithoutV3Probes = base;
     
     // Log if any were removed
     const removedCount = base.length - baseWithoutV3Probes.length;
@@ -2027,26 +1946,8 @@ export default function CandidateInterview() {
   const renderedTranscript = useMemo(() => {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
     
-    // CHANGE 2: RENDER-TIME SAFETY NET - Filter out V3 probe prompts/questions
-    const baseFiltered = base.filter(entry => {
-      const mt = entry.messageType || entry.type;
-      const stableKey = entry.stableKey || '';
-      const kind = entry.kind || '';
-      
-      // Detect V3 probe prompt/question
-      const isV3ProbePrompt = 
-        mt === 'V3_PROBE_QUESTION' ||
-        mt === 'V3_PROBE_PROMPT' ||
-        mt === 'AI_FOLLOWUP_QUESTION' ||
-        kind === 'v3_probe_q' ||
-        kind === 'v3_probe_prompt' ||
-        kind === 'v3_probing' ||
-        stableKey.startsWith('v3-probe-q:') ||
-        stableKey.startsWith('v3-probe-prompt:') ||
-        stableKey.includes(':V3_PROBING:');
-      
-      return !isV3ProbePrompt; // Keep only non-probe items
-    });
+    // V3 probe Q/A now allowed in transcript (no longer filtered)
+    const baseFiltered = base;
     
     // Log if any V3 probe prompts were removed
     const removedCount = base.length - baseFiltered.length;
@@ -10256,49 +10157,56 @@ export default function CandidateInterview() {
                   }
                   
                   // V3 transcript entries (from DB - legal record)
-                  // V3_PROBE_QUESTION (assistant)
+                  // V3_PROBE_QUESTION (assistant) - NOW RENDERS FROM TRANSCRIPT
                   if (entry.role === 'assistant' && entry.messageType === 'V3_PROBE_QUESTION') {
-                    return (
-                      <div key={entryKey}>
-                        <ContentContainer>
-                          <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
-                              {entry.meta?.instanceNumber > 1 && (
-                                <>
-                                  <span className="text-xs text-slate-500">•</span>
-                                  <span className="text-xs text-slate-400">Instance {entry.meta.instanceNumber}</span>
-                                </>
-                              )}
-                            </div>
-                            <p className="text-white text-sm leading-relaxed">{entry.text}</p>
-                          </div>
-                        </ContentContainer>
-                      </div>
-                    );
+                   console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_RENDERED]', {
+                     stableKey: entry.stableKey || entry.id,
+                     promptId: entry.meta?.promptId,
+                     loopKey: entry.meta?.loopKey,
+                     textPreview: (entry.text || '').substring(0, 40)
+                   });
+
+                   return (
+                     <div key={entryKey}>
+                       <ContentContainer>
+                         <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                           <div className="flex items-center gap-2 mb-1">
+                             <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
+                             {entry.meta?.instanceNumber > 1 && (
+                               <>
+                                 <span className="text-xs text-slate-500">•</span>
+                                 <span className="text-xs text-slate-400">Instance {entry.meta.instanceNumber}</span>
+                               </>
+                             )}
+                           </div>
+                           <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                         </div>
+                       </ContentContainer>
+                     </div>
+                   );
                   }
 
                   // V3_PROBE_ANSWER (user) - CRITICAL: Must always render
                   if (entry.role === 'user' && (entry.messageType === 'V3_PROBE_ANSWER' || entry.type === 'V3_PROBE_ANSWER')) {
-                    // REGRESSION GUARD: Log render to confirm visibility
-                    console.log('[CQ_TRANSCRIPT][V3_PROBE_ANSWER_RENDERED]', {
-                      stableKey: entry.stableKey || entry.id,
-                      promptId: entry.meta?.promptId,
-                      loopKey: entry.meta?.loopKey,
-                      textPreview: (entry.text || '').substring(0, 40)
-                    });
+                   // REGRESSION GUARD: Log render to confirm visibility
+                   console.log('[CQ_TRANSCRIPT][V3_PROBE_ANSWER_RENDERED]', {
+                     stableKey: entry.stableKey || entry.id,
+                     promptId: entry.meta?.promptId,
+                     loopKey: entry.meta?.loopKey,
+                     textPreview: (entry.text || '').substring(0, 40)
+                   });
 
-                    return (
-                      <div key={entryKey} style={{ marginBottom: 10 }}>
-                        <ContentContainer>
-                        <div className="flex justify-end">
-                          <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                            <p className="text-white text-sm">{entry.text || entry.message || entry.content || '(answer)'}</p>
-                          </div>
-                        </div>
-                        </ContentContainer>
-                      </div>
-                    );
+                   return (
+                     <div key={entryKey} style={{ marginBottom: 10 }}>
+                       <ContentContainer>
+                       <div className="flex justify-end">
+                         <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                           <p className="text-white text-sm">{entry.text || entry.message || entry.content || '(answer)'}</p>
+                         </div>
+                       </div>
+                       </ContentContainer>
+                     </div>
+                   );
                   }
 
                   // V3 UI-only history cards (ephemeral - for immediate display)

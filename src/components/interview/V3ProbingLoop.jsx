@@ -372,14 +372,50 @@ export default function V3ProbingLoop({
       };
       setMessages(prev => [...prev, userMessage]);
 
-      // BLOCKED: V3 probe answers should NOT append to transcript (breaks UI contract)
-      // Only opener answers and completion messages go in transcript
-      console.log('[V3_UI_CONTRACT]', {
-        action: 'TRANSCRIPT_APPEND_BLOCKED',
-        messageType: 'v3_probe_answer',
-        reason: 'V3 probe Q&A must NOT appear in transcript - headless loop only',
-        answerPreview: answer?.substring(0, 50)
-      });
+      // NEW: V3 probe answers NOW append to transcript (product requirement: chat history = transcript)
+      // Append answer to session transcript
+      const { appendUserMessage } = await import("../utils/chatTranscriptHelpers");
+      const sessionData = await base44.entities.InterviewSession.get(sessionId);
+      const currentTranscript = sessionData.transcript_snapshot || [];
+      
+      const aStableKey = `v3-probe-a:${loopKey}:${probeCount}`;
+      
+      // Dedupe: check if already in transcript
+      const answerAlreadyInTranscript = currentTranscript.some(e => 
+        e.stableKey === aStableKey || 
+        (e.meta?.promptId === probeCount && e.meta?.loopKey === loopKey && e.role === 'user')
+      );
+      
+      if (!answerAlreadyInTranscript) {
+        await appendUserMessage(sessionId, currentTranscript, answer, {
+          id: `v3-probe-a-${sessionId}-${loopKey}-${probeCount}`,
+          stableKey: aStableKey,
+          messageType: 'V3_PROBE_ANSWER',
+          type: 'V3_PROBE_ANSWER',
+          meta: {
+            packId: packData?.followup_pack_id,
+            instanceNumber: instanceNumber || 1,
+            categoryId,
+            loopKey,
+            promptId: probeCount,
+            source: 'v3'
+          }
+        });
+        
+        console.log('[CQ_TRANSCRIPT][V3_PROBE_A_APPEND_OK]', {
+          stableKey: aStableKey,
+          promptId: probeCount,
+          loopKey,
+          answerLen: answer?.length || 0,
+          transcriptLenAfter: currentTranscript.length + 1
+        });
+      } else {
+        console.log('[CQ_TRANSCRIPT][V3_PROBE_A_DEDUPED]', {
+          stableKey: aStableKey,
+          promptId: probeCount,
+          loopKey
+        });
+      }
     }
 
     // Persist user message to local transcript (skip for initial call)
@@ -615,41 +651,51 @@ export default function V3ProbingLoop({
           });
         }
 
-        // UI CONTRACT: V3 probe prompts MUST NOT append to transcript
-        // They are rendered in existing prompt lane (purple AI follow-up card)
-        console.log('[V3_UI_CONTRACT]', {
-          action: 'PROMPT_RENDER',
-          location: 'PROMPT_LANE_CARD',
-          categoryId: categoryId || 'unknown',
-          packId: currentIncidentId?.split('_')[1] || 'unknown',
-          promptPreview: data.nextPrompt.substring(0, 60),
-          appendedToTranscript: false,
-          exposedVia: 'onPromptChange callback',
-          activePromptSet: true
-        });
-
-        // REGRESSION GUARD: Explicitly prevent any transcript writes for probe prompts
-        // These should NEVER call appendAssistantMessage with V3_PROBE_QUESTION type
-        // DO NOT log to transcript - no V3_PROBE_ASKED system events
-        // DO NOT call onTranscriptUpdate for prompts - breaks UI contract
-
-        // GUARD: Block any accidental transcript append attempts
-        if (onTranscriptUpdate) {
-          const attemptedAppend = false; // Would be true if we called it
-          if (attemptedAppend) {
-            console.error('[V3_UI_CONTRACT][BLOCKED_APPEND]', {
-              messageType: 'v3_probe_question',
+        // NEW: V3 probe questions NOW append to transcript (product requirement: chat history = transcript)
+        // Append probe question to session transcript
+        const { appendAssistantMessage } = await import("../utils/chatTranscriptHelpers");
+        const sessionData = await base44.entities.InterviewSession.get(sessionId);
+        const currentTranscript = sessionData.transcript_snapshot || [];
+        
+        const promptId = `${loopKey}:${newProbeCount}`;
+        const qStableKey = `v3-probe-q:${loopKey}:${promptId}`;
+        
+        // Dedupe: check if already in transcript
+        const alreadyInTranscript = currentTranscript.some(e => 
+          e.stableKey === qStableKey || 
+          (e.meta?.promptId === promptId && e.meta?.loopKey === loopKey)
+        );
+        
+        if (!alreadyInTranscript) {
+          await appendAssistantMessage(sessionId, currentTranscript, data.nextPrompt, {
+            id: `v3-probe-q-${sessionId}-${loopKey}-${promptId}`,
+            stableKey: qStableKey,
+            messageType: 'V3_PROBE_QUESTION',
+            type: 'V3_PROBE_QUESTION',
+            meta: {
+              packId: packData?.followup_pack_id,
+              instanceNumber: instanceNumber || 1,
               categoryId,
-              packId: currentIncidentId?.split('_')[1] || 'unknown',
-              reason: 'V3 probe questions must NEVER be appended to transcript'
-            });
-            // DO NOT call onTranscriptUpdate here - this is the block point
-          } else {
-            console.log('[V3_UI_CONTRACT][GUARD]', {
-              action: 'onTranscriptUpdate callback exists but NOT called for probe prompt',
-              reason: 'V3 probes are headless - no transcript writes'
-            });
-          }
+              loopKey,
+              promptId,
+              source: 'v3'
+            },
+            visibleToCandidate: true
+          });
+          
+          console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_APPEND_OK]', {
+            stableKey: qStableKey,
+            promptId,
+            loopKey,
+            promptLen: data.nextPrompt?.length || 0,
+            transcriptLenAfter: currentTranscript.length + 1
+          });
+        } else {
+          console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_DEDUPED]', {
+            stableKey: qStableKey,
+            promptId,
+            loopKey
+          });
         }
       } else if (data.nextAction === "RECAP" || data.nextAction === "STOP") {
         setIsDeciding(false);
