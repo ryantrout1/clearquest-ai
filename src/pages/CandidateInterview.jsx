@@ -59,6 +59,7 @@ import {
   getNextIndex,
   flushRetryQueueOnce
 } from "../components/utils/chatTranscriptHelpers";
+import { getV3DeterministicOpener } from "../components/utils/v3ProbingPrompts";
 
 // ============================================================================
 // FETCH INTERCEPTOR - Block /entities/User/me on public routes
@@ -3475,7 +3476,9 @@ export default function CandidateInterview() {
   // SHARED MI_GATE HANDLER: Deduplicated logic for YES/NO (inline function)
   const handleMiGateYesNo = async ({ answer, gate, sessionId, engine }) => {
     // PART C: Append gate Q+A to transcript after user answers
-    const { appendUserMessage, appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
+    // STATIC IMPORT: Use top-level imports (prevents React context duplication)
+    const appendUserMessage = appendUserMessageImport;
+    const appendAssistantMessage = appendAssistantMessageImport;
     const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
     const currentTranscript = sessionForAnswer.transcript_snapshot || [];
     
@@ -3604,7 +3607,7 @@ export default function CandidateInterview() {
         isV3: true
       });
 
-      const { getV3DeterministicOpener } = await import("../components/utils/v3ProbingPrompts");
+      // STATIC IMPORT: Use top-level import (already imported at line 61)
       const opener = getV3DeterministicOpener(gate.packData, gate.categoryId, gate.categoryLabel);
 
       const openerItem = {
@@ -5173,8 +5176,7 @@ export default function CandidateInterview() {
               }
 
               // Get deterministic opener (configured or synthesized)
-              // STATIC IMPORT: Must use top-level import to prevent React duplication
-              const { getV3DeterministicOpener } = await import("../components/utils/v3ProbingPrompts");
+              // STATIC IMPORT: Use top-level import (already imported at line 61)
               const opener = getV3DeterministicOpener(packMetadata, categoryId, categoryLabel);
 
               if (opener.isSynthesized) {
