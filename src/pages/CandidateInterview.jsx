@@ -9730,6 +9730,40 @@ export default function CandidateInterview() {
                 })
               : transcriptToRender;
             
+            // REGRESSION GUARD: Verify no candidate-visible QUESTION_SHOWN entries were dropped
+            const candidateVisibleQuestionsInDb = transcriptToRender.filter(e => 
+              e.messageType === 'QUESTION_SHOWN' && e.visibleToCandidate === true
+            ).length;
+            const candidateVisibleQuestionsInRender = finalList.filter(e => 
+              e.messageType === 'QUESTION_SHOWN' && e.visibleToCandidate === true
+            ).length;
+            
+            if (candidateVisibleQuestionsInRender < candidateVisibleQuestionsInDb && shouldSuppressBaseQuestions) {
+              const droppedQuestions = transcriptToRender.filter(e => 
+                e.messageType === 'QUESTION_SHOWN' && 
+                e.visibleToCandidate === true &&
+                !finalList.some(r => (r.stableKey && r.stableKey === e.stableKey) || (r.id && r.id === e.id))
+              );
+              
+              console.log('[CQ_TRANSCRIPT][BASE_Q_SUPPRESSED_STATS]', {
+                candidateVisibleQuestionsInDb,
+                candidateVisibleQuestionsInRender,
+                droppedCount: candidateVisibleQuestionsInDb - candidateVisibleQuestionsInRender,
+                droppedKeys: droppedQuestions.map(e => ({
+                  questionId: e.meta?.questionDbId || e.questionId,
+                  questionCode: e.meta?.questionCode || 'unknown',
+                  stableKey: e.stableKey || e.id,
+                  textPreview: (e.text || '').substring(0, 40)
+                }))
+              });
+            } else if (shouldSuppressBaseQuestions && candidateVisibleQuestionsInRender === candidateVisibleQuestionsInDb) {
+              console.log('[CQ_TRANSCRIPT][BASE_Q_NO_REGRESSION]', {
+                candidateVisibleQuestionsInDb,
+                candidateVisibleQuestionsInRender,
+                reason: 'All answered base questions preserved during V3'
+              });
+            }
+            
             return (
               <div className="opacity-100">
                 {finalList.map((entry, index) => {
