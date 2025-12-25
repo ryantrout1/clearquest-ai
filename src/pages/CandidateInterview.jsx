@@ -1554,6 +1554,10 @@ export default function CandidateInterview() {
   
   // Render-time freeze: Snapshot transcript while typing to prevent flicker
   const renderedTranscriptSnapshotRef = useRef(null);
+  
+  // HOOK ORDER FIX: Safety net reinjection tracker (MUST be top-level)
+  // Moved from line 8752 to prevent "change in order of Hooks" error
+  const reinjectedOpenerAnswersRef = useRef(new Set());
 
   // ============================================================================
   // V3 PROMPT DETECTION + ACTIVE UI ITEM RESOLVER (TDZ-safe early placement)
@@ -8749,7 +8753,7 @@ export default function CandidateInterview() {
   
   // SAFETY NET: Re-inject missing v3_opener_answer if it exists in canonical but not in render
   // IMMUTABLE: Creates new array rather than mutating (guarantees React re-render)
-  const reinjectedOpenerAnswersRef = useRef(new Set()); // Track what we've reinjected
+  // NOTE: reinjectedOpenerAnswersRef now declared at top-level (line ~1556) to fix hook order
   
   let finalRenderStream = baseRenderStream;
   
