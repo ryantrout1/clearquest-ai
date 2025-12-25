@@ -9425,6 +9425,113 @@ export default function CandidateInterview() {
     }
   }
   
+  // SAFETY NET: Re-inject missing V3_PROBE_ANSWER during MI_GATE transition
+  if (currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === "MI_GATE") {
+    const packId = currentItem?.packId;
+    const categoryId = currentItem?.categoryId;
+    const instanceNumber = currentItem?.instanceNumber || 1;
+    
+    // Find most recent V3 probe answer in dbTranscript for this pack/instance
+    const v3ProbeAnswersInDb = dbTranscript.filter(e => 
+      (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER' || e.stableKey?.startsWith('v3-probe-a:')) &&
+      e.meta?.packId === packId &&
+      e.meta?.instanceNumber === instanceNumber
+    );
+    
+    if (v3ProbeAnswersInDb.length > 0) {
+      // Get last V3 probe answer (most recent)
+      const lastProbeAnswer = v3ProbeAnswersInDb[v3ProbeAnswersInDb.length - 1];
+      const answerPromptId = lastProbeAnswer.meta?.promptId;
+      const answerLoopKey = lastProbeAnswer.meta?.loopKey;
+      
+      // Check if answer exists in finalRenderStream
+      const probeAnswerInRender = finalRenderStream.find(e => 
+        (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER' || e.stableKey?.startsWith('v3-probe-a:')) &&
+        (e.stableKey === lastProbeAnswer.stableKey || e.id === lastProbeAnswer.id)
+      );
+      
+      if (!probeAnswerInRender) {
+        console.error('[CQ_TRANSCRIPT][V3_PROBE_A_MISSING_IN_RENDER_AFTER_GATE]', {
+          packId,
+          instanceNumber,
+          stableKey: lastProbeAnswer.stableKey || lastProbeAnswer.id,
+          promptId: answerPromptId,
+          loopKey: answerLoopKey,
+          textPreview: (lastProbeAnswer.text || '').substring(0, 60),
+          reason: 'V3 probe answer in dbTranscript but missing from render during MI_GATE',
+          dbTranscriptLen: dbTranscript.length,
+          finalRenderStreamLen: finalRenderStream.length
+        });
+        
+        // Find matching question
+        const matchingQuestion = dbTranscript.find(e => 
+          (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+          e.meta?.promptId === answerPromptId
+        );
+        
+        // Check if question is in render stream
+        const questionInRender = matchingQuestion ? finalRenderStream.find(e => 
+          (e.stableKey === matchingQuestion.stableKey || e.id === matchingQuestion.id)
+        ) : null;
+        
+        // Re-inject question if missing
+        const itemsToInject = [];
+        
+        if (matchingQuestion && !questionInRender) {
+          console.error('[CQ_TRANSCRIPT][V3_PROBE_Q_MISSING_IN_RENDER_AFTER_GATE]', {
+            packId,
+            instanceNumber,
+            stableKey: matchingQuestion.stableKey || matchingQuestion.id,
+            promptId: answerPromptId,
+            loopKey: answerLoopKey,
+            textPreview: (matchingQuestion.text || '').substring(0, 60),
+            reason: 'V3 probe question missing - will re-inject before answer'
+          });
+          
+          itemsToInject.push(matchingQuestion);
+        }
+        
+        // Re-inject answer
+        itemsToInject.push(lastProbeAnswer);
+        
+        // Find MI_GATE card position in stream
+        const miGateIndex = finalRenderStream.findIndex(e => 
+          e.messageType === 'MULTI_INSTANCE_GATE_SHOWN' ||
+          (e.__activeCard && e.kind === 'multi_instance_gate')
+        );
+        
+        if (miGateIndex !== -1) {
+          // Inject before MI_GATE
+          finalRenderStream = [
+            ...finalRenderStream.slice(0, miGateIndex),
+            ...itemsToInject,
+            ...finalRenderStream.slice(miGateIndex)
+          ];
+          
+          console.log('[CQ_TRANSCRIPT][REPAIR_V3_PROBE_QA_INJECTED]', {
+            packId,
+            instanceNumber,
+            injectedCount: itemsToInject.length,
+            injectedKeys: itemsToInject.map(e => e.stableKey || e.id),
+            miGateIndex,
+            finalLen: finalRenderStream.length
+          });
+        } else {
+          // MI_GATE not found in stream - append to end
+          finalRenderStream = [...finalRenderStream, ...itemsToInject];
+          
+          console.log('[CQ_TRANSCRIPT][REPAIR_V3_PROBE_QA_APPENDED]', {
+            packId,
+            instanceNumber,
+            injectedCount: itemsToInject.length,
+            reason: 'MI_GATE not found in stream - appended to end',
+            finalLen: finalRenderStream.length
+          });
+        }
+      }
+    }
+  }
+  
   // FREEZE TRANSCRIPT DURING TYPING: Prevent flash on every keystroke
   // NOTE: wasTypingRef declared at top-level (line ~1333) to maintain hook order
   
