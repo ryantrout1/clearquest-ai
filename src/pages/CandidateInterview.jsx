@@ -7846,48 +7846,12 @@ export default function CandidateInterview() {
     };
   }, []); // STABLE: Observer created once per mount (cqDiagEnabledRef supports runtime toggle)
 
-  // AUTO-GROWING INPUT: Re-measure footer on mode changes (prevents stale height during transitions)
-  React.useLayoutEffect(() => {
-    if (!footerRef.current) return;
-    
-    // Trigger measurement on next frame (after layout settles)
-    requestAnimationFrame(() => {
-      if (!footerRef.current) return;
-      const rect = footerRef.current.getBoundingClientRect();
-      const measured = Math.round(rect.height || footerRef.current.offsetHeight || 0);
-      
-      setFooterMeasuredHeightPx(prev => {
-        const delta = Math.abs(measured - prev);
-        if (delta < 2) return prev;
-        
-        console.log('[FOOTER][HEIGHT_REMEASURED_ON_MODE_CHANGE]', {
-          footerMeasuredHeightPx: measured,
-          appliedPaddingPx: measured + 8,
-          delta,
-          bottomBarMode,
-          shouldRenderFooter,
-          effectiveItemType
-        });
-        
-        return measured;
-      });
-    });
-  }, [bottomBarMode, shouldRenderFooter, effectiveItemType]);
-
-  // Re-anchor bottom on footer height changes when auto-scroll is enabled
-  useEffect(() => {
-    if (!historyRef.current) return;
-    if (!autoScrollEnabledRef.current) return;
-    requestAnimationFrame(() => {
-      bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
-    });
-  }, [footerHeightPx]);
-
   // ============================================================================
   // UNIFIED BOTTOM BAR MODE + FOOTER PADDING COMPUTATION (Single Source of Truth)
   // ============================================================================
-  // CRITICAL: All variables declared EXACTLY ONCE in this block
-  // NO early/centralized split - prevents TDZ and duplicate declarations
+  // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
+  // CRITICAL: DECLARED FIRST - Before all effects that use bottomBarMode/effectiveItemType
+  // All variables declared EXACTLY ONCE in this block
   
   // Step 1: Compute currentItemType (base type before precedence)
   const currentItemType = v3GateActive ? 'v3_gate' : 
@@ -7993,33 +7957,49 @@ export default function CandidateInterview() {
   const isV3Gate = effectiveItemType === "v3_gate";
   const isMultiInstanceGate = effectiveItemType === "multi_instance_gate";
   const isQuestion = false; // Set to true during refinement if needed
-  
-  // ============================================================================
-  // REGRESSION GUARD: Assert single source of truth (dev-only, non-blocking)
-  // ============================================================================
-  console.log("[GUARD][BOTTOM_BAR_SINGLE_SOURCE]", {
-    bottomBarMode,
-    effectiveItemType,
-    footerControllerLocal,
-    currentItemType,
-    shouldRenderFooter,
-    footerSafePaddingPx,
-    dynamicBottomPaddingPx,
-    activeUiItemKind: activeUiItem?.kind
-  });
-  
-  // Defensive check: Detect undefined values (log-only, never throw)
-  if (bottomBarMode === undefined || effectiveItemType === undefined || footerSafePaddingPx === undefined) {
-    console.error("[GUARD][BOTTOM_BAR_UNDEFINED]", {
-      bottomBarMode,
-      effectiveItemType,
-      footerControllerLocal,
-      footerSafePaddingPx,
-      dynamicBottomPaddingPx,
-      reason: 'CRITICAL: One or more unified block variables is undefined',
-      stack: new Error().stack?.split('\n').slice(1, 3).join(' | ')
+
+  // AUTO-GROWING INPUT: Re-measure footer on mode changes (prevents stale height during transitions)
+  // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
+  React.useLayoutEffect(() => {
+    if (!footerRef.current) return;
+    
+    // Trigger measurement on next frame (after layout settles)
+    requestAnimationFrame(() => {
+      if (!footerRef.current) return;
+      const rect = footerRef.current.getBoundingClientRect();
+      const measured = Math.round(rect.height || footerRef.current.offsetHeight || 0);
+      
+      setFooterMeasuredHeightPx(prev => {
+        const delta = Math.abs(measured - prev);
+        if (delta < 2) return prev;
+        
+        console.log('[FOOTER][HEIGHT_REMEASURED_ON_MODE_CHANGE]', {
+          footerMeasuredHeightPx: measured,
+          appliedPaddingPx: measured + 8,
+          delta,
+          bottomBarMode,
+          shouldRenderFooter,
+          effectiveItemType
+        });
+        
+        return measured;
+      });
     });
-  }
+  }, [bottomBarMode, shouldRenderFooter, effectiveItemType]);
+
+  // Re-anchor bottom on footer height changes when auto-scroll is enabled
+  // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
+  useEffect(() => {
+    if (!historyRef.current) return;
+    if (!autoScrollEnabledRef.current) return;
+    requestAnimationFrame(() => {
+      bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+    });
+  }, [footerHeightPx]);
+
+  // SMOOTH GLIDE AUTOSCROLL: ChatGPT-style smooth scrolling on new content
+  // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
+  React.useLayoutEffect(() => {
 
   // SMOOTH GLIDE AUTOSCROLL: ChatGPT-style smooth scrolling on new content
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
