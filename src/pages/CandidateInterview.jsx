@@ -1548,6 +1548,7 @@ export default function CandidateInterview() {
   const footerTextareaRef = useRef(null);
   const [footerMeasuredHeightPx, setFooterMeasuredHeightPx] = useState(0); // Start at 0 (prevents initial jump)
   const lastAutoGrowHeightRef = useRef(0); // Stable throttle (no dataset mutation)
+  const cqDiagEnabledRef = useRef(false); // Stable diagnostic flag for long-lived callbacks
   
   // V3 UI-ONLY HISTORY: Display V3 probe Q/A without polluting transcript
   // MOVED UP: Must be declared before refreshTranscriptFromDB (TDZ fix)
@@ -7774,12 +7775,17 @@ export default function CandidateInterview() {
     }
   }, [currentItem, validationHint]);
 
+  // AUTO-GROWING INPUT: Sync cqDiagEnabled to ref for stable logging in long-lived callbacks
+  useEffect(() => {
+    cqDiagEnabledRef.current = cqDiagEnabled;
+  }, [cqDiagEnabled]);
+
   // AUTO-GROWING INPUT: Measure footer height dynamically (includes growing textarea)
   useEffect(() => {
     if (!footerRef.current) return;
     
     // DIAGNOSTIC: Verify footer container ref (cqdiag only, once per mount)
-    if (cqDiagEnabled) {
+    if (cqDiagEnabledRef.current) {
       console.log('[FOOTER][CONTAINER_REF_CHECK]', {
         hasFooterRef: !!footerRef.current,
         nodeTag: footerRef.current?.tagName
@@ -7795,8 +7801,8 @@ export default function CandidateInterview() {
       const measured = Math.round(rect.height || footerRef.current.offsetHeight || 0);
       
       // DIAGNOSTIC: Verify observer + measurement target (cqdiag only)
-      // Uses cqDiagEnabled from closure (stable - no observer recreation)
-      if (cqDiagEnabled) {
+      // Uses cqDiagEnabledRef for runtime toggle support (stable observer lifecycle)
+      if (cqDiagEnabledRef.current) {
         console.log('[FOOTER][OBSERVE_CHECK]', {
           observing: true,
           nodeTag: footerRef.current?.tagName,
@@ -7838,7 +7844,7 @@ export default function CandidateInterview() {
       resizeObserver.disconnect();
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, []); // STABLE: Observer created once per mount (cqDiagEnabled accessed via closure)
+  }, []); // STABLE: Observer created once per mount (cqDiagEnabledRef supports runtime toggle)
 
   // Re-anchor bottom on footer height changes when auto-scroll is enabled
   useEffect(() => {
@@ -8056,7 +8062,7 @@ export default function CandidateInterview() {
     if (!textarea) return;
 
     // DIAGNOSTIC: Verify ref connection (cqdiag only)
-    if (cqDiagEnabled) {
+    if (cqDiagEnabledRef.current) {
       console.log('[FOOTER][REF_CHECK]', {
         hasTextareaRef: !!footerTextareaRef.current,
         tagName: footerTextareaRef.current?.tagName,
