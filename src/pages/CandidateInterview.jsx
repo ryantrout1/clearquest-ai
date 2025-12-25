@@ -7999,11 +7999,7 @@ export default function CandidateInterview() {
 
   // SMOOTH GLIDE AUTOSCROLL: ChatGPT-style smooth scrolling on new content
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
-  React.useLayoutEffect(() => {
-
-  // SMOOTH GLIDE AUTOSCROLL: ChatGPT-style smooth scrolling on new content
-  // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
-  // TDZ-SAFE: bottomBarMode declared above (line ~7912) before this effect
+  // TDZ-SAFE: bottomBarMode declared above (line ~7876) before this effect
   React.useLayoutEffect(() => {
     const scrollContainer = historyRef.current;
     if (!scrollContainer || !bottomAnchorRef.current) return;
