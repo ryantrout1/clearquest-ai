@@ -1327,6 +1327,7 @@ export default function CandidateInterview() {
   const displayOrderRef = useRef(0);
   const scrollIntentRef = useRef(false); // Coordination flag for scroll controllers
   const prevPaddingRef = useRef(0); // Track previous padding for compensation
+  const stableBottomPaddingRef = useRef(0); // Stable padding floor (never decreases while footer visible)
   const inputRef = useRef(null);
   const yesButtonRef = useRef(null);
   const noButtonRef = useRef(null);
@@ -7985,14 +7986,29 @@ export default function CandidateInterview() {
   }
   
   const footerSafePaddingPx = chosenHeight + (chosenHeight > 0 ? SAFETY_MARGIN_PX : 0);
-  const dynamicBottomPaddingPx = footerSafePaddingPx;
+  const computedPaddingPx = footerSafePaddingPx;
+  
+  // STABLE PADDING FLOOR: Never decrease padding while footer visible (prevents jumps)
+  let dynamicBottomPaddingPx = 0;
+  
+  if (shouldRenderFooter) {
+    // Update stable floor (only increase, never decrease)
+    stableBottomPaddingRef.current = Math.max(stableBottomPaddingRef.current, computedPaddingPx);
+    // Use stable floor to prevent shrink
+    dynamicBottomPaddingPx = stableBottomPaddingRef.current;
+  } else {
+    // Footer hidden - reset floor
+    stableBottomPaddingRef.current = 0;
+    dynamicBottomPaddingPx = 0;
+  }
   
   // DIAGNOSTIC LOG: Show padding computation (always on)
   console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
     chosenHeight,
     chosenSource,
     footerMeasuredHeightPx,
-    footerSafePaddingPx,
+    computedPaddingPx,
+    stableFloor: stableBottomPaddingRef.current,
     dynamicBottomPaddingPx,
     shouldRenderFooter,
     bottomBarMode
@@ -8176,6 +8192,17 @@ export default function CandidateInterview() {
     
     // Skip if no change
     if (delta === 0) return;
+    
+    // GUARD: Only compensate on INCREASES (delta > 0) - prevent upward snap
+    if (delta <= 0) {
+      console.log('[SCROLL][PADDING_COMPENSATE_SKIP]', {
+        reason: 'delta_not_positive',
+        delta,
+        prev,
+        next
+      });
+      return;
+    }
     
     const scrollContainer = historyRef.current;
     if (!scrollContainer) return;
