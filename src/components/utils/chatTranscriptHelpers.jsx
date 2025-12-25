@@ -612,8 +612,8 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
     'WELCOME',
     'RESUME',
     'MULTI_INSTANCE_GATE_SHOWN',
-    'V3_PROBE_QUESTION',
-    'V3_PROBE_ANSWER'
+    'V3_PROBE_QUESTION', // V3 probe questions now allowed in transcript
+    'V3_PROBE_ANSWER' // V3 probe answers now allowed in transcript
   ];
   
   // PART A: MULTI_INSTANCE_GATE_SHOWN - Block append while gate is active
