@@ -1325,6 +1325,8 @@ export default function CandidateInterview() {
   const lastAutoScrollLenRef = useRef(0);
   const lastAutoScrollAtRef = useRef(0);
   const displayOrderRef = useRef(0);
+  const scrollIntentRef = useRef(false); // Coordination flag for scroll controllers
+  const prevPaddingRef = useRef(0); // Track previous padding for compensation
   const inputRef = useRef(null);
   const yesButtonRef = useRef(null);
   const noButtonRef = useRef(null);
@@ -8007,6 +8009,15 @@ export default function CandidateInterview() {
     // GUARD A: Never auto-scroll while user is typing
     if (isUserTyping) return;
     
+    // GUARD C: Skip if other scroll controller already handled this frame
+    if (scrollIntentRef.current) {
+      console.log('[SCROLL][GLIDE_SKIPPED]', {
+        reason: 'other_scroll_active',
+        scrollIntentRef: true
+      });
+      return;
+    }
+    
     // GUARD B: Only glide in TEXT_INPUT mode (prevent jumps during MI_GATE/YES_NO transitions)
     if (bottomBarMode !== 'TEXT_INPUT') {
       console.log('[SCROLL][GLIDE_SKIPPED]', {
@@ -8102,6 +8113,45 @@ export default function CandidateInterview() {
     bottomBarMode
   ]);
 
+  // FOOTER PADDING COMPENSATION: Prevent jump when footer height changes
+  React.useLayoutEffect(() => {
+    const prev = prevPaddingRef.current;
+    const next = dynamicBottomPaddingPx;
+    const delta = next - prev;
+    
+    // Update ref
+    prevPaddingRef.current = next;
+    
+    // Skip if no change
+    if (delta === 0) return;
+    
+    const scrollContainer = historyRef.current;
+    if (!scrollContainer) return;
+    
+    // Only compensate when user is near bottom or in QUESTION mode
+    const scrollHeight = scrollContainer.scrollHeight;
+    const clientHeight = scrollContainer.clientHeight;
+    const scrollTop = scrollContainer.scrollTop;
+    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+    const nearBottom = distanceFromBottom <= 120;
+    
+    const shouldCompensate = (nearBottom || screenMode === 'QUESTION') && !isUserTyping;
+    
+    if (!shouldCompensate) return;
+    
+    // Apply compensation: adjust scrollTop to keep content anchored
+    scrollContainer.scrollTop = scrollTop + delta;
+    
+    console.log('[SCROLL][PADDING_COMPENSATE]', {
+      prev,
+      next,
+      delta,
+      nearBottom,
+      scrollTopBefore: scrollTop,
+      scrollTopAfter: scrollTop + delta
+    });
+  }, [dynamicBottomPaddingPx, screenMode, isUserTyping]);
+
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
   useEffect(() => {
     // Trigger: V3 probing active with prompt available
@@ -8112,11 +8162,53 @@ export default function CandidateInterview() {
     
     // Respect user scroll position: only auto-scroll if user has not scrolled up
     if (!autoScrollEnabledRef.current) return;
-    if (isUserTyping) return;
+    if (isUserTyping) {
+      console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { reason: 'typing' });
+      return;
+    }
     
-    // Capture scroll position for diagnostic
+    // GUARD A: Only run in TEXT_INPUT mode with footer rendered
+    if (bottomBarMode !== 'TEXT_INPUT' || !shouldRenderFooter) {
+      console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
+        reason: 'wrong_mode',
+        bottomBarMode,
+        shouldRenderFooter
+      });
+      return;
+    }
+    
+    // GUARD B: Only scroll if container has overflow
+    const scrollHeight = scrollContainer.scrollHeight;
+    const clientHeight = scrollContainer.clientHeight;
+    const overflowPx = scrollHeight - clientHeight;
+    
+    if (overflowPx <= 8) {
+      console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
+        reason: 'no_overflow',
+        overflowPx,
+        scrollHeight,
+        clientHeight
+      });
+      return;
+    }
+    
+    // GUARD C: Skip if scroll position delta is negligible
     const topBefore = scrollContainer.scrollTop;
-    const targetScrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+    const targetScrollTop = scrollHeight - clientHeight;
+    const scrollDelta = Math.abs(targetScrollTop - topBefore);
+    
+    if (scrollDelta < 2) {
+      console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
+        reason: 'no_delta',
+        scrollDelta,
+        topBefore,
+        targetScrollTop
+      });
+      return;
+    }
+    
+    // All guards passed - mark intent and scroll
+    scrollIntentRef.current = true;
     
     // Auto-scroll to reveal prompt lane
     scrollContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
@@ -8125,9 +8217,15 @@ export default function CandidateInterview() {
       preview: v3ActivePromptText.slice(0, 80),
       reason: 'AUTO_SCROLL_ENABLED',
       topBefore,
-      targetScrollTop
+      targetScrollTop,
+      overflowPx
     });
-  }, [v3ProbingActive, v3ActivePromptText, isUserTyping]);
+    
+    // Clear intent flag after scroll completes
+    requestAnimationFrame(() => {
+      scrollIntentRef.current = false;
+    });
+  }, [v3ProbingActive, v3ActivePromptText, isUserTyping, bottomBarMode, shouldRenderFooter]);
 
   // AUTO-GROWING INPUT: Auto-resize textarea based on content (ChatGPT-style)
   useEffect(() => {
