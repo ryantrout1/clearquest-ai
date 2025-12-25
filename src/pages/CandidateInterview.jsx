@@ -10273,8 +10273,8 @@ export default function CandidateInterview() {
       </style>
 
       <main className="flex-1 overflow-y-auto cq-scroll scrollbar-thin" ref={historyRef} onScroll={handleTranscriptScroll}>
-        <div className="px-4 pt-6 flex flex-col min-h-full justify-end" style={{ paddingBottom: `${24 + dynamicBottomPaddingPx}px` }}>
-          <div className="space-y-2 relative isolate">
+        <div className="px-4 pt-6 flex flex-col min-h-full justify-end" style={{ paddingBottom: `${dynamicBottomPaddingPx}px` }}>
+          <div className="space-y-3 relative isolate">
           {/* CANONICAL RENDER STREAM: Single source of truth for all main pane content */}
           {(() => {
             // Use renderableTranscriptStream (frozen during typing to prevent flash)
@@ -10438,7 +10438,7 @@ export default function CandidateInterview() {
                       return (
                         <div key={entryKey}>
                           <ContentContainer>
-                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
                                 {entry.instanceNumber > 1 && (
@@ -10457,7 +10457,7 @@ export default function CandidateInterview() {
                       return (
                         <div key={entryKey}>
                           <ContentContainer>
-                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
                               {entry.categoryLabel && (
                                 <div className="flex items-center gap-2 mb-2">
                                   <span className="text-sm font-medium text-purple-400">
@@ -10487,7 +10487,7 @@ export default function CandidateInterview() {
                       return (
                         <div key={entryKey}>
                           <ContentContainer>
-                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
+                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
                               <p className="text-white text-base leading-relaxed">{entry.text}</p>
                             </div>
                           </ContentContainer>
@@ -10521,10 +10521,19 @@ export default function CandidateInterview() {
                      textPreview: (entry.text || '').substring(0, 40)
                    });
 
+                   // ACTIVE CARD DETECTION: Check if this is the current active prompt
+                   const isActiveProbeQ = v3ProbingActive && 
+                     v3ProbingContext?.promptId && 
+                     entry.meta?.promptId === v3ProbingContext.promptId;
+
+                   const activeClass = isActiveProbeQ 
+                     ? 'ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20' 
+                     : '';
+
                    return (
                      <div key={entryKey} data-stablekey={entry.stableKey || entry.id}>
                        <ContentContainer>
-                         <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                         <div className={`w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 transition-all duration-150 ${activeClass}`}>
                            <div className="flex items-center gap-2 mb-1">
                              <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
                              {entry.meta?.instanceNumber > 1 && (
@@ -10619,10 +10628,18 @@ export default function CandidateInterview() {
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
             if (entry.role === 'assistant' && entry.messageType === 'QUESTION_SHOWN') {
+              // ACTIVE CARD DETECTION: Check if this is the current question
+              const isActiveBaseQ = currentItem?.type === 'question' && 
+                currentItem?.id === entry.meta?.questionDbId;
+              
+              const activeClass = isActiveBaseQ 
+                ? 'ring-2 ring-blue-400/40 shadow-lg shadow-blue-500/20' 
+                : '';
+              
               return (
                 <div key={entryKey} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
-                  <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+                  <div className={`w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 transition-all duration-150 ${activeClass}`}>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-base font-semibold text-blue-400">
                         Question {entry.meta?.questionNumber || ''}
@@ -10694,10 +10711,14 @@ export default function CandidateInterview() {
                 }
               }
               
+              const activeClass = isActiveGate 
+                ? 'ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20' 
+                : '';
+              
               return (
                 <div key={entryKey} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
-                  <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
+                  <div className={`w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 transition-all duration-150 ${activeClass}`}>
                     <p className="text-white text-base leading-relaxed">{entry.text}</p>
                   </div>
                   </ContentContainer>
@@ -10812,26 +10833,37 @@ export default function CandidateInterview() {
               )}
 
               {/* V3 Pack opener prompt (FOLLOWUP_CARD_SHOWN) - MUST be visible in transcript history */}
-              {entry.role === 'assistant' && entry.messageType === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener' && (
-                <ContentContainer>
-                  <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                    {entry.categoryLabel && (
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-sm font-medium text-purple-400">
-                          {entry.categoryLabel}
-                        </span>
-                      </div>
-                    )}
-                    <p className="text-white text-sm leading-relaxed">{entry.text}</p>
-                    {entry.example && (
-                      <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
-                        <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
-                        <p className="text-slate-300 text-xs italic">{entry.example}</p>
-                      </div>
-                    )}
-                  </div>
-                </ContentContainer>
-              )}
+              {entry.role === 'assistant' && entry.messageType === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener' && (() => {
+                // ACTIVE CARD DETECTION: Check if this is the current opener
+                const isActiveOpener = currentItem?.type === 'v3_pack_opener' && 
+                  currentItem?.packId === entry.meta?.packId && 
+                  currentItem?.instanceNumber === entry.meta?.instanceNumber;
+                
+                const activeClass = isActiveOpener 
+                  ? 'ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20' 
+                  : '';
+                
+                return (
+                  <ContentContainer>
+                    <div className={`w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 transition-all duration-150 ${activeClass}`}>
+                      {entry.categoryLabel && (
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-sm font-medium text-purple-400">
+                            {entry.categoryLabel}
+                          </span>
+                        </div>
+                      )}
+                      <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                      {entry.example && (
+                        <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
+                          <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
+                          <p className="text-slate-300 text-xs italic">{entry.example}</p>
+                        </div>
+                      )}
+                    </div>
+                  </ContentContainer>
+                );
+              })()}
 
               {entry.role === 'user' && entry.messageType === 'v3_opener_answer' && (
                 <div style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
@@ -11367,8 +11399,8 @@ export default function CandidateInterview() {
               {/* V3 UI-ONLY HISTORY: Rendered via canonical stream (lines 8942-8985) */}
               {/* Separate loop removed - renderStream includes v3UiRenderable */}
               
-              {/* Bottom anchor - zero-height sentinel for scroll positioning */}
-              <div ref={bottomAnchorRef} aria-hidden="true" />
+              {/* Bottom anchor - minimal-height sentinel for scroll positioning */}
+              <div ref={bottomAnchorRef} aria-hidden="true" style={{ height: '1px', margin: 0, padding: 0 }} />
               </div>
               </div>
               </main>
