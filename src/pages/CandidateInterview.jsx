@@ -1285,6 +1285,7 @@ export default function CandidateInterview() {
   const [contentOverflows, setContentOverflows] = useState(false); // Track if scroll container overflows
   
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
+  const ACTIVE_CARD_TO_FOOTER_GAP_PX = 12; // Tight gap between active card and footer (reduces ~75% from default)
   
   // HOOK ORDER FIX: Overflow detection MUST be top-level (before early returns)
   // Computes if scroll container content exceeds viewport - drives dynamic footer padding
@@ -8050,9 +8051,18 @@ export default function CandidateInterview() {
   
   // Step 6: Compute footer padding (TDZ-safe - uses measured height from auto-growing input)
   const SAFETY_MARGIN_PX = 8;
-  const MIN_BREATHING_ROOM_PX = 24; // Consistent breathing room across all modes (16-24px range)
+  const MIN_BREATHING_ROOM_PX = 24; // Default breathing room for transcript history items
   
-  // DETERMINISTIC PADDING: Use measured height + small minimum
+  // ACTIVE CARD DETECTION: Determine if an active card is currently present
+  const hasActiveCard = 
+    screenMode === 'WELCOME' || // WELCOME card active
+    (currentItem?.type === 'question' && !v3ProbingActive) || // Base question active
+    (currentItem?.type === 'v2_pack_field') || // V2 field active
+    (currentItem?.type === 'v3_pack_opener') || // V3 opener active
+    (v3ProbingActive && hasActiveV3Prompt) || // V3 probe active
+    (currentItem?.type === 'multi_instance_gate'); // MI_GATE active
+  
+  // DETERMINISTIC PADDING: Use measured height + context-aware minimum
   let chosenHeight = 0;
   let chosenSource = 'none';
   
@@ -8072,10 +8082,11 @@ export default function CandidateInterview() {
   
   const measuredFooterPaddingPx = chosenHeight + (chosenHeight > 0 ? SAFETY_MARGIN_PX : 0);
   
-  // UNIFIED PADDING: Use max(measured, minimum breathing room)
-  // No more 88px stableFloor - just measured + small consistent minimum
+  // ACTIVE CARD GAP: Use tight gap when active card present, normal gap for history
+  const effectiveMinGapPx = hasActiveCard ? ACTIVE_CARD_TO_FOOTER_GAP_PX : MIN_BREATHING_ROOM_PX;
+  
   const dynamicBottomPaddingPx = shouldRenderFooter 
-    ? Math.max(measuredFooterPaddingPx, MIN_BREATHING_ROOM_PX)
+    ? Math.max(measuredFooterPaddingPx, effectiveMinGapPx)
     : 0;
   
   // DIAGNOSTIC LOG: Show padding computation (always on)
@@ -8084,7 +8095,10 @@ export default function CandidateInterview() {
     chosenSource,
     footerMeasuredHeightPx,
     measuredFooterPaddingPx,
-    minBreathingRoomPx: MIN_BREATHING_ROOM_PX,
+    hasActiveCard,
+    effectiveMinGapPx,
+    activeCardGapPx: ACTIVE_CARD_TO_FOOTER_GAP_PX,
+    defaultBreathingRoomPx: MIN_BREATHING_ROOM_PX,
     dynamicBottomPaddingPx,
     shouldRenderFooter,
     bottomBarMode
