@@ -1286,6 +1286,7 @@ export default function CandidateInterview() {
   
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
   const ACTIVE_CARD_TO_FOOTER_GAP_PX = 12; // Tight gap between active card and footer (reduces ~75% from default)
+  const ACTIVE_CARD_BREATHING_ROOM_MULTIPLIER = 0.25; // Reduce breathing room by 75% for active cards
   
   // HOOK ORDER FIX: Overflow detection MUST be top-level (before early returns)
   // Computes if scroll container content exceeds viewport - drives dynamic footer padding
@@ -8080,13 +8081,17 @@ export default function CandidateInterview() {
     chosenSource = 'fallback';
   }
   
-  const measuredFooterPaddingPx = chosenHeight + (chosenHeight > 0 ? SAFETY_MARGIN_PX : 0);
+  // ACTIVE CARD GAP: Reduce breathing room by 75% for active cards
+  const activeBreathingRoomPx = Math.round(SAFETY_MARGIN_PX * ACTIVE_CARD_BREATHING_ROOM_MULTIPLIER);
+  const effectiveBreathingRoomPx = hasActiveCard ? activeBreathingRoomPx : SAFETY_MARGIN_PX;
   
-  // ACTIVE CARD GAP: Use tight gap when active card present, normal gap for history
-  const effectiveMinGapPx = hasActiveCard ? ACTIVE_CARD_TO_FOOTER_GAP_PX : MIN_BREATHING_ROOM_PX;
+  const measuredFooterPaddingPx = chosenHeight + (chosenHeight > 0 ? effectiveBreathingRoomPx : 0);
+  
+  // Additional minimum gap (only for history items, not active cards)
+  const additionalMinGapPx = hasActiveCard ? 0 : (MIN_BREATHING_ROOM_PX - SAFETY_MARGIN_PX);
   
   const dynamicBottomPaddingPx = shouldRenderFooter 
-    ? Math.max(measuredFooterPaddingPx, effectiveMinGapPx)
+    ? measuredFooterPaddingPx + additionalMinGapPx
     : 0;
   
   // DIAGNOSTIC LOG: Show padding computation (always on)
@@ -8094,12 +8099,13 @@ export default function CandidateInterview() {
     chosenHeight,
     chosenSource,
     footerMeasuredHeightPx,
-    measuredFooterPaddingPx,
     hasActiveCard,
-    effectiveMinGapPx,
-    activeCardGapPx: ACTIVE_CARD_TO_FOOTER_GAP_PX,
-    defaultBreathingRoomPx: MIN_BREATHING_ROOM_PX,
+    effectiveBreathingRoomPx,
+    activeBreathingRoomPx,
+    additionalMinGapPx,
+    measuredFooterPaddingPx,
     dynamicBottomPaddingPx,
+    gapReduction: hasActiveCard ? '~75%' : 'none',
     shouldRenderFooter,
     bottomBarMode
   });
@@ -8515,6 +8521,59 @@ export default function CandidateInterview() {
       scrollTopAfter: scrollTop + delta
     });
   }, [dynamicBottomPaddingPx, screenMode, isUserTyping, bottomBarMode]);
+  
+  // ACTIVE CARD PIN: Prevent active card from sliding behind footer
+  React.useLayoutEffect(() => {
+    if (isUserTyping) return; // Skip during typing to prevent jank
+    if (!shouldRenderFooter) return; // No footer, no pin needed
+    
+    const scrollContainer = historyRef.current;
+    if (!scrollContainer || !bottomAnchorRef.current) return;
+    
+    // Only pin when there's an active card
+    if (!hasActiveCard) return;
+    
+    // Check if content is obscured (can scroll more than should be possible)
+    const scrollHeight = scrollContainer.scrollHeight;
+    const clientHeight = scrollContainer.clientHeight;
+    const scrollTop = scrollContainer.scrollTop;
+    const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
+    const isAtBottom = Math.abs(scrollTop - maxScrollTop) < 2;
+    
+    // If user scrolled up, don't auto-pin (respect manual scroll)
+    if (!shouldAutoScrollRef.current && !isAtBottom) return;
+    
+    requestAnimationFrame(() => {
+      if (!scrollContainer) return;
+      
+      // Pin to bottom (ensures active card visible above footer)
+      const currentMax = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight);
+      const currentScroll = scrollContainer.scrollTop;
+      
+      // Only pin if we're near bottom or at bottom
+      if (currentScroll >= currentMax - 20 || shouldAutoScrollRef.current) {
+        scrollContainer.scrollTop = currentMax;
+        
+        console.log('[SCROLL][ACTIVE_CARD_PIN]', {
+          hasActiveCard,
+          bottomBarMode,
+          effectiveItemType,
+          scrollTopBefore: currentScroll,
+          scrollTopAfter: currentMax,
+          pinned: currentScroll !== currentMax
+        });
+      }
+    });
+  }, [
+    hasActiveCard,
+    currentItem?.id,
+    currentItem?.type,
+    bottomBarMode,
+    effectiveItemType,
+    dynamicBottomPaddingPx,
+    shouldRenderFooter,
+    isUserTyping
+  ]);
 
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
   useEffect(() => {
@@ -9344,15 +9403,40 @@ export default function CandidateInterview() {
     }
   }
   
-  // FIX B: Filter transcript-derived MI_GATE entries that match active gate
-  // This prevents duplicate MI_GATE cards when active gate is added
+  // DETERMINISTIC V3 PROBE Q/A INCLUSION: Ensure V3 probe Q/A are in stream before MI_GATE
   let filteredTranscriptRenderable = transcriptRenderable;
   let removedCount = 0;
+  
+  // Collect V3 probe Q/A for current pack/instance (if MI_GATE active)
+  let v3ProbeEntriesForGate = [];
   
   if (activeCard?.kind === "multi_instance_gate") {
     const activeGateId = currentItem?.id;
     const activeStableKeyBase = `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`;
+    const gatePackId = currentItem?.packId;
+    const gateInstanceNumber = currentItem?.instanceNumber || 1;
     
+    // DETERMINISTIC: Extract V3 probe Q/A for this pack/instance from dbTranscript
+    const v3ProbeQA = dbTranscript.filter(e => 
+      ((e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') ||
+       (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER')) &&
+      e.meta?.packId === gatePackId &&
+      e.meta?.instanceNumber === gateInstanceNumber &&
+      e.visibleToCandidate === true
+    );
+    
+    if (v3ProbeQA.length > 0) {
+      console.log('[MI_GATE][V3_PROBE_QA_DETERMINISTIC]', {
+        packId: gatePackId,
+        instanceNumber: gateInstanceNumber,
+        v3ProbeCount: v3ProbeQA.length,
+        keys: v3ProbeQA.map(e => e.stableKey || e.id)
+      });
+      
+      v3ProbeEntriesForGate = v3ProbeQA;
+    }
+    
+    // Filter out duplicate MI_GATE entries
     filteredTranscriptRenderable = transcriptRenderable.filter(e => {
       // Keep non-gate entries
       if (e.messageType !== 'MULTI_INSTANCE_GATE_SHOWN') return true;
@@ -9381,9 +9465,10 @@ export default function CandidateInterview() {
     }
   }
   
-  // Build base stream: filtered transcript + v3UI + activeCard
+  // Build base stream: filtered transcript + v3ProbeQA (if MI_GATE) + v3UI + activeCard
   const baseRenderStream = [
     ...filteredTranscriptRenderable,
+    ...v3ProbeEntriesForGate, // Deterministically include V3 probe Q/A before MI_GATE
     ...v3UiRenderable,
     ...(activeCard ? [activeCard] : [])
   ];
@@ -9442,10 +9527,9 @@ export default function CandidateInterview() {
     }
   }
   
-  // SAFETY NET: Re-inject missing V3_PROBE_ANSWER during MI_GATE transition
+  // LAST-RESORT SAFETY NET: Log if V3_PROBE_ANSWER still missing (should not happen with deterministic inclusion)
   if (currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === "MI_GATE") {
     const packId = currentItem?.packId;
-    const categoryId = currentItem?.categoryId;
     const instanceNumber = currentItem?.instanceNumber || 1;
     
     // Find most recent V3 probe answer in dbTranscript for this pack/instance
@@ -9456,10 +9540,7 @@ export default function CandidateInterview() {
     );
     
     if (v3ProbeAnswersInDb.length > 0) {
-      // Get last V3 probe answer (most recent)
       const lastProbeAnswer = v3ProbeAnswersInDb[v3ProbeAnswersInDb.length - 1];
-      const answerPromptId = lastProbeAnswer.meta?.promptId;
-      const answerLoopKey = lastProbeAnswer.meta?.loopKey;
       
       // Check if answer exists in finalRenderStream
       const probeAnswerInRender = finalRenderStream.find(e => 
@@ -9472,79 +9553,21 @@ export default function CandidateInterview() {
           packId,
           instanceNumber,
           stableKey: lastProbeAnswer.stableKey || lastProbeAnswer.id,
-          promptId: answerPromptId,
-          loopKey: answerLoopKey,
+          promptId: lastProbeAnswer.meta?.promptId,
+          loopKey: lastProbeAnswer.meta?.loopKey,
           textPreview: (lastProbeAnswer.text || '').substring(0, 60),
-          reason: 'V3 probe answer in dbTranscript but missing from render during MI_GATE',
+          reason: 'REGRESSION: V3 probe answer missing despite deterministic inclusion',
           dbTranscriptLen: dbTranscript.length,
-          finalRenderStreamLen: finalRenderStream.length
+          finalRenderStreamLen: finalRenderStream.length,
+          note: 'This should not happen - check deterministic inclusion logic'
         });
-        
-        // Find matching question
-        const matchingQuestion = dbTranscript.find(e => 
-          (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
-          e.meta?.promptId === answerPromptId
-        );
-        
-        // Check if question is in render stream
-        const questionInRender = matchingQuestion ? finalRenderStream.find(e => 
-          (e.stableKey === matchingQuestion.stableKey || e.id === matchingQuestion.id)
-        ) : null;
-        
-        // Re-inject question if missing
-        const itemsToInject = [];
-        
-        if (matchingQuestion && !questionInRender) {
-          console.error('[CQ_TRANSCRIPT][V3_PROBE_Q_MISSING_IN_RENDER_AFTER_GATE]', {
-            packId,
-            instanceNumber,
-            stableKey: matchingQuestion.stableKey || matchingQuestion.id,
-            promptId: answerPromptId,
-            loopKey: answerLoopKey,
-            textPreview: (matchingQuestion.text || '').substring(0, 60),
-            reason: 'V3 probe question missing - will re-inject before answer'
-          });
-          
-          itemsToInject.push(matchingQuestion);
-        }
-        
-        // Re-inject answer
-        itemsToInject.push(lastProbeAnswer);
-        
-        // Find MI_GATE card position in stream
-        const miGateIndex = finalRenderStream.findIndex(e => 
-          e.messageType === 'MULTI_INSTANCE_GATE_SHOWN' ||
-          (e.__activeCard && e.kind === 'multi_instance_gate')
-        );
-        
-        if (miGateIndex !== -1) {
-          // Inject before MI_GATE
-          finalRenderStream = [
-            ...finalRenderStream.slice(0, miGateIndex),
-            ...itemsToInject,
-            ...finalRenderStream.slice(miGateIndex)
-          ];
-          
-          console.log('[CQ_TRANSCRIPT][REPAIR_V3_PROBE_QA_INJECTED]', {
-            packId,
-            instanceNumber,
-            injectedCount: itemsToInject.length,
-            injectedKeys: itemsToInject.map(e => e.stableKey || e.id),
-            miGateIndex,
-            finalLen: finalRenderStream.length
-          });
-        } else {
-          // MI_GATE not found in stream - append to end
-          finalRenderStream = [...finalRenderStream, ...itemsToInject];
-          
-          console.log('[CQ_TRANSCRIPT][REPAIR_V3_PROBE_QA_APPENDED]', {
-            packId,
-            instanceNumber,
-            injectedCount: itemsToInject.length,
-            reason: 'MI_GATE not found in stream - appended to end',
-            finalLen: finalRenderStream.length
-          });
-        }
+      } else {
+        console.log('[CQ_TRANSCRIPT][V3_PROBE_QA_OK]', {
+          packId,
+          instanceNumber,
+          v3ProbeCount: v3ProbeAnswersInDb.length,
+          allPresent: true
+        });
       }
     }
   }
