@@ -1040,6 +1040,9 @@ export default function CandidateInterview() {
   const navigate = useNavigate();
   const urlParams = new URLSearchParams(window.location.search);
   const sessionId = urlParams.get('session');
+  
+  // TODO: REMOVE CQDIAG overlay after validation
+  const cqDiagEnabled = urlParams.get('cqdiag') === '1';
 
   const [engine, setEngine] = useState(null);
   const [session, setSession] = useState(null);
@@ -9655,6 +9658,17 @@ export default function CandidateInterview() {
               }))
             });
             
+            // TODO: REMOVE CQDIAG log after validation
+            if (cqDiagEnabled) {
+              console.log('[CQ_GO_STATUS]', {
+                crashSeen: false,
+                hasOpenerAnswer,
+                renderLen: transcriptToRender.length,
+                hasOpenerAnswerByStableKey,
+                hasOpenerAnswerByIdentity
+              });
+            }
+            
             // UI CONTRACT: MI_GATE renders in main pane (NO suppression)
             // Sentinel logic DISABLED - active MI_GATE must show in main pane per ClearQuest contract
             
@@ -11194,6 +11208,46 @@ export default function CandidateInterview() {
         v3ProbingActive={v3ProbingActive}
         hasPrompt={hasPrompt}
       />
+      
+      {/* TODO: REMOVE CQDIAG overlay after validation */}
+      {cqDiagEnabled && (() => {
+        const packId = currentItem?.packId || v3ProbingContext?.packId;
+        const instanceNumber = currentItem?.instanceNumber || v3ProbingContext?.instanceNumber || 1;
+        const openerAnswerStableKey = `v3-opener-a:${sessionId}:${packId}:${instanceNumber}`;
+        
+        const hasOpenerAnswerByStableKey = finalRenderStream.some(e => 
+          e.stableKey === openerAnswerStableKey
+        );
+        
+        const openerAnswerByIdentity = finalRenderStream.find(e => 
+          (e.messageType === 'v3_opener_answer' || e.kind === 'v3_opener_a') &&
+          e.packId === packId && 
+          (e.instanceNumber === instanceNumber || e.meta?.instanceNumber === instanceNumber)
+        );
+        const hasOpenerAnswerByIdentity = !!openerAnswerByIdentity;
+        const hasOpenerAnswer = hasOpenerAnswerByStableKey || hasOpenerAnswerByIdentity;
+        
+        return (
+          <div style={{
+            position: 'fixed',
+            bottom: '8px',
+            left: '8px',
+            zIndex: 99999,
+            pointerEvents: 'none',
+            fontSize: '10px',
+            padding: '6px 8px',
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            color: hasOpenerAnswer ? '#10b981' : '#ef4444',
+            borderRadius: '4px',
+            fontFamily: 'monospace',
+            lineHeight: '1.4'
+          }}>
+            <div>CQDIAG ON</div>
+            <div>hasOpenerAnswer: {hasOpenerAnswer ? 'TRUE' : 'FALSE'}</div>
+            <div>renderLen: {finalRenderStream.length}</div>
+          </div>
+        );
+      })()}
       </div>
       );
 }
