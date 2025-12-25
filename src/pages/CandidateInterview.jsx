@@ -1441,6 +1441,8 @@ export default function CandidateInterview() {
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
   
+  const lastQuestionShownIdRef = useRef(null); // Track last question shown for force-scroll dedupe
+  
   // DEV DEBUG: Enable evidence bundle capture (v3debug=1 or localStorage flag)
   const isV3DebugEnabled = (() => {
     try {
@@ -8187,6 +8189,46 @@ export default function CandidateInterview() {
     bottomBarMode
   ]);
 
+  // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
+  React.useLayoutEffect(() => {
+    // Only run for base questions with footer visible
+    if (effectiveItemType !== 'question' || !shouldRenderFooter) return;
+    if (!currentItem?.id || currentItem.type !== 'question') return;
+    
+    // Dedupe: Only run once per question
+    if (lastQuestionShownIdRef.current === currentItem.id) return;
+    lastQuestionShownIdRef.current = currentItem.id;
+    
+    const scrollContainer = historyRef.current;
+    if (!scrollContainer || !bottomAnchorRef.current) return;
+    
+    // Force scroll to bottom after question renders
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!scrollContainer || !bottomAnchorRef.current) return;
+        
+        const scrollTopBefore = scrollContainer.scrollTop;
+        const scrollHeight = scrollContainer.scrollHeight;
+        const clientHeight = scrollContainer.clientHeight;
+        const targetScrollTop = Math.max(0, scrollHeight - clientHeight);
+        
+        scrollContainer.scrollTop = targetScrollTop;
+        
+        const scrollTopAfter = scrollContainer.scrollTop;
+        
+        console.log('[SCROLL][FORCE_ANCHOR_ON_QUESTION_SHOWN]', {
+          questionId: currentItem.id,
+          scrollTopBefore: Math.round(scrollTopBefore),
+          scrollTopAfter: Math.round(scrollTopAfter),
+          footerHeight: footerMeasuredHeightPx,
+          paddingApplied: dynamicBottomPaddingPx,
+          scrollHeight: Math.round(scrollHeight),
+          clientHeight: Math.round(clientHeight)
+        });
+      });
+    });
+  }, [effectiveItemType, shouldRenderFooter, currentItem?.id, currentItem?.type, footerMeasuredHeightPx, dynamicBottomPaddingPx]);
+  
   // FOOTER PADDING COMPENSATION: Prevent jump when footer height changes
   React.useLayoutEffect(() => {
     const prev = prevPaddingRef.current;
