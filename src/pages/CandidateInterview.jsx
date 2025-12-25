@@ -8022,6 +8022,7 @@ export default function CandidateInterview() {
   }
 
   // SMOOTH GLIDE AUTOSCROLL: ChatGPT-style smooth scrolling on new content
+  // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
   React.useLayoutEffect(() => {
     const scrollContainer = historyRef.current;
     if (!scrollContainer || !bottomAnchorRef.current) return;
@@ -8030,6 +8031,7 @@ export default function CandidateInterview() {
     if (isUserTyping) return;
     
     // GUARD B: Only glide in TEXT_INPUT mode (prevent jumps during MI_GATE/YES_NO transitions)
+    // TDZ-safe: bottomBarMode computed before this effect (line ~7884)
     if (bottomBarMode !== 'TEXT_INPUT') {
       console.log('[SCROLL][GLIDE_SKIPPED]', {
         reason: 'not_text_input_mode',
