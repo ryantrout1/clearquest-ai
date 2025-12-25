@@ -1499,6 +1499,9 @@ export default function CandidateInterview() {
   // RECENT ANSWER ANCHOR: Track last submitted answer for viewport anchoring
   const recentAnchorRef = useRef({ kind: null, stableKey: null, ts: 0 });
   
+  // V3 SCROLL ANCHOR: Track last appended V3 probe question for viewport anchoring
+  const v3ScrollAnchorRef = useRef({ kind: null, stableKey: null, ts: 0 });
+  
   // AUTO-GROWING INPUT: Refs for textarea auto-resize
   const footerTextareaRef = useRef(null);
   const [footerMeasuredHeightPx, setFooterMeasuredHeightPx] = useState(0); // Start at 0 (prevents initial jump)
@@ -6943,6 +6946,14 @@ export default function CandidateInterview() {
             promptLen: promptText?.length || 0,
             transcriptLenAfter: updated.length
           });
+          
+          // ANCHOR: Mark this question for viewport anchoring
+          v3ScrollAnchorRef.current = {
+            kind: 'V3_PROBE_QUESTION',
+            stableKey: qStableKey,
+            ts: Date.now()
+          };
+          
           resolve(true);
         }).catch(err => {
           console.error('[CQ_TRANSCRIPT][V3_PROBE_Q_ERROR]', { error: err.message });
@@ -8341,6 +8352,72 @@ export default function CandidateInterview() {
     });
   }, [dbTranscript.length, bottomBarMode, effectiveItemType, dynamicBottomPaddingPx, cqDiagEnabled]);
   
+  // ANCHOR V3 PROBE QUESTION: Keep just-appended question visible (ChatGPT-style)
+  React.useLayoutEffect(() => {
+    if (v3ScrollAnchorRef.current.kind !== 'V3_PROBE_QUESTION') return;
+    
+    const anchorAge = Date.now() - v3ScrollAnchorRef.current.ts;
+    if (anchorAge > 1500) {
+      v3ScrollAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
+      return;
+    }
+    
+    const scrollContainer = historyRef.current;
+    if (!scrollContainer) return;
+    
+    const targetStableKey = v3ScrollAnchorRef.current.stableKey;
+    const targetEl = scrollContainer.querySelector(`[data-stablekey="${targetStableKey}"]`);
+    
+    if (!targetEl) {
+      if (cqDiagEnabled) {
+        console.warn('[SCROLL][ANCHOR_V3_PROBE_Q][NOT_FOUND]', {
+          stableKey: targetStableKey,
+          reason: 'Element not found in DOM - may not have rendered yet'
+        });
+      }
+      v3ScrollAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
+      return;
+    }
+    
+    requestAnimationFrame(() => {
+      if (!scrollContainer || !targetEl) return;
+      
+      const scrollTopBefore = scrollContainer.scrollTop;
+      const scrollHeight = scrollContainer.scrollHeight;
+      const clientHeight = scrollContainer.clientHeight;
+      const overflowPx = scrollHeight - clientHeight;
+      
+      // Compute target position (question visible above footer)
+      const elTop = targetEl.offsetTop;
+      const elHeight = targetEl.offsetHeight;
+      const footerSafePx = dynamicBottomPaddingPx + 16;
+      
+      // Target: place question at bottom of visible area (above footer)
+      const targetScrollTop = Math.max(0, (elTop + elHeight) - clientHeight + footerSafePx);
+      
+      // Always scroll (even if overflowPx=0) to ensure visibility
+      scrollContainer.scrollTop = targetScrollTop;
+      
+      const scrollTopAfter = scrollContainer.scrollTop;
+      const didScroll = Math.abs(scrollTopAfter - scrollTopBefore) > 1;
+      
+      if (cqDiagEnabled) {
+        console.log('[SCROLL][ANCHOR_V3_PROBE_Q]', {
+          stableKey: targetStableKey,
+          didFind: true,
+          didScroll,
+          overflowPx,
+          bottomBarMode,
+          scrollTopBefore: Math.round(scrollTopBefore),
+          scrollTopAfter: Math.round(scrollTopAfter),
+          footerSafePx
+        });
+      }
+      
+      v3ScrollAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
+    });
+  }, [dbTranscript.length, bottomBarMode, dynamicBottomPaddingPx, cqDiagEnabled]);
+  
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
     // Only run for base questions with footer visible
@@ -9126,14 +9203,26 @@ export default function CandidateInterview() {
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
     const promptId = currentPromptId || `${loopKey}:fallback`;
     
-    // DEDUPE: Check if transcript already has V3_PROBE_QUESTION for this promptId
+    // SINGLE SOURCE: Check if transcript already has V3_PROBE_QUESTION for this promptId
     const qStableKey = `v3-probe-q:${promptId}`;
-    const alreadyInTranscript = transcriptRenderable.some(e => 
-      e.stableKey === qStableKey || 
-      (e.messageType === 'V3_PROBE_QUESTION' && e.meta?.promptId === promptId)
+    const transcriptHasThisProbeQ = dbTranscript.some(e => 
+      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+      (e.meta?.promptId === promptId || e.stableKey === qStableKey)
     );
     
-    if (alreadyInTranscript) {
+    const action = transcriptHasThisProbeQ ? 'use_transcript' : 'use_prompt_lane';
+    
+    if (cqDiagEnabled) {
+      console.log('[V3_PROMPT][SINGLE_SOURCE]', {
+        transcriptHasThisProbeQ,
+        action,
+        promptId,
+        stableKey: qStableKey,
+        transcriptLen: dbTranscript.length
+      });
+    }
+    
+    if (transcriptHasThisProbeQ) {
       console.log('[V3_PROMPT][ACTIVE_CARD_SKIPPED_ALREADY_IN_TRANSCRIPT]', {
         promptId,
         loopKey,
@@ -9168,18 +9257,9 @@ export default function CandidateInterview() {
       console.log("[V3_PROMPT][ACTIVE_CARD_ADDED]", { 
         loopKey, 
         promptId,
-        promptPreview: v3PromptText.slice(0, 60)
+        promptPreview: v3PromptText.slice(0, 60),
+        source: 'prompt_lane_temporary'
       });
-      
-      // REGRESSION GUARD: Log if we're about to render duplicate
-      if (cqDiagEnabled) {
-        console.log('[REGRESSION][V3_PROBE_DOUBLE_RENDER_PREVENTED]', {
-          promptId,
-          transcriptHas: false,
-          activeCardWillAdd: true,
-          totalRendersForPromptId: 1
-        });
-      }
     }
     
     // Clear tracker when not actively rendering V3_PROMPT card
@@ -10433,7 +10513,7 @@ export default function CandidateInterview() {
                   
                   // V3 transcript entries (from DB - legal record)
                   // V3_PROBE_QUESTION (assistant) - NOW RENDERS FROM TRANSCRIPT
-                  if (entry.role === 'assistant' && entry.messageType === 'V3_PROBE_QUESTION') {
+                  if (entry.role === 'assistant' && (entry.messageType === 'V3_PROBE_QUESTION' || entry.type === 'V3_PROBE_QUESTION')) {
                    console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_RENDERED]', {
                      stableKey: entry.stableKey || entry.id,
                      promptId: entry.meta?.promptId,
@@ -10442,7 +10522,7 @@ export default function CandidateInterview() {
                    });
 
                    return (
-                     <div key={entryKey}>
+                     <div key={entryKey} data-stablekey={entry.stableKey || entry.id}>
                        <ContentContainer>
                          <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                            <div className="flex items-center gap-2 mb-1">
