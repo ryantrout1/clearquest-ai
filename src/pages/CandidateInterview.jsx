@@ -1330,6 +1330,7 @@ export default function CandidateInterview() {
   const stableBottomPaddingRef = useRef(0); // Stable padding floor (never decreases while footer visible)
   const frozenRenderStreamRef = useRef(null); // Frozen transcript during typing (prevents flash)
   const lastTextareaScrollHeightRef = useRef(0); // Track textarea row changes
+  const wasTypingRef = useRef(false); // Track typing state transitions (for freeze/unfreeze)
   const inputRef = useRef(null);
   const yesButtonRef = useRef(null);
   const noButtonRef = useRef(null);
@@ -1436,6 +1437,9 @@ export default function CandidateInterview() {
   const [v3DebugEnabled, setV3DebugEnabled] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [isNewSession, setIsNewSession] = useState(true);
+  
+  // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
+  console.log('[CQ_HOOKS_OK]', { sessionId });
   
   // DEV DEBUG: Enable evidence bundle capture (v3debug=1 or localStorage flag)
   const isV3DebugEnabled = (() => {
@@ -9139,7 +9143,7 @@ export default function CandidateInterview() {
   }
   
   // FREEZE TRANSCRIPT DURING TYPING: Prevent flash on every keystroke
-  const wasTypingRef = useRef(false);
+  // NOTE: wasTypingRef declared at top-level (line ~1333) to maintain hook order
   
   if (!isUserTyping && wasTypingRef.current) {
     // Just stopped typing - unfreeze
