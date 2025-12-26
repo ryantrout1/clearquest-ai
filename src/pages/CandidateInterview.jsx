@@ -993,6 +993,11 @@ export default function CandidateInterview() {
   // TODO: REMOVE CQDIAG after PASS validation
   const cqDiagEnabled = urlParams.get('cqdiag') === '1';
 
+  // CTA CONSTANTS: Top-level scope (referenced by effects and handlers)
+  const CTA_GAP_PX = 12;
+  const CTA_FALLBACK_FOOTER_PX = 64; // Conservative minimum
+  const CTA_MIN_PADDING_PX = CTA_FALLBACK_FOOTER_PX + CTA_GAP_PX; // 76px hard floor
+
   const [engine, setEngine] = useState(null);
   const [session, setSession] = useState(null);
   const [department, setDepartment] = useState(null);
