@@ -8114,11 +8114,11 @@ export default function CandidateInterview() {
   
   // CTA-specific log to confirm footer treatment
   if (bottomBarMode === 'CTA') {
-    console.log('[CTA_FOOTER_SOT]', {
+    console.log('[CTA][FOOTER_VISIBILITY_SOT]', {
+      bottomBarMode,
       shouldRenderFooter,
-      footerMeasuredHeightPx,
-      computedPaddingPx: dynamicBottomPaddingPx,
-      effectiveItemType
+      effectiveItemType,
+      footerMeasuredHeightPx
     });
   }
   
