@@ -1932,6 +1932,12 @@ async function decisionEngineV3Probe(base44, {
     });
   }
   
+  // Add prompt source metadata to return value
+  const returnMeta = {
+    promptSource: promptSource || 'TEMPLATE',
+    llmMs: llmMs || null
+  };
+  
   return {
     updatedSession,
     incidentId,
@@ -1941,6 +1947,7 @@ async function decisionEngineV3Probe(base44, {
     newFacts: extractedFacts,
     decisionTraceEntry,
     traceId: effectiveTraceId,
+    meta: returnMeta,
     // Additional context for caller
     categoryLabel: factModel.category_label,
     missingFields: missingFieldsAfter,
