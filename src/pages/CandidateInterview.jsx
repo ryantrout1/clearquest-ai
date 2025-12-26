@@ -8069,9 +8069,10 @@ export default function CandidateInterview() {
     bottomBarMode = "TEXT_INPUT";
   }
   
-  // Step 5: Compute footer rendering flag (include V3_WAITING)
-  const shouldRenderFooter = screenMode === 'QUESTION' && 
-                             (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT' || bottomBarMode === 'V3_WAITING');
+  // Step 5: Compute footer rendering flag (include V3_WAITING and CTA)
+  const shouldRenderFooter = (screenMode === 'QUESTION' && 
+                              (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT' || bottomBarMode === 'V3_WAITING')) ||
+                              bottomBarMode === 'CTA';
   
   // Step 6: Compute footer padding (TDZ-safe - unified across all modes including WELCOME)
   
@@ -8108,6 +8109,16 @@ export default function CandidateInterview() {
       bottomBarMode,
       computedPaddingPx: dynamicBottomPaddingPx,
       usesUnifiedLogic: true
+    });
+  }
+  
+  // CTA-specific log to confirm footer treatment
+  if (bottomBarMode === 'CTA') {
+    console.log('[CTA_FOOTER_SOT]', {
+      shouldRenderFooter,
+      footerMeasuredHeightPx,
+      computedPaddingPx: dynamicBottomPaddingPx,
+      effectiveItemType
     });
   }
   
