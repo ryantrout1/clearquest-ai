@@ -8118,18 +8118,15 @@ export default function CandidateInterview() {
   }
   
   // CTA-specific log to confirm footer treatment
-  if (bottomBarMode === 'CTA') {
-    console.log('[CTA][FOOTER_VISIBILITY_SOT]', {
-      bottomBarMode,
+  if (bottomBarMode === 'CTA' || effectiveItemType === 'section_transition') {
+    console.log('[CTA][SOT_PADDING]', {
+      footerMeasuredHeightPx,
+      dynamicBottomPaddingPx,
       shouldRenderFooter,
       effectiveItemType,
-      footerMeasuredHeightPx
-    });
-    
-    console.log('[CTA][PADDING]', {
-      footerMeasuredHeightPx,
-      computedPaddingPx: dynamicBottomPaddingPx,
-      CTA_GAP_PX
+      bottomBarMode,
+      guaranteedMinimum: CTA_MIN_PADDING_PX,
+      willNeverBeZero: dynamicBottomPaddingPx >= CTA_MIN_PADDING_PX
     });
   }
   
@@ -8184,22 +8181,25 @@ export default function CandidateInterview() {
     const scrollContainer = historyRef.current;
     if (!scrollContainer || !bottomAnchorRef.current) return;
     
-    // CTA FORCE-ANCHOR: Ensure CTA always visible (one-time on entry)
-    if (bottomBarMode === 'CTA' && !isUserTyping) {
+    // CTA FORCE-ANCHOR: Ensure CTA always visible (no nearBottom gating)
+    if ((bottomBarMode === 'CTA' || effectiveItemType === 'section_transition') && !isUserTyping) {
       const { scrollTop: beforeScroll, scrollHeight, clientHeight } = scrollContainer;
       const targetScrollTop = Math.max(0, scrollHeight - clientHeight);
       
-      if (targetScrollTop > beforeScroll + 5) { // Only scroll if meaningfully below bottom
-        scrollContainer.scrollTop = targetScrollTop;
-        console.log('[CTA][FORCE_ANCHOR]', {
-          scrollTopBefore: beforeScroll,
-          scrollTopAfter: targetScrollTop,
-          targetScrollTop,
-          clientHeight,
-          scrollHeight,
-          reason: 'CTA_ENTRY_ENSURE_VISIBLE'
-        });
-      }
+      // ALWAYS scroll to bottom in CTA (flow gate - must be visible)
+      scrollContainer.scrollTop = targetScrollTop;
+      
+      const scrollTopAfter = scrollContainer.scrollTop;
+      console.log('[CTA][FORCE_ANCHOR]', {
+        scrollTopBefore: beforeScroll,
+        scrollTopAfter,
+        targetScrollTop,
+        clientHeight,
+        scrollHeight,
+        didScroll: Math.abs(scrollTopAfter - beforeScroll) > 1,
+        reason: 'CTA_ENTRY_ENSURE_VISIBLE'
+      });
+      
       return; // Skip standard auto-scroll logic
     }
     
@@ -8509,10 +8509,27 @@ export default function CandidateInterview() {
   React.useLayoutEffect(() => {
     const prev = prevPaddingRef.current;
     const next = dynamicBottomPaddingPx;
-    const delta = next - prev;
     
-    // Update ref
-    prevPaddingRef.current = next;
+    // CTA CLAMP: Never allow padding to drop below CTA minimum in CTA mode
+    const nextClamped = (bottomBarMode === 'CTA' || effectiveItemType === 'section_transition')
+      ? Math.max(next, CTA_MIN_PADDING_PX)
+      : next;
+    
+    const delta = nextClamped - prev;
+    
+    // CTA clamp diagnostic
+    if (nextClamped !== next && (bottomBarMode === 'CTA' || effectiveItemType === 'section_transition')) {
+      console.log('[CTA][PADDING_CLAMP]', {
+        prevPadding: prev,
+        computedPaddingPx: next,
+        clampedPaddingPx: nextClamped,
+        CTA_MIN_PADDING_PX,
+        reason: 'Clamped to prevent content hiding behind CTA'
+      });
+    }
+    
+    // Update ref with clamped value
+    prevPaddingRef.current = nextClamped;
     
     // Skip if no change
     if (delta === 0) return;
@@ -8523,7 +8540,7 @@ export default function CandidateInterview() {
         reason: 'delta_not_positive',
         delta,
         prev,
-        next
+        next: nextClamped
       });
       return;
     }
@@ -9458,86 +9475,36 @@ export default function CandidateInterview() {
     const gatePackId = currentItem?.packId;
     const gateInstanceNumber = currentItem?.instanceNumber || 1;
     
-    // PAIR-AWARE CHECK: Detect Q and A separately (prevents partial skips)
-    const probeQInTranscript = transcriptRenderable.filter(e => 
-      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+    // B2: DETERMINISTIC V3 Q/A INCLUSION - Always pull from dbTranscript
+    // Extract ALL V3 probe Q/A for this pack/instance (no filtering yet)
+    const v3ProbeQuestionsForGate = dbTranscript.filter(e => 
+      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION' || e.stableKey?.startsWith('v3-probe-q:')) &&
       e.meta?.packId === gatePackId &&
       e.meta?.instanceNumber === gateInstanceNumber &&
       e.visibleToCandidate !== false
     );
     
-    const probeAInTranscript = transcriptRenderable.filter(e => 
-      (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER') &&
+    const v3ProbeAnswersForGate = dbTranscript.filter(e => 
+      (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER' || e.stableKey?.startsWith('v3-probe-a:')) &&
       e.meta?.packId === gatePackId &&
       e.meta?.instanceNumber === gateInstanceNumber &&
       e.visibleToCandidate !== false
     );
     
-    const hasQ = probeQInTranscript.length > 0;
-    const hasA = probeAInTranscript.length > 0;
-    const bothPresent = hasQ && hasA;
+    const qCount = v3ProbeQuestionsForGate.length;
+    const aCount = v3ProbeAnswersForGate.length;
     
-    console.log('[MI_GATE][V3_PROBE_QA_PRESENCE]', {
-      packId: gatePackId,
-      instanceNumber: gateInstanceNumber,
-      hasQ,
-      hasA,
-      qCount: probeQInTranscript.length,
-      aCount: probeAInTranscript.length,
-      action: bothPresent ? 'SKIP' : 'APPEND_MISSING'
+    // Attach ALL Q/A to stream (dedupe will handle duplicates in B1)
+    v3ProbeEntriesForGate = [...v3ProbeQuestionsForGate, ...v3ProbeAnswersForGate];
+    
+    console.log('[MI_GATE][V3_PROBE_QA_ATTACH]', {
+      gatePackId,
+      gateInstanceNumber,
+      qCount,
+      aCount,
+      attached: true,
+      attachedKeys: v3ProbeEntriesForGate.map(e => e.stableKey || e.id)
     });
-    
-    if (bothPresent) {
-      console.log('[MI_GATE][V3_PROBE_QA_SKIP_BOTH_PRESENT]', {
-        packId: gatePackId,
-        instanceNumber: gateInstanceNumber,
-        qKeys: probeQInTranscript.map(e => e.stableKey || e.id),
-        aKeys: probeAInTranscript.map(e => e.stableKey || e.id),
-        reason: 'Both Q and A already in filteredTranscriptRenderable - skipping append'
-      });
-      v3ProbeEntriesForGate = [];
-    } else {
-      // Extract ALL V3 probe Q/A for this pack/instance from dbTranscript
-      const v3ProbeQAFromDb = dbTranscript.filter(e => 
-        ((e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') ||
-         (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER')) &&
-        e.meta?.packId === gatePackId &&
-        e.meta?.instanceNumber === gateInstanceNumber &&
-        e.visibleToCandidate !== false
-      );
-      
-      // Build Set of already-present canonical keys
-      const alreadyPresentKeys = new Set([
-        ...probeQInTranscript.map(e => e.stableKey || e.id),
-        ...probeAInTranscript.map(e => e.stableKey || e.id)
-      ]);
-      
-      // Append ONLY items not already in transcript
-      const toAppend = v3ProbeQAFromDb.filter(e => {
-        const canonicalKey = e.stableKey || e.id;
-        return !alreadyPresentKeys.has(canonicalKey);
-      });
-      
-      if (toAppend.length > 0) {
-        console.log('[MI_GATE][V3_PROBE_QA_APPEND_MISSING]', {
-          packId: gatePackId,
-          instanceNumber: gateInstanceNumber,
-          appendedKeys: toAppend.map(e => e.stableKey || e.id),
-          appendedCount: toAppend.length,
-          hadQ: hasQ,
-          hadA: hasA
-        });
-        
-        v3ProbeEntriesForGate = toAppend;
-      } else {
-        console.log('[MI_GATE][V3_PROBE_QA_NONE_TO_APPEND]', {
-          packId: gatePackId,
-          instanceNumber: gateInstanceNumber,
-          reason: 'No V3 probe Q/A found in dbTranscript or all already present'
-        });
-        v3ProbeEntriesForGate = [];
-      }
-    }
     
     // Filter out duplicate MI_GATE entries
     filteredTranscriptRenderable = transcriptRenderable.filter(e => {
@@ -9615,13 +9582,45 @@ export default function CandidateInterview() {
     return deduped;
   };
   
-  const finalRenderStreamDeduped = dedupeByCanonicalKey(baseRenderStream);
+  // B1: CANONICAL DEDUPE - Prevent duplicate React keys
+  const dedupedFinalRenderStream = (() => {
+    const seen = new Map();
+    const deduped = [];
+    const dropped = [];
+    
+    for (const entry of baseRenderStream) {
+      const canonicalKey = entry.stableKey || entry.id || entry.meta?.stableKeyFallback || entry.__canonicalKey;
+      if (!canonicalKey) {
+        deduped.push(entry);
+        continue;
+      }
+      
+      if (seen.has(canonicalKey)) {
+        dropped.push(canonicalKey);
+        continue; // Skip duplicate
+      }
+      
+      seen.set(canonicalKey, true);
+      deduped.push(entry);
+    }
+    
+    if (dropped.length > 0) {
+      console.log('[STREAM][DEDUP_KEYS]', {
+        beforeLen: baseRenderStream.length,
+        afterLen: deduped.length,
+        droppedCount: dropped.length,
+        droppedKeysPreview: dropped.slice(0, 5)
+      });
+    }
+    
+    return deduped;
+  })();
   
   // SAFETY NET: Re-inject missing v3_opener_answer if it exists in canonical but not in render
   // IMMUTABLE: Creates new array rather than mutating (guarantees React re-render)
   // NOTE: reinjectedOpenerAnswersRef now declared at top-level (line ~1556) to fix hook order
   
-  let finalRenderStream = finalRenderStreamDeduped;
+  let finalRenderStream = dedupedFinalRenderStream;
   
   if (currentItem?.type === 'v3_pack_opener' || v3ProbingActive) {
     const packId = currentItem?.packId || v3ProbingContext?.packId;
@@ -9693,16 +9692,31 @@ export default function CandidateInterview() {
       );
       
       if (!probeAnswerInRender) {
+        // B3: Enhanced diagnostic for missing V3 answers
+        const expectedAnswerKey = lastProbeAnswer.stableKey || lastProbeAnswer.id;
+        const keysInStream = finalRenderStream
+          .filter(e => e.stableKey?.startsWith('v3-probe-') || e.messageType?.includes('V3_PROBE'))
+          .map(e => e.stableKey || e.id);
+        
+        console.error('[MI_GATE][V3_PROBE_QA_MISSING]', {
+          expectedAnswerKey,
+          keysPreview: keysInStream.slice(0, 10),
+          len: finalRenderStream.length,
+          packId,
+          instanceNumber
+        });
+        
         console.error('[CQ_TRANSCRIPT][V3_PROBE_A_MISSING_IN_RENDER_AFTER_GATE]', {
           packId,
           instanceNumber,
-          stableKey: lastProbeAnswer.stableKey || lastProbeAnswer.id,
+          stableKey: expectedAnswerKey,
           promptId: lastProbeAnswer.meta?.promptId,
           loopKey: lastProbeAnswer.meta?.loopKey,
           textPreview: (lastProbeAnswer.text || '').substring(0, 60),
           reason: 'REGRESSION: V3 probe answer missing despite deterministic inclusion',
           dbTranscriptLen: dbTranscript.length,
           finalRenderStreamLen: finalRenderStream.length,
+          keysInStream,
           note: 'This should not happen - check deterministic inclusion logic'
         });
       } else {
