@@ -1295,7 +1295,6 @@ export default function CandidateInterview() {
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
   const SAFE_FOOTER_CLEARANCE_PX = 8; // Minimal safety buffer (~75% reduction vs old 24px)
   const HISTORY_GAP_PX = 16; // Normal spacing for transcript history items
-  const CTA_GAP_PX = 12; // Gap for CTA/section_transition footer mode
   
   // HOOK ORDER FIX: Overflow detection MUST be top-level (before early returns)
   // Computes if scroll container content exceeds viewport - drives dynamic footer padding
@@ -8087,10 +8086,9 @@ export default function CandidateInterview() {
     (currentItem?.type === 'multi_instance_gate'); // MI_GATE active
   
   // UNIFIED PADDING FORMULA: Reduced ~75% for active cards
-  // Active: footer + 8px gap, History: footer + 16px gap, CTA: footer + 12px gap
-  const ctaGapPx = bottomBarMode === 'CTA' ? CTA_GAP_PX : (hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX);
+  // Active: footer + 8px gap, History: footer + 16px gap
   const dynamicBottomPaddingPx = shouldRenderFooter 
-    ? footerMeasuredHeightPx + ctaGapPx
+    ? footerMeasuredHeightPx + (hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX)
     : 0;
   
   // DIAGNOSTIC LOG: Show padding computation (always on)
@@ -8116,16 +8114,11 @@ export default function CandidateInterview() {
   
   // CTA-specific log to confirm footer treatment
   if (bottomBarMode === 'CTA') {
-    console.log('[CTA][FOOTER_VISIBILITY_SOT]', {
-      bottomBarMode,
+    console.log('[CTA_FOOTER_SOT]', {
       shouldRenderFooter,
-      effectiveItemType
-    });
-    
-    console.log('[CTA][PADDING]', {
       footerMeasuredHeightPx,
       computedPaddingPx: dynamicBottomPaddingPx,
-      CTA_GAP_PX
+      effectiveItemType
     });
   }
   
@@ -8549,11 +8542,8 @@ export default function CandidateInterview() {
     const scrollContainer = historyRef.current;
     if (!scrollContainer || !bottomAnchorRef.current) return;
     
-    // CTA MODE: Always pin (CTA is a flow gate, must be visible)
-    const isCTAMode = bottomBarMode === 'CTA' || effectiveItemType === 'section_transition';
-    
-    // Only pin when there's an active card OR in CTA mode
-    if (!hasActiveCard && !isCTAMode) return;
+    // Only pin when there's an active card
+    if (!hasActiveCard) return;
     
     // Check if content is obscured (can scroll more than should be possible)
     const scrollHeight = scrollContainer.scrollHeight;
@@ -8572,30 +8562,18 @@ export default function CandidateInterview() {
       const currentMax = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight);
       const currentScroll = scrollContainer.scrollTop;
       
-      // Only pin if we're near bottom or at bottom OR in CTA mode
-      if (currentScroll >= currentMax - 20 || shouldAutoScrollRef.current || isCTAMode) {
+      // Only pin if we're near bottom or at bottom
+      if (currentScroll >= currentMax - 20 || shouldAutoScrollRef.current) {
         scrollContainer.scrollTop = currentMax;
         
-        if (isCTAMode) {
-          console.log('[CTA][FORCE_ANCHOR]', {
-            scrollTopBefore: currentScroll,
-            scrollTopAfter: currentMax,
-            targetScrollTop: currentMax,
-            clientHeight: scrollContainer.clientHeight,
-            scrollHeight: scrollContainer.scrollHeight,
-            effectiveItemType,
-            bottomBarMode
-          });
-        } else {
-          console.log('[SCROLL][ACTIVE_CARD_PIN]', {
-            hasActiveCard,
-            bottomBarMode,
-            effectiveItemType,
-            scrollTopBefore: currentScroll,
-            scrollTopAfter: currentMax,
-            pinned: currentScroll !== currentMax
-          });
-        }
+        console.log('[SCROLL][ACTIVE_CARD_PIN]', {
+          hasActiveCard,
+          bottomBarMode,
+          effectiveItemType,
+          scrollTopBefore: currentScroll,
+          scrollTopAfter: currentMax,
+          pinned: currentScroll !== currentMax
+        });
       }
     });
   }, [
