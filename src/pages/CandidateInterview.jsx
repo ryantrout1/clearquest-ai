@@ -990,32 +990,6 @@ export default function CandidateInterview() {
   const urlParams = new URLSearchParams(window.location.search);
   const sessionId = urlParams.get('session');
   
-  // EARLY GUARD: Redirect if sessionId missing (prevents null session mounts)
-  if (!sessionId) {
-    const fromUrl = window.location.pathname + window.location.search;
-    const currentParams = new URLSearchParams(window.location.search);
-    currentParams.delete('session'); // Remove empty/null session param if present
-    const toUrl = `startinterview?${currentParams.toString()}`;
-    
-    console.log('[CANDIDATE_INTERVIEW][NO_SESSION_REDIRECT]', {
-      from: fromUrl,
-      to: toUrl,
-      reason: 'sessionId missing from URL params'
-    });
-    
-    // Preserve query params (like v3llm=1) when redirecting
-    navigate(createPageUrl(`StartInterview?${currentParams.toString()}`));
-    
-    // Render minimal redirecting state (prevents boot logic from running)
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <p className="text-slate-300">Redirecting to start interview...</p>
-        </div>
-      </div>
-    );
-  }
-  
   // TODO: REMOVE CQDIAG after PASS validation
   const cqDiagEnabled = urlParams.get('cqdiag') === '1';
 
@@ -2597,9 +2571,22 @@ export default function CandidateInterview() {
   // STABLE: Single mount per session - track by sessionId (survives remounts)
   const initMapRef = useRef({});
   
+  // SESSION GUARD: Redirect to StartInterview if no sessionId in URL
   useEffect(() => {
     if (!sessionId) {
-      navigate(createPageUrl("StartInterview"));
+      const fromUrl = window.location.pathname + window.location.search;
+      const currentParams = new URLSearchParams(window.location.search);
+      currentParams.delete('session'); // Remove empty/null session param if present
+      const toUrl = `startinterview?${currentParams.toString()}`;
+      
+      console.log('[CANDIDATE_INTERVIEW][NO_SESSION_REDIRECT]', {
+        from: fromUrl,
+        to: toUrl,
+        reason: 'sessionId missing from URL params'
+      });
+      
+      // Preserve query params (like v3llm=1) when redirecting
+      navigate(createPageUrl(`StartInterview?${currentParams.toString()}`));
       return;
     }
     
@@ -9331,6 +9318,17 @@ export default function CandidateInterview() {
     return null;
   };
 
+  // GUARD: Show redirecting state if no sessionId (hooks already declared above)
+  if (!sessionId) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <p className="text-slate-300">Redirecting to start interview...</p>
+        </div>
+      </div>
+    );
+  }
+  
   // GUARD: Only show full-screen loader on true initial mount (not during mid-flow transitions)
   const shouldShowFullScreenLoader = isLoading && !engine && !session;
   
