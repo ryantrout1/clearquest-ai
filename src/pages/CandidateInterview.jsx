@@ -9409,8 +9409,8 @@ export default function CandidateInterview() {
     const gatePackId = currentItem?.packId;
     const gateInstanceNumber = currentItem?.instanceNumber || 1;
     
-    // DETERMINISTIC: Extract V3 probe Q/A for this pack/instance from dbTranscript
-    const v3ProbeQA = dbTranscript.filter(e => 
+    // OPTION 1: Check if filteredTranscriptRenderable already contains V3 probe Q/A
+    const transcriptAlreadyHasV3ProbeQA = transcriptRenderable.some(e => 
       ((e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') ||
        (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER')) &&
       e.meta?.packId === gatePackId &&
@@ -9418,15 +9418,33 @@ export default function CandidateInterview() {
       e.visibleToCandidate === true
     );
     
-    if (v3ProbeQA.length > 0) {
-      console.log('[MI_GATE][V3_PROBE_QA_DETERMINISTIC]', {
+    if (transcriptAlreadyHasV3ProbeQA) {
+      console.log('[MI_GATE][V3_PROBE_QA_SKIP_DUPLICATE]', {
         packId: gatePackId,
         instanceNumber: gateInstanceNumber,
-        v3ProbeCount: v3ProbeQA.length,
-        keys: v3ProbeQA.map(e => e.stableKey || e.id)
+        reason: 'V3 probe Q/A already in filteredTranscriptRenderable - skipping append to prevent duplicates'
       });
+      v3ProbeEntriesForGate = [];
+    } else {
+      // DETERMINISTIC: Extract V3 probe Q/A for this pack/instance from dbTranscript
+      const v3ProbeQA = dbTranscript.filter(e => 
+        ((e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') ||
+         (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER')) &&
+        e.meta?.packId === gatePackId &&
+        e.meta?.instanceNumber === gateInstanceNumber &&
+        e.visibleToCandidate === true
+      );
       
-      v3ProbeEntriesForGate = v3ProbeQA;
+      if (v3ProbeQA.length > 0) {
+        console.log('[MI_GATE][V3_PROBE_QA_DETERMINISTIC]', {
+          packId: gatePackId,
+          instanceNumber: gateInstanceNumber,
+          v3ProbeCount: v3ProbeQA.length,
+          keys: v3ProbeQA.map(e => e.stableKey || e.id)
+        });
+        
+        v3ProbeEntriesForGate = v3ProbeQA;
+      }
     }
     
     // Filter out duplicate MI_GATE entries
@@ -9461,16 +9479,57 @@ export default function CandidateInterview() {
   // Build base stream: filtered transcript + v3ProbeQA (if MI_GATE) + v3UI + activeCard
   const baseRenderStream = [
     ...filteredTranscriptRenderable,
-    ...v3ProbeEntriesForGate, // Deterministically include V3 probe Q/A before MI_GATE
+    ...v3ProbeEntriesForGate, // Deterministically include V3 probe Q/A before MI_GATE (if not already in transcript)
     ...v3UiRenderable,
     ...(activeCard ? [activeCard] : [])
   ];
+  
+  // SAFETY NET: Dedupe by canonical key (prevents duplicate key warnings)
+  // Minimal single-pass dedupe - preserves first occurrence order
+  const dedupeByCanonicalKey = (list) => {
+    const seen = new Map();
+    const deduped = [];
+    let removedCount = 0;
+    const removedKeys = [];
+    
+    for (const entry of list) {
+      const canonicalKey = entry.stableKey || entry.id || entry.__canonicalKey;
+      if (!canonicalKey) {
+        deduped.push(entry);
+        continue;
+      }
+      
+      if (seen.has(canonicalKey)) {
+        removedCount++;
+        if (removedKeys.length < 3) {
+          removedKeys.push(canonicalKey);
+        }
+        continue;
+      }
+      
+      seen.set(canonicalKey, true);
+      deduped.push(entry);
+    }
+    
+    if (removedCount > 0) {
+      console.log('[CQ_STREAM][DEDUPED_DUPLICATE_KEYS]', {
+        removedCount,
+        removedKeysSample: removedKeys,
+        beforeLen: list.length,
+        afterLen: deduped.length
+      });
+    }
+    
+    return deduped;
+  };
+  
+  const finalRenderStreamDeduped = dedupeByCanonicalKey(baseRenderStream);
   
   // SAFETY NET: Re-inject missing v3_opener_answer if it exists in canonical but not in render
   // IMMUTABLE: Creates new array rather than mutating (guarantees React re-render)
   // NOTE: reinjectedOpenerAnswersRef now declared at top-level (line ~1556) to fix hook order
   
-  let finalRenderStream = baseRenderStream;
+  let finalRenderStream = finalRenderStreamDeduped;
   
   if (currentItem?.type === 'v3_pack_opener' || v3ProbingActive) {
     const packId = currentItem?.packId || v3ProbingContext?.packId;
