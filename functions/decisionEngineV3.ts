@@ -1619,14 +1619,60 @@ async function decisionEngineV3Probe(base44, {
         suppressedCount
       });
     } else {
-      // Ask about the first non-suppressed missing field
-      nextPrompt = generateV3ProbeQuestion(candidateField, incident.facts);
+      // PHASE 1: LLM probe wording (feature flag controlled)
+      let llmQuestion = null;
+      let promptSource = 'TEMPLATE';
+      let llmMs = null;
+      
+      // ENABLEMENT LOG: Show why LLM is skipped or attempted
+      if (!useLLMProbeWording) {
+        console.log('[V3_PROBE_GEN][LLM_SKIPPED]', {
+          reason: 'useLLMProbeWording_false',
+          categoryId,
+          instanceNumber: instanceNumber || 1,
+          fieldId: candidateField?.field_id
+        });
+      }
+      
+      if (useLLMProbeWording && packInstructions) {
+        const t0 = Date.now();
+        llmQuestion = await generateV3ProbeQuestionLLM(base44, candidateField, incident.facts, {
+          packInstructions,
+          categoryLabel: factModel.category_label,
+          categoryId,
+          instanceNumber: instanceNumber || 1,
+          probeCount: legacyFactState.probe_count,
+          packId: factModel.linked_pack_ids?.[0] || null
+        });
+        llmMs = Date.now() - t0;
+        
+        if (llmQuestion) {
+          promptSource = 'LLM';
+        }
+      }
+      
+      // Use LLM question or fall back to deterministic template
+      nextPrompt = llmQuestion || generateV3ProbeQuestion(candidateField, incident.facts);
       nextAction = "ASK";
+      
+      // CONSOLIDATED SOT LOG: Single source of truth for LLM probe generation
+      console.log('[V3_PROBE_GEN][SOT]', {
+        categoryId,
+        instanceNumber: instanceNumber || 1,
+        useLLMProbeWording: useLLMProbeWording || false,
+        packInstructionsLen: (packInstructions || '').length,
+        fieldId: candidateField?.field_id,
+        promptSource,
+        llmMs: llmMs || null,
+        nextPromptPreview: (nextPrompt || '').slice(0, 80)
+      });
       
       console.log('[V3_PRE_ASK_GUARD][ASK]', {
         traceId: effectiveTraceId,
         fieldId: candidateField.field_id,
         fieldLabel: candidateField.label,
+        promptSource,
+        useLLMProbeWording,
         promptPreview: nextPrompt?.substring(0, 60)
       });
     }
