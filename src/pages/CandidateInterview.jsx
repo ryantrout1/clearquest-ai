@@ -6588,6 +6588,58 @@ export default function CandidateInterview() {
     return '';
   }, [engine]);
 
+  // HELPER: Append CTA acknowledgement to transcript (section transition click)
+  const appendCtaAcknowledgeToTranscript = useCallback(async ({ sessionId, currentSectionId, nextSectionId }) => {
+    try {
+      // Build deterministic stableKey
+      const stableKey = `cta-ack:${sessionId}:${currentSectionId}:${nextSectionId}`;
+      
+      // Dedupe check
+      const freshSession = await base44.entities.InterviewSession.get(sessionId);
+      const currentTranscript = freshSession.transcript_snapshot || [];
+      
+      if (currentTranscript.some(e => e.stableKey === stableKey)) {
+        console.log('[CTA][ACK_DEDUPED]', { stableKey, reason: 'Already in transcript' });
+        return currentTranscript;
+      }
+      
+      console.log('[CTA][ACK_APPEND_START]', { stableKey, currentSectionId, nextSectionId });
+      
+      // STATIC IMPORT: Use top-level import
+      const updatedTranscript = await appendUserMessageImport(sessionId, currentTranscript, "Begin next section", {
+        id: `cta-ack-${sessionId}-${currentSectionId}-${nextSectionId}`,
+        stableKey,
+        messageType: 'CTA_ACK',
+        effectiveItemType: 'section_transition',
+        bottomBarMode: 'CTA',
+        sectionId: currentSectionId,
+        nextSectionId,
+        visibleToCandidate: true
+      });
+      
+      console.log('[CTA][ACK_APPEND_OK]', { 
+        stableKey, 
+        transcriptLenAfter: updatedTranscript.length,
+        transcriptLenBefore: currentTranscript.length
+      });
+      
+      // Local invariant check
+      const foundInReturned = updatedTranscript.some(e => e.stableKey === stableKey);
+      if (!foundInReturned) {
+        console.error('[CTA][ACK_LOCAL_MISSING_AFTER_WRITE]', { 
+          stableKey, 
+          action: 'refresh_forced',
+          transcriptLenAfter: updatedTranscript.length
+        });
+      }
+      
+      return updatedTranscript;
+    } catch (err) {
+      console.error('[CTA][ACK_APPEND_ERROR]', { error: err.message });
+      return null;
+    }
+  }, [sessionId]);
+
   // HELPER: Transition to multi-instance "another instance?" gate (reusable)
   const transitionToAnotherInstanceGate = useCallback(async (v3Context) => {
     const { packId, categoryId, categoryLabel, instanceNumber, packData } = v3Context || v3ProbingContext;
@@ -8117,19 +8169,14 @@ export default function CandidateInterview() {
     });
   }
   
-  // CTA-specific log to confirm footer treatment
+  // CTA SOT diagnostic (single consolidated log)
   if (bottomBarMode === 'CTA') {
-    console.log('[CTA][FOOTER_VISIBILITY_SOT]', {
-      bottomBarMode,
+    console.log('[CTA][SOT_PADDING]', {
+      footerMeasuredHeightPx,
+      dynamicBottomPaddingPx,
       shouldRenderFooter,
       effectiveItemType,
-      footerMeasuredHeightPx
-    });
-    
-    console.log('[CTA][PADDING]', {
-      footerMeasuredHeightPx,
-      computedPaddingPx: dynamicBottomPaddingPx,
-      CTA_GAP_PX
+      bottomBarMode
     });
   }
   
@@ -8508,7 +8555,20 @@ export default function CandidateInterview() {
   // FOOTER PADDING COMPENSATION: Prevent jump when footer height changes
   React.useLayoutEffect(() => {
     const prev = prevPaddingRef.current;
-    const next = dynamicBottomPaddingPx;
+    let next = dynamicBottomPaddingPx;
+    
+    // CTA CLAMP: Never allow compensation to reduce CTA padding below minimum
+    if (bottomBarMode === 'CTA' || effectiveItemType === 'section_transition') {
+      next = Math.max(next, CTA_MIN_PADDING_PX);
+      if (next !== dynamicBottomPaddingPx) {
+        console.log('[CTA][PADDING_COMPENSATE_CLAMP]', {
+          raw: dynamicBottomPaddingPx,
+          clamped: next,
+          CTA_MIN_PADDING_PX
+        });
+      }
+    }
+    
     const delta = next - prev;
     
     // Update ref
@@ -8523,7 +8583,8 @@ export default function CandidateInterview() {
         reason: 'delta_not_positive',
         delta,
         prev,
-        next
+        next,
+        bottomBarMode
       });
       return;
     }
@@ -10556,18 +10617,93 @@ export default function CandidateInterview() {
             // Use renderableTranscriptStream (frozen during typing to prevent flash)
             const transcriptToRender = renderableTranscriptStream;
             
+            // B2 — DETERMINISTIC V3 PROBE Q/A INCLUSION FOR MI_GATE
+            // When MI_GATE active, pull ALL V3 probe Q/A for this pack/instance from dbTranscript
+            let v3ProbeQAForGateDeterministic = [];
+            
+            if (activeUiItem?.kind === "MI_GATE" && currentItem?.packId && currentItem?.instanceNumber) {
+              const gatePackId = currentItem.packId;
+              const gateInstanceNumber = currentItem.instanceNumber;
+              
+              // Extract all V3 probe Q/A from canonical transcript
+              const v3ProbeQuestions = dbTranscript.filter(e => 
+                (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+                e.meta?.packId === gatePackId &&
+                e.meta?.instanceNumber === gateInstanceNumber &&
+                e.visibleToCandidate !== false
+              );
+              
+              const v3ProbeAnswers = dbTranscript.filter(e => 
+                (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER') &&
+                e.meta?.packId === gatePackId &&
+                e.meta?.instanceNumber === gateInstanceNumber &&
+                e.visibleToCandidate !== false
+              );
+              
+              v3ProbeQAForGateDeterministic = [...v3ProbeQuestions, ...v3ProbeAnswers];
+              
+              console.log('[MI_GATE][V3_PROBE_QA_ATTACH]', {
+                gatePackId,
+                gateInstanceNumber,
+                qCount: v3ProbeQuestions.length,
+                aCount: v3ProbeAnswers.length,
+                attached: true,
+                totalAttached: v3ProbeQAForGateDeterministic.length
+              });
+            }
+            
+            // B1 — CANONICAL DEDUPE: Final dedupe before rendering (prevents React key warnings)
+            const dedupeBeforeRender = (list) => {
+              const seen = new Map();
+              const deduped = [];
+              const dropped = [];
+              
+              for (const entry of list) {
+                const canonicalKey = entry.stableKey || entry.id;
+                if (!canonicalKey) {
+                  deduped.push(entry);
+                  continue;
+                }
+                
+                if (seen.has(canonicalKey)) {
+                  dropped.push(canonicalKey);
+                  continue; // Skip duplicate
+                }
+                
+                seen.set(canonicalKey, true);
+                deduped.push(entry);
+              }
+              
+              if (dropped.length > 0) {
+                console.log('[STREAM][DEDUP_KEYS]', {
+                  beforeLen: list.length,
+                  afterLen: deduped.length,
+                  droppedCount: dropped.length,
+                  droppedKeysPreview: dropped.slice(0, 3)
+                });
+              }
+              
+              return deduped;
+            };
+            
+            // Merge V3 probe Q/A deterministically (before final filter/dedupe)
+            const transcriptWithV3ProbeQA = [...transcriptToRender, ...v3ProbeQAForGateDeterministic];
+            
+            // Apply final dedupe to prevent React key collisions
+            const transcriptToRenderDeduped = dedupeBeforeRender(transcriptWithV3ProbeQA);
+            
             // REGRESSION LOG: Prove what we're about to render (source of truth for UI)
             const packId = currentItem?.packId || v3ProbingContext?.packId;
             const instanceNumber = currentItem?.instanceNumber || v3ProbingContext?.instanceNumber || 1;
             const openerAnswerStableKeyForLog = `v3-opener-a:${sessionId}:${packId}:${instanceNumber}`;
             
             // STRICT: Check by exact stableKey match
-            const hasOpenerAnswerByStableKey = transcriptToRender.some(e => 
+            const hasOpenerAnswerByStableKey = transcriptToRenderDeduped.some(e => 
               e.stableKey === openerAnswerStableKeyForLog
             );
             
             // LOOSE: Check by identity (messageType + packId + instanceNumber)
-            const openerAnswerByIdentity = transcriptToRender.find(e => 
+            const openerAnswerByIdentity = transcriptToRenderDeduped.find(e => 
               (e.messageType === 'v3_opener_answer' || e.kind === 'v3_opener_a') &&
               e.packId === packId && 
               (e.instanceNumber === instanceNumber || e.meta?.instanceNumber === instanceNumber)
@@ -10579,13 +10715,13 @@ export default function CandidateInterview() {
             
             console.log('[CQ_RENDER_SOT][BEFORE_MAP]', {
               listName: 'finalRenderStream',
-              len: transcriptToRender.length,
+              len: transcriptToRenderDeduped.length,
               hasOpenerAnswer,
               hasOpenerAnswerByStableKey,
               hasOpenerAnswerByIdentity,
               foundStableKey: openerAnswerByIdentity?.stableKey || null,
               verifyStableKey: openerAnswerStableKeyForLog,
-              last3: transcriptToRender.slice(-3).map(e => ({
+              last3: transcriptToRenderDeduped.slice(-3).map(e => ({
                 stableKey: e.stableKey || e.id,
                 messageType: e.messageType || e.type || e.kind,
                 role: e.role,
@@ -10615,7 +10751,7 @@ export default function CandidateInterview() {
             const shouldSuppressBaseQuestions = v3ProbingActive || hasVisibleV3PromptCard;
             
             const finalList = shouldSuppressBaseQuestions 
-              ? transcriptToRender.filter((entry, idx) => {
+              ? transcriptToRenderDeduped.filter((entry, idx) => {
                   // Only filter QUESTION_SHOWN entries
                   if (entry.messageType !== 'QUESTION_SHOWN') return true;
                   
@@ -10627,7 +10763,7 @@ export default function CandidateInterview() {
                   
                   // REGRESSION FIX: Check if this question has been answered
                   // If answered (user answer entry exists after it in transcript), KEEP it
-                  const hasAnswerAfter = transcriptToRender
+                  const hasAnswerAfter = transcriptToRenderDeduped
                     .slice(idx + 1) // Check entries AFTER this question
                     .some(laterEntry => 
                       laterEntry.role === 'user' && 
@@ -10659,10 +10795,10 @@ export default function CandidateInterview() {
                   
                   return false; // Suppress unanswered question
                 })
-              : transcriptToRender;
+              : transcriptToRenderDeduped;
             
             // REGRESSION GUARD: Verify no candidate-visible QUESTION_SHOWN entries were dropped
-            const candidateVisibleQuestionsInDb = transcriptToRender.filter(e => 
+            const candidateVisibleQuestionsInDb = transcriptToRenderDeduped.filter(e => 
               e.messageType === 'QUESTION_SHOWN' && e.visibleToCandidate === true
             ).length;
             const candidateVisibleQuestionsInRender = finalList.filter(e => 
@@ -10670,7 +10806,7 @@ export default function CandidateInterview() {
             ).length;
             
             if (candidateVisibleQuestionsInRender < candidateVisibleQuestionsInDb && shouldSuppressBaseQuestions) {
-              const droppedQuestions = transcriptToRender.filter(e => 
+              const droppedQuestions = transcriptToRenderDeduped.filter(e => 
                 e.messageType === 'QUESTION_SHOWN' && 
                 e.visibleToCandidate === true &&
                 !finalList.some(r => (r.stableKey && r.stableKey === e.stableKey) || (r.id && r.id === e.id))
@@ -11095,8 +11231,21 @@ export default function CandidateInterview() {
                 </div>
               )}
 
+              {/* CTA acknowledgement - "Begin next section" */}
+              {entry.role === 'user' && entry.messageType === 'CTA_ACK' && (
+                <div style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
+                  <ContentContainer>
+                  <div className="flex justify-end">
+                    <div className="bg-emerald-600 rounded-xl px-5 py-3 max-w-[85%]">
+                      <p className="text-white text-sm">{entry.text}</p>
+                    </div>
+                  </div>
+                  </ContentContainer>
+                </div>
+              )}
+
               {/* User message - "Got it — Let's Begin" or any other user text */}
-              {entry.role === 'user' && !entry.messageType?.includes('ANSWER') && !entry.messageType?.includes('v3_') && !entry.messageType?.includes('GATE') && (
+              {entry.role === 'user' && !entry.messageType?.includes('ANSWER') && !entry.messageType?.includes('v3_') && !entry.messageType?.includes('GATE') && entry.messageType !== 'CTA_ACK' && (
                 <div style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
@@ -11783,8 +11932,22 @@ export default function CandidateInterview() {
                    const nextData = (activeBlocker?.type === 'SECTION_MESSAGE') ? activeBlocker : pendingSectionTransition;
                    if (!nextData) return;
 
-                   // Log section started
+                   // CRITICAL: Append CTA acknowledgement to transcript BEFORE advancing
+                   const currentSection = sections[currentSectionIndex];
                    const nextSection = sections[nextData.nextSectionIndex];
+                   
+                   if (currentSection && nextSection) {
+                     await appendCtaAcknowledgeToTranscript({
+                       sessionId,
+                       currentSectionId: currentSection.id,
+                       nextSectionId: nextSection.id
+                     });
+                     
+                     // Refresh transcript to pull CTA acknowledgement into local state
+                     await refreshTranscriptFromDB('cta_ack_appended');
+                   }
+
+                   // Log section started
                    if (nextSection) {
                      await logSectionStarted(sessionId, {
                        sectionId: nextSection.id,
