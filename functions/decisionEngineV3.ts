@@ -1938,12 +1938,6 @@ async function decisionEngineV3Probe(base44, {
     llmMs: llmMs || null
   };
   
-  console.log('[V3_PROBE_GEN][SOT]', {
-    useLLMProbeWording: useLLMProbeWording || false,
-    promptSource: promptSource || 'TEMPLATE',
-    llmMs: llmMs || null
-  });
-  
   return {
     updatedSession,
     incidentId,

@@ -322,6 +322,50 @@ export default function V3ProbingLoop({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // V3 LLM ENABLEMENT SOT - Single source of truth for LLM probe wording
+  const computeV3LLMEnablementSOT = () => {
+    if (typeof window === 'undefined') {
+      return {
+        enabled: false,
+        pathname: '',
+        href: '',
+        host: '',
+        hostname: '',
+        isEditorPreviewPath: false,
+        isPreviewSandboxHost: false,
+        isBase44Host: false,
+        isAppsEditorPreview: false,
+        reason: 'server_side_render'
+      };
+    }
+    
+    const pathname = window.location?.pathname || '';
+    const href = window.location?.href || '';
+    const host = window.location?.host || '';
+    const hostname = window.location?.hostname || '';
+
+    const isEditorPreviewPath = pathname.includes('/editor/preview/');
+    const isPreviewSandboxHost = hostname.includes('preview-sandbox--');
+    const isBase44Host = hostname.includes('base44.app') || hostname.includes('base44.com');
+    const isAppsEditorPreview = href.includes('/apps/') && href.includes('/editor/preview/');
+
+    // Enable in editor preview environments only:
+    const enabled = (isEditorPreviewPath && isBase44Host) || isPreviewSandboxHost || isAppsEditorPreview;
+
+    return {
+      enabled,
+      pathname,
+      href,
+      host,
+      hostname,
+      isEditorPreviewPath,
+      isPreviewSandboxHost,
+      isBase44Host,
+      isAppsEditorPreview,
+      reason: enabled ? 'preview_env_detected' : 'non_preview_env'
+    };
+  };
+
   const handleSubmit = async (e, initialAnswer = null, isInitialCall = false) => {
     e?.preventDefault();
     
@@ -340,23 +384,17 @@ export default function V3ProbingLoop({
     }
 
     // FEATURE FLAG: Enable LLM probe wording in Base44 editor preview (auto-detect)
-    const isBase44EditorPreview = typeof window !== 'undefined' && 
-      window.location?.pathname?.includes('/editor/preview/');
-    const isPreviewSandbox = typeof window !== 'undefined' && 
-      (window.location?.hostname?.includes('preview-sandbox') || 
-       window.location?.hostname?.includes('base44.app'));
-    const shouldUseLLMProbeWording = isBase44EditorPreview || isPreviewSandbox;
+    const v3LLMSOT = computeV3LLMEnablementSOT();
+    const shouldUseLLMProbeWording = v3LLMSOT.enabled;
     
-    if (shouldUseLLMProbeWording && isInitialCall) {
+    if (isInitialCall) {
       console.log('[V3_LLM][SOT_ENABLEMENT]', {
-        shouldUseLLMProbeWording: true,
-        reason: isBase44EditorPreview ? 'editor_preview_detected' : 'preview_sandbox_detected',
-        pathname: window.location?.pathname,
-        hostname: window.location?.hostname,
+        ...v3LLMSOT,
         sessionId,
-        packId: packData?.followup_pack_id,
+        packId: packData?.followup_pack_id || packData?.packId,
         categoryId,
-        instanceNumber: instanceNumber || 1
+        instanceNumber: instanceNumber || 1,
+        loopKey
       });
     }
 
