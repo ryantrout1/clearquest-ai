@@ -211,12 +211,27 @@ export default function StartInterview() {
         
         if (activeSession) {
           console.log("📍 Found active session - navigating to interview");
+
+          // QUERY PARAM PRESERVATION: Preserve flags when resuming
+          const currentParams = new URLSearchParams(window.location.search);
+          const nextParams = new URLSearchParams(currentParams);
+          nextParams.set('session', activeSession.id);
+          const preservedKeys = Array.from(currentParams.keys()).filter(k => k !== 'session');
+
+          console.log("[START_INTERVIEW][NAVIGATE_WITH_QUERY]", {
+            from: window.location.pathname + window.location.search,
+            to: `/candidateinterview?${nextParams.toString()}`,
+            preservedKeys,
+            sessionId: activeSession.id,
+            resuming: true
+          });
+
           console.log("[START_INTERVIEW][NAVIGATE]", { 
             sessionId: activeSession.id, 
             status: activeSession.status,
             tokenPresent: Boolean(token) 
           });
-          navigate(createPageUrl(`CandidateInterview?session=${activeSession.id}`));
+          navigate(createPageUrl(`CandidateInterview?${nextParams.toString()}`));
           return;
         }
 
@@ -263,6 +278,23 @@ export default function StartInterview() {
       });
 
       console.log("✅ Session created:", newSession.id);
+
+      // QUERY PARAM PRESERVATION: Preserve flags like v3llm=1, cqdiag=1 when navigating
+      const currentParams = new URLSearchParams(window.location.search);
+      const nextParams = new URLSearchParams(currentParams);
+      nextParams.set('session', newSession.id);
+
+      const fromUrl = window.location.pathname + window.location.search;
+      const toUrl = `/candidateinterview?${nextParams.toString()}`;
+      const preservedKeys = Array.from(currentParams.keys()).filter(k => k !== 'session');
+
+      console.log("[START_INTERVIEW][NAVIGATE_WITH_QUERY]", {
+        from: fromUrl,
+        to: toUrl,
+        preservedKeys,
+        sessionId: newSession.id
+      });
+
       console.log("[START_INTERVIEW][NAVIGATE]", { 
         sessionId: newSession.id, 
         departmentCode: deptCode,
@@ -274,7 +306,7 @@ export default function StartInterview() {
       requestCompletedRef.value = true;
       clearTimeout(sessionTimeout);
 
-      navigate(createPageUrl(`CandidateInterview?session=${newSession.id}`));
+      navigate(createPageUrl(`CandidateInterview?${nextParams.toString()}`));
 
     } catch (err) {
       requestCompletedRef.value = true;
