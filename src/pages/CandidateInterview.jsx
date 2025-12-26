@@ -8133,9 +8133,6 @@ export default function CandidateInterview() {
   
   // Step 6: Compute footer padding (TDZ-safe - unified across all modes including WELCOME)
   
-  // CTA-specific gap constant (tighter to avoid dead zone)
-  const CTA_GAP_PX = 12;
-  
   // ACTIVE CARD DETECTION: Determine if an active card is currently present
   const hasActiveCard = 
     screenMode === 'WELCOME' || // WELCOME card active
@@ -8147,11 +8144,21 @@ export default function CandidateInterview() {
   
   // UNIFIED PADDING FORMULA: Reduced ~75% for active cards, special case for CTA
   // CTA: footer + 12px gap (tight), Active: footer + 8px gap, History: footer + 16px gap
-  const dynamicBottomPaddingPx = shouldRenderFooter 
+  const footerH = bottomBarMode === 'CTA' 
+    ? Math.max(footerMeasuredHeightPx || CTA_FALLBACK_FOOTER_PX, CTA_FALLBACK_FOOTER_PX)
+    : footerMeasuredHeightPx;
+  const ctaPadding = footerH + CTA_GAP_PX;
+  
+  const dynamicBottomPaddingPxRaw = shouldRenderFooter 
     ? (bottomBarMode === 'CTA' 
-        ? footerMeasuredHeightPx + CTA_GAP_PX
+        ? ctaPadding
         : footerMeasuredHeightPx + (hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX))
     : 0;
+  
+  // CTA CLAMP: Ensure CTA padding never below minimum (prevents compensation shrinkage)
+  const dynamicBottomPaddingPx = (bottomBarMode === 'CTA' || effectiveItemType === 'section_transition')
+    ? Math.max(dynamicBottomPaddingPxRaw, CTA_MIN_PADDING_PX)
+    : dynamicBottomPaddingPxRaw;
   
   // DIAGNOSTIC LOG: Show padding computation (always on)
   console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
