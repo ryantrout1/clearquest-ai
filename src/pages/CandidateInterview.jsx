@@ -169,6 +169,14 @@ const resetMountTracker = (sid) => {
       return true;
     }
     
+    // PRIORITY 1.5: V3 probe Q/A default to visible (unless explicitly false)
+    // Fixes missing V3_PROBE_ANSWER when visibleToCandidate is undefined
+    const isV3ProbeQA = (t.messageType === 'V3_PROBE_QUESTION' || t.type === 'V3_PROBE_QUESTION') ||
+                        (t.messageType === 'V3_PROBE_ANSWER' || t.type === 'V3_PROBE_ANSWER');
+    if (isV3ProbeQA && t.visibleToCandidate !== false) {
+      return true;
+    }
+    
     // PRIORITY 2: User messages always render (fail-open for legacy entries)
     if (t.role === 'user' || t.kind === 'user') {
       // Still block system event types
@@ -9409,41 +9417,84 @@ export default function CandidateInterview() {
     const gatePackId = currentItem?.packId;
     const gateInstanceNumber = currentItem?.instanceNumber || 1;
     
-    // OPTION 1: Check if filteredTranscriptRenderable already contains V3 probe Q/A
-    const transcriptAlreadyHasV3ProbeQA = transcriptRenderable.some(e => 
-      ((e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') ||
-       (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER')) &&
+    // PAIR-AWARE CHECK: Detect Q and A separately (prevents partial skips)
+    const probeQInTranscript = transcriptRenderable.filter(e => 
+      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
       e.meta?.packId === gatePackId &&
       e.meta?.instanceNumber === gateInstanceNumber &&
-      e.visibleToCandidate === true
+      e.visibleToCandidate !== false
     );
     
-    if (transcriptAlreadyHasV3ProbeQA) {
-      console.log('[MI_GATE][V3_PROBE_QA_SKIP_DUPLICATE]', {
+    const probeAInTranscript = transcriptRenderable.filter(e => 
+      (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER') &&
+      e.meta?.packId === gatePackId &&
+      e.meta?.instanceNumber === gateInstanceNumber &&
+      e.visibleToCandidate !== false
+    );
+    
+    const hasQ = probeQInTranscript.length > 0;
+    const hasA = probeAInTranscript.length > 0;
+    const bothPresent = hasQ && hasA;
+    
+    console.log('[MI_GATE][V3_PROBE_QA_PRESENCE]', {
+      packId: gatePackId,
+      instanceNumber: gateInstanceNumber,
+      hasQ,
+      hasA,
+      qCount: probeQInTranscript.length,
+      aCount: probeAInTranscript.length,
+      action: bothPresent ? 'SKIP' : 'APPEND_MISSING'
+    });
+    
+    if (bothPresent) {
+      console.log('[MI_GATE][V3_PROBE_QA_SKIP_BOTH_PRESENT]', {
         packId: gatePackId,
         instanceNumber: gateInstanceNumber,
-        reason: 'V3 probe Q/A already in filteredTranscriptRenderable - skipping append to prevent duplicates'
+        qKeys: probeQInTranscript.map(e => e.stableKey || e.id),
+        aKeys: probeAInTranscript.map(e => e.stableKey || e.id),
+        reason: 'Both Q and A already in filteredTranscriptRenderable - skipping append'
       });
       v3ProbeEntriesForGate = [];
     } else {
-      // DETERMINISTIC: Extract V3 probe Q/A for this pack/instance from dbTranscript
-      const v3ProbeQA = dbTranscript.filter(e => 
+      // Extract ALL V3 probe Q/A for this pack/instance from dbTranscript
+      const v3ProbeQAFromDb = dbTranscript.filter(e => 
         ((e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') ||
          (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER')) &&
         e.meta?.packId === gatePackId &&
         e.meta?.instanceNumber === gateInstanceNumber &&
-        e.visibleToCandidate === true
+        e.visibleToCandidate !== false
       );
       
-      if (v3ProbeQA.length > 0) {
-        console.log('[MI_GATE][V3_PROBE_QA_DETERMINISTIC]', {
+      // Build Set of already-present canonical keys
+      const alreadyPresentKeys = new Set([
+        ...probeQInTranscript.map(e => e.stableKey || e.id),
+        ...probeAInTranscript.map(e => e.stableKey || e.id)
+      ]);
+      
+      // Append ONLY items not already in transcript
+      const toAppend = v3ProbeQAFromDb.filter(e => {
+        const canonicalKey = e.stableKey || e.id;
+        return !alreadyPresentKeys.has(canonicalKey);
+      });
+      
+      if (toAppend.length > 0) {
+        console.log('[MI_GATE][V3_PROBE_QA_APPEND_MISSING]', {
           packId: gatePackId,
           instanceNumber: gateInstanceNumber,
-          v3ProbeCount: v3ProbeQA.length,
-          keys: v3ProbeQA.map(e => e.stableKey || e.id)
+          appendedKeys: toAppend.map(e => e.stableKey || e.id),
+          appendedCount: toAppend.length,
+          hadQ: hasQ,
+          hadA: hasA
         });
         
-        v3ProbeEntriesForGate = v3ProbeQA;
+        v3ProbeEntriesForGate = toAppend;
+      } else {
+        console.log('[MI_GATE][V3_PROBE_QA_NONE_TO_APPEND]', {
+          packId: gatePackId,
+          instanceNumber: gateInstanceNumber,
+          reason: 'No V3 probe Q/A found in dbTranscript or all already present'
+        });
+        v3ProbeEntriesForGate = [];
       }
     }
     
