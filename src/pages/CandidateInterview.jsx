@@ -8076,6 +8076,9 @@ export default function CandidateInterview() {
   
   // Step 6: Compute footer padding (TDZ-safe - unified across all modes including WELCOME)
   
+  // CTA-specific gap constant (tighter to avoid dead zone)
+  const CTA_GAP_PX = 12;
+  
   // ACTIVE CARD DETECTION: Determine if an active card is currently present
   const hasActiveCard = 
     screenMode === 'WELCOME' || // WELCOME card active
@@ -8085,10 +8088,12 @@ export default function CandidateInterview() {
     (v3ProbingActive && hasActiveV3Prompt) || // V3 probe active
     (currentItem?.type === 'multi_instance_gate'); // MI_GATE active
   
-  // UNIFIED PADDING FORMULA: Reduced ~75% for active cards
-  // Active: footer + 8px gap, History: footer + 16px gap
+  // UNIFIED PADDING FORMULA: Reduced ~75% for active cards, special case for CTA
+  // CTA: footer + 12px gap (tight), Active: footer + 8px gap, History: footer + 16px gap
   const dynamicBottomPaddingPx = shouldRenderFooter 
-    ? footerMeasuredHeightPx + (hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX)
+    ? (bottomBarMode === 'CTA' 
+        ? footerMeasuredHeightPx + CTA_GAP_PX
+        : footerMeasuredHeightPx + (hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX))
     : 0;
   
   // DIAGNOSTIC LOG: Show padding computation (always on)
@@ -8119,6 +8124,12 @@ export default function CandidateInterview() {
       shouldRenderFooter,
       effectiveItemType,
       footerMeasuredHeightPx
+    });
+    
+    console.log('[CTA][PADDING]', {
+      footerMeasuredHeightPx,
+      computedPaddingPx: dynamicBottomPaddingPx,
+      CTA_GAP_PX
     });
   }
   
@@ -8172,6 +8183,25 @@ export default function CandidateInterview() {
   React.useLayoutEffect(() => {
     const scrollContainer = historyRef.current;
     if (!scrollContainer || !bottomAnchorRef.current) return;
+    
+    // CTA FORCE-ANCHOR: Ensure CTA always visible (one-time on entry)
+    if (bottomBarMode === 'CTA' && !isUserTyping) {
+      const { scrollTop: beforeScroll, scrollHeight, clientHeight } = scrollContainer;
+      const targetScrollTop = Math.max(0, scrollHeight - clientHeight);
+      
+      if (targetScrollTop > beforeScroll + 5) { // Only scroll if meaningfully below bottom
+        scrollContainer.scrollTop = targetScrollTop;
+        console.log('[CTA][FORCE_ANCHOR]', {
+          scrollTopBefore: beforeScroll,
+          scrollTopAfter: targetScrollTop,
+          targetScrollTop,
+          clientHeight,
+          scrollHeight,
+          reason: 'CTA_ENTRY_ENSURE_VISIBLE'
+        });
+      }
+      return; // Skip standard auto-scroll logic
+    }
     
     // GUARD A: Never auto-scroll while user is typing
     if (isUserTyping) return;
