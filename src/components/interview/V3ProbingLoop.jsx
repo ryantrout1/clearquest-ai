@@ -339,6 +339,26 @@ export default function V3ProbingLoop({
       return;
     }
 
+    // FEATURE FLAG: Enable LLM probe wording via URL param (default OFF)
+    const useLLMProbeWording = (() => {
+      try {
+        if (typeof window === 'undefined') return false;
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('v3llm') === '1';
+      } catch {
+        return false;
+      }
+    })();
+    
+    if (useLLMProbeWording && isInitialCall) {
+      console.log('[V3_LLM][ENABLED]', {
+        sessionId,
+        packId: packData?.followup_pack_id,
+        categoryId,
+        instanceNumber: instanceNumber || 1
+      });
+    }
+
     // CORRELATION TRACE: Generate traceId for this probing turn
     const traceId = `${sessionId}-${Date.now()}`;
     console.log('[PROCESSING][START]', {
@@ -413,7 +433,9 @@ export default function V3ProbingLoop({
         sectionId: sectionId || null,
         instanceNumber: instanceNumber || 1,
         isInitialCall: isInitialCall || false,
-        traceId
+        traceId,
+        packInstructions: packData?.ai_probe_instructions || null,
+        useLLMProbeWording: useLLMProbeWording || false
       });
       
       const timeoutPromise = new Promise((_, reject) => 

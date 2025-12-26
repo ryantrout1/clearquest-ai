@@ -61,6 +61,92 @@ const COMPLETION_MESSAGES = {
 };
 
 /**
+ * Generate V3 probe question using LLM (Phase 1)
+ * Falls back to templates if LLM fails or flag disabled
+ */
+async function generateV3ProbeQuestionLLM(base44Client, field, collectedFacts, context) {
+  const { packInstructions, categoryLabel, categoryId, instanceNumber, probeCount, packId } = context;
+  
+  // GUARD: If no instructions or too short, use template fallback
+  if (!packInstructions || packInstructions.trim().length < 50) {
+    console.warn('[V3_PROBE_GEN][NO_INSTRUCTIONS]', {
+      packId,
+      categoryId,
+      reason: 'No ai_probe_instructions or too short - using template fallback'
+    });
+    return null; // Signal to use template
+  }
+  
+  // Build LLM prompt
+  const prompt = buildV3LLMProbePrompt(field, collectedFacts, packInstructions, context);
+  
+  console.log('[V3_PROBE_GEN][LLM_CALL]', {
+    packId,
+    categoryId,
+    fieldId: field.field_id,
+    hasInstructions: true,
+    instructionsLen: packInstructions.length,
+    probeCount
+  });
+  
+  try {
+    const LLM_TIMEOUT_MS = 5000;
+    
+    const llmPromise = base44Client.integrations.Core.InvokeLLM({
+      prompt,
+      response_json_schema: {
+        type: "object",
+        properties: {
+          question: { type: "string" }
+        },
+        required: ["question"]
+      }
+    });
+    
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('LLM_TIMEOUT')), LLM_TIMEOUT_MS)
+    );
+    
+    const t0 = Date.now();
+    const result = await Promise.race([llmPromise, timeoutPromise]);
+    const dtMs = Date.now() - t0;
+    
+    // Validate output
+    if (!result.question || typeof result.question !== 'string' || result.question.trim().length < 8) {
+      throw new Error('LLM returned invalid question (missing or too short)');
+    }
+    
+    if (result.question.length > 220) {
+      console.warn('[V3_PROBE_GEN][QUESTION_TRUNCATED]', {
+        originalLen: result.question.length,
+        action: 'truncating to 220 chars'
+      });
+      result.question = result.question.substring(0, 217) + '...';
+    }
+    
+    console.log('[V3_PROBE_GEN][LLM_OK]', {
+      packId,
+      categoryId,
+      fieldId: field.field_id,
+      llmMs: dtMs,
+      questionLen: result.question.length
+    });
+    
+    return result.question;
+    
+  } catch (err) {
+    console.error('[V3_PROBE_GEN][LLM_FALLBACK]', {
+      packId,
+      categoryId,
+      fieldId: field.field_id,
+      reason: err.message === 'LLM_TIMEOUT' ? 'timeout_5s' : err.message
+    });
+    
+    return null; // Signal to use template fallback
+  }
+}
+
+/**
  * Get opening prompt for a category
  * @param {string} categoryId - Category identifier
  * @param {string} categoryLabel - Category label
@@ -127,6 +213,35 @@ function generateV3ProbeQuestion(field, collectedFacts = {}) {
       }
       return `Can you provide more information about ${fieldId?.replace(/_/g, ' ') || 'this'}?`;
   }
+}
+
+/**
+ * Build V3 probe prompt for LLM question generation (Phase 1)
+ * Uses pack instructions + missing field + collected facts
+ */
+function buildV3LLMProbePrompt(field, collectedFacts, packInstructions, context) {
+  const factsText = Object.entries(collectedFacts || {})
+    .filter(([_, v]) => v && String(v).trim() !== '')
+    .map(([k, v]) => `- ${k.replace(/_/g, ' ')}: ${v}`)
+    .join('\n');
+  
+  return `You are a conversational interviewer conducting a background investigation interview.
+
+FOLLOW THESE PACK INSTRUCTIONS (do not ignore):
+${packInstructions}
+
+We are collecting ONE missing fact right now:
+- field_id: ${field.field_id}
+- label: ${field.label}
+- type: ${field.type}
+
+Facts already collected (for context only):
+${factsText || '(None yet)'}
+
+Write ONE short, friendly, conversational question that asks ONLY for the missing fact above.
+Do not ask for other fields. Do not ask multiple questions.
+Follow the pack instructions strictly (especially regarding what NOT to ask).
+Return JSON: {"question":"..."}`;
 }
 
 /**
@@ -968,7 +1083,9 @@ async function decisionEngineV3Probe(base44, {
   instanceNumber,
   isInitialCall = false,
   config = {},
-  traceId = null
+  traceId = null,
+  packInstructions = null,
+  useLLMProbeWording = false
 }) {
   const effectiveTraceId = traceId || `${sessionId}-${Date.now()}`;
   console.log("[IDE-V3] decisionEngineV3Probe called", { 
@@ -1832,7 +1949,11 @@ async function decisionEngineV3Probe(base44, {
       : 100,
     stopReasonCode: stopReason || null,
     stopReasonDetail: stopReason ? `Stop triggered: ${stopReason}` : null,
-    debug: debugInfo
+    debug: debugInfo,
+    meta: {
+      promptSource: promptSource || 'TEMPLATE',
+      llmMs: llmMs || null
+    }
   };
 }
 
@@ -1897,7 +2018,7 @@ Deno.serve(async (req) => {
     }
     
     // ========== VALIDATE REQUIRED FIELDS ==========
-    const { sessionId, categoryId, incidentId, latestAnswerText, baseQuestionId, questionCode, sectionId, instanceNumber, isInitialCall, config } = body;
+    const { sessionId, categoryId, incidentId, latestAnswerText, baseQuestionId, questionCode, sectionId, instanceNumber, isInitialCall, config, packInstructions, useLLMProbeWording } = body;
     
     if (!sessionId || !categoryId) {
       console.error('[DECISION_V3][BAD_PAYLOAD] Missing required fields', {
@@ -1930,7 +2051,9 @@ Deno.serve(async (req) => {
       sectionId: sectionId || null,
       instanceNumber: instanceNumber || 1,
       isInitialCall: isInitialCall || false,
-      config: config || {}
+      config: config || {},
+      packInstructions: packInstructions || null,
+      useLLMProbeWording: useLLMProbeWording || false
     });
     
     console.log('[DECISION_V3][RESULT]', {
