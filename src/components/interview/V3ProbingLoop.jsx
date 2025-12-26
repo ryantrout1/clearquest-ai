@@ -339,19 +339,20 @@ export default function V3ProbingLoop({
       return;
     }
 
-    // FEATURE FLAG: Enable LLM probe wording via URL param (default OFF)
-    const useLLMProbeWording = (() => {
-      try {
-        if (typeof window === 'undefined') return false;
-        const urlParams = new URLSearchParams(window.location.search);
-        return urlParams.get('v3llm') === '1';
-      } catch {
-        return false;
-      }
-    })();
+    // FEATURE FLAG: Enable LLM probe wording in Base44 editor preview (auto-detect)
+    const isBase44EditorPreview = typeof window !== 'undefined' && 
+      window.location?.pathname?.includes('/editor/preview/');
+    const isPreviewSandbox = typeof window !== 'undefined' && 
+      (window.location?.hostname?.includes('preview-sandbox') || 
+       window.location?.hostname?.includes('base44.app'));
+    const shouldUseLLMProbeWording = isBase44EditorPreview || isPreviewSandbox;
     
-    if (useLLMProbeWording && isInitialCall) {
-      console.log('[V3_LLM][ENABLED]', {
+    if (shouldUseLLMProbeWording && isInitialCall) {
+      console.log('[V3_LLM][SOT_ENABLEMENT]', {
+        shouldUseLLMProbeWording: true,
+        reason: isBase44EditorPreview ? 'editor_preview_detected' : 'preview_sandbox_detected',
+        pathname: window.location?.pathname,
+        hostname: window.location?.hostname,
         sessionId,
         packId: packData?.followup_pack_id,
         categoryId,
@@ -435,7 +436,7 @@ export default function V3ProbingLoop({
         isInitialCall: isInitialCall || false,
         traceId,
         packInstructions: packData?.ai_probe_instructions || null,
-        useLLMProbeWording: useLLMProbeWording || false
+        useLLMProbeWording: shouldUseLLMProbeWording
       });
       
       const timeoutPromise = new Promise((_, reject) => 

@@ -2574,19 +2574,13 @@ export default function CandidateInterview() {
   // SESSION GUARD: Redirect to StartInterview if no sessionId in URL
   useEffect(() => {
     if (!sessionId) {
-      const fromUrl = window.location.pathname + window.location.search;
-      const currentParams = new URLSearchParams(window.location.search);
-      currentParams.delete('session'); // Remove empty/null session param if present
-      const toUrl = `startinterview?${currentParams.toString()}`;
-      
       console.log('[CANDIDATE_INTERVIEW][NO_SESSION_REDIRECT]', {
-        from: fromUrl,
-        to: toUrl,
+        from: window.location.pathname,
+        to: 'StartInterview',
         reason: 'sessionId missing from URL params'
       });
       
-      // Preserve query params (like v3llm=1) when redirecting
-      navigate(createPageUrl(`StartInterview?${currentParams.toString()}`));
+      navigate(createPageUrl("StartInterview"));
       return;
     }
     
