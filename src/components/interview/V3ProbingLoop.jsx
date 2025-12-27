@@ -440,6 +440,36 @@ export default function V3ProbingLoop({
       // FAIL-CLOSED WATCHDOG: 12s timeout for backend call
       const BACKEND_TIMEOUT_MS = 12000;
       
+      // PAYLOAD HARDENING: Ensure flags are always present and consistent
+      const payloadUseLLMProbeWording = Boolean(shouldUseLLMProbeWording);
+      const payloadPackInstructions = packData?.ai_probe_instructions || '';
+      const packInstructionsLen = payloadPackInstructions.length;
+      const hasPackInstructions = packInstructionsLen > 0;
+      
+      // FRONTEND ASSERTION: Warn if enablement is true but instructions are missing
+      if (payloadUseLLMProbeWording && !hasPackInstructions) {
+        console.warn('[V3_LLM][MISSING_INSTRUCTIONS_WARNING]', {
+          sessionId,
+          categoryId,
+          instanceNumber: instanceNumber || 1,
+          loopKey
+        });
+      }
+      
+      // PAYLOAD SOT LOG: Prove what frontend sends to backend (fires ONCE per submit)
+      console.log('[V3_LLM][PAYLOAD_SOT]', {
+        sessionId,
+        categoryId,
+        instanceNumber: instanceNumber || 1,
+        loopKey,
+        shouldUseLLMProbeWording,
+        payloadUseLLMProbeWording,
+        packInstructionsLen,
+        hasPackInstructions,
+        pathname: window.location?.pathname || '',
+        href: window.location?.href || ''
+      });
+      
       const enginePromise = base44.functions.invoke('decisionEngineV3', {
         sessionId,
         categoryId,
@@ -451,8 +481,8 @@ export default function V3ProbingLoop({
         instanceNumber: instanceNumber || 1,
         isInitialCall: isInitialCall || false,
         traceId,
-        packInstructions: packData?.ai_probe_instructions || null,
-        useLLMProbeWording: shouldUseLLMProbeWording
+        packInstructions: payloadPackInstructions,
+        useLLMProbeWording: payloadUseLLMProbeWording
       });
       
       const timeoutPromise = new Promise((_, reject) => 
