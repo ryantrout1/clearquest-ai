@@ -686,6 +686,9 @@ export default function V3ProbingLoop({
           }
         })();
 
+        // FIX: Define preview context from v3LLMSOT
+        const isPreviewContextSOT = Boolean(v3LLMSOT?.enabled);
+
         // UI FAILSAFE: Sanitize in preview-sandbox if backend is stale
         if (isPreviewContextSOT && normalizedPrompt && /omitted information/i.test(normalizedPrompt)) {
           const beforePrompt = normalizedPrompt;
@@ -923,31 +926,26 @@ export default function V3ProbingLoop({
         elapsedMs: engineCallMs
       });
       
-      // UI CONTRACT: Clear deciding state on error
-      setIsDeciding(false);
-      setActivePromptText(null);
-      setActivePromptId(null);
-      
-      // FAIL-CLOSED: Backend timeout detected
+      // FAIL-OPEN: Backend timeout detected - show fallback probe instead of completing
       if (err.message === 'BACKEND_TIMEOUT') {
-        console.error("[V3_PROBE][TIMEOUT_FALLBACK]", {
+        console.error("[V3_PROBE][TIMEOUT_FAIL_OPEN]", {
           traceId,
           elapsedMs: engineCallMs,
-          reason: 'Backend call exceeded 12s timeout - failing closed to continue interview'
+          reason: 'Backend call exceeded 12s timeout - failing open with fallback probe'
         });
         
-        // Show graceful completion message
-        const fallbackMessage = {
-          id: `v3-timeout-${Date.now()}`,
-          role: "ai",
-          content: "Thank you for providing those details. Let's continue with the interview.",
-          isCompletion: true,
-          timestamp: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, fallbackMessage]);
-        setIsComplete(true);
-        setCompletionReason("STOP");
+        // Set safe fallback probe question
+        const fallbackPrompt = "What was the name of the law enforcement agency you applied to?";
+        setActivePromptText(fallbackPrompt);
+        setActivePromptId(`v3-fallback-${incidentId}-${probeCount}`);
+        setIsDeciding(false);
         setIsLoading(false);
+        engineInFlightRef.current = false;
+        
+        console.log('[V3_PROBE][FALLBACK_PROMPT_SET]', {
+          promptPreview: fallbackPrompt.slice(0, 60),
+          reason: 'BACKEND_TIMEOUT'
+        });
         return;
       }
       
@@ -968,25 +966,36 @@ export default function V3ProbingLoop({
         // Continue interview flow - don't show error card
         setIsComplete(true);
         setCompletionReason("STOP");
+        engineInFlightRef.current = false;
         return; // ✓ EXPLICIT RETURN - guarantees no fallthrough to error card
       }
       
-      // Show error for truly fatal issues
-      const errorMessage = {
-        id: `v3-error-${Date.now()}`,
-        role: "ai",
-        content: "I apologize, there was a technical issue. Let's continue with the interview.",
-        isError: true,
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, errorMessage]);
-      setIsComplete(true);
-      setCompletionReason("ERROR");
-    } finally {
-      setIsLoading(false);
+      // FAIL-OPEN: For other runtime errors, show fallback probe instead of error card
+      console.warn("[V3_PROBE][EXCEPTION_FAIL_OPEN]", {
+        traceId,
+        reason: 'Runtime exception - failing open with fallback probe'
+      });
+      
+      const fallbackPrompt = "What was the name of the law enforcement agency you applied to?";
+      setActivePromptText(fallbackPrompt);
+      setActivePromptId(`v3-fallback-${incidentId}-${probeCount}`);
       setIsDeciding(false);
-      // ALWAYS reset in-flight guard (even on early returns/errors)
+      setIsLoading(false);
       engineInFlightRef.current = false;
+      
+      console.log('[V3_PROBE][FALLBACK_PROMPT_SET]', {
+        promptPreview: fallbackPrompt.slice(0, 60),
+        reason: 'RUNTIME_EXCEPTION'
+      });
+      return;
+    } finally {
+      // Only reset if not already handled in catch block
+      if (!isLoading) {
+        setIsLoading(false);
+      }
+      if (!isDeciding) {
+        setIsDeciding(false);
+      }
     }
   };
 
