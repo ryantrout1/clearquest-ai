@@ -2412,8 +2412,14 @@ export default function CandidateInterview() {
     const raw = entry.messageType || entry.type || entry.meta?.messageType || '';
     if (!raw) return '';
     
-    // Normalize to uppercase and replace spaces/hyphens with underscores
-    const normalized = String(raw).trim().toUpperCase().replace(/[\s-]/g, '_');
+    // 1) HARDEN: Normalize whitespace, hyphen, dot, slash, colon to underscore
+    const normalized = String(raw)
+      .trim()
+      .toUpperCase()
+      .replace(/[\s\-./:]+/g, '_')  // Replace all delimiters with underscore
+      .replace(/_+/g, '_')  // Collapse multiple underscores
+      .replace(/^_+|_+$/g, '');  // Trim leading/trailing underscores
+    
     return normalized;
   };
   
@@ -11162,14 +11168,22 @@ export default function CandidateInterview() {
               // 1) NORMALIZE: Apply same normalization as existing transcript pipeline (adds __canonicalKey + normalizes messageType)
               const toInjectNormalized = toInject.map(entry => {
                 const mt = getMessageTypeSOT(entry);  // ✓ Normalized messageType
-                const role = entry.role || 'unknown';
+                // 3) Normalize role: clamp to canonical values
+                const rawRole = String(entry.role || 'user').toLowerCase();
+                const role = (rawRole === 'assistant' || rawRole === 'system') ? rawRole : 'user';
+                // 4) Use getStableKeySOT for uniqueId
                 const uniqueId = getStableKeySOT(entry) || `idx-${entry.index || Math.random()}`;
                 const canonicalKey = `${role}:${mt}:${uniqueId}`;
+                
+                // 3) Ensure text field exists (match transcript renderer expectations)
+                const text = entry.text ?? entry.content ?? entry.value ?? '';
                 
                 return {
                   ...entry,
                   messageType: mt,  // ✓ Set normalized messageType
-                  type: mt,  // ✓ Set type for consistency
+                  // 2) DO NOT overwrite type (can break legacy logic)
+                  role,  // ✓ Normalized role
+                  text,  // ✓ Ensure text field exists
                   __canonicalKey: canonicalKey
                 };
               }).filter(Boolean);
