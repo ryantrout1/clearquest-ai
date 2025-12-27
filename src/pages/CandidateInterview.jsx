@@ -7380,7 +7380,16 @@ export default function CandidateInterview() {
                 answerLen: answerText?.length || 0,
                 transcriptLenAfter: updated.length
               });
-              
+
+              // STEP 3: Submit SOT log (dev only)
+              if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+                console.log('[CQ_TRANSCRIPT][SUBMIT_SOT]', {
+                  stableKey: aStableKey,
+                  messageType: 'v3_probe_answer',
+                  textLen: answerText?.length || 0
+                });
+              }
+
               // B) Track recently submitted user answer for protection
               recentlySubmittedUserAnswersRef.current.add(aStableKey);
               
