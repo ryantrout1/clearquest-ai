@@ -1083,7 +1083,7 @@ export default function CandidateInterview() {
       console.error('[TRANSCRIPT_REFRESH][ERROR]', { reason, error: err.message });
       return canonicalTranscriptRef.current || [];
     }
-  }, [sessionId, setDbTranscriptSafe, upsertTranscriptMonotonic]);
+  }, [sessionId, setDbTranscriptSafe]);
 
   // FORENSIC: Canonical transcript verification (DB = source of truth)
   const forensicCheck = useCallback(async (label) => {
@@ -1173,7 +1173,7 @@ export default function CandidateInterview() {
     
     // RETURN CONTRACT: Return optimistic transcript (immediate visibility)
     return optimistic;
-  }, [sessionId, setDbTranscriptSafe, upsertTranscriptMonotonic]);
+  }, [sessionId, setDbTranscriptSafe]);
 
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
   
