@@ -1648,6 +1648,21 @@ async function decisionEngineV3Probe(base44, {
       let promptSource = 'TEMPLATE';
       let llmMs = null;
       
+      // LLM DECISION SOT: Consolidated gate diagnostics (fires ONCE per engine call)
+      const llmDecision = !useLLMProbeWording ? 'SKIP_DISABLED' 
+        : effectiveInstructionsLen === 0 ? 'SKIP_NO_INSTRUCTIONS'
+        : 'CALL_LLM';
+      
+      console.log('[V3_PROBE_GEN][LLM_DECISION_SOT]', {
+        categoryId,
+        instanceNumber: instanceNumber || 1,
+        packId: resolvedPackId || null,
+        fieldId: candidateField?.field_id || null,
+        useLLMProbeWording: Boolean(useLLMProbeWording),
+        effectiveInstructionsLen: Number(effectiveInstructionsLen || 0),
+        decision: llmDecision
+      });
+      
       // ENABLEMENT LOG: Show why LLM is skipped or attempted (ENHANCED)
       if (!useLLMProbeWording) {
         console.log('[V3_PROBE_GEN][LLM_SKIPPED]', {
@@ -1670,19 +1685,30 @@ async function decisionEngineV3Probe(base44, {
       }
       
       if (useLLMProbeWording && effectiveInstructionsLen > 0) {
-        const t0 = Date.now();
-        llmQuestion = await generateV3ProbeQuestionLLM(base44, candidateField, incident.facts, {
-          packInstructions: effectivePackInstructions,
-          categoryLabel: factModel.category_label,
-          categoryId,
-          instanceNumber: instanceNumber || 1,
-          probeCount: legacyFactState.probe_count,
-          packId: resolvedPackId
-        });
-        llmMs = Date.now() - t0;
-        
-        if (llmQuestion) {
-          promptSource = 'LLM';
+        try {
+          const t0 = Date.now();
+          llmQuestion = await generateV3ProbeQuestionLLM(base44, candidateField, incident.facts, {
+            packInstructions: effectivePackInstructions,
+            categoryLabel: factModel.category_label,
+            categoryId,
+            instanceNumber: instanceNumber || 1,
+            probeCount: legacyFactState.probe_count,
+            packId: resolvedPackId
+          });
+          llmMs = Date.now() - t0;
+          
+          if (llmQuestion) {
+            promptSource = 'LLM';
+          }
+        } catch (err) {
+          console.error('[V3_PROBE_GEN][LLM_FALLBACK]', {
+            fallbackReason: 'LLM_EXCEPTION',
+            errorName: err?.name || 'Error',
+            errorMessagePreview: (err?.message || '').slice(0, 120),
+            categoryId,
+            fieldId: candidateField?.field_id
+          });
+          // llmQuestion remains null, will fall back to template
         }
       }
       
