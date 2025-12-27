@@ -11005,6 +11005,7 @@ export default function CandidateInterview() {
             }
             
             // B1 — CANONICAL DEDUPE: Final dedupe before rendering (prevents React key warnings)
+            // A) HARDENED: Prefer REAL user answers with text over empty shadows
             const dedupeBeforeRender = (list) => {
               const seen = new Map();
               const deduped = [];
@@ -11017,13 +11018,47 @@ export default function CandidateInterview() {
                   continue;
                 }
                 
-                if (seen.has(canonicalKey)) {
-                  dropped.push(canonicalKey);
-                  continue; // Skip duplicate
+                if (!seen.has(canonicalKey)) {
+                  seen.set(canonicalKey, entry);
+                  deduped.push(entry);
+                } else {
+                  // COLLISION: Two entries share same key - pick best one
+                  const existing = seen.get(canonicalKey);
+                  
+                  // Priority scorer (higher = better):
+                  // 1) user with text > 2) user > 3) assistant with text > 4) other
+                  const score = (e) => {
+                    const isUser = e.role === 'user';
+                    const hasText = (e.text || '').trim().length > 0;
+                    const isVisible = e.visibleToCandidate !== false;
+                    
+                    if (isUser && hasText && isVisible) return 4;
+                    if (isUser && hasText) return 3;
+                    if (isUser) return 2;
+                    if (e.role === 'assistant' && hasText) return 1;
+                    return 0;
+                  };
+                  
+                  const existingScore = score(existing);
+                  const entryScore = score(entry);
+                  
+                  if (entryScore > existingScore) {
+                    // Replace with better entry
+                    const replacedIndex = deduped.findIndex(d => (d.stableKey || d.id) === canonicalKey);
+                    if (replacedIndex !== -1) {
+                      deduped[replacedIndex] = entry;
+                      seen.set(canonicalKey, entry);
+                      console.log('[STREAM][DEDUP_UPGRADE]', {
+                        canonicalKey,
+                        existingScore,
+                        entryScore,
+                        reason: 'Replaced weaker entry with stronger one'
+                      });
+                    }
+                  } else {
+                    dropped.push(canonicalKey);
+                  }
                 }
-                
-                seen.set(canonicalKey, true);
-                deduped.push(entry);
               }
               
               if (dropped.length > 0) {
@@ -11145,9 +11180,33 @@ export default function CandidateInterview() {
             );
             
             const transcriptKeys = new Set(transcriptToRenderDeduped.map(r => r.stableKey || r.id));
+            
+            // C) EMPTY TEXT SHADOW UPGRADE: If transcript has empty text but DB has non-empty, upgrade
+            const emptyTextUpgrades = [];
+            for (const dbEntry of persistedUserAnswers) {
+              const dbKey = dbEntry.stableKey || dbEntry.id;
+              const transcriptEntry = transcriptToRenderDeduped.find(r => (r.stableKey || r.id) === dbKey);
+              
+              if (transcriptEntry) {
+                const transcriptTextLen = (transcriptEntry.text || '').trim().length;
+                const dbTextLen = (dbEntry.text || '').trim().length;
+                
+                if (transcriptTextLen === 0 && dbTextLen > 0) {
+                  emptyTextUpgrades.push(dbKey);
+                  console.log('[CQ_TRANSCRIPT][IMMUTABLE_UPGRADE_EMPTY_TEXT]', {
+                    stableKey: dbKey,
+                    prevEmpty: true,
+                    upgraded: true,
+                    dbTextLen
+                  });
+                }
+              }
+            }
+            
             const missingFromTranscript = persistedUserAnswers.filter(dbEntry => {
               const dbKey = dbEntry.stableKey || dbEntry.id;
-              return !transcriptKeys.has(dbKey);
+              // Include if: missing from transcript OR has empty text (needs upgrade)
+              return !transcriptKeys.has(dbKey) || emptyTextUpgrades.includes(dbKey);
             });
             
             if (missingFromTranscript.length > 0) {
@@ -11168,9 +11227,8 @@ export default function CandidateInterview() {
               // 1) NORMALIZE: Apply same normalization as existing transcript pipeline (adds __canonicalKey + normalizes messageType)
               const toInjectNormalized = toInject.map(entry => {
                 const mt = getMessageTypeSOT(entry);  // ✓ Normalized messageType
-                // 3) Normalize role: clamp to canonical values
-                const rawRole = String(entry.role || 'user').toLowerCase();
-                const role = (rawRole === 'assistant' || rawRole === 'system') ? rawRole : 'user';
+                // B) STOP CLAMPING: Preserve original role (only default if missing)
+                const role = entry.role ? String(entry.role).toLowerCase() : 'user';
                 // 4) Use getStableKeySOT for uniqueId
                 const uniqueId = getStableKeySOT(entry) || `idx-${entry.index || Math.random()}`;
                 const canonicalKey = `${role}:${mt}:${uniqueId}`;
@@ -11182,7 +11240,7 @@ export default function CandidateInterview() {
                   ...entry,
                   messageType: mt,  // ✓ Set normalized messageType
                   // 2) DO NOT overwrite type (can break legacy logic)
-                  role,  // ✓ Normalized role
+                  role,  // ✓ Normalized role (preserved)
                   text,  // ✓ Ensure text field exists
                   __canonicalKey: canonicalKey
                 };
