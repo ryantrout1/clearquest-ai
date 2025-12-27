@@ -4578,6 +4578,15 @@ export default function CandidateInterview() {
           transcriptLenAfter: transcriptAfterAnswer.length
         });
         
+        // STEP 3: Submit SOT log (dev only)
+        if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+          console.log('[CQ_TRANSCRIPT][SUBMIT_SOT]', {
+            stableKey: openerAnswerStableKey,
+            messageType: 'v3_opener_answer',
+            textLen: value?.length || 0
+          });
+        }
+        
         // B) Track recently submitted user answer for protection
         recentlySubmittedUserAnswersRef.current.add(openerAnswerStableKey);
         
@@ -11012,7 +11021,8 @@ export default function CandidateInterview() {
               const dropped = [];
               
               for (const entry of list) {
-                const canonicalKey = entry.stableKey || entry.id;
+                // STEP 1: Use __canonicalKey first (matches renderer key selection)
+                const canonicalKey = entry.__canonicalKey || entry.stableKey || entry.id;
                 if (!canonicalKey) {
                   deduped.push(entry);
                   continue;
@@ -11355,6 +11365,19 @@ export default function CandidateInterview() {
                   missingOrEmptyKeys.push({ key: dbKey, reason: 'missing' });
                 } else if (!(renderedEntry.text || '').trim()) {
                   missingOrEmptyKeys.push({ key: dbKey, reason: 'empty_text' });
+                } else {
+                  // STEP 2: Verify text matches (not an old shadow)
+                  const dbTextPrefix = (dbEntry.text || '').trim().slice(0, 15);
+                  const renderedTextPrefix = (renderedEntry.text || '').trim().slice(0, 15);
+                  
+                  if (dbTextPrefix && !renderedTextPrefix.startsWith(dbTextPrefix)) {
+                    missingOrEmptyKeys.push({ 
+                      key: dbKey, 
+                      reason: 'text_mismatch_shadow',
+                      dbPrefix: dbTextPrefix,
+                      renderedPrefix: renderedTextPrefix
+                    });
+                  }
                 }
               }
               
