@@ -9975,21 +9975,12 @@ export default function CandidateInterview() {
     }
   }
   
-  // B) IMMUTABLE INVARIANT: Enforce persisted user answers after all pipeline stages
-  // This runs AFTER all filtering/deduping/suppression - guarantees answers can't vanish
-  const persistedUserAnswers = dbTranscript.filter(e => 
-    e.role === 'user' && 
-    (e.stableKey || e.id) &&
-    e.visibleToCandidate !== false
-  );
+  // REMOVED: Old finalRenderStream-layer enforcement (moved to transcript layer at line ~11166)
+  // Immutable invariant now enforced at transcriptToRenderDeduped layer (inside render block)
+  // This ensures reinjected answers are in normalized format and WILL render
   
+  // D) REGRESSION LOG: Detect user answers dropped post-submit (at UI stream layer)
   const renderStreamKeys = new Set(finalRenderStream.map(r => r.stableKey || r.id));
-  const missingUserAnswers = persistedUserAnswers.filter(dbEntry => {
-    const dbKey = dbEntry.stableKey || dbEntry.id;
-    return !renderStreamKeys.has(dbKey);
-  });
-  
-  // D) REGRESSION LOG: Detect user answers dropped post-submit (STEP 4: fixed tail)
   if (recentlySubmittedUserAnswersRef.current.size > 0) {
     for (const protectedKey of recentlySubmittedUserAnswersRef.current) {
       if (!renderStreamKeys.has(protectedKey) && !lastRegressionLogRef.current.has(protectedKey)) {
@@ -10002,7 +9993,7 @@ export default function CandidateInterview() {
           renderTail,
           renderLen: finalRenderStream.length,
           dbLen: dbTranscript.length,
-          reason: 'Recently submitted answer missing from render stream'
+          reason: 'Recently submitted answer missing from final render stream (after transcript-layer enforcement)'
         });
         
         lastRegressionLogRef.current.add(protectedKey);
@@ -10030,45 +10021,6 @@ export default function CandidateInterview() {
         return !key.includes('<invoke') && !key.includes('</parameter>') && !key.includes('<parameter');
       });
     }
-  }
-  
-  if (missingUserAnswers.length > 0) {
-    console.error('[CQ_TRANSCRIPT][IMMUTABLE_ENFORCE_REINJECT]', {
-      missingCount: missingUserAnswers.length,
-      missingKeys: missingUserAnswers.map(e => ({
-        stableKey: e.stableKey || e.id,
-        messageType: e.messageType || e.type,
-        textPreview: (e.text || '').substring(0, 40)
-      })),
-      reason: 'Persisted user answer missing after pipeline - enforcing immutability'
-    });
-    
-    // Sort by transcript index for chronological order
-    const toInject = [...missingUserAnswers].sort((a, b) => (a.index || 0) - (b.index || 0));
-    
-    // STEP 2: Robust MI gate detection (multiple fallbacks)
-    const miGateActiveIndex = finalRenderStream.findIndex(e => 
-      e.kind === 'multi_instance_gate' ||
-      (e.__activeCard && e.kind === "multi_instance_gate") ||
-      (e.stableKey && e.stableKey.startsWith('mi-gate:')) ||
-      e.messageType === 'multi_instance_gate'
-    );
-    
-    if (miGateActiveIndex !== -1) {
-      finalRenderStream = [
-        ...finalRenderStream.slice(0, miGateActiveIndex),
-        ...toInject,
-        ...finalRenderStream.slice(miGateActiveIndex)
-      ];
-    } else {
-      finalRenderStream = [...finalRenderStream, ...toInject];
-    }
-    
-    console.log('[CQ_TRANSCRIPT][IMMUTABLE_ENFORCE_OK]', {
-      beforeLen: finalRenderStreamDeduped.length,
-      afterLen: finalRenderStream.length,
-      injectedCount: toInject.length
-    });
   }
   
   // LAST-RESORT SAFETY NET: Log if V3_PROBE_ANSWER still missing (should not happen with deterministic inclusion)
