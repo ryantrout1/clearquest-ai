@@ -9416,15 +9416,27 @@ export default function CandidateInterview() {
       });
     }
     
-    if (transcriptHasThisProbeQ) {
+    // UI CONTRACT: During ANSWER_NEEDED, prompt lane card MUST render (never skip)
+    if (transcriptHasThisProbeQ && v3PromptPhase !== "ANSWER_NEEDED") {
       console.log('[V3_PROMPT][ACTIVE_CARD_SKIPPED_ALREADY_IN_TRANSCRIPT]', {
         promptId,
         loopKey,
         stableKey: qStableKey,
-        reason: 'transcript_has_question'
+        v3PromptPhase,
+        reason: 'transcript_has_question (but not ANSWER_NEEDED phase)'
       });
       // Skip adding active card - transcript render is canonical
-    } else if (lastRenderedV3PromptKeyRef.current === promptId && v3PromptText && hasActiveV3Prompt) {
+    } else if (transcriptHasThisProbeQ && v3PromptPhase === "ANSWER_NEEDED") {
+      console.log('[V3_PROMPT][ACTIVE_CARD_DUPLICATE_OVERRIDE]', {
+        promptId,
+        loopKey,
+        v3PromptPhase,
+        note: 'Prompt card forced visible during ANSWER_NEEDED - transcript has question but card must show'
+      });
+      // DO NOT skip - prompt lane card must render during ANSWER_NEEDED
+    }
+    
+    if (lastRenderedV3PromptKeyRef.current === promptId && v3PromptText && hasActiveV3Prompt && v3PromptPhase !== "ANSWER_NEEDED") {
       console.log('[V3_UI_CONTRACT][PROMPT_CARD_DEDUPED]', {
         promptId,
         loopKey,
@@ -10716,8 +10728,33 @@ export default function CandidateInterview() {
               return deduped;
             };
             
+            // UI CONTRACT: Block V3 probe questions from transcript rendering (ALWAYS render in prompt lane only)
+            const transcriptWithV3ProbesBlocked = transcriptToRender.filter(entry => {
+              // Check both stableKey prefix and messageType/type
+              const stableKey = entry.stableKey || entry.id || '';
+              const hasV3ProbeQPrefix = stableKey.startsWith('v3-probe-q:');
+              const isV3ProbeQuestionType = 
+                entry.messageType === 'V3_PROBE_QUESTION' || 
+                entry.type === 'V3_PROBE_QUESTION' ||
+                entry.messageType === 'AI_FOLLOWUP_QUESTION' ||
+                entry.type === 'V3_PROBE_PROMPT';
+              
+              // V3 probe questions: Block from transcript rendering (must render in prompt lane only)
+              if (hasV3ProbeQPrefix || isV3ProbeQuestionType) {
+                console.log('[V3_UI_CONTRACT][TRANSCRIPT_BLOCKED_V3_PROBE_Q]', { 
+                  stableKey, 
+                  promptId: entry.meta?.promptId,
+                  loopKey: entry.meta?.loopKey,
+                  messageType: entry.messageType || entry.type
+                });
+                return false; // EXCLUDE from transcript render
+              }
+              
+              return true; // Include in transcript
+            });
+            
             // Merge V3 probe Q/A deterministically (before final filter/dedupe)
-            const transcriptWithV3ProbeQA = [...transcriptToRender, ...v3ProbeQAForGateDeterministic];
+            const transcriptWithV3ProbeQA = [...transcriptWithV3ProbesBlocked, ...v3ProbeQAForGateDeterministic];
             
             // Apply final dedupe to prevent React key collisions
             const transcriptToRenderDeduped = dedupeBeforeRender(transcriptWithV3ProbeQA);
