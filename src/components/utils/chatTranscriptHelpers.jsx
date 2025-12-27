@@ -13,7 +13,6 @@
  */
 
 import { base44 } from "@/api/base44Client";
-import { useRef } from "react";
 
 // PART C: Ref to track latest transcript (prevents stale closure reads)
 const transcriptRef = { current: [] };
@@ -929,21 +928,24 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
         // CHANGE 4: INTEGRITY AUDIT - Verify stableKey in transcriptRef (not stale closure)
         // Use functional state read to get latest after append
         requestAnimationFrame(() => {
-        const foundInRefBefore = transcriptRef.current.some(e => e.stableKey === (entry.stableKey || entry.id));
+          const currentLen = transcriptRef.current.length;
+          const lastStableKey = transcriptRef.current[currentLen - 1]?.stableKey || transcriptRef.current[currentLen - 1]?.id;
+          const foundInRefBefore = transcriptRef.current.some(e => e.stableKey === (entry.stableKey || entry.id));
 
-        console.log('[PERSIST][INTEGRITY_CHECK]', {
-        stableKey: entry.stableKey || entry.id,
-        foundInRefBefore,
-        transcriptRefLen: transcriptRef.current.length
-        });
+          console.log('[PERSIST][INTEGRITY_CHECK]', {
+            stableKey: entry.stableKey || entry.id,
+            foundInRefBefore,
+            transcriptRefLen: currentLen,
+            lastStableKey
+          });
 
-        if (!foundInRefBefore) {
-        console.error('[PERSIST][INTEGRITY_LOCAL_MISSING]', {
-          sessionId,
-          stableKey: entry.stableKey || entry.id,
-          reason: 'Write succeeded but stableKey not in transcriptRef after append'
-        });
-        }
+          if (!foundInRefBefore) {
+            console.error('[PERSIST][INTEGRITY_LOCAL_MISSING]', {
+              sessionId,
+              stableKey: entry.stableKey || entry.id,
+              reason: 'Write succeeded but stableKey not in transcriptRef after append'
+            });
+          }
         });
 
     console.log("[TRANSCRIPT][APPEND] user", {

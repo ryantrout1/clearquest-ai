@@ -1385,6 +1385,12 @@ export default function CandidateInterview() {
   
   // V3 PROMPT SNAPSHOTS: In-memory store to track committed prompts (PART B)
   const [v3PromptSnapshots, setV3PromptSnapshots] = useState([]);
+  const v3PromptSnapshotsRef = useRef([]);
+  
+  // PART 3: Sync snapshots state to ref (prevents stale closure in watchdog)
+  useEffect(() => {
+    v3PromptSnapshotsRef.current = v3PromptSnapshots;
+  }, [v3PromptSnapshots]);
   
   // FOOTER CONTROLLER TRACE: Track last seen values for change detection
   const lastFooterControllerRef = useRef(null);
@@ -1684,6 +1690,18 @@ export default function CandidateInterview() {
   };
   
   const activeUiItem = resolveActiveUiItem();
+  
+  // PART 2: V3 Prompt Active SOT (single source of truth boolean)
+  const v3PromptIdSOT = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId || null;
+  const isV3PromptActiveSOT =
+    v3PromptPhase === 'ANSWER_NEEDED' && Boolean(v3ActivePromptText) && Boolean(v3PromptIdSOT);
+  
+  console.log('[V3_PROMPT_ACTIVE_SOT]', {
+    v3PromptPhase,
+    hasText: !!v3ActivePromptText,
+    v3PromptIdSOT,
+    isV3PromptActiveSOT
+  });
   
   // PART A: activePromptKind SOT (single consolidated log)
   console.log('[PROMPT_KIND_SOT]', {
@@ -7387,8 +7405,15 @@ export default function CandidateInterview() {
     
     // WATCHDOG: Verify UI stabilizes in 1 render cycle (snapshot-based, TDZ-safe)
     requestAnimationFrame(() => {
-      // PART B: Verify prompt snapshot exists before watchdog fires
-      const snapshotExists = v3PromptSnapshots.some(s => s.promptId === promptId);
+      // PART 3: Verify prompt snapshot exists using ref (prevents stale state)
+      const snapshotExists = v3PromptSnapshotsRef.current.some(s => s.promptId === promptId);
+      
+      console.log('[V3_PROMPT_WATCHDOG][SNAPSHOT_CHECK]', {
+        promptId,
+        snapshotExists,
+        snapshotsLen: v3PromptSnapshotsRef.current.length
+      });
+      
       if (!snapshotExists) {
         console.warn('[V3_PROMPT_WATCHDOG][NO_SNAPSHOT]', { 
           promptId, 
@@ -9444,20 +9469,22 @@ export default function CandidateInterview() {
   // CHANGE 3: Track last rendered promptId to prevent duplicate active cards
   const currentPromptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
   
-  // PART A.2: Enforce mutual exclusion in render stream
+  // PART 2: Enforce mutual exclusion in render stream (using SOT boolean)
   if (activeUiItem.kind === "V3_PROMPT" && currentItem?.type === 'multi_instance_gate') {
     console.log('[STREAM_SUPPRESS]', {
       suppressed: 'MI_GATE',
-      reason: 'V3_PROMPT_ACTIVE',
+      reason: 'V3_PROMPT_ACTIVE_SOT',
+      isV3PromptActiveSOT,
       packId: currentItem?.packId,
       instanceNumber: currentItem?.instanceNumber
     });
   }
   
-  if (activeUiItem.kind === "MI_GATE" && (hasActiveV3Prompt || v3ActivePromptText)) {
+  if (activeUiItem.kind === "MI_GATE" && isV3PromptActiveSOT) {
     console.log('[STREAM_SUPPRESS]', {
       suppressed: 'V3_PROMPT',
       reason: 'MI_GATE_ACTIVE',
+      isV3PromptActiveSOT,
       packId: currentItem?.packId,
       instanceNumber: currentItem?.instanceNumber
     });
@@ -9595,14 +9622,14 @@ export default function CandidateInterview() {
   }
   
   if (activeUiItem.kind === "MI_GATE") {
-    // PART A.2: SUPPRESS if V3_PROMPT active (mutual exclusion)
-    if (activeUiItem.kind === "MI_GATE" && hasActiveV3Prompt) {
+    // PART 2: SUPPRESS if V3_PROMPT active (mutual exclusion using SOT boolean)
+    if (isV3PromptActiveSOT) {
       console.log('[STREAM_SUPPRESS]', {
         suppressed: 'MI_GATE_CARD',
-        reason: 'V3_PROMPT_ACTIVE_OVERRIDE',
+        reason: 'V3_PROMPT_ACTIVE_SOT',
         packId: currentItem?.packId,
         instanceNumber: currentItem?.instanceNumber,
-        hasActiveV3Prompt
+        isV3PromptActiveSOT
       });
       // Do NOT set activeCard - V3_PROMPT has precedence
     } else {
