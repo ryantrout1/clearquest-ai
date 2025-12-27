@@ -1009,6 +1009,9 @@ export default function CandidateInterview() {
   const [completedSectionsCount, setCompletedSectionsCount] = useState(0);
   const activeSection = sections[currentSectionIndex] || null;
 
+  // STEP 1: CANONICAL TRANSCRIPT SOURCE - Single source of truth (ref-based, never resets)
+  const canonicalTranscriptRef = useRef([]);
+  
   // CANONICAL TRANSCRIPT: Read-only mirror of session.transcript_snapshot (DB)
   // CRITICAL: Initialize with empty array ONCE - never reset during session
   const [dbTranscript, setDbTranscript] = useState([]);
@@ -1054,78 +1057,33 @@ export default function CandidateInterview() {
     });
   }, []);
   
-  // CANONICAL SOURCE: Refresh transcript from DB after any write
+  // STEP 2: Monotonic refresh (upsert only, never replace)
   const refreshTranscriptFromDB = useCallback(async (reason) => {
     try {
-      // TDZ SAFETY: Access v3ProbeDisplayHistory via state read (not from closure deps)
-      // PART A: FORENSIC SNAPSHOT - Before refresh (deferred to avoid TDZ)
-      const captureSnapshot = () => {
-        setV3ProbeDisplayHistory(prev => {
-          const uiHistoryLenBefore = prev.length;
-          console.log('[V3_UI_HISTORY][SNAPSHOT_BEFORE_REFRESH]', {
-            reason,
-            uiHistoryLen: uiHistoryLenBefore,
-            lastUiItemsPreview: prev.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
-            transcriptLen: dbTranscript.length
-          });
-          return prev; // No mutation - just logging
-        });
-      };
-      captureSnapshot();
-      
       const freshSession = await base44.entities.InterviewSession.get(sessionId);
       const freshTranscript = freshSession.transcript_snapshot || [];
       
-      // MERGE STRATEGY: Use functional update to guarantee latest canonical state
-      setDbTranscriptSafe(prev => {
-        const merged = mergeTranscript(prev, freshTranscript, sessionId);
-        
-        // Diagnostic: Detect if merge prevented shrinkage
-        if (merged.length > freshTranscript.length) {
-          console.warn('[TRANSCRIPT_MERGE][PROTECTED]', {
-            prevLen: prev.length,
-            freshLen: freshTranscript.length,
-            mergedLen: merged.length,
-            reason,
-            source: 'server_regression_protected'
-          });
-        }
-        
-        console.log('[TRANSCRIPT_REFRESH]', { reason, prevLen: prev.length, freshLen: freshTranscript.length, mergedLen: merged.length });
-        return merged;
+      // STEP 2: Upsert into canonical ref (monotonic merge)
+      const merged = upsertTranscriptMonotonic(canonicalTranscriptRef.current, freshTranscript, `refresh_${reason}`);
+      canonicalTranscriptRef.current = merged;
+      
+      // Update React state from canonical ref
+      setDbTranscriptSafe(merged);
+      setSession(freshSession);
+      
+      console.log('[TRANSCRIPT_REFRESH]', { 
+        reason, 
+        canonicalLen: merged.length,
+        freshLen: freshTranscript.length,
+        lastKey: merged[merged.length - 1]?.stableKey || merged[merged.length - 1]?.id
       });
       
-      setSession(freshSession); // Sync session state to prevent stale reads
-      
-      // PART A: FORENSIC SNAPSHOT - After refresh (deferred via state read to avoid TDZ)
-      requestAnimationFrame(() => {
-        setV3ProbeDisplayHistory(prev => {
-          const uiHistoryLenBefore = prev.length; // Use prev from before-snapshot
-          const uiHistoryLenAfter = prev.length; // Same length (no mutation in this callback)
-          
-          // TDZ SAFETY: Cannot access uiHistoryLenBefore from before-snapshot closure
-          // Use prev.length as both before/after since this is read-only
-          
-          console.log('[V3_UI_HISTORY][SNAPSHOT_AFTER_REFRESH]', {
-            reason,
-            uiHistoryLen: uiHistoryLenAfter,
-            lastUiItemsPreview: prev.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
-            transcriptLen: freshTranscript.length,
-            didUiHistoryShrink: false // Cannot compute delta without before-snapshot
-          });
-          
-          return prev; // No mutation - just logging
-        });
-      });
-      
-      // RETURN CONTRACT: Always return array (DB snapshot is canonical source after refresh)
-      return freshTranscript;
+      return merged;
     } catch (err) {
       console.error('[TRANSCRIPT_REFRESH][ERROR]', { reason, error: err.message });
-      // Fallback: return empty array on error (safe default)
-      return [];
+      return canonicalTranscriptRef.current || [];
     }
-  }, [sessionId, setDbTranscriptSafe]);
+  }, [sessionId, setDbTranscriptSafe, upsertTranscriptMonotonic]);
 
   // FORENSIC: Canonical transcript verification (DB = source of truth)
   const forensicCheck = useCallback(async (label) => {
@@ -1160,7 +1118,7 @@ export default function CandidateInterview() {
     }
   }, [sessionId, dbTranscript]);
 
-  // CANONICAL HELPER: Append to DB transcript + refresh local mirror
+  // STEP 3: Optimistic append helper (immediate canonical update)
   const appendAndRefresh = useCallback(async (kind, payload, reasonLabel) => {
     // STATIC IMPORT: Use top-level imports (already imported at line 57-58)
     const appendUserMessage = appendUserMessageImport;
@@ -1179,21 +1137,43 @@ export default function CandidateInterview() {
       return currentTranscript || [];
     }
     
-    // Refresh local mirror from DB using functional update
-    const freshAfterAppend = await base44.entities.InterviewSession.get(sessionId);
-    const freshTranscript = freshAfterAppend.transcript_snapshot || [];
+    // STEP 3: OPTIMISTIC UPDATE - Immediately upsert to canonical ref
+    const optimistic = upsertTranscriptMonotonic(canonicalTranscriptRef.current, updatedTranscript, `append_${kind}_${reasonLabel}`);
+    canonicalTranscriptRef.current = optimistic;
     
-    setDbTranscriptSafe(prev => {
-      const merged = mergeTranscript(prev, freshTranscript, sessionId);
-      console.log('[APPEND_AND_REFRESH]', { kind, reasonLabel, prevLen: prev.length, freshLen: freshTranscript.length, mergedLen: merged.length });
-      return merged;
+    // Update React state from canonical ref
+    setDbTranscriptSafe(optimistic);
+    
+    console.log('[APPEND_OPTIMISTIC]', { 
+      kind, 
+      reasonLabel, 
+      canonicalLen: optimistic.length,
+      lastKey: optimistic[optimistic.length - 1]?.stableKey || optimistic[optimistic.length - 1]?.id
     });
     
-    setSession(freshAfterAppend); // Sync session state to prevent stale reads
+    // Background refresh (upsert only, never replace)
+    setTimeout(async () => {
+      try {
+        const freshAfterAppend = await base44.entities.InterviewSession.get(sessionId);
+        const freshTranscript = freshAfterAppend.transcript_snapshot || [];
+        
+        const refreshed = upsertTranscriptMonotonic(canonicalTranscriptRef.current, freshTranscript, `refresh_after_${reasonLabel}`);
+        canonicalTranscriptRef.current = refreshed;
+        setDbTranscriptSafe(refreshed);
+        setSession(freshAfterAppend);
+        
+        console.log('[APPEND_REFRESH_BG]', { 
+          canonicalLen: refreshed.length,
+          source: reasonLabel
+        });
+      } catch (err) {
+        console.error('[APPEND_REFRESH_BG][ERROR]', { error: err.message });
+      }
+    }, 50);
     
-    // RETURN CONTRACT: Always return array (DB snapshot is canonical source after append)
-    return freshTranscript;
-  }, [sessionId, setDbTranscriptSafe]);
+    // RETURN CONTRACT: Return optimistic transcript (immediate visibility)
+    return optimistic;
+  }, [sessionId, setDbTranscriptSafe, upsertTranscriptMonotonic]);
 
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
   
@@ -2276,55 +2256,25 @@ export default function CandidateInterview() {
     }
   }, [isUserTyping, renderedTranscript]);
 
-  // TASK 4: Monotonicity audit with invariant guard (prevents render shrinkage)
-  const lastRenderedLenRef = useRef(null);
-  const lastRenderedTranscriptRef = useRef([]);
+  // STEP 5: Final assertion (shrinkage detection only - no repair)
+  const lastCanonicalLenRef = useRef(0);
   
   useEffect(() => {
-    const prevRenderedLen = lastRenderedLenRef.current;
-    const nextRenderedLen = renderedTranscript.length;
-    const shrinkDetected = prevRenderedLen !== null && nextRenderedLen < prevRenderedLen;
+    const prevLen = lastCanonicalLenRef.current;
+    const nextLen = canonicalTranscriptRef.current.length;
     
-    if (shrinkDetected) {
-      // ILLEGAL SHRINK: Find dropped entries
-      const droppedEntries = lastRenderedTranscriptRef.current.filter(prev => 
-        !renderedTranscript.some(curr => 
-          (curr.stableKey && curr.stableKey === prev.stableKey) || 
-          (curr.id && curr.id === prev.id)
-        )
-      );
-      
-      console.error('[TRANSCRIPT_RENDER][ILLEGAL_SHRINK]', {
-        prevLen: prevRenderedLen,
-        nextLen: nextRenderedLen,
-        delta: prevRenderedLen - nextRenderedLen,
-        screenMode,
-        currentItemType: currentItem?.type,
-        droppedKeys: droppedEntries.map(e => ({
-          key: e.stableKey || e.id,
-          type: e.messageType || e.type,
-          textPreview: (e.text || '').substring(0, 40)
-        }))
-      });
-      
-      // ABORT SHRINK: Keep previous transcript (prevents UI regression)
-      console.warn('[TRANSCRIPT_RENDER][SHRINK_ABORTED] Keeping previous transcript to prevent data loss');
-      return; // Don't update refs - keep previous list
-    }
-    
-    // Log success when monotonic growth occurs
-    if (prevRenderedLen !== null && !shrinkDetected && nextRenderedLen > prevRenderedLen) {
-      console.log('[TRANSCRIPT_AUDIT][MONOTONIC_OK]', {
-        prevLen: prevRenderedLen,
-        nextLen: nextRenderedLen,
-        delta: nextRenderedLen - prevRenderedLen
+    if (prevLen > 0 && nextLen < prevLen) {
+      console.error('[TRANSCRIPT_MONOTONIC][FATAL_SHRINK]', {
+        previousLen: prevLen,
+        nextLen,
+        delta: prevLen - nextLen,
+        action: 'NO_REPAIR_ATTEMPTED',
+        note: 'Transcript source of truth shrank - monotonic contract violated'
       });
     }
     
-    // Update refs for next check
-    lastRenderedLenRef.current = nextRenderedLen;
-    lastRenderedTranscriptRef.current = renderedTranscript;
-  }, [renderedTranscript, screenMode, currentItem]);
+    lastCanonicalLenRef.current = nextLen;
+  }, [dbTranscript]);
 
   // Verification instrumentation (moved above early returns)
   const uiContractViolationKeyRef = useRef(null);
@@ -2458,6 +2408,85 @@ export default function CandidateInterview() {
     
     return raw;
   };
+  
+  // STEP 2: Monotonic transcript upsert (single source of truth merger)
+  const upsertTranscriptMonotonic = useCallback((prev, incoming, sourceLabel = 'unknown') => {
+    if (!Array.isArray(prev)) prev = [];
+    if (!Array.isArray(incoming)) incoming = [];
+    
+    // MONOTONIC GUARANTEE: Never allow shrinkage
+    if (incoming.length < prev.length) {
+      console.error('[TRANSCRIPT_MONOTONIC][SHRINK_BLOCKED]', {
+        prevLen: prev.length,
+        incomingLen: incoming.length,
+        delta: prev.length - incoming.length,
+        source: sourceLabel,
+        action: 'KEEPING_PREV'
+      });
+      return prev;
+    }
+    
+    // Build index by stableKey || id
+    const indexMap = new Map();
+    
+    // Priority scorer: higher = better
+    const scoreEntry = (e) => {
+      const isUser = e.role === 'user';
+      const hasText = (e.text || '').trim().length > 0;
+      const isVisible = e.visibleToCandidate !== false;
+      
+      if (isUser && hasText && isVisible) return 4;
+      if (isUser && hasText) return 3;
+      if (isUser) return 2;
+      if (e.role === 'assistant' && hasText) return 1;
+      return 0;
+    };
+    
+    // Index prev entries
+    for (const entry of prev) {
+      const key = entry.stableKey || entry.id;
+      if (!key) continue;
+      
+      if (!indexMap.has(key) || scoreEntry(entry) > scoreEntry(indexMap.get(key))) {
+        indexMap.set(key, entry);
+      }
+    }
+    
+    // Merge incoming (prefer higher-scored entries)
+    for (const entry of incoming) {
+      const key = entry.stableKey || entry.id;
+      if (!key) {
+        // No key - append anyway (safe)
+        indexMap.set(`nokey-${Date.now()}-${Math.random()}`, entry);
+        continue;
+      }
+      
+      if (!indexMap.has(key) || scoreEntry(entry) > scoreEntry(indexMap.get(key))) {
+        indexMap.set(key, entry);
+      }
+    }
+    
+    // Sort by index, then createdAt
+    const merged = Array.from(indexMap.values()).sort((a, b) => {
+      const aIdx = a.index || 0;
+      const bIdx = b.index || 0;
+      if (aIdx !== bIdx) return aIdx - bIdx;
+      
+      const aTs = a.createdAt || new Date(a.timestamp || 0).getTime() || 0;
+      const bTs = b.createdAt || new Date(b.timestamp || 0).getTime() || 0;
+      return aTs - bTs;
+    });
+    
+    console.log('[TRANSCRIPT_MONOTONIC][UPSERT]', {
+      prevLen: prev.length,
+      incomingLen: incoming.length,
+      mergedLen: merged.length,
+      source: sourceLabel,
+      newEntries: merged.length - prev.length
+    });
+    
+    return merged;
+  }, []);
   
   // STABLE KEY SOT: Canonical stableKey extractor
   const getStableKeySOT = (entry) => {
@@ -4612,6 +4641,16 @@ export default function CandidateInterview() {
           instanceNumber,
           answerLen: value?.length || 0,
           transcriptLenAfter: transcriptAfterAnswer.length
+        });
+        
+        // STEP 3: OPTIMISTIC UPDATE - Immediately upsert to canonical
+        const optimistic = upsertTranscriptMonotonic(canonicalTranscriptRef.current, transcriptAfterAnswer, 'v3_opener_answer');
+        canonicalTranscriptRef.current = optimistic;
+        setDbTranscriptSafe(optimistic);
+        
+        console.log('[APPEND_OPTIMISTIC][V3_OPENER]', {
+          stableKey: openerAnswerStableKey,
+          canonicalLen: optimistic.length
         });
         
         // STEP 3: Submit SOT log (dev only)
@@ -7416,6 +7455,16 @@ export default function CandidateInterview() {
                 answerLen: answerText?.length || 0,
                 transcriptLenAfter: updated.length
               });
+              
+              // STEP 3: OPTIMISTIC UPDATE - Immediately upsert to canonical
+              const optimistic = upsertTranscriptMonotonic(canonicalTranscriptRef.current, updated, 'v3_probe_answer');
+              canonicalTranscriptRef.current = optimistic;
+              setDbTranscriptSafe(optimistic);
+              
+              console.log('[APPEND_OPTIMISTIC][V3_PROBE]', {
+                stableKey: aStableKey,
+                canonicalLen: optimistic.length
+              });
 
               // STEP 3: Submit SOT log (dev only)
               if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
@@ -9924,69 +9973,45 @@ export default function CandidateInterview() {
   
   const finalRenderStreamDeduped = dedupeByCanonicalKey(orderedStream);
   
-  // SAFETY NET: Re-inject missing v3_opener_answer if it exists in canonical but not in render
-  // IMMUTABLE: Creates new array rather than mutating (guarantees React re-render)
-  // NOTE: reinjectedOpenerAnswersRef now declared at top-level (line ~1556) to fix hook order
-  
+  // STEP 4: REPAIR LOGIC DISABLED (monotonic upsert eliminates need)
   let finalRenderStream = finalRenderStreamDeduped;
   
-  if (currentItem?.type === 'v3_pack_opener' || v3ProbingActive) {
-    const packId = currentItem?.packId || v3ProbingContext?.packId;
-    const instanceNumber = currentItem?.instanceNumber || v3ProbingContext?.instanceNumber || 1;
-    const reinjectKey = `${sessionId}:${packId}:${instanceNumber}`;
-    
-    if (packId && !reinjectedOpenerAnswersRef.current.has(reinjectKey)) {
-      // Check if opener answer exists in dbTranscript (identity check: messageType + packId + instanceNumber)
-      const openerAnswerInDb = dbTranscript.find(e => 
-        e.messageType === 'v3_opener_answer' && 
-        e.packId === packId && 
-        e.instanceNumber === instanceNumber
-      );
+  if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+    // Diagnostic only: detect if repair would have triggered (should not happen)
+    if (currentItem?.type === 'v3_pack_opener' || v3ProbingActive) {
+      const packId = currentItem?.packId || v3ProbingContext?.packId;
+      const instanceNumber = currentItem?.instanceNumber || v3ProbingContext?.instanceNumber || 1;
       
-      // Check if it exists in baseRenderStream (SAME identity logic - tolerates meta.instanceNumber)
-      const openerAnswerInRender = baseRenderStream.find(e => 
-        (e.messageType === 'v3_opener_answer' || e.kind === 'v3_opener_a') &&
-        e.packId === packId && 
-        (e.instanceNumber === instanceNumber || e.meta?.instanceNumber === instanceNumber)
-      );
-      
-      if (openerAnswerInDb && !openerAnswerInRender) {
-        const baseLen = baseRenderStream.length;
+      if (packId) {
+        const openerAnswerInDb = dbTranscript.find(e => 
+          e.messageType === 'v3_opener_answer' && 
+          e.packId === packId && 
+          e.instanceNumber === instanceNumber
+        );
         
-        console.error('[CQ_TRANSCRIPT][REPAIR_REINJECTED_OPENER_ANSWER]', {
-          packId,
-          instanceNumber,
-          stableKey: openerAnswerInDb.stableKey || openerAnswerInDb.id,
-          textPreview: (openerAnswerInDb.text || '').substring(0, 60),
-          reason: 'Opener answer in dbTranscript but missing from renderStream - re-injecting',
-          dbTranscriptLen: dbTranscript.length,
-          baseRenderStreamLen: baseLen
-        });
+        const openerAnswerInRender = baseRenderStream.find(e => 
+          (e.messageType === 'v3_opener_answer' || e.kind === 'v3_opener_a') &&
+          e.packId === packId && 
+          (e.instanceNumber === instanceNumber || e.meta?.instanceNumber === instanceNumber)
+        );
         
-        // IMMUTABLE: Create new array with reinjected entry (guarantees React re-render)
-        finalRenderStream = [...baseRenderStream, openerAnswerInDb];
-        
-        console.log('[CQ_TRANSCRIPT][REPAIR_IMMUTABLE_OK]', {
-          baseLen,
-          finalLen: finalRenderStream.length,
-          didCreateNewArray: true,
-          reinjectKey
-        });
-        
-        reinjectedOpenerAnswersRef.current.add(reinjectKey);
+        if (openerAnswerInDb && !openerAnswerInRender) {
+          console.error('[TRANSCRIPT_MONOTONIC][REPAIR_WOULD_TRIGGER]', {
+            type: 'OPENER_ANSWER',
+            packId,
+            instanceNumber,
+            stableKey: openerAnswerInDb.stableKey || openerAnswerInDb.id,
+            action: 'NO_REPAIR',
+            note: 'Monotonic upsert should prevent this - check canonical source'
+          });
+        }
       }
     }
-  }
-  
-  // B) REPAIR: V3 probe Q/A missing from render (similar to opener repair)
-  if ((v3ProbingActive || currentItem?.type === 'multi_instance_gate') && v3ProbingContext) {
-    const loopKey = `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`;
-    const packId = v3ProbingContext.packId;
-    const instanceNumber = v3ProbingContext.instanceNumber || 1;
-    const repairKey = `${sessionId}:${packId}:${instanceNumber}`;
     
-    if (!reinjectedV3ProbeQARef.current.has(repairKey)) {
-      // Find all V3 probe Q/A for this loopKey in dbTranscript
+    if ((v3ProbingActive || currentItem?.type === 'multi_instance_gate') && v3ProbingContext) {
+      const packId = v3ProbingContext.packId;
+      const instanceNumber = v3ProbingContext.instanceNumber || 1;
+      
       const v3ProbeQInDb = dbTranscript.filter(e => 
         (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
         e.meta?.packId === packId &&
@@ -10001,7 +10026,6 @@ export default function CandidateInterview() {
         e.visibleToCandidate !== false
       );
       
-      // Check which are missing from finalRenderStream
       const missingQ = v3ProbeQInDb.filter(qEntry => 
         !finalRenderStream.some(r => (r.stableKey && r.stableKey === qEntry.stableKey) || (r.id && r.id === qEntry.id))
       );
@@ -10011,69 +10035,40 @@ export default function CandidateInterview() {
       );
       
       if (missingQ.length > 0 || missingA.length > 0) {
-        // Merge and sort by transcript index for chronological order
-        const toInject = [...missingQ, ...missingA].sort((a, b) => (a.index || 0) - (b.index || 0));
-        
-        console.error('[CQ_TRANSCRIPT][REPAIR_REINJECTED_V3_PROBE_QA]', {
-          loopKey,
+        console.error('[TRANSCRIPT_MONOTONIC][REPAIR_WOULD_TRIGGER]', {
+          type: 'V3_PROBE_QA',
           packId,
           instanceNumber,
-          missingQKeys: missingQ.map(e => e.stableKey || e.id),
-          missingAKeys: missingA.map(e => e.stableKey || e.id),
-          reinjectedCount: toInject.length,
-          placement: 'by_transcript_index'
+          missingQCount: missingQ.length,
+          missingACount: missingA.length,
+          action: 'NO_REPAIR',
+          note: 'Monotonic upsert should prevent this - check canonical source'
         });
-        
-        // IMMUTABLE: Find insertion point (after opener answer, before MI gate activeCard)
-        // If MI gate activeCard exists, insert before it; otherwise append
-        const miGateActiveIndex = finalRenderStream.findIndex(e => e.__activeCard && e.kind === "multi_instance_gate");
-        
-        if (miGateActiveIndex !== -1) {
-          // Insert before MI gate
-          finalRenderStream = [
-            ...finalRenderStream.slice(0, miGateActiveIndex),
-            ...toInject,
-            ...finalRenderStream.slice(miGateActiveIndex)
-          ];
-        } else {
-          // No MI gate - append at end
-          finalRenderStream = [...finalRenderStream, ...toInject];
-        }
-        
-        console.log('[CQ_TRANSCRIPT][REPAIR_V3_PROBE_IMMUTABLE_OK]', {
-          beforeLen: finalRenderStreamDeduped.length,
-          afterLen: finalRenderStream.length,
-          injectedCount: toInject.length,
-          didCreateNewArray: true
-        });
-        
-        reinjectedV3ProbeQARef.current.add(repairKey);
       }
     }
   }
   
-  // REMOVED: Old finalRenderStream-layer enforcement (moved to transcript layer at line ~11166)
-  // Immutable invariant now enforced at transcriptToRenderDeduped layer (inside render block)
-  // This ensures reinjected answers are in normalized format and WILL render
-  
-  // D) REGRESSION LOG: Detect user answers dropped post-submit (at UI stream layer)
-  const renderStreamKeys = new Set(finalRenderStream.map(r => r.stableKey || r.id));
-  if (recentlySubmittedUserAnswersRef.current.size > 0) {
-    for (const protectedKey of recentlySubmittedUserAnswersRef.current) {
-      if (!renderStreamKeys.has(protectedKey) && !lastRegressionLogRef.current.has(protectedKey)) {
-        const inDb = dbTranscript.some(e => (e.stableKey || e.id) === protectedKey);
-        const renderTail = finalRenderStream.slice(-5).map(e => e.stableKey || e.id || e.kind || e.messageType);
-        
-        console.error('[CQ_TRANSCRIPT][REGRESSION_USER_ANSWER_DROPPED]', {
-          stableKey: protectedKey,
-          dbHasKey: inDb,
-          renderTail,
-          renderLen: finalRenderStream.length,
-          dbLen: dbTranscript.length,
-          reason: 'Recently submitted answer missing from final render stream (after transcript-layer enforcement)'
-        });
-        
-        lastRegressionLogRef.current.add(protectedKey);
+  // STEP 4: REGRESSION DETECTION DISABLED (diagnostics only, no repair)
+  if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+    const renderStreamKeys = new Set(finalRenderStream.map(r => r.stableKey || r.id));
+    if (recentlySubmittedUserAnswersRef.current.size > 0) {
+      for (const protectedKey of recentlySubmittedUserAnswersRef.current) {
+        if (!renderStreamKeys.has(protectedKey) && !lastRegressionLogRef.current.has(protectedKey)) {
+          const inDb = dbTranscript.some(e => (e.stableKey || e.id) === protectedKey);
+          const inCanonical = canonicalTranscriptRef.current.some(e => (e.stableKey || e.id) === protectedKey);
+          
+          console.error('[TRANSCRIPT_MONOTONIC][REGRESSION_DETECTED]', {
+            stableKey: protectedKey,
+            inDb,
+            inCanonical,
+            renderLen: finalRenderStream.length,
+            canonicalLen: canonicalTranscriptRef.current.length,
+            action: 'NO_REPAIR',
+            note: 'Monotonic upsert should prevent this - check why canonical missing entry'
+          });
+          
+          lastRegressionLogRef.current.add(protectedKey);
+        }
       }
     }
   }
@@ -11229,166 +11224,32 @@ export default function CandidateInterview() {
             // Apply final dedupe to prevent React key collisions
             let transcriptToRenderDeduped = dedupeBeforeRender(transcriptWithV3ProbeQA);
             
-            // CRITICAL CHANGE: Enforce immutable user answers at TRANSCRIPT-RENDERABLE layer (before UI mapping)
-            // This ensures reinjected answers are in normalized format and WILL render
-            const persistedUserAnswers = dbTranscript.filter(e => 
-              e.role === 'user' && 
-              (e.stableKey || e.id) &&
-              e.visibleToCandidate !== false
-            );
-            
-            const transcriptKeys = new Set(transcriptToRenderDeduped.map(r => r.stableKey || r.id));
-            
-            // C) EMPTY TEXT SHADOW UPGRADE: If transcript has empty text but DB has non-empty, upgrade
-            const emptyTextUpgrades = [];
-            for (const dbEntry of persistedUserAnswers) {
-              const dbKey = dbEntry.stableKey || dbEntry.id;
-              const transcriptEntry = transcriptToRenderDeduped.find(r => (r.stableKey || r.id) === dbKey);
-              
-              if (transcriptEntry) {
-                const transcriptTextLen = (transcriptEntry.text || '').trim().length;
-                const dbTextLen = (dbEntry.text || '').trim().length;
-                
-                if (transcriptTextLen === 0 && dbTextLen > 0) {
-                  emptyTextUpgrades.push(dbKey);
-                  console.log('[CQ_TRANSCRIPT][IMMUTABLE_UPGRADE_EMPTY_TEXT]', {
-                    stableKey: dbKey,
-                    prevEmpty: true,
-                    upgraded: true,
-                    dbTextLen
-                  });
-                }
-              }
-            }
-            
-            const missingFromTranscript = persistedUserAnswers.filter(dbEntry => {
-              const dbKey = dbEntry.stableKey || dbEntry.id;
-              // Include if: missing from transcript OR has empty text (needs upgrade)
-              return !transcriptKeys.has(dbKey) || emptyTextUpgrades.includes(dbKey);
-            });
-            
-            if (missingFromTranscript.length > 0) {
-              console.error('[CQ_TRANSCRIPT][IMMUTABLE_REINJECT_AT_TRANSCRIPT_LAYER]', {
-                missingCount: missingFromTranscript.length,
-                missingKeys: missingFromTranscript.map(e => ({
-                  stableKey: e.stableKey || e.id,
-                  messageType: e.messageType || e.type,
-                  textPreview: (e.text || '').substring(0, 40)
-                })),
-                reason: 'Persisted user answer missing from transcript renderable - reinjecting at transcript layer',
-                normalizer: 'applying __canonicalKey normalization'
-              });
-              
-              // Sort by transcript index for chronological order
-              const toInject = [...missingFromTranscript].sort((a, b) => (a.index || 0) - (b.index || 0));
-              
-              // 1) NORMALIZE: Apply same normalization as existing transcript pipeline (adds __canonicalKey + normalizes messageType)
-              const toInjectNormalized = toInject.map(entry => {
-                const mt = getMessageTypeSOT(entry);  // ✓ Normalized messageType
-                // B) STOP CLAMPING: Preserve original role (only default if missing)
-                const role = entry.role ? String(entry.role).toLowerCase() : 'user';
-                // 4) Use getStableKeySOT for uniqueId
-                const uniqueId = getStableKeySOT(entry) || `idx-${entry.index || Math.random()}`;
-                const canonicalKey = `${role}:${mt}:${uniqueId}`;
-                
-                // 3) Ensure text field exists (match transcript renderer expectations)
-                const text = entry.text ?? entry.content ?? entry.value ?? '';
-                
-                return {
-                  ...entry,
-                  messageType: mt,  // ✓ Set normalized messageType
-                  // 2) DO NOT overwrite type (can break legacy logic)
-                  role,  // ✓ Normalized role (preserved)
-                  text,  // ✓ Ensure text field exists
-                  __canonicalKey: canonicalKey
-                };
-              }).filter(Boolean);
-              
-              // 2) INJECT: Find MI gate in transcript list (if present) - IMPROVED detection
-              const miGateIndexInTranscript = transcriptToRenderDeduped.findIndex(e => 
-                e.messageType === 'MULTI_INSTANCE_GATE_SHOWN' ||
-                e.kind === 'multi_instance_gate' ||
-                (e.stableKey && e.stableKey.startsWith('mi-gate:'))
+            // STEP 4: REPAIR LOGIC DISABLED (monotonic upsert makes this obsolete)
+            if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+              const persistedUserAnswers = dbTranscript.filter(e => 
+                e.role === 'user' && 
+                (e.stableKey || e.id) &&
+                e.visibleToCandidate !== false
               );
               
-              if (miGateIndexInTranscript !== -1) {
-                transcriptToRenderDeduped = [
-                  ...transcriptToRenderDeduped.slice(0, miGateIndexInTranscript),
-                  ...toInjectNormalized,
-                  ...transcriptToRenderDeduped.slice(miGateIndexInTranscript)
-                ];
-              } else {
-                transcriptToRenderDeduped = [...transcriptToRenderDeduped, ...toInjectNormalized];
-              }
-              
-              // 4) POST-INJECT DEDUPE: Remove any duplicates created by injection
-              transcriptToRenderDeduped = dedupeBeforeRender(transcriptToRenderDeduped);
-              
-              // 5) DEBUG: Log first reinjected entry shape (dev only, once per session)
-              if (typeof window !== 'undefined' && 
-                  (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost')) &&
-                  toInjectNormalized.length > 0 &&
-                  !window.__cqReinjectShapeLogged) {
-                window.__cqReinjectShapeLogged = true;
-                const firstEntry = toInjectNormalized[0];
-                console.log('[CQ_TRANSCRIPT][REINJECTED_ENTRY_SHAPE]', {
-                  stableKey: getStableKeySOT(firstEntry),
-                  messageType: getMessageTypeSOT(firstEntry),
-                  role: firstEntry.role,
-                  hasText: !!(firstEntry.text && firstEntry.text.length > 0),
-                  hasCanonicalKey: !!firstEntry.__canonicalKey,
-                  textPreview: (firstEntry.text || '').substring(0, 40)
-                });
-              }
-              
-              // 3) FIXED COUNTS: Actual user answer counts (not total keys)
-              const renderedUserAnswerCount = transcriptToRenderDeduped.filter(e => 
-                e.role === 'user' && e.visibleToCandidate !== false
-              ).length;
-              
-              const renderedHasKeyCount = persistedUserAnswers.filter(dbEntry => {
+              const transcriptKeys = new Set(transcriptToRenderDeduped.map(r => r.stableKey || r.id));
+              const missingFromRender = persistedUserAnswers.filter(dbEntry => {
                 const dbKey = dbEntry.stableKey || dbEntry.id;
-                return transcriptToRenderDeduped.some(r => (r.stableKey || r.id) === dbKey);
-              }).length;
-              
-              console.log('[CQ_TRANSCRIPT][IMMUTABLE_LAYER_ASSERT]', {
-                dbUserAnswerCount: persistedUserAnswers.length,
-                renderedUserAnswerCount,
-                missingCount: missingFromTranscript.length,
-                renderedHasKeyCount,
-                injectedAt: miGateIndexInTranscript !== -1 ? `index ${miGateIndexInTranscript}` : 'end'
+                return !transcriptKeys.has(dbKey);
               });
               
-              // 4) POST-INJECT ASSERT: Verify all injected entries survived (dev only)
-              if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-                const postInjectKeys = new Set(transcriptToRenderDeduped.map(e => e.stableKey || e.id));
-                const failedInjections = toInjectNormalized.filter(entry => {
-                  const key = entry.stableKey || entry.id;
-                  return !postInjectKeys.has(key);
+              if (missingFromRender.length > 0) {
+                console.error('[TRANSCRIPT_MONOTONIC][REPAIR_DISABLED]', {
+                  missingCount: missingFromRender.length,
+                  missingKeys: missingFromRender.map(e => ({
+                    stableKey: e.stableKey || e.id,
+                    messageType: e.messageType || e.type,
+                    textPreview: (e.text || '').substring(0, 40)
+                  })),
+                  action: 'NO_REPAIR',
+                  note: 'Monotonic upsert should prevent this - investigate why canonical source missing entries'
                 });
-                
-                if (failedInjections.length > 0) {
-                  console.error('[CQ_TRANSCRIPT][IMMUTABLE_REINJECT_FAILED]', {
-                    failedCount: failedInjections.length,
-                    failedKeys: failedInjections.map(e => ({
-                      stableKey: e.stableKey || e.id,
-                      messageType: e.messageType || e.type
-                    })),
-                    reason: 'Normalization or post-inject dedupe removed entries - check normalizer logic'
-                  });
-                }
               }
-            } else {
-              // 3) FIXED COUNTS: Log even when no missing (proves counts are correct)
-              const renderedUserAnswerCount = transcriptToRenderDeduped.filter(e => 
-                e.role === 'user' && e.visibleToCandidate !== false
-              ).length;
-              
-              console.log('[CQ_TRANSCRIPT][IMMUTABLE_LAYER_ASSERT]', {
-                dbUserAnswerCount: persistedUserAnswers.length,
-                renderedUserAnswerCount,
-                missingCount: 0
-              });
             }
             
             // 5) DIAGNOSTIC: Type counts + final invariant (dev only)
