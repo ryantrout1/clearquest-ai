@@ -511,6 +511,20 @@ export default function V3ProbingLoop({
         nextItemType: data.nextAction === 'ASK' ? 'v3_probe_question' : 'v3_probe_complete',
         ms: engineCallMs
       });
+      
+      // PROVENANCE LOG: Prove what frontend received from backend (LLM vs template)
+      console.log('[V3_LLM][ENGINE_RESPONSE_SOT]', {
+        sessionId,
+        categoryId,
+        instanceNumber: instanceNumber || 1,
+        loopKey,
+        packId: payloadPackId || null,
+        v3PromptSource: data?.v3PromptSource || '(missing)',
+        v3LlmMs: data?.v3LlmMs ?? null,
+        v3UseLLMProbeWording: data?.v3UseLLMProbeWording ?? '(missing)',
+        v3EffectiveInstructionsLen: data?.v3EffectiveInstructionsLen ?? '(missing)',
+        nextPromptPreview: String(data?.nextPrompt || '').slice(0, 80)
+      });
       console.log('[PROCESSING][END]', { traceId, msTotal: engineCallMs });
       console.log('[V3_PROBING][ENGINE_RESPONSE]', {
         ok: data.ok,

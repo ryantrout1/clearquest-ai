@@ -2055,7 +2055,6 @@ async function decisionEngineV3Probe(base44, {
     newFacts: extractedFacts,
     decisionTraceEntry,
     traceId: effectiveTraceId,
-    meta: returnMeta,
     // Additional context for caller
     categoryLabel: factModel.category_label,
     missingFields: missingFieldsAfter,
@@ -2068,7 +2067,20 @@ async function decisionEngineV3Probe(base44, {
     meta: {
       promptSource: promptSource || 'TEMPLATE',
       llmMs: llmMs || null
-    }
+    },
+    // PROVENANCE: Expose prompt source metadata to frontend (defaults for safety)
+    v3PromptSource: (nextAction === 'ASK' && typeof v3ProvenanceMetadata !== 'undefined') 
+      ? v3ProvenanceMetadata.v3PromptSource 
+      : 'TEMPLATE',
+    v3LlmMs: (nextAction === 'ASK' && typeof v3ProvenanceMetadata !== 'undefined') 
+      ? v3ProvenanceMetadata.v3LlmMs 
+      : null,
+    v3EffectiveInstructionsLen: (nextAction === 'ASK' && typeof v3ProvenanceMetadata !== 'undefined') 
+      ? v3ProvenanceMetadata.v3EffectiveInstructionsLen 
+      : 0,
+    v3UseLLMProbeWording: (nextAction === 'ASK' && typeof v3ProvenanceMetadata !== 'undefined') 
+      ? v3ProvenanceMetadata.v3UseLLMProbeWording 
+      : false
   };
 }
 
