@@ -2423,6 +2423,42 @@ export default function CandidateInterview() {
     return normalized;
   };
   
+  // STEP 1: Candidate-facing text sanitizer (prevents developer instructions from showing in UI)
+  const DEV_LEAK_PATTERNS = [
+    'BEGIN PROMPT',
+    'END PROMPT',
+    'PASS CRITERIA',
+    'DETAILED CHANGE REPORT',
+    'Anything I Need to Know',
+    'Run the exact GIF repro',
+    'If PASS',
+    'If FAIL',
+    'ACCEPTANCE CRITERIA',
+    'files touched',
+    'diff summary',
+    'root cause'
+  ];
+  
+  const sanitizeCandidateFacingText = (raw, contextLabel) => {
+    if (!raw) return raw;
+    
+    const rawLower = String(raw).toLowerCase();
+    const hasCorruption = DEV_LEAK_PATTERNS.some(pattern => 
+      rawLower.includes(pattern.toLowerCase())
+    );
+    
+    if (hasCorruption && typeof window !== 'undefined' && 
+        (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+      console.log('[CQ_UI][CANDIDATE_TEXT_SANITIZED]', {
+        context: contextLabel,
+        preview: String(raw).substring(0, 80)
+      });
+      return ''; // Return empty string to hide corrupted text
+    }
+    
+    return raw;
+  };
+  
   // STABLE KEY SOT: Canonical stableKey extractor
   const getStableKeySOT = (entry) => {
     if (!entry) return '';
@@ -10293,6 +10329,9 @@ export default function CandidateInterview() {
     activePromptText = currentPrompt.text;
   }
   
+  // STEP 2: Sanitize active prompt text (prevents dev instructions from showing to candidate)
+  const safeActivePromptText = sanitizeCandidateFacingText(activePromptText, 'ACTIVE_PROMPT_TEXT');
+  
   // ============================================================================
   // BOTTOM BAR DERIVED STATE BLOCK - All derived variables in strict order
   // ============================================================================
@@ -11561,13 +11600,17 @@ export default function CandidateInterview() {
                       const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
                       const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
                       
+                      // STEP 2: Sanitize prompt card text (main fix)
+                      const safeCardPrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_V3_PROBE');
+                      
                       console.log('[V3_PROMPT][PROMPT_CARD_SOT]', {
                         v3ProbingActive,
                         v3PromptPhase,
                         loopKey,
                         promptId,
                         stableKey: entry.stableKey || null,
-                        promptTextPreview: String(entry.text || '').slice(0, 90),
+                        promptTextPreview: String(safeCardPrompt || '').slice(0, 90),
+                        sanitized: safeCardPrompt !== entry.text,
                         // Provenance metadata (if present on entry object)
                         v3PromptSource: entry?.v3PromptSource ?? entry?.meta?.v3PromptSource ?? '(missing)',
                         v3LlmMs: entry?.v3LlmMs ?? entry?.meta?.v3LlmMs ?? null
@@ -11586,12 +11629,15 @@ export default function CandidateInterview() {
                                   </>
                                 )}
                               </div>
-                              <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                              <p className="text-white text-sm leading-relaxed">{safeCardPrompt}</p>
                             </div>
                           </ContentContainer>
                         </div>
                       );
                     } else if (cardKind === "v3_pack_opener") {
+                      // STEP 2: Sanitize opener card text
+                      const safeOpenerPrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_V3_OPENER');
+                      
                       return (
                         <div key={entryKey}>
                           <ContentContainer>
@@ -11603,7 +11649,7 @@ export default function CandidateInterview() {
                                   </span>
                                 </div>
                               )}
-                              <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                              <p className="text-white text-sm leading-relaxed">{safeOpenerPrompt}</p>
                               {entry.exampleNarrative && (
                                 <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
                                   <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
@@ -11622,11 +11668,14 @@ export default function CandidateInterview() {
                         miGateTestTrackerRef.current.set(currentItem.id, tracker);
                       }
                       
+                      // STEP 2: Sanitize MI gate prompt text
+                      const safeGatePrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_MI_GATE');
+                      
                       return (
                         <div key={entryKey}>
                           <ContentContainer>
                             <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
-                              <p className="text-white text-base leading-relaxed">{entry.text}</p>
+                              <p className="text-white text-base leading-relaxed">{safeGatePrompt}</p>
                             </div>
                           </ContentContainer>
                         </div>
@@ -11652,11 +11701,15 @@ export default function CandidateInterview() {
                   // V3 transcript entries (from DB - legal record)
                   // V3_PROBE_QUESTION (assistant) - NOW RENDERS FROM TRANSCRIPT
                   if (entry.role === 'assistant' && getMessageTypeSOT(entry) === 'V3_PROBE_QUESTION') {
+                   // STEP 2: Sanitize transcript V3 probe question text
+                   const safeTranscriptProbeQ = sanitizeCandidateFacingText(entry.text, 'TRANSCRIPT_V3_PROBE_Q');
+
                    console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_RENDERED]', {
                      stableKey: entry.stableKey || entry.id,
                      promptId: entry.meta?.promptId,
                      loopKey: entry.meta?.loopKey,
-                     textPreview: (entry.text || '').substring(0, 40)
+                     textPreview: (safeTranscriptProbeQ || '').substring(0, 40),
+                     sanitized: safeTranscriptProbeQ !== entry.text
                    });
 
                    // ACTIVE CARD DETECTION: Check if this is the current active prompt
@@ -11681,7 +11734,7 @@ export default function CandidateInterview() {
                                </>
                              )}
                            </div>
-                           <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                           <p className="text-white text-sm leading-relaxed">{safeTranscriptProbeQ}</p>
                          </div>
                        </ContentContainer>
                      </div>
@@ -11813,17 +11866,20 @@ export default function CandidateInterview() {
 
             // Multi-instance gate prompt shown (suppress CURRENT gate only during V3 blocking)
             if (entry.role === 'assistant' && getMessageTypeSOT(entry) === 'MULTI_INSTANCE_GATE_SHOWN') {
+              // STEP 2: Sanitize MI gate prompt in transcript
+              const safeMiGateTranscript = sanitizeCandidateFacingText(entry.text, 'TRANSCRIPT_MI_GATE');
+
               // Extract entry's pack/instance identity
               const entryPackId = entry.packId || entry.meta?.packId;
               const entryInstanceNumber = entry.instanceNumber || entry.meta?.instanceNumber;
-              
+
               // PART B: Only suppress if this entry matches the CURRENT active gate
               // Preserves historical gate entries from previous instances
               const isCurrentGate = isV3UiBlockingSOT && 
                                    currentItem?.type === 'multi_instance_gate' &&
                                    entryPackId === currentItem.packId &&
                                    entryInstanceNumber === currentItem.instanceNumber;
-              
+
               if (isCurrentGate) {
                 console.log('[MI_GATE][STREAM_SUPPRESSED]', {
                   packId: entryPackId,
@@ -11835,7 +11891,7 @@ export default function CandidateInterview() {
                 });
                 return null; // Suppress current gate from transcript (renders as activeCard instead)
               }
-              
+
 
               // ANCHOR: Mark as system transition to prevent false scroll state changes
               recentAnchorRef.current = {
@@ -11849,22 +11905,23 @@ export default function CandidateInterview() {
                 (entry.id === currentItem?.id || 
                  stableKey === `mi-gate:${currentItem?.packId}:${currentItem?.instanceNumber}:q` ||
                  stableKey?.startsWith(`mi-gate:${currentItem?.packId}:${currentItem?.instanceNumber}`));
-              
+
               if (isActiveGate) {
                 console.log('[MI_GATE][MAIN_PANE_ACTIVE_RENDER]', {
                   currentItemId: currentItem?.id,
                   packId: currentItem?.packId,
                   instanceNumber: currentItem?.instanceNumber,
                   stableKey,
-                  promptPreview: (entry.text || "").slice(0, 120)
+                  promptPreview: (safeMiGateTranscript || "").slice(0, 120),
+                  sanitized: safeMiGateTranscript !== entry.text
                 });
-                
+
                 // UI CONTRACT SELF-TEST: Track main pane render
                 if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
                   const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
                   tracker.mainPaneRendered = true;
                   miGateTestTrackerRef.current.set(currentItem.id, tracker);
-                  
+
                   console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
                     itemId: currentItem.id,
                     event: 'MAIN_PANE_RENDERED',
@@ -11872,16 +11929,16 @@ export default function CandidateInterview() {
                   });
                 }
               }
-              
+
               const activeClass = isActiveGate 
                 ? 'ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20' 
                 : '';
-              
+
               return (
                 <div key={entryKey} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
                   <div className={`w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 transition-all duration-150 ${activeClass}`}>
-                    <p className="text-white text-base leading-relaxed">{entry.text}</p>
+                    <p className="text-white text-base leading-relaxed">{safeMiGateTranscript}</p>
                   </div>
                   </ContentContainer>
                 </div>
@@ -12018,6 +12075,9 @@ export default function CandidateInterview() {
 
               {/* V3 Pack opener prompt (FOLLOWUP_CARD_SHOWN) - MUST be visible in transcript history */}
               {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener' && (() => {
+                // STEP 2: Sanitize opener prompt in transcript
+                const safeOpenerTranscript = sanitizeCandidateFacingText(entry.text, 'TRANSCRIPT_V3_OPENER');
+                
                 // ACTIVE CARD DETECTION: Check if this is the current opener
                 const isActiveOpener = currentItem?.type === 'v3_pack_opener' && 
                   currentItem?.packId === entry.meta?.packId && 
@@ -12037,7 +12097,7 @@ export default function CandidateInterview() {
                           </span>
                         </div>
                       )}
-                      <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                      <p className="text-white text-sm leading-relaxed">{safeOpenerTranscript}</p>
                       {entry.example && (
                         <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
                           <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
@@ -12950,7 +13010,9 @@ export default function CandidateInterview() {
               });
             }
             return null; // No prompt banner in footer - input only
-          })()}
+            })()}
+
+            {/* STEP 3: Placeholder sanitization (only if dynamic) - currently constant so simplified */}
 
           {/* LLM Suggestion - show if available for this field (hide during V3 probing or missing prompt) */}
           {!v3ProbingActive && hasPrompt && (() => {
@@ -12992,20 +13054,11 @@ export default function CandidateInterview() {
 
               // V3 OPENER: Use dedicated openerDraft state (ALWAYS allow updates - no v3ProbingActive gate)
               if (currentItem?.type === 'v3_pack_opener') {
-                // STEP B: Prompt sanitizer - prevent developer instructions from entering draft
-                const corruptStrings = ['BEGIN PROMPT', 'END PROMPT', 'PASS CRITERIA', 'DETAILED CHANGE REPORT', 'Anything I Need to Know', 'Run the exact GIF repro', 'If PASS', 'If FAIL'];
-                const hasCorruption = corruptStrings.some(s => value.toLowerCase().includes(s.toLowerCase()));
-
-                if (hasCorruption && typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-                  console.log('[CQ_UI][PROMPT_SANITIZED]', {
-                    reason: 'developer_instructions_detected',
-                    preview: value.substring(0, 80)
-                  });
-                  return; // Block corrupted draft
-                }
+                // STEP 4: Removed onChange sanitizer - do NOT block typing
+                // Sanitization happens at render time only (safeActivePromptText)
 
                 // GUARD: Never allow prompt text as value
-                const promptText = currentItem?.openerText || activePromptText || "";
+                const promptText = currentItem?.openerText || safeActivePromptText || "";
                 const valueMatchesPrompt = value.trim() === promptText.trim() && value.length > 10;
 
                 if (valueMatchesPrompt) {
@@ -13052,22 +13105,7 @@ export default function CandidateInterview() {
               }
             }}
             onKeyDown={handleInputKeyDown}
-            placeholder={(() => {
-              // STEP C: Sanitize placeholder to prevent developer instructions from showing
-              const rawPlaceholder = "Type your response here…";
-              const corruptStrings = ['BEGIN PROMPT', 'END PROMPT', 'PASS CRITERIA', 'DETAILED CHANGE REPORT', 'Anything I Need to Know', 'Run the exact GIF repro', 'If PASS', 'If FAIL'];
-              const hasCorruption = corruptStrings.some(s => rawPlaceholder.toLowerCase().includes(s.toLowerCase()));
-
-              if (hasCorruption && typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-                console.log('[CQ_UI][PROMPT_SANITIZED]', {
-                  reason: 'placeholder_corrupted',
-                  preview: rawPlaceholder.substring(0, 80)
-                });
-                return "Type your response here…"; // Safe fallback
-              }
-
-              return rawPlaceholder;
-            })()}
+            placeholder="Type your response here…"
             aria-label="Answer input"
             className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
             style={{ maxHeight: '120px', overflowY: 'auto' }}
