@@ -1711,6 +1711,31 @@ export default function CandidateInterview() {
     isV3UiBlockingSOT
   });
   
+  // PART A: MI_GATE suppression helper (deterministic, phase-based)
+  const shouldSuppressMiGateSOT = isV3UiBlockingSOT && currentItem?.type === 'multi_instance_gate';
+  
+  // Log once when suppression becomes active (dedupe)
+  const [lastMiGateSuppressKey, setLastMiGateSuppressKey] = useState(null);
+  
+  useEffect(() => {
+    if (shouldSuppressMiGateSOT) {
+      const suppressKey = `${currentItem.packId}:${currentItem.instanceNumber}`;
+      if (lastMiGateSuppressKey !== suppressKey) {
+        setLastMiGateSuppressKey(suppressKey);
+        
+        const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+        console.log('[MI_GATE][SUPPRESSED_BY_V3]', {
+          v3PromptPhase,
+          loopKey,
+          packId: currentItem?.packId,
+          instanceNumber: currentItem?.instanceNumber
+        });
+      }
+    } else if (!shouldSuppressMiGateSOT && lastMiGateSuppressKey) {
+      setLastMiGateSuppressKey(null);
+    }
+  }, [shouldSuppressMiGateSOT, currentItem?.packId, currentItem?.instanceNumber, v3PromptPhase, sessionId, v3ProbingContext, lastMiGateSuppressKey]);
+  
   // PART A: activePromptKind SOT (single consolidated log)
   console.log('[PROMPT_KIND_SOT]', {
     activePromptKind: activeUiItem.kind,
@@ -11288,8 +11313,21 @@ export default function CandidateInterview() {
               );
             }
 
-            // Multi-instance gate prompt shown (ALWAYS render - no suppression)
+            // Multi-instance gate prompt shown (suppress if V3 UI blocking)
             if (entry.role === 'assistant' && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
+              // PART B: Suppress MI_GATE from transcript if V3 UI blocking
+              if (shouldSuppressMiGateSOT) {
+                console.log('[MI_GATE][TRANSCRIPT_SUPPRESSED]', {
+                  packId: entry.packId || entry.meta?.packId,
+                  instanceNumber: entry.instanceNumber || entry.meta?.instanceNumber,
+                  stableKey: entry.stableKey || entry.id,
+                  reason: 'V3_UI_BLOCKING_PHASE',
+                  v3PromptPhase
+                });
+                return null; // Suppress from render
+              }
+              
+
               // ANCHOR: Mark as system transition to prevent false scroll state changes
               recentAnchorRef.current = {
                 kind: 'SYSTEM_TRANSITION',
