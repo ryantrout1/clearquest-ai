@@ -11309,19 +11309,29 @@ export default function CandidateInterview() {
               );
             }
 
-            // Multi-instance gate prompt shown (suppress if V3 UI blocking)
+            // Multi-instance gate prompt shown (suppress CURRENT gate only during V3 blocking)
             if (entry.role === 'assistant' && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
-              // PART B: Suppress MI_GATE from transcript mapping if V3 UI blocking
-              // Use currentItemForRender (null when suppressed) to prevent card creation
-              if (!currentItemForRender && isV3UiBlockingSOT) {
+              // Extract entry's pack/instance identity
+              const entryPackId = entry.packId || entry.meta?.packId;
+              const entryInstanceNumber = entry.instanceNumber || entry.meta?.instanceNumber;
+              
+              // PART B: Only suppress if this entry matches the CURRENT active gate
+              // Preserves historical gate entries from previous instances
+              const isCurrentGate = isV3UiBlockingSOT && 
+                                   currentItem?.type === 'multi_instance_gate' &&
+                                   entryPackId === currentItem.packId &&
+                                   entryInstanceNumber === currentItem.instanceNumber;
+              
+              if (isCurrentGate) {
                 console.log('[MI_GATE][STREAM_SUPPRESSED]', {
-                  packId: entry.packId || entry.meta?.packId,
-                  instanceNumber: entry.instanceNumber || entry.meta?.instanceNumber,
+                  packId: entryPackId,
+                  instanceNumber: entryInstanceNumber,
                   stableKey: entry.stableKey || entry.id,
-                  reason: 'V3_UI_BLOCKING_PHASE',
-                  v3PromptPhase
+                  reason: 'V3_UI_BLOCKING_CURRENT_GATE',
+                  v3PromptPhase,
+                  matchesCurrent: true
                 });
-                return null; // Suppress from render stream
+                return null; // Suppress current gate from transcript (renders as activeCard instead)
               }
               
 
