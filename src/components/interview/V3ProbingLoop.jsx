@@ -332,16 +332,27 @@ export default function V3ProbingLoop({
         href: ''
       };
     }
-    
+
     const pathname = window.location?.pathname || '';
     const href = window.location?.href || '';
-    const enabled = pathname.includes('/editor/preview/') || href.includes('/editor/preview/');
-    
+    const isEditorPreviewPath = pathname.includes('/editor/preview/');
+    const isEditorPreviewHref = href.includes('/editor/preview/');
+    const isPreviewSandbox = href.includes('preview-sandbox');
+    const enabled = isEditorPreviewPath || isEditorPreviewHref || isPreviewSandbox;
+
+    let reason = 'not_preview_context';
+    if (isEditorPreviewPath || isEditorPreviewHref) {
+      reason = 'editor_preview_path_detected';
+    } else if (isPreviewSandbox) {
+      reason = 'preview_sandbox_detected';
+    }
+
     return {
       enabled,
-      reason: enabled ? 'editor_preview_path_detected' : 'not_editor_preview_path',
+      reason,
       pathname,
-      href
+      href,
+      isPreviewSandbox
     };
   };
 
@@ -440,8 +451,8 @@ export default function V3ProbingLoop({
       // FAIL-CLOSED WATCHDOG: 12s timeout for backend call
       const BACKEND_TIMEOUT_MS = 12000;
       
-      // TASK 1A: Compute editor preview flag (frontend SOT)
-      const payloadIsEditorPreview = Boolean(window?.location?.pathname?.includes('/editor/preview/'));
+      // TASK 1A: Compute editor preview flag (frontend SOT) - include preview-sandbox
+      const payloadIsEditorPreview = Boolean(window?.location?.pathname?.includes('/editor/preview/') || window?.location?.href?.includes('preview-sandbox'));
       
       // TASK 1B: Force LLM in editor preview (preview-only)
       const payloadUseLLMProbeWording = payloadIsEditorPreview ? true : Boolean(shouldUseLLMProbeWording);

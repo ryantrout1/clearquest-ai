@@ -183,37 +183,58 @@ function generateV3ProbeQuestion(field, collectedFacts = {}) {
   const label = field.label;
   const type = field.type;
   
+  // TASK 2: Agency-specific override (never use generic template for agency)
+  if (fieldId && (fieldId.includes('agency') || fieldId.includes('department'))) {
+    return "What was the name of the law enforcement agency you applied to?";
+  }
+  
   // Check for specific field template
   if (FIELD_QUESTION_TEMPLATES[fieldId]) {
     return FIELD_QUESTION_TEMPLATES[fieldId];
   }
   
   // Generate based on type
+  let result = null;
   switch (type) {
     case 'date':
     case 'month_year':
-      return `When did this occur?`;
+      result = `When did this occur?`;
+      break;
     case 'boolean':
     case 'yes_no':
-      return `${label}?`;
+      result = `${label}?`;
+      break;
     case 'select_single':
       if (field.enum_options?.length) {
-        return `${label}? The options are: ${field.enum_options.join(', ')}.`;
+        result = `${label}? The options are: ${field.enum_options.join(', ')}.`;
+      } else {
+        result = `${label}?`;
       }
-      return `${label}?`;
+      break;
     default:
       if (label) {
         const labelLower = label.toLowerCase();
         if (labelLower.startsWith('what') || labelLower.startsWith('when') || 
             labelLower.startsWith('where') || labelLower.startsWith('who') ||
             labelLower.startsWith('how') || labelLower.startsWith('why')) {
-          return `${label}?`;
+          result = `${label}?`;
+        } else {
+          // Neutral generic template (no accusatory phrasing)
+          result = `Can you tell me more about the ${labelLower}?`;
         }
-        // TASK 3: Neutral generic template (no accusatory phrasing)
-        return `Can you tell me more about the ${labelLower}?`;
+      } else {
+        result = `Can you provide more information about ${fieldId?.replace(/_/g, ' ') || 'this'}?`;
       }
-      return `Can you provide more information about ${fieldId?.replace(/_/g, ' ') || 'this'}?`;
   }
+  
+  // TASK 2: Final safety guard (never return "omitted information")
+  if (result && /omitted information/i.test(result)) {
+    result = result.replace(/where you omitted information/gi, 'you applied to')
+                   .replace(/what you omitted/gi, 'the details')
+                   .replace(/omitted information/gi, 'the details');
+  }
+  
+  return result;
 }
 
 /**
