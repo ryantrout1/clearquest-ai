@@ -9,6 +9,9 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
  * This is separate from decisionEngineProbe.js which handles V1/V2.
  */
 
+// BUILD TRACKING: Proves which backend version is deployed
+const V3_ENGINE_BUILD_ID = "v3-engine-20251227-a7k9m2";
+
 // ========== V3 PROMPT TEMPLATES ==========
 
 /**
@@ -2226,6 +2229,7 @@ async function decisionEngineV3Probe(base44, {
 
 Deno.serve(async (req) => {
   console.log('[DECISION_V3][HTTP_ENTRY] ========== REQUEST RECEIVED ==========');
+  console.log('[V3_ENGINE_BUILD]', { engineBuildId: V3_ENGINE_BUILD_ID });
   
   try {
     const base44 = createClientFromRequest(req);

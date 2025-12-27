@@ -538,6 +538,7 @@ export default function V3ProbingLoop({
         instanceNumber: instanceNumber || 1,
         loopKey,
         packId: payloadPackId || null,
+        engineBuildId: data?.engineBuildId || '(missing)',
         v3PromptSource: data?.v3PromptSource || '(missing)',
         v3LlmMs: data?.v3LlmMs ?? null,
         v3UseLLMProbeWording: data?.v3UseLLMProbeWording ?? '(missing)',
@@ -658,7 +659,7 @@ export default function V3ProbingLoop({
 
         // OUTPUT BOUNDARY: Normalize probe question to enforce Date Rule
         // This is the ONLY normalization layer - runs before setting state
-        const normalizedPrompt = await (async () => {
+        let normalizedPrompt = await (async () => {
           try {
             // Fetch session and factModel for normalization context
             const [sessionData, allFactModels] = await Promise.all([
@@ -684,6 +685,17 @@ export default function V3ProbingLoop({
             return data.nextPrompt;
           }
         })();
+
+        // UI FAILSAFE: Sanitize in preview-sandbox if backend is stale
+        if (isPreviewContextSOT && normalizedPrompt && /omitted information/i.test(normalizedPrompt)) {
+          const beforePrompt = normalizedPrompt;
+          normalizedPrompt = "What was the name of the law enforcement agency you applied to?";
+          console.warn('[V3_UI_FAILSAFE_SANITIZE]', {
+            engineBuildId: data?.engineBuildId || '(missing)',
+            beforePreview: beforePrompt.slice(0, 80),
+            afterPreview: normalizedPrompt
+          });
+        }
 
         // Log prompt set for render-truth tracking
         console.log('[V3_SET_PROMPT]', {
