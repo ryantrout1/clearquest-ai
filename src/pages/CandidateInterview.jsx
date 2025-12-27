@@ -1118,14 +1118,14 @@ export default function CandidateInterview() {
     }
   }, [sessionId, dbTranscript]);
 
-  // STEP 3: Optimistic append helper (immediate canonical update)
+  // STEP 2: Optimistic append helper (canonical as input)
   const appendAndRefresh = useCallback(async (kind, payload, reasonLabel) => {
     // STATIC IMPORT: Use top-level imports (already imported at line 57-58)
     const appendUserMessage = appendUserMessageImport;
     const appendAssistantMessage = appendAssistantMessageImport;
     
-    const freshSession = await base44.entities.InterviewSession.get(sessionId);
-    const currentTranscript = freshSession.transcript_snapshot || [];
+    // STEP 2: Use canonical as input (not DB state)
+    const currentTranscript = canonicalTranscriptRef.current;
     
     let updatedTranscript;
     if (kind === 'user') {
@@ -1137,7 +1137,7 @@ export default function CandidateInterview() {
       return currentTranscript || [];
     }
     
-    // STEP 3: OPTIMISTIC UPDATE - Immediately upsert to canonical ref
+    // STEP 2: OPTIMISTIC UPDATE - Immediately upsert to canonical ref
     const optimistic = upsertTranscriptMonotonic(canonicalTranscriptRef.current, updatedTranscript, `append_${kind}_${reasonLabel}`);
     canonicalTranscriptRef.current = optimistic;
     
@@ -2256,24 +2256,31 @@ export default function CandidateInterview() {
     }
   }, [isUserTyping, renderedTranscript]);
 
-  // STEP 5: Final assertion (shrinkage detection only - no repair)
-  const lastCanonicalLenRef = useRef(0);
+  // STEP 3: Key-based monotonic assertion (detects lost keys)
+  const prevKeysSetRef = useRef(new Set());
   
   useEffect(() => {
-    const prevLen = lastCanonicalLenRef.current;
-    const nextLen = canonicalTranscriptRef.current.length;
+    const getKey = (e) => e.__canonicalKey || e.stableKey || e.id;
     
-    if (prevLen > 0 && nextLen < prevLen) {
-      console.error('[TRANSCRIPT_MONOTONIC][FATAL_SHRINK]', {
-        previousLen: prevLen,
-        nextLen,
-        delta: prevLen - nextLen,
-        action: 'NO_REPAIR_ATTEMPTED',
-        note: 'Transcript source of truth shrank - monotonic contract violated'
+    const prevKeys = prevKeysSetRef.current;
+    const nextKeys = new Set(canonicalTranscriptRef.current.map(getKey).filter(Boolean));
+    
+    const missingKeys = Array.from(prevKeys).filter(k => !nextKeys.has(k));
+    
+    if (missingKeys.length > 0) {
+      console.error('[TRANSCRIPT_MONOTONIC][FATAL_KEY_LOSS]', {
+        missingCount: missingKeys.length,
+        missingKeys: missingKeys.slice(0, 10),
+        prevKeysCount: prevKeys.size,
+        nextKeysCount: nextKeys.size,
+        action: 'CANONICAL_NOT_OVERWRITTEN',
+        note: 'Key-based monotonic contract violated - keys lost from canonical'
       });
+      // DO NOT overwrite canonical - keep previous
+      return;
     }
     
-    lastCanonicalLenRef.current = nextLen;
+    prevKeysSetRef.current = nextKeys;
   }, [dbTranscript]);
 
   // Verification instrumentation (moved above early returns)
@@ -2409,25 +2416,13 @@ export default function CandidateInterview() {
     return raw;
   };
   
-  // STEP 2: Monotonic transcript upsert (single source of truth merger)
+  // STEP 1: KEY-BASED monotonic transcript upsert
   const upsertTranscriptMonotonic = useCallback((prev, incoming, sourceLabel = 'unknown') => {
     if (!Array.isArray(prev)) prev = [];
     if (!Array.isArray(incoming)) incoming = [];
     
-    // MONOTONIC GUARANTEE: Never allow shrinkage
-    if (incoming.length < prev.length) {
-      console.error('[TRANSCRIPT_MONOTONIC][SHRINK_BLOCKED]', {
-        prevLen: prev.length,
-        incomingLen: incoming.length,
-        delta: prev.length - incoming.length,
-        source: sourceLabel,
-        action: 'KEEPING_PREV'
-      });
-      return prev;
-    }
-    
-    // Build index by stableKey || id
-    const indexMap = new Map();
+    // Key extractor: canonical key > stableKey > id
+    const getKey = (e) => e.__canonicalKey || e.stableKey || e.id;
     
     // Priority scorer: higher = better
     const scoreEntry = (e) => {
@@ -2442,47 +2437,85 @@ export default function CandidateInterview() {
       return 0;
     };
     
-    // Index prev entries
-    for (const entry of prev) {
-      const key = entry.stableKey || entry.id;
-      if (!key) continue;
-      
-      if (!indexMap.has(key) || scoreEntry(entry) > scoreEntry(indexMap.get(key))) {
-        indexMap.set(key, entry);
-      }
-    }
+    // Build maps by key
+    const prevMap = new Map();
+    const unkeyedPrev = [];
     
-    // Merge incoming (prefer higher-scored entries)
-    for (const entry of incoming) {
-      const key = entry.stableKey || entry.id;
+    for (const entry of prev) {
+      const key = getKey(entry);
       if (!key) {
-        // No key - append anyway (safe)
-        indexMap.set(`nokey-${Date.now()}-${Math.random()}`, entry);
+        unkeyedPrev.push(entry);
         continue;
       }
       
-      if (!indexMap.has(key) || scoreEntry(entry) > scoreEntry(indexMap.get(key))) {
-        indexMap.set(key, entry);
+      if (!prevMap.has(key) || scoreEntry(entry) > scoreEntry(prevMap.get(key))) {
+        prevMap.set(key, entry);
       }
     }
     
-    // Sort by index, then createdAt
-    const merged = Array.from(indexMap.values()).sort((a, b) => {
+    const incomingMap = new Map();
+    const unkeyedIncoming = [];
+    
+    for (const entry of incoming) {
+      const key = getKey(entry);
+      if (!key) {
+        unkeyedIncoming.push(entry);
+        continue;
+      }
+      
+      if (!incomingMap.has(key) || scoreEntry(entry) > scoreEntry(incomingMap.get(key))) {
+        incomingMap.set(key, entry);
+      }
+    }
+    
+    // KEY-BASED MONOTONIC: Union of keys
+    const allKeys = new Set([...prevMap.keys(), ...incomingMap.keys()]);
+    const mergedMap = new Map();
+    
+    for (const key of allKeys) {
+      const prevEntry = prevMap.get(key);
+      const incomingEntry = incomingMap.get(key);
+      
+      if (!incomingEntry) {
+        // Key only in prev - must keep (monotonic)
+        mergedMap.set(key, prevEntry);
+      } else if (!prevEntry) {
+        // Key only in incoming - add
+        mergedMap.set(key, incomingEntry);
+      } else {
+        // Key in both - prefer higher score
+        mergedMap.set(key, scoreEntry(incomingEntry) >= scoreEntry(prevEntry) ? incomingEntry : prevEntry);
+      }
+    }
+    
+    // Sort keyed entries: index asc, createdAt asc, stableKey lexical (stable)
+    const keyedSorted = Array.from(mergedMap.values()).sort((a, b) => {
       const aIdx = a.index || 0;
       const bIdx = b.index || 0;
       if (aIdx !== bIdx) return aIdx - bIdx;
       
       const aTs = a.createdAt || new Date(a.timestamp || 0).getTime() || 0;
       const bTs = b.createdAt || new Date(b.timestamp || 0).getTime() || 0;
-      return aTs - bTs;
+      if (aTs !== bTs) return aTs - bTs;
+      
+      // Stable fallback: lexical sort by stableKey
+      const aKey = a.stableKey || a.id || '';
+      const bKey = b.stableKey || b.id || '';
+      return aKey.localeCompare(bKey);
     });
     
-    console.log('[TRANSCRIPT_MONOTONIC][UPSERT]', {
+    // Append unkeyed entries (preserve original relative order)
+    const merged = [...keyedSorted, ...unkeyedIncoming, ...unkeyedPrev];
+    
+    console.log('[TRANSCRIPT_MONOTONIC][UPSERT_KEY_BASED]', {
       prevLen: prev.length,
       incomingLen: incoming.length,
       mergedLen: merged.length,
-      source: sourceLabel,
-      newEntries: merged.length - prev.length
+      prevKeysCount: prevMap.size,
+      incomingKeysCount: incomingMap.size,
+      mergedKeysCount: mergedMap.size,
+      unkeyedCount: unkeyedIncoming.length + unkeyedPrev.length,
+      source: sourceLabel
     });
     
     return merged;
@@ -9973,105 +10006,10 @@ export default function CandidateInterview() {
   
   const finalRenderStreamDeduped = dedupeByCanonicalKey(orderedStream);
   
-  // STEP 4: REPAIR LOGIC DISABLED (monotonic upsert eliminates need)
+  // STEP 4: REPAIR SYSTEMS REMOVED (key-based monotonic prevents loss)
   let finalRenderStream = finalRenderStreamDeduped;
   
-  if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-    // Diagnostic only: detect if repair would have triggered (should not happen)
-    if (currentItem?.type === 'v3_pack_opener' || v3ProbingActive) {
-      const packId = currentItem?.packId || v3ProbingContext?.packId;
-      const instanceNumber = currentItem?.instanceNumber || v3ProbingContext?.instanceNumber || 1;
-      
-      if (packId) {
-        const openerAnswerInDb = dbTranscript.find(e => 
-          e.messageType === 'v3_opener_answer' && 
-          e.packId === packId && 
-          e.instanceNumber === instanceNumber
-        );
-        
-        const openerAnswerInRender = baseRenderStream.find(e => 
-          (e.messageType === 'v3_opener_answer' || e.kind === 'v3_opener_a') &&
-          e.packId === packId && 
-          (e.instanceNumber === instanceNumber || e.meta?.instanceNumber === instanceNumber)
-        );
-        
-        if (openerAnswerInDb && !openerAnswerInRender) {
-          console.error('[TRANSCRIPT_MONOTONIC][REPAIR_WOULD_TRIGGER]', {
-            type: 'OPENER_ANSWER',
-            packId,
-            instanceNumber,
-            stableKey: openerAnswerInDb.stableKey || openerAnswerInDb.id,
-            action: 'NO_REPAIR',
-            note: 'Monotonic upsert should prevent this - check canonical source'
-          });
-        }
-      }
-    }
-    
-    if ((v3ProbingActive || currentItem?.type === 'multi_instance_gate') && v3ProbingContext) {
-      const packId = v3ProbingContext.packId;
-      const instanceNumber = v3ProbingContext.instanceNumber || 1;
-      
-      const v3ProbeQInDb = dbTranscript.filter(e => 
-        (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
-        e.meta?.packId === packId &&
-        e.meta?.instanceNumber === instanceNumber &&
-        e.visibleToCandidate !== false
-      );
-      
-      const v3ProbeAInDb = dbTranscript.filter(e => 
-        (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER') &&
-        e.meta?.packId === packId &&
-        e.meta?.instanceNumber === instanceNumber &&
-        e.visibleToCandidate !== false
-      );
-      
-      const missingQ = v3ProbeQInDb.filter(qEntry => 
-        !finalRenderStream.some(r => (r.stableKey && r.stableKey === qEntry.stableKey) || (r.id && r.id === qEntry.id))
-      );
-      
-      const missingA = v3ProbeAInDb.filter(aEntry => 
-        !finalRenderStream.some(r => (r.stableKey && r.stableKey === aEntry.stableKey) || (r.id && r.id === aEntry.id))
-      );
-      
-      if (missingQ.length > 0 || missingA.length > 0) {
-        console.error('[TRANSCRIPT_MONOTONIC][REPAIR_WOULD_TRIGGER]', {
-          type: 'V3_PROBE_QA',
-          packId,
-          instanceNumber,
-          missingQCount: missingQ.length,
-          missingACount: missingA.length,
-          action: 'NO_REPAIR',
-          note: 'Monotonic upsert should prevent this - check canonical source'
-        });
-      }
-    }
-  }
-  
-  // STEP 4: REGRESSION DETECTION DISABLED (diagnostics only, no repair)
-  if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-    const renderStreamKeys = new Set(finalRenderStream.map(r => r.stableKey || r.id));
-    if (recentlySubmittedUserAnswersRef.current.size > 0) {
-      for (const protectedKey of recentlySubmittedUserAnswersRef.current) {
-        if (!renderStreamKeys.has(protectedKey) && !lastRegressionLogRef.current.has(protectedKey)) {
-          const inDb = dbTranscript.some(e => (e.stableKey || e.id) === protectedKey);
-          const inCanonical = canonicalTranscriptRef.current.some(e => (e.stableKey || e.id) === protectedKey);
-          
-          console.error('[TRANSCRIPT_MONOTONIC][REGRESSION_DETECTED]', {
-            stableKey: protectedKey,
-            inDb,
-            inCanonical,
-            renderLen: finalRenderStream.length,
-            canonicalLen: canonicalTranscriptRef.current.length,
-            action: 'NO_REPAIR',
-            note: 'Monotonic upsert should prevent this - check why canonical missing entry'
-          });
-          
-          lastRegressionLogRef.current.add(protectedKey);
-        }
-      }
-    }
-  }
+  // STEP 4: REPAIR SYSTEMS REMOVED (key-based monotonic prevents loss)
   
   // STEP 5: Compilation safety assert (defensive - detects tool markup corruption)
   if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
@@ -11224,33 +11162,7 @@ export default function CandidateInterview() {
             // Apply final dedupe to prevent React key collisions
             let transcriptToRenderDeduped = dedupeBeforeRender(transcriptWithV3ProbeQA);
             
-            // STEP 4: REPAIR LOGIC DISABLED (monotonic upsert makes this obsolete)
-            if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-              const persistedUserAnswers = dbTranscript.filter(e => 
-                e.role === 'user' && 
-                (e.stableKey || e.id) &&
-                e.visibleToCandidate !== false
-              );
-              
-              const transcriptKeys = new Set(transcriptToRenderDeduped.map(r => r.stableKey || r.id));
-              const missingFromRender = persistedUserAnswers.filter(dbEntry => {
-                const dbKey = dbEntry.stableKey || dbEntry.id;
-                return !transcriptKeys.has(dbKey);
-              });
-              
-              if (missingFromRender.length > 0) {
-                console.error('[TRANSCRIPT_MONOTONIC][REPAIR_DISABLED]', {
-                  missingCount: missingFromRender.length,
-                  missingKeys: missingFromRender.map(e => ({
-                    stableKey: e.stableKey || e.id,
-                    messageType: e.messageType || e.type,
-                    textPreview: (e.text || '').substring(0, 40)
-                  })),
-                  action: 'NO_REPAIR',
-                  note: 'Monotonic upsert should prevent this - investigate why canonical source missing entries'
-                });
-              }
-            }
+            // STEP 4: REPAIR SYSTEMS REMOVED (key-based monotonic prevents loss)
             
             // 5) DIAGNOSTIC: Type counts + final invariant (dev only)
             if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
