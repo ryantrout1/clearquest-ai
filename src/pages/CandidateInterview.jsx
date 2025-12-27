@@ -1383,6 +1383,9 @@ export default function CandidateInterview() {
   const [v3PromptPhase, setV3PromptPhase] = useState("IDLE");
   const lastV3PromptPhaseRef = useRef("IDLE");
   
+  // V3 PROMPT SNAPSHOTS: In-memory store to track committed prompts (PART B)
+  const [v3PromptSnapshots, setV3PromptSnapshots] = useState([]);
+  
   // FOOTER CONTROLLER TRACE: Track last seen values for change detection
   const lastFooterControllerRef = useRef(null);
   const lastBottomBarModeRef = useRef(null);
@@ -1681,6 +1684,16 @@ export default function CandidateInterview() {
   };
   
   const activeUiItem = resolveActiveUiItem();
+  
+  // PART A: activePromptKind SOT (single consolidated log)
+  console.log('[PROMPT_KIND_SOT]', {
+    activePromptKind: activeUiItem.kind,
+    v3PromptPhase,
+    hasActiveV3Prompt,
+    isMultiInstanceGate: currentItem?.type === 'multi_instance_gate',
+    currentItemType: currentItem?.type,
+    currentItemId: currentItem?.id
+  });
   
   // TASK B: ACTIVE KIND PRECEDENCE LOG: Only log when kind changes (reduce spam)
   if (activeUiItem.kind !== lastLoggedActiveKindRef.current) {
@@ -6697,6 +6710,15 @@ export default function CandidateInterview() {
     
     // ATOMIC STATE TRANSITION: batch to avoid intermediate TEXT_INPUT footer
     unstable_batchedUpdates(() => {
+      // PART A.3: Force-clear V3 prompt state before MI_GATE
+      console.log('[MI_GATE][V3_PROMPT_CLEARED_ON_ENTER]', {
+        packId,
+        instanceNumber,
+        v3PromptPhase,
+        clearedPromptText: !!v3ActivePromptText,
+        clearedPromptId: !!lastV3PromptSnapshotRef.current?.promptId
+      });
+
       // Fully exit V3 mode and clear prompts
       setV3ProbingActive(false);
       setV3ActivePromptText(null);
@@ -6704,7 +6726,7 @@ export default function CandidateInterview() {
       setV3ProbingContext(null);
       setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
       setUiBlocker(null);
-      
+
       // LIFECYCLE: Reset phase to IDLE on gate transition
       setV3PromptPhase("IDLE");
 
@@ -6926,6 +6948,16 @@ export default function CandidateInterview() {
       promptId,
       promptText
     };
+    
+    // PART B: Record prompt snapshot (deterministic UI source)
+    setV3PromptSnapshots(prev => {
+      const exists = prev.some(s => s.promptId === promptId);
+      if (exists) return prev;
+      
+      const newSnapshot = { promptId, loopKey, promptText, createdAt: Date.now() };
+      console.log('[V3_PROMPT_SNAPSHOT][CREATED]', { promptId, loopKey });
+      return [...prev, newSnapshot];
+    });
 
     // Clear typing lock (allow user input)
     setIsUserTyping(false);
@@ -7355,6 +7387,16 @@ export default function CandidateInterview() {
     
     // WATCHDOG: Verify UI stabilizes in 1 render cycle (snapshot-based, TDZ-safe)
     requestAnimationFrame(() => {
+      // PART B: Verify prompt snapshot exists before watchdog fires
+      const snapshotExists = v3PromptSnapshots.some(s => s.promptId === promptId);
+      if (!snapshotExists) {
+        console.warn('[V3_PROMPT_WATCHDOG][NO_SNAPSHOT]', { 
+          promptId, 
+          reason: 'Prompt commit did not create snapshot - expected from commitV3PromptToBottomBar' 
+        });
+        return;
+      }
+      
       // Verify snapshot is still current
       if (lastV3PromptSnapshotRef.current?.promptId !== promptId) {
         console.log('[V3_PROMPT_WATCHDOG][SKIP_STALE]', { promptId, currentPromptId: lastV3PromptSnapshotRef.current?.promptId });
@@ -9402,6 +9444,25 @@ export default function CandidateInterview() {
   // CHANGE 3: Track last rendered promptId to prevent duplicate active cards
   const currentPromptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
   
+  // PART A.2: Enforce mutual exclusion in render stream
+  if (activeUiItem.kind === "V3_PROMPT" && currentItem?.type === 'multi_instance_gate') {
+    console.log('[STREAM_SUPPRESS]', {
+      suppressed: 'MI_GATE',
+      reason: 'V3_PROMPT_ACTIVE',
+      packId: currentItem?.packId,
+      instanceNumber: currentItem?.instanceNumber
+    });
+  }
+  
+  if (activeUiItem.kind === "MI_GATE" && (hasActiveV3Prompt || v3ActivePromptText)) {
+    console.log('[STREAM_SUPPRESS]', {
+      suppressed: 'V3_PROMPT',
+      reason: 'MI_GATE_ACTIVE',
+      packId: currentItem?.packId,
+      instanceNumber: currentItem?.instanceNumber
+    });
+  }
+  
   if (activeUiItem.kind === "V3_PROMPT") {
     const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
@@ -9534,27 +9595,39 @@ export default function CandidateInterview() {
   }
   
   if (activeUiItem.kind === "MI_GATE") {
-    const miGatePrompt = currentItem?.promptText || multiInstanceGate?.promptText || `Do you have another incident to report?`;
-    const stableKey = `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`;
-    
-    // FIX A: ALWAYS render active MI_GATE card (no dedupe skip)
-    // The active gate MUST be visible as the current question in main pane
-    if (miGatePrompt) {
-      activeCard = {
-        __activeCard: true,
-        kind: "multi_instance_gate",
-        stableKey,
-        text: miGatePrompt,
-        packId: currentItem.packId,
-        instanceNumber: currentItem.instanceNumber
-      };
-      
-      console.log("[MI_GATE][ACTIVE_CARD_ADDED]", {
-        packId: currentItem.packId,
-        instanceNumber: currentItem.instanceNumber,
-        stableKey,
-        promptPreview: miGatePrompt.substring(0, 60)
+    // PART A.2: SUPPRESS if V3_PROMPT active (mutual exclusion)
+    if (activeUiItem.kind === "MI_GATE" && hasActiveV3Prompt) {
+      console.log('[STREAM_SUPPRESS]', {
+        suppressed: 'MI_GATE_CARD',
+        reason: 'V3_PROMPT_ACTIVE_OVERRIDE',
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+        hasActiveV3Prompt
       });
+      // Do NOT set activeCard - V3_PROMPT has precedence
+    } else {
+      const miGatePrompt = currentItem?.promptText || multiInstanceGate?.promptText || `Do you have another incident to report?`;
+      const stableKey = `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`;
+      
+      // FIX A: ALWAYS render active MI_GATE card (no dedupe skip) when V3 not blocking
+      // The active gate MUST be visible as the current question in main pane
+      if (miGatePrompt) {
+        activeCard = {
+          __activeCard: true,
+          kind: "multi_instance_gate",
+          stableKey,
+          text: miGatePrompt,
+          packId: currentItem.packId,
+          instanceNumber: currentItem.instanceNumber
+        };
+        
+        console.log("[MI_GATE][ACTIVE_CARD_ADDED]", {
+          packId: currentItem.packId,
+          instanceNumber: currentItem.instanceNumber,
+          stableKey,
+          promptPreview: miGatePrompt.substring(0, 60)
+        });
+      }
     }
   }
   

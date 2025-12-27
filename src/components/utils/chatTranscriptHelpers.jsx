@@ -13,6 +13,10 @@
  */
 
 import { base44 } from "@/api/base44Client";
+import { useRef } from "react";
+
+// PART C: Ref to track latest transcript (prevents stale closure reads)
+const transcriptRef = { current: [] };
 
 // ============================================================================
 // PERSIST RETRY QUEUE - Handle transient network failures
@@ -777,6 +781,9 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
       stableKey: entry.stableKey || entry.id
     });
 
+    // PART C: Update transcriptRef after successful append
+    transcriptRef.current = updatedTranscript;
+
     console.log("[TRANSCRIPT][APPEND] assistant", {
       index: entry.index,
       messageType: metadata.messageType || 'message',
@@ -886,7 +893,7 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
           stableKey: entry.stableKey || entry.id,
           dtMs
         });
-      } else {
+        } else {
         console.error('[PERSIST][CONFLICT_DETECTED]', {
           sessionId,
           stableKey: entry.stableKey || entry.id,
@@ -908,23 +915,36 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
             stableKey: entry.stableKey || entry.id
           });
         }
-      }
-    }
+        }
+        }
 
-    console.log('[PERSIST][ANSWER_SUBMIT_OK]', {
-      sessionId,
-      stableKey: entry.stableKey || entry.id
-    });
-
-    // CHANGE 4: INTEGRITY AUDIT - Verify stableKey in LOCAL transcript copy
-    const foundInLocal = updatedTranscript.some(e => e.stableKey === (entry.stableKey || entry.id));
-    if (!foundInLocal) {
-      console.error('[PERSIST][INTEGRITY_LOCAL_MISSING]', {
+        console.log('[PERSIST][ANSWER_SUBMIT_OK]', {
         sessionId,
+        stableKey: entry.stableKey || entry.id
+        });
+
+        // PART C: Update transcriptRef BEFORE local invariant check
+        transcriptRef.current = updatedTranscript;
+
+        // CHANGE 4: INTEGRITY AUDIT - Verify stableKey in transcriptRef (not stale closure)
+        // Use functional state read to get latest after append
+        requestAnimationFrame(() => {
+        const foundInRefBefore = transcriptRef.current.some(e => e.stableKey === (entry.stableKey || entry.id));
+
+        console.log('[PERSIST][INTEGRITY_CHECK]', {
         stableKey: entry.stableKey || entry.id,
-        reason: 'Write succeeded but stableKey not in local transcript array (local invariant violation)'
-      });
-    }
+        foundInRefBefore,
+        transcriptRefLen: transcriptRef.current.length
+        });
+
+        if (!foundInRefBefore) {
+        console.error('[PERSIST][INTEGRITY_LOCAL_MISSING]', {
+          sessionId,
+          stableKey: entry.stableKey || entry.id,
+          reason: 'Write succeeded but stableKey not in transcriptRef after append'
+        });
+        }
+        });
 
     console.log("[TRANSCRIPT][APPEND] user", {
       index: entry.index,
