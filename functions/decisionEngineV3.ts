@@ -2023,6 +2023,20 @@ async function decisionEngineV3Probe(base44, {
     : 0;
   const finalV3UseLLMProbeWording = Boolean(useLLMProbeWording);
   
+  // DIAGNOSTIC SOT: Missing fields truth at decision point
+  console.log('[V3_ENGINE][MISSING_FIELDS_SOT]', {
+    categoryId,
+    incidentId,
+    requiredFieldIds: (factModel?.required_fields || []).map(f => f.field_id).join(','),
+    extractedFactKeys: Object.keys(extractedFacts).join(','),
+    missingFieldIds: (missingFieldsAfter || []).map(f => f.field_id).join(','),
+    selectedFieldId: selectedFieldIdForLogging || '(none)',
+    nextAction,
+    nextPromptPreview: nextPrompt?.slice(0, 80) || null,
+    v3PromptSource: finalV3PromptSource,
+    engineBuildId: V3_ENGINE_BUILD_ID
+  });
+  
   // TASK 1: Final prompt source verification before return
   console.log('[V3_ENGINE][FINAL_PROMPT_METADATA]', {
     categoryId,
