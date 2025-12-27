@@ -12045,9 +12045,10 @@ export default function CandidateInterview() {
             </div>
             );
           })}
-              </div>
-            );
+            </div>
+          );
           })()}
+          </div>
 
           {/* CANONICAL STREAM ACTIVE CARDS: Removed - duplicate renderer */}
           {/* Active cards render in main loop via isActiveCard check (lines 8627-8692) */}
