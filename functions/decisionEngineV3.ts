@@ -1873,12 +1873,24 @@ async function decisionEngineV3Probe(base44, {
     probeCount: legacyFactState.probe_count,
     nextPromptPreview: nextPrompt?.substring(0, 60) || null
   });
-  
+
   // Generate opening prompt for new incidents
   let openingPrompt = null;
   if (isNewIncident) {
     openingPrompt = getOpeningPrompt(categoryId, factModel.category_label);
   }
+
+  // PROVENANCE: Extract metadata for frontend (safe defaults if not in scope)
+  const finalV3PromptSource = (nextAction === 'ASK' && typeof promptSource !== 'undefined') 
+    ? promptSource 
+    : 'TEMPLATE';
+  const finalV3LlmMs = (nextAction === 'ASK' && typeof llmMs !== 'undefined') 
+    ? llmMs 
+    : null;
+  const finalV3EffectiveInstructionsLen = (typeof effectiveInstructionsLen !== 'undefined') 
+    ? effectiveInstructionsLen 
+    : 0;
+  const finalV3UseLLMProbeWording = Boolean(useLLMProbeWording);
 
   // PART 2: HARD FAIL-SAFE - If month/year detected in opener, MUST NOT ask date questions
   let gateStatus = 'NOT_APPLICABLE';
