@@ -1547,6 +1547,10 @@ export default function CandidateInterview() {
   // Moved from line 8752 to prevent "change in order of Hooks" error
   const reinjectedOpenerAnswersRef = useRef(new Set());
   const reinjectedV3ProbeQARef = useRef(new Set());
+  
+  // B) Recent submit protection: Track recently submitted user answer stableKeys
+  const recentlySubmittedUserAnswersRef = useRef(new Set());
+  const renderedUserAnswersRef = useRef(new Set());
 
   // ============================================================================
   // V3 PROMPT DETECTION + ACTIVE UI ITEM RESOLVER (TDZ-safe early placement)
@@ -9964,6 +9968,52 @@ export default function CandidateInterview() {
     }
   }
   
+  // D) REPAIR: ALL missing user answers (comprehensive safety net)
+  const allUserAnswersInDb = dbTranscript.filter(e => 
+    e.role === 'user' && 
+    (e.stableKey || e.id) &&
+    e.visibleToCandidate !== false
+  );
+  
+  const missingUserAnswers = allUserAnswersInDb.filter(dbEntry => {
+    const dbKey = dbEntry.stableKey || dbEntry.id;
+    return !finalRenderStream.some(r => (r.stableKey || r.id) === dbKey);
+  });
+  
+  if (missingUserAnswers.length > 0) {
+    console.error('[CQ_TRANSCRIPT][REPAIR_REINJECTED_USER_ANSWER]', {
+      missingCount: missingUserAnswers.length,
+      missingKeys: missingUserAnswers.map(e => ({
+        stableKey: e.stableKey || e.id,
+        messageType: e.messageType || e.type,
+        textPreview: (e.text || '').substring(0, 40)
+      })),
+      reason: 'User answers in dbTranscript but missing from render - repairing'
+    });
+    
+    // Sort by transcript index for chronological order
+    const toInject = [...missingUserAnswers].sort((a, b) => (a.index || 0) - (b.index || 0));
+    
+    // IMMUTABLE: Insert before MI gate if present, otherwise append
+    const miGateActiveIndex = finalRenderStream.findIndex(e => e.__activeCard && e.kind === "multi_instance_gate");
+    
+    if (miGateActiveIndex !== -1) {
+      finalRenderStream = [
+        ...finalRenderStream.slice(0, miGateActiveIndex),
+        ...toInject,
+        ...finalRenderStream.slice(miGateActiveIndex)
+      ];
+    } else {
+      finalRenderStream = [...finalRenderStream, ...toInject];
+    }
+    
+    console.log('[CQ_TRANSCRIPT][REPAIR_USER_ANSWER_IMMUTABLE_OK]', {
+      beforeLen: finalRenderStreamDeduped.length,
+      afterLen: finalRenderStream.length,
+      injectedCount: toInject.length
+    });
+  }
+  
   // LAST-RESORT SAFETY NET: Log if V3_PROBE_ANSWER still missing (should not happen with deterministic inclusion)
   if (currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === "MI_GATE") {
     const packId = currentItem?.packId;
@@ -10956,10 +11006,33 @@ export default function CandidateInterview() {
               return deduped;
             };
             
-            // A) ALLOW PERSISTED V3 PROBE Q/A: Only block ACTIVE prompts, not answered ones
+            // A) ALLOW PERSISTED V3 PROBE Q/A + PROTECT USER ANSWERS
             const transcriptWithV3ProbesBlocked = transcriptToRender.filter(entry => {
-              // Check both stableKey prefix and messageType/type
+              // A) IMMUTABLE USER ANSWERS: Never remove persisted user answers
               const stableKey = entry.stableKey || entry.id || '';
+              const isUserRole = entry.role === 'user';
+              const isRecentlySubmitted = recentlySubmittedUserAnswersRef.current.has(stableKey);
+              
+              if (isUserRole && (isRecentlySubmitted || stableKey)) {
+                // B) PROTECTION WINDOW: Force-include recently submitted answers
+                if (isRecentlySubmitted) {
+                  console.log('[CQ_TRANSCRIPT][USER_ANSWER_PROTECT]', {
+                    stableKey,
+                    messageType: entry.messageType || entry.type,
+                    reason: 'Recently submitted - protection window active'
+                  });
+                  
+                  // Mark as rendered (clear protection after first render)
+                  renderedUserAnswersRef.current.add(stableKey);
+                  if (renderedUserAnswersRef.current.has(stableKey)) {
+                    recentlySubmittedUserAnswersRef.current.delete(stableKey);
+                  }
+                }
+                
+                return true; // ALWAYS include user answers with stableKey
+              }
+              
+              // Check both stableKey prefix and messageType/type
               const hasV3ProbeQPrefix = stableKey.startsWith('v3-probe-q:');
               const hasV3ProbeAPrefix = stableKey.startsWith('v3-probe-a:');
               const isV3ProbeQuestionType = 
