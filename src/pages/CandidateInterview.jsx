@@ -11110,19 +11110,9 @@ export default function CandidateInterview() {
                   }
                 }
                 
-                // C) Tighten to persisted-only: Only force-include if in protection OR in dbTranscript
-                const inDb = dbTranscript.some(e => (e.stableKey || e.id) === stableKey);
-                if (isRecentlySubmitted || inDb) {
-                  return true; // Include protected or persisted user answers
-                }
-                
-                // Not persisted and not protected - exclude
-                console.warn('[CQ_TRANSCRIPT][USER_ANSWER_NOT_PERSISTED]', {
-                  stableKey,
-                  messageType: entry.messageType || entry.type,
-                  reason: 'User answer has stableKey but not in DB transcript - excluding'
-                });
-                return false;
+                // SECONDARY CHANGE: Never exclude user answers (removed inDb exclusion - causes race condition drops)
+                // User answers are ALWAYS included if role=user (only check explicit visibility=false)
+                return true; // Include all user answers with stableKey
               }
               
               // Check both stableKey prefix and messageType/type
@@ -11171,7 +11161,72 @@ export default function CandidateInterview() {
             const transcriptWithV3ProbeQA = [...transcriptWithV3ProbesBlocked, ...v3ProbeQAForGateDeterministic];
             
             // Apply final dedupe to prevent React key collisions
-            const transcriptToRenderDeduped = dedupeBeforeRender(transcriptWithV3ProbeQA);
+            let transcriptToRenderDeduped = dedupeBeforeRender(transcriptWithV3ProbeQA);
+            
+            // CRITICAL CHANGE: Enforce immutable user answers at TRANSCRIPT-RENDERABLE layer (before UI mapping)
+            // This ensures reinjected answers are in normalized format and WILL render
+            const persistedUserAnswers = dbTranscript.filter(e => 
+              e.role === 'user' && 
+              (e.stableKey || e.id) &&
+              e.visibleToCandidate !== false
+            );
+            
+            const transcriptKeys = new Set(transcriptToRenderDeduped.map(r => r.stableKey || r.id));
+            const missingFromTranscript = persistedUserAnswers.filter(dbEntry => {
+              const dbKey = dbEntry.stableKey || dbEntry.id;
+              return !transcriptKeys.has(dbKey);
+            });
+            
+            if (missingFromTranscript.length > 0) {
+              console.error('[CQ_TRANSCRIPT][IMMUTABLE_REINJECT_AT_TRANSCRIPT_LAYER]', {
+                missingCount: missingFromTranscript.length,
+                missingKeys: missingFromTranscript.map(e => ({
+                  stableKey: e.stableKey || e.id,
+                  messageType: e.messageType || e.type,
+                  textPreview: (e.text || '').substring(0, 40)
+                })),
+                reason: 'Persisted user answer missing from transcript renderable - reinjecting at transcript layer',
+                normalizer: 'same_as_dbTranscript_entries'
+              });
+              
+              // Sort by transcript index for chronological order
+              const toInject = [...missingFromTranscript].sort((a, b) => (a.index || 0) - (b.index || 0));
+              
+              // Inject at transcript layer (entries already normalized - from dbTranscript)
+              // Find MI gate in transcript list (if present)
+              const miGateIndexInTranscript = transcriptToRenderDeduped.findIndex(e => 
+                e.messageType === 'MULTI_INSTANCE_GATE_SHOWN' ||
+                (e.stableKey && e.stableKey.startsWith('mi-gate:'))
+              );
+              
+              if (miGateIndexInTranscript !== -1) {
+                transcriptToRenderDeduped = [
+                  ...transcriptToRenderDeduped.slice(0, miGateIndexInTranscript),
+                  ...toInject,
+                  ...transcriptToRenderDeduped.slice(miGateIndexInTranscript)
+                ];
+                console.log('[CQ_TRANSCRIPT][IMMUTABLE_LAYER_ASSERT]', {
+                  dbUserAnswerCount: persistedUserAnswers.length,
+                  renderedUserAnswerCount: transcriptKeys.size,
+                  missingCount: missingFromTranscript.length,
+                  injectedBeforeGateAt: miGateIndexInTranscript
+                });
+              } else {
+                transcriptToRenderDeduped = [...transcriptToRenderDeduped, ...toInject];
+                console.log('[CQ_TRANSCRIPT][IMMUTABLE_LAYER_ASSERT]', {
+                  dbUserAnswerCount: persistedUserAnswers.length,
+                  renderedUserAnswerCount: transcriptKeys.size,
+                  missingCount: missingFromTranscript.length,
+                  injectedAt: 'end'
+                });
+              }
+            } else {
+              console.log('[CQ_TRANSCRIPT][IMMUTABLE_LAYER_ASSERT]', {
+                dbUserAnswerCount: persistedUserAnswers.length,
+                renderedUserAnswerCount: transcriptKeys.size,
+                missingCount: 0
+              });
+            }
             
             // REGRESSION LOG: Prove what we're about to render (source of truth for UI)
             const packId = currentItem?.packId || v3ProbingContext?.packId;
