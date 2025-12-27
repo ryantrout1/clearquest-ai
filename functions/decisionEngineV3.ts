@@ -209,7 +209,8 @@ function generateV3ProbeQuestion(field, collectedFacts = {}) {
             labelLower.startsWith('how') || labelLower.startsWith('why')) {
           return `${label}?`;
         }
-        return `What was the ${labelLower}?`;
+        // TASK 3: Neutral generic template (no accusatory phrasing)
+        return `Can you tell me more about the ${labelLower}?`;
       }
       return `Can you provide more information about ${fieldId?.replace(/_/g, ' ') || 'this'}?`;
   }
@@ -1755,7 +1756,29 @@ async function decisionEngineV3Probe(base44, {
       }
       
       // Use LLM question or fall back to deterministic template
-      nextPrompt = llmQuestion || generateV3ProbeQuestion(candidateField, incident.facts);
+      const rawPrompt = llmQuestion || generateV3ProbeQuestion(candidateField, incident.facts);
+      
+      // TASK 2: Last-resort sanitizer (guarantee clean output)
+      let nextPrompt = rawPrompt;
+      if (rawPrompt && rawPrompt.toLowerCase().includes('omitted information')) {
+        // Hard-coded replacement for agency_name field specifically
+        if (candidateField?.field_id?.toLowerCase().includes('agency')) {
+          nextPrompt = "What was the name of the law enforcement agency you applied to?";
+        } else {
+          // Generic sanitization: replace accusatory phrase
+          nextPrompt = rawPrompt.replace(/where you omitted information/gi, 'you applied to')
+                                 .replace(/what you omitted/gi, 'the issue')
+                                 .replace(/omitted information/gi, 'the details');
+        }
+        
+        console.warn('[V3_PROBE_GEN][SANITIZED_PROMPT_TEXT]', {
+          packId: resolvedPackId || packId || null,
+          fieldId: candidateField?.field_id || null,
+          beforePreview: rawPrompt.slice(0, 80),
+          afterPreview: nextPrompt.slice(0, 80)
+        });
+      }
+      
       nextAction = "ASK";
       
       // CONSOLIDATED SOT LOG: Single source of truth for LLM probe generation
@@ -2192,39 +2215,56 @@ Deno.serve(async (req) => {
     // ========== VALIDATE REQUIRED FIELDS ==========
     const { sessionId, categoryId, incidentId, latestAnswerText, baseQuestionId, questionCode, sectionId, instanceNumber, isInitialCall, config, packId, packInstructions, useLLMProbeWording, isEditorPreview: payloadIsEditorPreview } = body;
     
-    // TASK 2B: Compute editor preview SOT (payload first, header fallback)
-    const headerIsEditorPreview = Boolean(referer.includes('/editor/preview/'));
-    const isEditorPreviewSOT = Boolean(payloadIsEditorPreview) || headerIsEditorPreview;
+    // TASK 1A: Classify preview context (editor + preview-sandbox)
+    const reqUrl = String(req?.url || '');
+    const hostGuess = (() => {
+      try {
+        return (new URL(reqUrl)).host || '';
+      } catch {
+        return '';
+      }
+    })();
     
-    // TASK 2A: Force useLLMProbeWording in preview (defense in depth)
-    const useLLMProbeWordingSOT = isEditorPreviewSOT ? true : Boolean(useLLMProbeWording);
+    const headerIsEditorPreview = referer.includes('/editor/preview/');
+    const hostIsPreviewSandbox = hostGuess.includes('preview-sandbox');
+    const urlIsPreviewSandbox = reqUrl.includes('preview-sandbox');
     
-    // TASK 2D: Compact detection log (both sources)
+    // TASK 1C: Unified preview SOT (editor OR sandbox)
+    const isPreviewContextSOT = Boolean(payloadIsEditorPreview) || headerIsEditorPreview || hostIsPreviewSandbox || urlIsPreviewSandbox;
+    
+    // TASK 1A: Force useLLMProbeWording in ANY preview context
+    const useLLMProbeWordingSOT = isPreviewContextSOT ? true : Boolean(useLLMProbeWording);
+    
+    // TASK 1E: Extended detection log
     console.log('[V3_EDITOR_PREVIEW][DETECT]', {
       payloadIsEditorPreview: Boolean(payloadIsEditorPreview),
       headerIsEditorPreview,
-      isEditorPreviewSOT,
+      hostGuess,
+      urlPreview: reqUrl.slice(0, 80),
+      hostIsPreviewSandbox,
+      urlIsPreviewSandbox,
+      isPreviewContextSOT,
       refererPreview: referer.slice(0, 80) || '(none)'
     });
     
-    // TASK 2B: SOT LOG - Extended with forcing metadata
+    // TASK 1B: SOT LOG - Extended with forcing metadata
     console.log('[V3_ENGINE][REQ_SOT]', {
       categoryId,
       instanceNumber: instanceNumber || 1,
       packId: packId || null,
       useLLMProbeWordingRaw: Boolean(useLLMProbeWording),
       useLLMProbeWordingSOT,
-      useLLMProbeWordingForced: isEditorPreviewSOT && !Boolean(useLLMProbeWording),
+      useLLMProbeWordingForced: isPreviewContextSOT && !Boolean(useLLMProbeWording),
       packInstructionsLen: (packInstructions || '').length
     });
     
     // TASK 1B: Default V3 instructions (editor preview only)
     const DEFAULT_V3_INSTRUCTIONS = 'You are ClearQuest AI. Write one concise, natural follow-up question that asks ONLY for the missing fact in plain language. Do NOT accuse the user of omitting information. Do NOT mention "omitted information". Be specific to the user narrative.';
     
-    // TASK 2C: Pass isEditorPreviewSOT down to decision engine
+    // TASK 1C: Pass isPreviewContextSOT down to decision engine
     const extendedConfig = {
       ...config,
-      isEditorPreview: isEditorPreviewSOT,
+      isEditorPreview: isPreviewContextSOT,
       defaultInstructions: DEFAULT_V3_INSTRUCTIONS
     };
     
