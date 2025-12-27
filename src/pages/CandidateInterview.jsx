@@ -11208,6 +11208,23 @@ export default function CandidateInterview() {
               // 4) POST-INJECT DEDUPE: Remove any duplicates created by injection
               transcriptToRenderDeduped = dedupeBeforeRender(transcriptToRenderDeduped);
               
+              // 5) DEBUG: Log first reinjected entry shape (dev only, once per session)
+              if (typeof window !== 'undefined' && 
+                  (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost')) &&
+                  toInjectNormalized.length > 0 &&
+                  !window.__cqReinjectShapeLogged) {
+                window.__cqReinjectShapeLogged = true;
+                const firstEntry = toInjectNormalized[0];
+                console.log('[CQ_TRANSCRIPT][REINJECTED_ENTRY_SHAPE]', {
+                  stableKey: getStableKeySOT(firstEntry),
+                  messageType: getMessageTypeSOT(firstEntry),
+                  role: firstEntry.role,
+                  hasText: !!(firstEntry.text && firstEntry.text.length > 0),
+                  hasCanonicalKey: !!firstEntry.__canonicalKey,
+                  textPreview: (firstEntry.text || '').substring(0, 40)
+                });
+              }
+              
               // 3) FIXED COUNTS: Actual user answer counts (not total keys)
               const renderedUserAnswerCount = transcriptToRenderDeduped.filter(e => 
                 e.role === 'user' && e.visibleToCandidate !== false
