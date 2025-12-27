@@ -2024,18 +2024,32 @@ async function decisionEngineV3Probe(base44, {
   const finalV3UseLLMProbeWording = Boolean(useLLMProbeWording);
   
   // DIAGNOSTIC SOT: Missing fields truth at decision point
+  const requiredFieldIds = (factModel?.required_fields || []).map(f => f.field_id);
+  const extractedFactKeys = Object.keys(extractedFacts || {});
+  const missingFieldIds = (missingFieldsAfter || []).map(f => f.field_id);
+  
   console.log('[V3_ENGINE][MISSING_FIELDS_SOT]', {
     categoryId,
     incidentId,
-    requiredFieldIds: (factModel?.required_fields || []).map(f => f.field_id).join(','),
-    extractedFactKeys: Object.keys(extractedFacts).join(','),
-    missingFieldIds: (missingFieldsAfter || []).map(f => f.field_id).join(','),
+    requiredFieldIds,
+    extractedFactKeys,
+    missingFieldIds,
     selectedFieldId: selectedFieldIdForLogging || '(none)',
     nextAction,
     nextPromptPreview: nextPrompt?.slice(0, 80) || null,
     v3PromptSource: finalV3PromptSource,
     engineBuildId: V3_ENGINE_BUILD_ID
   });
+  
+  // AGENCY-SPECIFIC DIAGNOSTIC: Warn if agency_name missing but not selected
+  if (missingFieldIds.includes('agency_name') && selectedFieldIdForLogging !== 'agency_name') {
+    console.warn('[V3_ENGINE][AGENCY_NOT_SELECTED]', {
+      missingFieldIds,
+      selectedFieldId: selectedFieldIdForLogging || '(none)',
+      engineBuildId: V3_ENGINE_BUILD_ID,
+      reason: 'agency_name is missing but engine selected different field or no field'
+    });
+  }
   
   // TASK 1: Final prompt source verification before return
   console.log('[V3_ENGINE][FINAL_PROMPT_METADATA]', {
