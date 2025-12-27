@@ -11333,6 +11333,43 @@ export default function CandidateInterview() {
               });
             }
             
+            // 5) DIAGNOSTIC: Type counts + final invariant (dev only)
+            if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+              const openerAnswerCount = transcriptToRenderDeduped.filter(e => getMessageTypeSOT(e) === 'V3_OPENER_ANSWER').length;
+              const probeAnswerCount = transcriptToRenderDeduped.filter(e => getMessageTypeSOT(e) === 'V3_PROBE_ANSWER').length;
+              const probeQuestionCount = transcriptToRenderDeduped.filter(e => getMessageTypeSOT(e) === 'V3_PROBE_QUESTION').length;
+              
+              console.log('[CQ_TRANSCRIPT][TYPE_COUNTS_SOT]', {
+                openerAnswerCount,
+                probeAnswerCount,
+                probeQuestionCount
+              });
+              
+              // D) FINAL INVARIANT: Verify all persisted user answers are present AND non-empty
+              const missingOrEmptyKeys = [];
+              for (const dbEntry of persistedUserAnswers) {
+                const dbKey = dbEntry.stableKey || dbEntry.id;
+                const renderedEntry = transcriptToRenderDeduped.find(r => (r.stableKey || r.id) === dbKey);
+                
+                if (!renderedEntry) {
+                  missingOrEmptyKeys.push({ key: dbKey, reason: 'missing' });
+                } else if (!(renderedEntry.text || '').trim()) {
+                  missingOrEmptyKeys.push({ key: dbKey, reason: 'empty_text' });
+                }
+              }
+              
+              if (missingOrEmptyKeys.length > 0) {
+                console.error('[CQ_TRANSCRIPT][FINAL_INVARIANT_FAIL]', {
+                  missingKeys: missingOrEmptyKeys,
+                  note: 'User answers must be present and non-empty'
+                });
+              } else {
+                console.log('[CQ_TRANSCRIPT][FINAL_INVARIANT_OK]', {
+                  count: persistedUserAnswers.length
+                });
+              }
+            }
+            
             // REGRESSION LOG: Prove what we're about to render (source of truth for UI)
             const packId = currentItem?.packId || v3ProbingContext?.packId;
             const instanceNumber = currentItem?.instanceNumber || v3ProbingContext?.instanceNumber || 1;
