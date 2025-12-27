@@ -1714,27 +1714,18 @@ export default function CandidateInterview() {
   // PART A: MI_GATE suppression helper (deterministic, phase-based)
   const shouldSuppressMiGateSOT = isV3UiBlockingSOT && currentItem?.type === 'multi_instance_gate';
   
-  // Log once when suppression becomes active (dedupe)
-  const [lastMiGateSuppressKey, setLastMiGateSuppressKey] = useState(null);
+  // Log suppression state changes using ref (no hooks)
+  const lastMiGateSuppressKeyRef = useRef(null);
   
-  useEffect(() => {
-    if (shouldSuppressMiGateSOT) {
-      const suppressKey = `${currentItem.packId}:${currentItem.instanceNumber}`;
-      if (lastMiGateSuppressKey !== suppressKey) {
-        setLastMiGateSuppressKey(suppressKey);
-        
-        const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
-        console.log('[MI_GATE][SUPPRESSED_BY_V3]', {
-          v3PromptPhase,
-          loopKey,
-          packId: currentItem?.packId,
-          instanceNumber: currentItem?.instanceNumber
-        });
-      }
-    } else if (!shouldSuppressMiGateSOT && lastMiGateSuppressKey) {
-      setLastMiGateSuppressKey(null);
+  if (shouldSuppressMiGateSOT) {
+    const key = `${currentItem?.packId || 'na'}:${currentItem?.instanceNumber || 'na'}`;
+    if (lastMiGateSuppressKeyRef.current !== key) {
+      lastMiGateSuppressKeyRef.current = key;
+      console.log('[MI_GATE][SUPPRESSED_BY_V3]', { v3PromptPhase, packId: currentItem?.packId, instanceNumber: currentItem?.instanceNumber });
     }
-  }, [shouldSuppressMiGateSOT, currentItem?.packId, currentItem?.instanceNumber, v3PromptPhase, sessionId, v3ProbingContext, lastMiGateSuppressKey]);
+  } else if (lastMiGateSuppressKeyRef.current) {
+    lastMiGateSuppressKeyRef.current = null;
+  }
   
   // PART A: activePromptKind SOT (single consolidated log)
   console.log('[PROMPT_KIND_SOT]', {
@@ -9496,6 +9487,9 @@ export default function CandidateInterview() {
   // V3 UPDATE: v3UiRenderable deprecated (always empty - all content from transcript)
   const v3UiRenderable = [];
   
+  // PART B: Suppress MI_GATE from render if V3 UI blocking (treat as null for rendering)
+  const currentItemForRender = shouldSuppressMiGateSOT ? null : currentItem;
+  
   // Active card (exactly ONE, derived from activeUiItem.kind precedence)
   let activeCard = null;
   
@@ -9657,19 +9651,21 @@ export default function CandidateInterview() {
   }
   
   if (activeUiItem.kind === "MI_GATE") {
-    // PART B: SUPPRESS if V3 UI blocking (phase-based, not text-dependent)
-    if (isV3UiBlockingSOT) {
+    // PART B: Use currentItemForRender (null if suppressed) instead of currentItem
+    // This prevents MI_GATE card creation during V3 transitions
+    if (!currentItemForRender) {
       console.log('[STREAM_SUPPRESS]', {
         suppressed: 'MI_GATE_CARD',
         reason: 'V3_UI_BLOCKING_PHASE',
         v3PromptPhase,
         packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber
+        instanceNumber: currentItem?.instanceNumber,
+        currentItemForRender: null
       });
-      // Do NOT set activeCard - V3 owns UI during ANSWER_NEEDED/PROCESSING
+      // Do NOT set activeCard - currentItemForRender is null
     } else {
-      const miGatePrompt = currentItem?.promptText || multiInstanceGate?.promptText || `Do you have another incident to report?`;
-      const stableKey = `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`;
+      const miGatePrompt = currentItemForRender.promptText || multiInstanceGate?.promptText || `Do you have another incident to report?`;
+      const stableKey = `mi-gate:${currentItemForRender.packId}:${currentItemForRender.instanceNumber}`;
       
       // FIX A: ALWAYS render active MI_GATE card (no dedupe skip) when V3 not blocking
       // The active gate MUST be visible as the current question in main pane
@@ -9679,13 +9675,13 @@ export default function CandidateInterview() {
           kind: "multi_instance_gate",
           stableKey,
           text: miGatePrompt,
-          packId: currentItem.packId,
-          instanceNumber: currentItem.instanceNumber
+          packId: currentItemForRender.packId,
+          instanceNumber: currentItemForRender.instanceNumber
         };
         
         console.log("[MI_GATE][ACTIVE_CARD_ADDED]", {
-          packId: currentItem.packId,
-          instanceNumber: currentItem.instanceNumber,
+          packId: currentItemForRender.packId,
+          instanceNumber: currentItemForRender.instanceNumber,
           stableKey,
           promptPreview: miGatePrompt.substring(0, 60)
         });
@@ -11315,16 +11311,17 @@ export default function CandidateInterview() {
 
             // Multi-instance gate prompt shown (suppress if V3 UI blocking)
             if (entry.role === 'assistant' && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
-              // PART B: Suppress MI_GATE from transcript if V3 UI blocking
-              if (shouldSuppressMiGateSOT) {
-                console.log('[MI_GATE][TRANSCRIPT_SUPPRESSED]', {
+              // PART B: Suppress MI_GATE from transcript mapping if V3 UI blocking
+              // Use currentItemForRender (null when suppressed) to prevent card creation
+              if (!currentItemForRender && isV3UiBlockingSOT) {
+                console.log('[MI_GATE][STREAM_SUPPRESSED]', {
                   packId: entry.packId || entry.meta?.packId,
                   instanceNumber: entry.instanceNumber || entry.meta?.instanceNumber,
                   stableKey: entry.stableKey || entry.id,
                   reason: 'V3_UI_BLOCKING_PHASE',
                   v3PromptPhase
                 });
-                return null; // Suppress from render
+                return null; // Suppress from render stream
               }
               
 
