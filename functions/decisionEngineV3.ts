@@ -1680,6 +1680,10 @@ async function decisionEngineV3Probe(base44, {
       let llmQuestion = null;
       // promptSource and llmMs already declared at function scope
       
+      // TASK 2: Track template generator source
+      let templateGenerator = null;
+      let templateKey = null;
+      
       // LLM DECISION SOT: Consolidated gate diagnostics (fires ONCE per engine call)
       const llmDecision = !useLLMProbeWording ? 'SKIP_DISABLED' 
         : effectiveInstructionsLen === 0 ? 'SKIP_NO_INSTRUCTIONS'
@@ -1756,7 +1760,16 @@ async function decisionEngineV3Probe(base44, {
       }
       
       // Use LLM question or fall back to deterministic template
-      const rawPrompt = llmQuestion || generateV3ProbeQuestion(candidateField, incident.facts);
+      let rawPrompt = null;
+      if (llmQuestion) {
+        rawPrompt = llmQuestion;
+        // promptSource already set to 'LLM' in try block above
+      } else {
+        rawPrompt = generateV3ProbeQuestion(candidateField, incident.facts);
+        promptSource = 'TEMPLATE';
+        templateGenerator = 'generateV3ProbeQuestion';
+        templateKey = candidateField?.field_id || null;
+      }
       
       // TASK 2: Last-resort sanitizer (guarantee clean output)
       let nextPrompt = rawPrompt;
@@ -1780,6 +1793,35 @@ async function decisionEngineV3Probe(base44, {
       }
       
       nextAction = "ASK";
+      
+      // TASK 3: Preview-only fail-loud guard (detect silent template fallback)
+      if (isPreviewContextSOT && useLLMProbeWording && promptSource === 'TEMPLATE') {
+        nextPrompt = `DEBUG: LLM was forced but TEMPLATE path was used. Check logs: [V3_PROBE_GEN][LLM_CALL]/[LLM_FALLBACK]/[PROMPT_SOURCE_SOT]. Original: ${nextPrompt.slice(0, 120)}`;
+        promptSource = 'TEMPLATE_FORCED_DEBUG';
+        
+        console.error('[V3_PROBE_GEN][FAIL_LOUD_PREVIEW]', {
+          categoryId,
+          instanceNumber: instanceNumber || 1,
+          packId: resolvedPackId || null,
+          fieldId: candidateField?.field_id,
+          reason: 'LLM forced but template used - returning debug prompt',
+          originalPreview: nextPrompt.slice(0, 80)
+        });
+      }
+      
+      // TASK 1: Definitive prompt source SOT (proves exact generator)
+      console.log('[V3_PROBE_GEN][PROMPT_SOURCE_SOT]', {
+        categoryId,
+        instanceNumber: instanceNumber || 1,
+        packId: resolvedPackId || packId || null,
+        fieldId: candidateField?.field_id || null,
+        promptSource: promptSource || '(missing)',
+        llmMs: (typeof llmMs === 'number' ? llmMs : null),
+        templateGenerator: templateGenerator || null,
+        templateKey: templateKey || null,
+        promptLen: (nextPrompt || '').length,
+        promptPreview: (nextPrompt || '').slice(0, 90)
+      });
       
       // CONSOLIDATED SOT LOG: Single source of truth for LLM probe generation
       console.log('[V3_PROBE_GEN][SOT]', {
@@ -1952,6 +1994,16 @@ async function decisionEngineV3Probe(base44, {
     ? effectiveInstructionsLen 
     : 0;
   const finalV3UseLLMProbeWording = Boolean(useLLMProbeWording);
+  
+  // TASK 1: Final prompt source verification before return
+  console.log('[V3_ENGINE][FINAL_PROMPT_METADATA]', {
+    categoryId,
+    incidentId,
+    nextAction,
+    promptSource: finalV3PromptSource,
+    llmMs: finalV3LlmMs,
+    promptPreview: nextPrompt?.slice(0, 90) || null
+  });
 
   // PART 2: HARD FAIL-SAFE - If month/year detected in opener, MUST NOT ask date questions
   let gateStatus = 'NOT_APPLICABLE';
