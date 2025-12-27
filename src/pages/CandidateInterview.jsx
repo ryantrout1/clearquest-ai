@@ -2406,6 +2406,23 @@ export default function CandidateInterview() {
     return distanceFromBottom <= thresholdPx;
   };
 
+  // MESSAGE TYPE SOT: Canonical messageType normalizer (handles DB casing mismatches)
+  const getMessageTypeSOT = (entry) => {
+    if (!entry) return '';
+    const raw = entry.messageType || entry.type || entry.meta?.messageType || '';
+    if (!raw) return '';
+    
+    // Normalize to uppercase and replace spaces/hyphens with underscores
+    const normalized = String(raw).trim().toUpperCase().replace(/[\s-]/g, '_');
+    return normalized;
+  };
+  
+  // STABLE KEY SOT: Canonical stableKey extractor
+  const getStableKeySOT = (entry) => {
+    if (!entry) return '';
+    return entry.stableKey || entry.id || '';
+  };
+  
   // STABLE KEY HELPER: Deterministic key for each transcript entry
   const getTranscriptEntryKey = useCallback((entry) => {
     if (!entry) return 'fallback-null-entry';
@@ -11053,7 +11070,7 @@ export default function CandidateInterview() {
                   } else {
                     console.log('[CQ_TRANSCRIPT][USER_ANSWER_PROTECT]', {
                       stableKey,
-                      messageType: entry.messageType || entry.type,
+                      messageType: getMessageTypeSOT(entry),
                       ageMs,
                       inDb,
                       canClear,
@@ -11067,15 +11084,12 @@ export default function CandidateInterview() {
                 return true; // Include all user answers with stableKey
               }
               
-              // Check both stableKey prefix and messageType/type
+              // 2) Use normalized messageType for V3 probe Q/A detection
+              const mt = getMessageTypeSOT(entry);
               const hasV3ProbeQPrefix = stableKey.startsWith('v3-probe-q:');
               const hasV3ProbeAPrefix = stableKey.startsWith('v3-probe-a:');
-              const isV3ProbeQuestionType = 
-                entry.messageType === 'V3_PROBE_QUESTION' || 
-                entry.type === 'V3_PROBE_QUESTION';
-              const isV3ProbeAnswerType = 
-                entry.messageType === 'V3_PROBE_ANSWER' || 
-                entry.type === 'V3_PROBE_ANSWER';
+              const isV3ProbeQuestionType = mt === 'V3_PROBE_QUESTION';
+              const isV3ProbeAnswerType = mt === 'V3_PROBE_ANSWER';
               
               const isV3ProbeQA = (hasV3ProbeQPrefix || hasV3ProbeAPrefix || isV3ProbeQuestionType || isV3ProbeAnswerType);
               
@@ -11091,6 +11105,7 @@ export default function CandidateInterview() {
                   console.log('[V3_UI_CONTRACT][ACTIVE_PROMPT_BLOCKED]', { 
                     stableKey, 
                     promptId: entry.meta?.promptId,
+                    mt,
                     reason: 'Active prompt renders in prompt lane only'
                   });
                   return false; // EXCLUDE active prompt
@@ -11100,7 +11115,7 @@ export default function CandidateInterview() {
                 console.log('[V3_UI_CONTRACT][PERSISTED_PROBE_ALLOWED]', { 
                   stableKey,
                   promptId: entry.meta?.promptId,
-                  messageType: entry.messageType || entry.type,
+                  mt,
                   reason: 'Persisted V3 probe Q/A allowed in transcript'
                 });
                 return true; // INCLUDE persisted probes
@@ -11144,15 +11159,17 @@ export default function CandidateInterview() {
               // Sort by transcript index for chronological order
               const toInject = [...missingFromTranscript].sort((a, b) => (a.index || 0) - (b.index || 0));
               
-              // 1) NORMALIZE: Apply same normalization as existing transcript pipeline (adds __canonicalKey)
+              // 1) NORMALIZE: Apply same normalization as existing transcript pipeline (adds __canonicalKey + normalizes messageType)
               const toInjectNormalized = toInject.map(entry => {
-                const messageType = entry.messageType || entry.type;
+                const mt = getMessageTypeSOT(entry);  // ✓ Normalized messageType
                 const role = entry.role || 'unknown';
-                const uniqueId = entry.stableKey || entry.id || `idx-${entry.index || Math.random()}`;
-                const canonicalKey = `${role}:${messageType}:${uniqueId}`;
+                const uniqueId = getStableKeySOT(entry) || `idx-${entry.index || Math.random()}`;
+                const canonicalKey = `${role}:${mt}:${uniqueId}`;
                 
                 return {
                   ...entry,
+                  messageType: mt,  // ✓ Set normalized messageType
+                  type: mt,  // ✓ Set type for consistency
                   __canonicalKey: canonicalKey
                 };
               }).filter(Boolean);
@@ -11476,7 +11493,7 @@ export default function CandidateInterview() {
                   
                   // V3 transcript entries (from DB - legal record)
                   // V3_PROBE_QUESTION (assistant) - NOW RENDERS FROM TRANSCRIPT
-                  if (entry.role === 'assistant' && (entry.messageType === 'V3_PROBE_QUESTION' || entry.type === 'V3_PROBE_QUESTION')) {
+                  if (entry.role === 'assistant' && getMessageTypeSOT(entry) === 'V3_PROBE_QUESTION') {
                    console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_RENDERED]', {
                      stableKey: entry.stableKey || entry.id,
                      promptId: entry.meta?.promptId,
@@ -11514,7 +11531,7 @@ export default function CandidateInterview() {
                   }
 
                   // V3_PROBE_ANSWER (user) - CRITICAL: Must always render
-                  if (entry.role === 'user' && (entry.messageType === 'V3_PROBE_ANSWER' || entry.type === 'V3_PROBE_ANSWER')) {
+                  if (entry.role === 'user' && getMessageTypeSOT(entry) === 'V3_PROBE_ANSWER') {
                    // REGRESSION GUARD: Log render to confirm visibility
                    console.log('[CQ_TRANSCRIPT][V3_PROBE_ANSWER_RENDERED]', {
                      stableKey: entry.stableKey || entry.id,
@@ -11590,7 +11607,7 @@ export default function CandidateInterview() {
                   }
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
-            if (entry.role === 'assistant' && entry.messageType === 'QUESTION_SHOWN') {
+            if (entry.role === 'assistant' && getMessageTypeSOT(entry) === 'QUESTION_SHOWN') {
               // ACTIVE CARD DETECTION: Check if this is the current question
               const isActiveBaseQ = currentItem?.type === 'question' && 
                 currentItem?.id === entry.meta?.questionDbId;
@@ -11622,7 +11639,7 @@ export default function CandidateInterview() {
             }
 
             // User answer (ANSWER from chatTranscriptHelpers)
-            if (entry.role === 'user' && entry.messageType === 'ANSWER') {
+            if (entry.role === 'user' && getMessageTypeSOT(entry) === 'ANSWER') {
               return (
                 <div key={entryKey} style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
@@ -11637,7 +11654,7 @@ export default function CandidateInterview() {
             }
 
             // Multi-instance gate prompt shown (suppress CURRENT gate only during V3 blocking)
-            if (entry.role === 'assistant' && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
+            if (entry.role === 'assistant' && getMessageTypeSOT(entry) === 'MULTI_INSTANCE_GATE_SHOWN') {
               // Extract entry's pack/instance identity
               const entryPackId = entry.packId || entry.meta?.packId;
               const entryInstanceNumber = entry.instanceNumber || entry.meta?.instanceNumber;
@@ -11714,7 +11731,7 @@ export default function CandidateInterview() {
             }
 
             // Multi-instance gate answer (user's Yes/No)
-            if (entry.role === 'user' && entry.messageType === 'MULTI_INSTANCE_GATE_ANSWER') {
+            if (entry.role === 'user' && getMessageTypeSOT(entry) === 'MULTI_INSTANCE_GATE_ANSWER') {
               return (
                 <div key={entryKey} style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
@@ -11807,7 +11824,7 @@ export default function CandidateInterview() {
               )}
 
               {/* CTA acknowledgement - "Begin next section" */}
-              {entry.role === 'user' && entry.messageType === 'CTA_ACK' && (
+              {entry.role === 'user' && getMessageTypeSOT(entry) === 'CTA_ACK' && (
                 <div style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
@@ -11833,7 +11850,7 @@ export default function CandidateInterview() {
               )}
 
               {/* Session resumed marker (collapsed system note) */}
-              {entry.messageType === 'RESUME' && entry.visibleToCandidate && (
+              {getMessageTypeSOT(entry) === 'RESUME' && entry.visibleToCandidate && (
                 <ContentContainer>
                 <div className="w-full bg-blue-900/30 border border-blue-700/40 rounded-xl p-3">
                   <p className="text-blue-300 text-sm">{entry.text}</p>
@@ -11842,7 +11859,7 @@ export default function CandidateInterview() {
               )}
 
               {/* V3 Pack opener prompt (FOLLOWUP_CARD_SHOWN) - MUST be visible in transcript history */}
-              {entry.role === 'assistant' && entry.messageType === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener' && (() => {
+              {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener' && (() => {
                 // ACTIVE CARD DETECTION: Check if this is the current opener
                 const isActiveOpener = currentItem?.type === 'v3_pack_opener' && 
                   currentItem?.packId === entry.meta?.packId && 
@@ -11874,7 +11891,7 @@ export default function CandidateInterview() {
                 );
               })()}
 
-              {entry.role === 'user' && entry.messageType === 'v3_opener_answer' && (
+              {entry.role === 'user' && getMessageTypeSOT(entry) === 'V3_OPENER_ANSWER' && (
                 <div style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
@@ -12034,7 +12051,7 @@ export default function CandidateInterview() {
                   })())}
 
                   {/* Section Completion Messages */}
-              {entry.role === 'assistant' && entry.messageType === 'SECTION_COMPLETE' && entry.visibleToCandidate && (
+              {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'SECTION_COMPLETE' && entry.visibleToCandidate && (
                 <ContentContainer>
                 <div className="w-full bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
                   <div className="flex items-start gap-4">
