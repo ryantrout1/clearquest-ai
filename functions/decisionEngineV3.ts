@@ -1437,6 +1437,10 @@ async function decisionEngineV3Probe(base44, {
   let nextPrompt = null;
   let stopReason = null;
   
+  // PROVENANCE: Initialize metadata variables at function scope (for return)
+  let promptSource = 'TEMPLATE';
+  let llmMs = null;
+  
   // Check stop conditions
   if (mergedConfig.stopWhenRequiredComplete && missingFieldsAfter.length === 0) {
     nextAction = "RECAP";
@@ -1645,8 +1649,7 @@ async function decisionEngineV3Probe(base44, {
     } else {
       // PHASE 1: LLM probe wording (feature flag controlled)
       let llmQuestion = null;
-      let promptSource = 'TEMPLATE';
-      let llmMs = null;
+      // promptSource and llmMs already declared at function scope
       
       // LLM DECISION SOT: Consolidated gate diagnostics (fires ONCE per engine call)
       const llmDecision = !useLLMProbeWording ? 'SKIP_DISABLED' 
@@ -1880,13 +1883,9 @@ async function decisionEngineV3Probe(base44, {
     openingPrompt = getOpeningPrompt(categoryId, factModel.category_label);
   }
 
-  // PROVENANCE: Extract metadata for frontend (safe defaults if not in scope)
-  const finalV3PromptSource = (nextAction === 'ASK' && typeof promptSource !== 'undefined') 
-    ? promptSource 
-    : 'TEMPLATE';
-  const finalV3LlmMs = (nextAction === 'ASK' && typeof llmMs !== 'undefined') 
-    ? llmMs 
-    : null;
+  // PROVENANCE: Compute metadata for frontend (safe defaults)
+  const finalV3PromptSource = promptSource || 'TEMPLATE';
+  const finalV3LlmMs = llmMs || null;
   const finalV3EffectiveInstructionsLen = (typeof effectiveInstructionsLen !== 'undefined') 
     ? effectiveInstructionsLen 
     : 0;
@@ -2080,19 +2079,11 @@ async function decisionEngineV3Probe(base44, {
       promptSource: promptSource || 'TEMPLATE',
       llmMs: llmMs || null
     },
-    // PROVENANCE: Expose prompt source metadata to frontend (defaults for safety)
-    v3PromptSource: (nextAction === 'ASK' && typeof v3ProvenanceMetadata !== 'undefined') 
-      ? v3ProvenanceMetadata.v3PromptSource 
-      : 'TEMPLATE',
-    v3LlmMs: (nextAction === 'ASK' && typeof v3ProvenanceMetadata !== 'undefined') 
-      ? v3ProvenanceMetadata.v3LlmMs 
-      : null,
-    v3EffectiveInstructionsLen: (nextAction === 'ASK' && typeof v3ProvenanceMetadata !== 'undefined') 
-      ? v3ProvenanceMetadata.v3EffectiveInstructionsLen 
-      : 0,
-    v3UseLLMProbeWording: (nextAction === 'ASK' && typeof v3ProvenanceMetadata !== 'undefined') 
-      ? v3ProvenanceMetadata.v3UseLLMProbeWording 
-      : false
+    // PROVENANCE: Frontend-visible metadata for diagnostic correlation
+    v3PromptSource: finalV3PromptSource,
+    v3LlmMs: finalV3LlmMs,
+    v3EffectiveInstructionsLen: finalV3EffectiveInstructionsLen,
+    v3UseLLMProbeWording: finalV3UseLLMProbeWording
   };
 }
 
