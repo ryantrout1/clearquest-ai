@@ -2416,8 +2416,8 @@ export default function CandidateInterview() {
     return raw;
   };
   
-  // STEP 1: KEY-BASED monotonic transcript upsert
-  const upsertTranscriptMonotonic = useCallback((prev, incoming, sourceLabel = 'unknown') => {
+  // STEP 1: KEY-BASED monotonic transcript upsert (hoisted function)
+  function upsertTranscriptMonotonic(prev, incoming, sourceLabel = 'unknown') {
     if (!Array.isArray(prev)) prev = [];
     if (!Array.isArray(incoming)) incoming = [];
     
@@ -2519,7 +2519,7 @@ export default function CandidateInterview() {
     });
     
     return merged;
-  }, []);
+  }
   
   // STABLE KEY SOT: Canonical stableKey extractor
   const getStableKeySOT = (entry) => {
