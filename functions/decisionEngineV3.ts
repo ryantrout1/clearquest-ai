@@ -1302,6 +1302,9 @@ async function decisionEngineV3Probe(base44, {
   
   // Get current missing fields BEFORE extraction
   const missingFieldsBefore = getMissingRequiredFields(factState, incidentId, factModel);
+
+  // DIAGNOSTIC: Track selected field for logging
+  let selectedFieldIdForLogging = null;
   
   // Detect opener narrative: use isInitialCall flag from caller (reliable on first call)
   const isOpenerNarrative = Boolean(isInitialCall) && latestAnswerText && latestAnswerText.length >= 20;
