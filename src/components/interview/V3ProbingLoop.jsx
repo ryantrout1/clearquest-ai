@@ -446,6 +446,13 @@ export default function V3ProbingLoop({
       const packInstructionsLen = payloadPackInstructions.length;
       const hasPackInstructions = packInstructionsLen > 0;
       
+      // PACK IDENTITY: Explicit packId for backend correlation
+      const payloadPackId = packData?.followup_pack_id || packData?.packId || packData?.id || null;
+      const packIdSource = packData?.followup_pack_id ? 'followup_pack_id' 
+        : packData?.packId ? 'packId' 
+        : packData?.id ? 'id' 
+        : 'none';
+      
       // FRONTEND ASSERTION: Warn if enablement is true but instructions are missing
       if (payloadUseLLMProbeWording && !hasPackInstructions) {
         console.warn('[V3_LLM][MISSING_INSTRUCTIONS_WARNING]', {
@@ -462,6 +469,8 @@ export default function V3ProbingLoop({
         categoryId,
         instanceNumber: instanceNumber || 1,
         loopKey,
+        packId: payloadPackId,
+        packIdSource,
         shouldUseLLMProbeWording,
         payloadUseLLMProbeWording,
         packInstructionsLen,
@@ -481,6 +490,7 @@ export default function V3ProbingLoop({
         instanceNumber: instanceNumber || 1,
         isInitialCall: isInitialCall || false,
         traceId,
+        packId: payloadPackId,
         packInstructions: payloadPackInstructions,
         useLLMProbeWording: payloadUseLLMProbeWording
       });

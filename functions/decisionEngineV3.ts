@@ -81,7 +81,7 @@ async function generateV3ProbeQuestionLLM(base44Client, field, collectedFacts, c
   const prompt = buildV3LLMProbePrompt(field, collectedFacts, packInstructions, context);
   
   console.log('[V3_PROBE_GEN][LLM_CALL]', {
-    packId,
+    packId: packId || null,
     categoryId,
     fieldId: field.field_id,
     hasInstructions: true,
@@ -125,7 +125,7 @@ async function generateV3ProbeQuestionLLM(base44Client, field, collectedFacts, c
     }
     
     console.log('[V3_PROBE_GEN][LLM_OK]', {
-      packId,
+      packId: packId || null,
       categoryId,
       fieldId: field.field_id,
       llmMs: dtMs,
@@ -1508,9 +1508,8 @@ async function decisionEngineV3Probe(base44, {
       });
     }
   } else if (missingFieldsAfter.length > 0) {
-    // PACK RESOLUTION SOT: Determine effective instructions for probe generation
-    // V3 doesn't fetch FollowUpPack entities - uses instructions from request payload
-    const resolvedPackId = factModel?.linked_pack_ids?.[0] || categoryId || null;
+    // PACK RESOLUTION SOT: Use explicit packId from request (no fabrication)
+    const resolvedPackId = packId || null;
     const reqPackInstructions = packInstructions || '';
     const reqPackInstructionsLen = reqPackInstructions.length;
     const hasReqPackInstructions = reqPackInstructionsLen > 0;
@@ -1524,7 +1523,7 @@ async function decisionEngineV3Probe(base44, {
       categoryId,
       instanceNumber: instanceNumber || 1,
       resolvedPackId,
-      resolvedPackTitle: factModel?.category_label || '',
+      resolvedPackTitle: '',
       resolvedPackHasInstructions: hasReqPackInstructions,
       resolvedPackInstructionsLen: reqPackInstructionsLen,
       reqPackInstructionsLen,
@@ -1678,7 +1677,7 @@ async function decisionEngineV3Probe(base44, {
           categoryId,
           instanceNumber: instanceNumber || 1,
           probeCount: legacyFactState.probe_count,
-          packId: factModel.linked_pack_ids?.[0] || null
+          packId: resolvedPackId
         });
         llmMs = Date.now() - t0;
         
@@ -1695,6 +1694,7 @@ async function decisionEngineV3Probe(base44, {
       console.log('[V3_PROBE_GEN][SOT]', {
         categoryId,
         instanceNumber: instanceNumber || 1,
+        packId: resolvedPackId,
         useLLMProbeWording: useLLMProbeWording || false,
         packInstructionsLen: (packInstructions || '').length,
         fieldId: candidateField?.field_id,
@@ -2107,12 +2107,13 @@ Deno.serve(async (req) => {
     }
     
     // ========== VALIDATE REQUIRED FIELDS ==========
-    const { sessionId, categoryId, incidentId, latestAnswerText, baseQuestionId, questionCode, sectionId, instanceNumber, isInitialCall, config, packInstructions, useLLMProbeWording } = body;
+    const { sessionId, categoryId, incidentId, latestAnswerText, baseQuestionId, questionCode, sectionId, instanceNumber, isInitialCall, config, packId, packInstructions, useLLMProbeWording } = body;
     
-    // SOT LOG: Prove backend receives enablement flags
+    // SOT LOG: Prove backend receives enablement flags + pack identity
     console.log('[V3_ENGINE][REQ_SOT]', {
       categoryId,
       instanceNumber: instanceNumber || 1,
+      packId: packId || null,
       useLLMProbeWording: useLLMProbeWording || false,
       packInstructionsLen: (packInstructions || '').length
     });
