@@ -16,6 +16,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
  * Mirrors components/utils/v3ProbingPrompts.js for backend use
  */
 
+// TASK 3: Template quality hardening - remove accusatory phrasing
 const FIELD_QUESTION_TEMPLATES = {
   date: "When did this occur? Please provide the date or approximate timeframe.",
   incident_date: "When did this incident happen?",
@@ -31,11 +32,10 @@ const FIELD_QUESTION_TEMPLATES = {
   agency_name: "What is the name of the agency?",
   position: "What position were you applying for or held?",
   position_applied_for: "What position did you apply for with that agency?",
-  agency_name: "What was the name of the law enforcement agency where you omitted information?",
   omission_timeframe: "When did that application occur (approximately)?",
-  omission_nature: "What was the nature of what you omitted?",
-  what_omitted: "Can you explain what specific information was not disclosed?",
-  reason_for_omission: "What was your reason for not disclosing this at the time?",
+  omission_nature: "What was the nature of the issue with that application?",
+  what_omitted: "Can you explain what specific information was involved?",
+  reason_for_omission: "What was your understanding of why this came up?",
   disclosure_or_discovery_context: "How did this come to light - did you disclose it yourself, clarify it later, or was it discovered?",
   corrective_or_consequential_actions: "What steps did you take after realizing this information was needed?"
 };
@@ -2123,14 +2123,8 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     
-    // TASK 1A: Detect editor preview context (backend-safe)
+    // TASK 1A: Detect editor preview context (backend-safe, header fallback)
     const referer = req?.headers?.get?.('referer') || req?.headers?.get?.('origin') || '';
-    const isEditorPreview = Boolean(referer.includes('/editor/preview/'));
-    
-    console.log('[V3_EDITOR_PREVIEW][DETECT]', {
-      isEditorPreview,
-      refererPreview: referer.slice(0, 80) || '(none)'
-    });
     
     // Safe user lookup - treat as optional for public/anonymous sessions
     let userContext = null;
@@ -2185,7 +2179,19 @@ Deno.serve(async (req) => {
     }
     
     // ========== VALIDATE REQUIRED FIELDS ==========
-    const { sessionId, categoryId, incidentId, latestAnswerText, baseQuestionId, questionCode, sectionId, instanceNumber, isInitialCall, config, packId, packInstructions, useLLMProbeWording } = body;
+    const { sessionId, categoryId, incidentId, latestAnswerText, baseQuestionId, questionCode, sectionId, instanceNumber, isInitialCall, config, packId, packInstructions, useLLMProbeWording, isEditorPreview: payloadIsEditorPreview } = body;
+    
+    // TASK 2B: Compute editor preview SOT (payload first, header fallback)
+    const headerIsEditorPreview = Boolean(referer.includes('/editor/preview/'));
+    const isEditorPreviewSOT = Boolean(payloadIsEditorPreview) || headerIsEditorPreview;
+    
+    // TASK 2D: Compact detection log (both sources)
+    console.log('[V3_EDITOR_PREVIEW][DETECT]', {
+      payloadIsEditorPreview: Boolean(payloadIsEditorPreview),
+      headerIsEditorPreview,
+      isEditorPreviewSOT,
+      refererPreview: referer.slice(0, 80) || '(none)'
+    });
     
     // SOT LOG: Prove backend receives enablement flags + pack identity
     console.log('[V3_ENGINE][REQ_SOT]', {
@@ -2199,10 +2205,10 @@ Deno.serve(async (req) => {
     // TASK 1B: Default V3 instructions (editor preview only)
     const DEFAULT_V3_INSTRUCTIONS = 'You are ClearQuest AI. Write one concise, natural follow-up question that asks ONLY for the missing fact in plain language. Do NOT accuse the user of omitting information. Do NOT mention "omitted information". Be specific to the user narrative.';
     
-    // Pass isEditorPreview down to decision engine
+    // TASK 2C: Pass isEditorPreviewSOT down to decision engine
     const extendedConfig = {
       ...config,
-      isEditorPreview,
+      isEditorPreview: isEditorPreviewSOT,
       defaultInstructions: DEFAULT_V3_INSTRUCTIONS
     };
     

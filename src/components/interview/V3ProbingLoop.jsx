@@ -440,6 +440,9 @@ export default function V3ProbingLoop({
       // FAIL-CLOSED WATCHDOG: 12s timeout for backend call
       const BACKEND_TIMEOUT_MS = 12000;
       
+      // TASK 1A: Compute editor preview flag (frontend SOT)
+      const payloadIsEditorPreview = Boolean(window?.location?.pathname?.includes('/editor/preview/'));
+      
       // PAYLOAD HARDENING: Ensure flags are always present and consistent
       const payloadUseLLMProbeWording = Boolean(shouldUseLLMProbeWording);
       const payloadPackInstructions = packData?.ai_probe_instructions || '';
@@ -463,7 +466,7 @@ export default function V3ProbingLoop({
         });
       }
       
-      // PAYLOAD SOT LOG: Prove what frontend sends to backend (fires ONCE per submit)
+      // TASK 1C: PAYLOAD SOT LOG - Extended with isEditorPreview
       console.log('[V3_LLM][PAYLOAD_SOT]', {
         sessionId,
         categoryId,
@@ -475,10 +478,12 @@ export default function V3ProbingLoop({
         payloadUseLLMProbeWording,
         packInstructionsLen,
         hasPackInstructions,
+        isEditorPreview: payloadIsEditorPreview,
         pathname: window.location?.pathname || '',
         href: window.location?.href || ''
       });
       
+      // TASK 1B: Include isEditorPreview in payload (frontend SOT)
       const enginePromise = base44.functions.invoke('decisionEngineV3', {
         sessionId,
         categoryId,
@@ -492,7 +497,8 @@ export default function V3ProbingLoop({
         traceId,
         packId: payloadPackId,
         packInstructions: payloadPackInstructions,
-        useLLMProbeWording: payloadUseLLMProbeWording
+        useLLMProbeWording: payloadUseLLMProbeWording,
+        isEditorPreview: payloadIsEditorPreview
       });
       
       const timeoutPromise = new Promise((_, reject) => 
