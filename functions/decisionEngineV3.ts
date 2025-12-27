@@ -1508,6 +1508,31 @@ async function decisionEngineV3Probe(base44, {
       });
     }
   } else if (missingFieldsAfter.length > 0) {
+    // PACK RESOLUTION SOT: Determine effective instructions for probe generation
+    // V3 doesn't fetch FollowUpPack entities - uses instructions from request payload
+    const resolvedPackId = factModel?.linked_pack_ids?.[0] || categoryId || null;
+    const reqPackInstructions = packInstructions || '';
+    const reqPackInstructionsLen = reqPackInstructions.length;
+    const hasReqPackInstructions = reqPackInstructionsLen > 0;
+    
+    // HARDENING: Compute effective instructions (what will actually be used for LLM)
+    const effectivePackInstructions = hasReqPackInstructions ? reqPackInstructions : '';
+    const effectiveInstructionsLen = effectivePackInstructions.length;
+    const effectiveInstructionsSource = hasReqPackInstructions ? 'REQUEST' : 'NONE';
+    
+    console.log('[V3_ENGINE][PACK_SOT]', {
+      categoryId,
+      instanceNumber: instanceNumber || 1,
+      resolvedPackId,
+      resolvedPackTitle: factModel?.category_label || '',
+      resolvedPackHasInstructions: hasReqPackInstructions,
+      resolvedPackInstructionsLen: reqPackInstructionsLen,
+      reqPackInstructionsLen,
+      effectiveInstructionsSource,
+      effectiveInstructionsLen,
+      useLLMProbeWording: Boolean(useLLMProbeWording)
+    });
+    
     // PRE-ASK GUARD: Skip fields already collected (canonical check)
     let candidateField = null;
     let suppressedCount = 0;
@@ -1624,20 +1649,31 @@ async function decisionEngineV3Probe(base44, {
       let promptSource = 'TEMPLATE';
       let llmMs = null;
       
-      // ENABLEMENT LOG: Show why LLM is skipped or attempted
+      // ENABLEMENT LOG: Show why LLM is skipped or attempted (ENHANCED)
       if (!useLLMProbeWording) {
         console.log('[V3_PROBE_GEN][LLM_SKIPPED]', {
-          reason: 'useLLMProbeWording_false',
+          skipReason: 'useLLMProbeWording_false',
           categoryId,
           instanceNumber: instanceNumber || 1,
-          fieldId: candidateField?.field_id
+          fieldId: candidateField?.field_id,
+          useLLMProbeWording: false,
+          effectiveInstructionsLen
+        });
+      } else if (effectiveInstructionsLen === 0) {
+        console.log('[V3_PROBE_GEN][LLM_SKIPPED]', {
+          skipReason: 'no_instructions',
+          categoryId,
+          instanceNumber: instanceNumber || 1,
+          fieldId: candidateField?.field_id,
+          useLLMProbeWording: true,
+          effectiveInstructionsLen: 0
         });
       }
       
-      if (useLLMProbeWording && packInstructions) {
+      if (useLLMProbeWording && effectiveInstructionsLen > 0) {
         const t0 = Date.now();
         llmQuestion = await generateV3ProbeQuestionLLM(base44, candidateField, incident.facts, {
-          packInstructions,
+          packInstructions: effectivePackInstructions,
           categoryLabel: factModel.category_label,
           categoryId,
           instanceNumber: instanceNumber || 1,
