@@ -1716,6 +1716,16 @@ async function decisionEngineV3Probe(base44, {
       }
       
       if (useLLMProbeWording && effectiveInstructionsLen > 0) {
+        // TASK 1: Reachability log (proves LLM block reached)
+        console.log('[V3_PROBE_GEN][REACHED_LLM_BLOCK]', {
+          categoryId,
+          instanceNumber: instanceNumber || 1,
+          packId: resolvedPackId || packId || null,
+          fieldId: candidateField?.field_id || null,
+          effectiveInstructionsSource,
+          effectiveInstructionsLen
+        });
+        
         try {
           const t0 = Date.now();
           llmQuestion = await generateV3ProbeQuestionLLM(base44, candidateField, incident.facts, {
@@ -1734,10 +1744,11 @@ async function decisionEngineV3Probe(base44, {
         } catch (err) {
           console.error('[V3_PROBE_GEN][LLM_FALLBACK]', {
             fallbackReason: 'LLM_EXCEPTION',
-            errorName: err?.name || 'Error',
-            errorMessagePreview: (err?.message || '').slice(0, 120),
+            packId: resolvedPackId || packId || null,
             categoryId,
-            fieldId: candidateField?.field_id
+            fieldId: candidateField?.field_id,
+            errorName: err?.name || 'Error',
+            errorMessagePreview: String(err?.message || '').slice(0, 160)
           });
           // llmQuestion remains null, will fall back to template
         }
