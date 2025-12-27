@@ -1546,6 +1546,7 @@ export default function CandidateInterview() {
   // HOOK ORDER FIX: Safety net reinjection tracker (MUST be top-level)
   // Moved from line 8752 to prevent "change in order of Hooks" error
   const reinjectedOpenerAnswersRef = useRef(new Set());
+  const reinjectedV3ProbeQARef = useRef(new Set());
 
   // ============================================================================
   // V3 PROMPT DETECTION + ACTIVE UI ITEM RESOLVER (TDZ-safe early placement)
@@ -9889,6 +9890,80 @@ export default function CandidateInterview() {
     }
   }
   
+  // B) REPAIR: V3 probe Q/A missing from render (similar to opener repair)
+  if ((v3ProbingActive || currentItem?.type === 'multi_instance_gate') && v3ProbingContext) {
+    const loopKey = `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`;
+    const packId = v3ProbingContext.packId;
+    const instanceNumber = v3ProbingContext.instanceNumber || 1;
+    const repairKey = `${sessionId}:${packId}:${instanceNumber}`;
+    
+    if (!reinjectedV3ProbeQARef.current.has(repairKey)) {
+      // Find all V3 probe Q/A for this loopKey in dbTranscript
+      const v3ProbeQInDb = dbTranscript.filter(e => 
+        (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+        e.meta?.packId === packId &&
+        e.meta?.instanceNumber === instanceNumber &&
+        e.visibleToCandidate !== false
+      );
+      
+      const v3ProbeAInDb = dbTranscript.filter(e => 
+        (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER') &&
+        e.meta?.packId === packId &&
+        e.meta?.instanceNumber === instanceNumber &&
+        e.visibleToCandidate !== false
+      );
+      
+      // Check which are missing from finalRenderStream
+      const missingQ = v3ProbeQInDb.filter(qEntry => 
+        !finalRenderStream.some(r => (r.stableKey && r.stableKey === qEntry.stableKey) || (r.id && r.id === qEntry.id))
+      );
+      
+      const missingA = v3ProbeAInDb.filter(aEntry => 
+        !finalRenderStream.some(r => (r.stableKey && r.stableKey === aEntry.stableKey) || (r.id && r.id === aEntry.id))
+      );
+      
+      if (missingQ.length > 0 || missingA.length > 0) {
+        // Merge and sort by transcript index for chronological order
+        const toInject = [...missingQ, ...missingA].sort((a, b) => (a.index || 0) - (b.index || 0));
+        
+        console.error('[CQ_TRANSCRIPT][REPAIR_REINJECTED_V3_PROBE_QA]', {
+          loopKey,
+          packId,
+          instanceNumber,
+          missingQKeys: missingQ.map(e => e.stableKey || e.id),
+          missingAKeys: missingA.map(e => e.stableKey || e.id),
+          reinjectedCount: toInject.length,
+          placement: 'by_transcript_index'
+        });
+        
+        // IMMUTABLE: Find insertion point (after opener answer, before MI gate activeCard)
+        // If MI gate activeCard exists, insert before it; otherwise append
+        const miGateActiveIndex = finalRenderStream.findIndex(e => e.__activeCard && e.kind === "multi_instance_gate");
+        
+        if (miGateActiveIndex !== -1) {
+          // Insert before MI gate
+          finalRenderStream = [
+            ...finalRenderStream.slice(0, miGateActiveIndex),
+            ...toInject,
+            ...finalRenderStream.slice(miGateActiveIndex)
+          ];
+        } else {
+          // No MI gate - append at end
+          finalRenderStream = [...finalRenderStream, ...toInject];
+        }
+        
+        console.log('[CQ_TRANSCRIPT][REPAIR_V3_PROBE_IMMUTABLE_OK]', {
+          beforeLen: finalRenderStreamDeduped.length,
+          afterLen: finalRenderStream.length,
+          injectedCount: toInject.length,
+          didCreateNewArray: true
+        });
+        
+        reinjectedV3ProbeQARef.current.add(repairKey);
+      }
+    }
+  }
+  
   // LAST-RESORT SAFETY NET: Log if V3_PROBE_ANSWER still missing (should not happen with deterministic inclusion)
   if (currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === "MI_GATE") {
     const packId = currentItem?.packId;
@@ -9969,6 +10044,30 @@ export default function CandidateInterview() {
     
     const miGateIndex = renderableTranscriptStream.findIndex(e => e.__activeCard && e.kind === "multi_instance_gate");
     const hasItemsAfterMiGate = miGateIndex !== -1 && miGateIndex < renderableTranscriptStream.length - 1;
+    
+    // C) V3 probe Q/A visibility assertion
+    const packId = currentItem?.packId;
+    const instanceNumber = currentItem?.instanceNumber || 1;
+    const v3ProbeQInRendered = renderableTranscriptStream.filter(e => 
+      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+      e.meta?.packId === packId &&
+      e.meta?.instanceNumber === instanceNumber
+    );
+    const v3ProbeAInRendered = renderableTranscriptStream.filter(e => 
+      (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER') &&
+      e.meta?.packId === packId &&
+      e.meta?.instanceNumber === instanceNumber
+    );
+    
+    console.log('[MI_GATE][V3_PROBE_QA_VISIBILITY_ASSERT]', {
+      packId,
+      instanceNumber,
+      hasV3ProbeQInRenderedTranscript: v3ProbeQInRendered.length > 0,
+      hasV3ProbeAInRenderedTranscript: v3ProbeAInRendered.length > 0,
+      expectedPairsCount: Math.min(v3ProbeQInRendered.length, v3ProbeAInRendered.length),
+      qCount: v3ProbeQInRendered.length,
+      aCount: v3ProbeAInRendered.length
+    });
     
     console.log('[MI_GATE][ALIGNMENT_ASSERT]', {
       activeUiItemKind: activeUiItem?.kind,
@@ -10857,29 +10956,49 @@ export default function CandidateInterview() {
               return deduped;
             };
             
-            // UI CONTRACT: Block V3 probe questions from transcript rendering (ALWAYS render in prompt lane only)
+            // A) ALLOW PERSISTED V3 PROBE Q/A: Only block ACTIVE prompts, not answered ones
             const transcriptWithV3ProbesBlocked = transcriptToRender.filter(entry => {
               // Check both stableKey prefix and messageType/type
               const stableKey = entry.stableKey || entry.id || '';
               const hasV3ProbeQPrefix = stableKey.startsWith('v3-probe-q:');
+              const hasV3ProbeAPrefix = stableKey.startsWith('v3-probe-a:');
               const isV3ProbeQuestionType = 
                 entry.messageType === 'V3_PROBE_QUESTION' || 
-                entry.type === 'V3_PROBE_QUESTION' ||
-                entry.messageType === 'AI_FOLLOWUP_QUESTION' ||
-                entry.type === 'V3_PROBE_PROMPT';
+                entry.type === 'V3_PROBE_QUESTION';
+              const isV3ProbeAnswerType = 
+                entry.messageType === 'V3_PROBE_ANSWER' || 
+                entry.type === 'V3_PROBE_ANSWER';
               
-              // V3 probe questions: Block from transcript rendering (must render in prompt lane only)
-              if (hasV3ProbeQPrefix || isV3ProbeQuestionType) {
-                console.log('[V3_UI_CONTRACT][TRANSCRIPT_BLOCKED_V3_PROBE_Q]', { 
-                  stableKey, 
+              const isV3ProbeQA = (hasV3ProbeQPrefix || hasV3ProbeAPrefix || isV3ProbeQuestionType || isV3ProbeAnswerType);
+              
+              if (isV3ProbeQA) {
+                // Check if this is the currently ACTIVE prompt (should render in prompt lane only)
+                const currentPromptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+                const isActivePrompt = hasActiveV3Prompt && 
+                                      v3PromptPhase === 'ANSWER_NEEDED' &&
+                                      entry.meta?.promptId === currentPromptId;
+                
+                if (isActivePrompt) {
+                  // Active prompt - block (renders in prompt lane via activeCard)
+                  console.log('[V3_UI_CONTRACT][ACTIVE_PROMPT_BLOCKED]', { 
+                    stableKey, 
+                    promptId: entry.meta?.promptId,
+                    reason: 'Active prompt renders in prompt lane only'
+                  });
+                  return false; // EXCLUDE active prompt
+                }
+                
+                // Persisted probe Q/A - allow (renders in transcript history)
+                console.log('[V3_UI_CONTRACT][PERSISTED_PROBE_ALLOWED]', { 
+                  stableKey,
                   promptId: entry.meta?.promptId,
-                  loopKey: entry.meta?.loopKey,
-                  messageType: entry.messageType || entry.type
+                  messageType: entry.messageType || entry.type,
+                  reason: 'Persisted V3 probe Q/A allowed in transcript'
                 });
-                return false; // EXCLUDE from transcript render
+                return true; // INCLUDE persisted probes
               }
               
-              return true; // Include in transcript
+              return true; // Include all other entries
             });
             
             // Merge V3 probe Q/A deterministically (before final filter/dedupe)
