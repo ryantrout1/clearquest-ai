@@ -9989,17 +9989,17 @@ export default function CandidateInterview() {
     return !renderStreamKeys.has(dbKey);
   });
   
-  // D) REGRESSION LOG: Detect user answers dropped post-submit
+  // D) REGRESSION LOG: Detect user answers dropped post-submit (STEP 4: fixed tail)
   if (recentlySubmittedUserAnswersRef.current.size > 0) {
     for (const protectedKey of recentlySubmittedUserAnswersRef.current) {
       if (!renderStreamKeys.has(protectedKey) && !lastRegressionLogRef.current.has(protectedKey)) {
         const inDb = dbTranscript.some(e => (e.stableKey || e.id) === protectedKey);
-        const renderKeysTail = Array.from(renderStreamKeys).slice(-5);
+        const renderTail = finalRenderStream.slice(-5).map(e => e.stableKey || e.id || e.kind || e.messageType);
         
         console.error('[CQ_TRANSCRIPT][REGRESSION_USER_ANSWER_DROPPED]', {
           stableKey: protectedKey,
           dbHasKey: inDb,
-          renderKeysTail,
+          renderTail,
           renderLen: finalRenderStream.length,
           dbLen: dbTranscript.length,
           reason: 'Recently submitted answer missing from render stream'
@@ -10007,6 +10007,28 @@ export default function CandidateInterview() {
         
         lastRegressionLogRef.current.add(protectedKey);
       }
+    }
+  }
+  
+  // STEP 5: Compilation safety assert (defensive - detects tool markup corruption)
+  if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+    const corruptedItems = finalRenderStream.filter(e => {
+      const key = e.stableKey || e.id || '';
+      return key.includes('<invoke') || key.includes('</parameter>') || key.includes('<parameter');
+    });
+    
+    if (corruptedItems.length > 0) {
+      console.error('[CQ_COMPILATION_SAFETY][CORRUPT_MARKUP_DETECTED]', {
+        corruptedCount: corruptedItems.length,
+        corruptedKeys: corruptedItems.map(e => e.stableKey || e.id),
+        reason: 'Tool markup strings detected in render stream - filtering out'
+      });
+      
+      // Filter out corrupted items defensively
+      finalRenderStream = finalRenderStream.filter(e => {
+        const key = e.stableKey || e.id || '';
+        return !key.includes('<invoke') && !key.includes('</parameter>') && !key.includes('<parameter');
+      });
     }
   }
   
@@ -10024,8 +10046,13 @@ export default function CandidateInterview() {
     // Sort by transcript index for chronological order
     const toInject = [...missingUserAnswers].sort((a, b) => (a.index || 0) - (b.index || 0));
     
-    // IMMUTABLE: Insert before MI gate if present, otherwise append
-    const miGateActiveIndex = finalRenderStream.findIndex(e => e.__activeCard && e.kind === "multi_instance_gate");
+    // STEP 2: Robust MI gate detection (multiple fallbacks)
+    const miGateActiveIndex = finalRenderStream.findIndex(e => 
+      e.kind === 'multi_instance_gate' ||
+      (e.__activeCard && e.kind === "multi_instance_gate") ||
+      (e.stableKey && e.stableKey.startsWith('mi-gate:')) ||
+      e.messageType === 'multi_instance_gate'
+    );
     
     if (miGateActiveIndex !== -1) {
       finalRenderStream = [
