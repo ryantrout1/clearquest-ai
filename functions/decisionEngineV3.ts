@@ -1085,7 +1085,8 @@ async function decisionEngineV3Probe(base44, {
   config = {},
   traceId = null,
   packInstructions = null,
-  useLLMProbeWording = false
+  useLLMProbeWording = false,
+  packId = null
 }) {
   const effectiveTraceId = traceId || `${sessionId}-${Date.now()}`;
   console.log("[IDE-V3] decisionEngineV3Probe called", { 
@@ -1096,6 +1097,10 @@ async function decisionEngineV3Probe(base44, {
   });
   
   const mergedConfig = { ...DEFAULT_V3_CONFIG, ...config };
+  
+  // TASK 1A: Extract editor preview flag from config
+  const isEditorPreview = mergedConfig.isEditorPreview || false;
+  const defaultInstructions = mergedConfig.defaultInstructions || null;
   
   // Load session
   let session;
@@ -1518,10 +1523,33 @@ async function decisionEngineV3Probe(base44, {
     const reqPackInstructionsLen = reqPackInstructions.length;
     const hasReqPackInstructions = reqPackInstructionsLen > 0;
     
-    // HARDENING: Compute effective instructions (what will actually be used for LLM)
-    const effectivePackInstructions = hasReqPackInstructions ? reqPackInstructions : '';
-    const effectiveInstructionsLen = effectivePackInstructions.length;
-    const effectiveInstructionsSource = hasReqPackInstructions ? 'REQUEST' : 'NONE';
+    // TASK 1B: Apply default instructions fallback for editor preview
+    let effectivePackInstructions = hasReqPackInstructions ? reqPackInstructions : '';
+    let effectiveInstructionsLen = effectivePackInstructions.length;
+    let effectiveInstructionsSource = hasReqPackInstructions ? 'REQUEST' : 'NONE';
+    
+    // Editor preview forcing: use default instructions if pack has none
+    if (effectiveInstructionsLen === 0 && isEditorPreview && Boolean(useLLMProbeWording)) {
+      effectivePackInstructions = defaultInstructions || '';
+      effectiveInstructionsLen = effectivePackInstructions.length;
+      effectiveInstructionsSource = 'DEFAULT_EDITOR_PREVIEW';
+      
+      console.log('[V3_PROBE_GEN][EDITOR_PREVIEW_FALLBACK]', {
+        categoryId,
+        instanceNumber: instanceNumber || 1,
+        packId: resolvedPackId,
+        reason: 'Pack instructions empty - using default for editor preview',
+        defaultInstructionsLen: effectiveInstructionsLen
+      });
+    }
+    
+    // TASK 1D: Compact forcing SOT log
+    console.log('[V3_PROBE_GEN][EDITOR_PREVIEW_FORCE_SOT]', {
+      isEditorPreview,
+      useLLMProbeWording: Boolean(useLLMProbeWording),
+      effectiveInstructionsSource,
+      effectiveInstructionsLen
+    });
     
     console.log('[V3_ENGINE][PACK_SOT]', {
       categoryId,
@@ -2095,6 +2123,15 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     
+    // TASK 1A: Detect editor preview context (backend-safe)
+    const referer = req?.headers?.get?.('referer') || req?.headers?.get?.('origin') || '';
+    const isEditorPreview = Boolean(referer.includes('/editor/preview/'));
+    
+    console.log('[V3_EDITOR_PREVIEW][DETECT]', {
+      isEditorPreview,
+      refererPreview: referer.slice(0, 80) || '(none)'
+    });
+    
     // Safe user lookup - treat as optional for public/anonymous sessions
     let userContext = null;
     try {
@@ -2159,6 +2196,16 @@ Deno.serve(async (req) => {
       packInstructionsLen: (packInstructions || '').length
     });
     
+    // TASK 1B: Default V3 instructions (editor preview only)
+    const DEFAULT_V3_INSTRUCTIONS = 'You are ClearQuest AI. Write one concise, natural follow-up question that asks ONLY for the missing fact in plain language. Do NOT accuse the user of omitting information. Do NOT mention "omitted information". Be specific to the user narrative.';
+    
+    // Pass isEditorPreview down to decision engine
+    const extendedConfig = {
+      ...config,
+      isEditorPreview,
+      defaultInstructions: DEFAULT_V3_INSTRUCTIONS
+    };
+    
     if (!sessionId || !categoryId) {
       console.error('[DECISION_V3][BAD_PAYLOAD] Missing required fields', {
         sessionId: !!sessionId,
@@ -2190,9 +2237,10 @@ Deno.serve(async (req) => {
       sectionId: sectionId || null,
       instanceNumber: instanceNumber || 1,
       isInitialCall: isInitialCall || false,
-      config: config || {},
+      config: extendedConfig,
       packInstructions: packInstructions || null,
-      useLLMProbeWording: useLLMProbeWording || false
+      useLLMProbeWording: useLLMProbeWording || false,
+      packId: packId || null
     });
     
     console.log('[DECISION_V3][RESULT]', {
