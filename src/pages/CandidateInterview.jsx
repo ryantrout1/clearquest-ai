@@ -12992,6 +12992,18 @@ export default function CandidateInterview() {
 
               // V3 OPENER: Use dedicated openerDraft state (ALWAYS allow updates - no v3ProbingActive gate)
               if (currentItem?.type === 'v3_pack_opener') {
+                // STEP B: Prompt sanitizer - prevent developer instructions from entering draft
+                const corruptStrings = ['BEGIN PROMPT', 'END PROMPT', 'PASS CRITERIA', 'DETAILED CHANGE REPORT', 'Anything I Need to Know', 'Run the exact GIF repro', 'If PASS', 'If FAIL'];
+                const hasCorruption = corruptStrings.some(s => value.toLowerCase().includes(s.toLowerCase()));
+
+                if (hasCorruption && typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+                  console.log('[CQ_UI][PROMPT_SANITIZED]', {
+                    reason: 'developer_instructions_detected',
+                    preview: value.substring(0, 80)
+                  });
+                  return; // Block corrupted draft
+                }
+
                 // GUARD: Never allow prompt text as value
                 const promptText = currentItem?.openerText || activePromptText || "";
                 const valueMatchesPrompt = value.trim() === promptText.trim() && value.length > 10;
@@ -13040,7 +13052,22 @@ export default function CandidateInterview() {
               }
             }}
             onKeyDown={handleInputKeyDown}
-            placeholder="Type your response here…"
+            placeholder={(() => {
+              // STEP C: Sanitize placeholder to prevent developer instructions from showing
+              const rawPlaceholder = "Type your response here…";
+              const corruptStrings = ['BEGIN PROMPT', 'END PROMPT', 'PASS CRITERIA', 'DETAILED CHANGE REPORT', 'Anything I Need to Know', 'Run the exact GIF repro', 'If PASS', 'If FAIL'];
+              const hasCorruption = corruptStrings.some(s => rawPlaceholder.toLowerCase().includes(s.toLowerCase()));
+
+              if (hasCorruption && typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+                console.log('[CQ_UI][PROMPT_SANITIZED]', {
+                  reason: 'placeholder_corrupted',
+                  preview: rawPlaceholder.substring(0, 80)
+                });
+                return "Type your response here…"; // Safe fallback
+              }
+
+              return rawPlaceholder;
+            })()}
             aria-label="Answer input"
             className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
             style={{ maxHeight: '120px', overflowY: 'auto' }}
