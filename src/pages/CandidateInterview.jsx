@@ -1703,6 +1703,14 @@ export default function CandidateInterview() {
     isV3PromptActiveSOT
   });
   
+  // PART B: Phase-based UI blocking (prevents MI_GATE during V3 transitions)
+  const isV3UiBlockingSOT = (v3PromptPhase === 'ANSWER_NEEDED' || v3PromptPhase === 'PROCESSING');
+  
+  console.log('[V3_UI_BLOCK_SOT]', {
+    v3PromptPhase,
+    isV3UiBlockingSOT
+  });
+  
   // PART A: activePromptKind SOT (single consolidated log)
   console.log('[PROMPT_KIND_SOT]', {
     activePromptKind: activeUiItem.kind,
@@ -9469,22 +9477,24 @@ export default function CandidateInterview() {
   // CHANGE 3: Track last rendered promptId to prevent duplicate active cards
   const currentPromptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
   
-  // PART 2: Enforce mutual exclusion in render stream (using SOT boolean)
-  if (activeUiItem.kind === "V3_PROMPT" && currentItem?.type === 'multi_instance_gate') {
+  // PART A: Enforce mutual exclusion in render stream (kind-based, unconditional)
+  if (activeUiItem.kind === "V3_PROMPT") {
     console.log('[STREAM_SUPPRESS]', {
       suppressed: 'MI_GATE',
-      reason: 'V3_PROMPT_ACTIVE_SOT',
-      isV3PromptActiveSOT,
+      reason: 'ACTIVE_KIND_V3_PROMPT',
+      activeKind: activeUiItem.kind,
+      currentItemType: currentItem?.type,
       packId: currentItem?.packId,
       instanceNumber: currentItem?.instanceNumber
     });
   }
   
-  if (activeUiItem.kind === "MI_GATE" && isV3PromptActiveSOT) {
+  if (activeUiItem.kind === "MI_GATE") {
     console.log('[STREAM_SUPPRESS]', {
       suppressed: 'V3_PROMPT',
-      reason: 'MI_GATE_ACTIVE',
-      isV3PromptActiveSOT,
+      reason: 'ACTIVE_KIND_MI_GATE',
+      activeKind: activeUiItem.kind,
+      currentItemType: currentItem?.type,
       packId: currentItem?.packId,
       instanceNumber: currentItem?.instanceNumber
     });
@@ -9622,16 +9632,16 @@ export default function CandidateInterview() {
   }
   
   if (activeUiItem.kind === "MI_GATE") {
-    // PART 2: SUPPRESS if V3_PROMPT active (mutual exclusion using SOT boolean)
-    if (isV3PromptActiveSOT) {
+    // PART B: SUPPRESS if V3 UI blocking (phase-based, not text-dependent)
+    if (isV3UiBlockingSOT) {
       console.log('[STREAM_SUPPRESS]', {
         suppressed: 'MI_GATE_CARD',
-        reason: 'V3_PROMPT_ACTIVE_SOT',
+        reason: 'V3_UI_BLOCKING_PHASE',
+        v3PromptPhase,
         packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber,
-        isV3PromptActiveSOT
+        instanceNumber: currentItem?.instanceNumber
       });
-      // Do NOT set activeCard - V3_PROMPT has precedence
+      // Do NOT set activeCard - V3 owns UI during ANSWER_NEEDED/PROCESSING
     } else {
       const miGatePrompt = currentItem?.promptText || multiInstanceGate?.promptText || `Do you have another incident to report?`;
       const stableKey = `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`;
