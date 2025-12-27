@@ -1548,9 +1548,10 @@ export default function CandidateInterview() {
   const reinjectedOpenerAnswersRef = useRef(new Set());
   const reinjectedV3ProbeQARef = useRef(new Set());
   
-  // B) Recent submit protection: Track recently submitted user answer stableKeys
+  // B) Recent submit protection: Track recently submitted user answer stableKeys with lifecycle
   const recentlySubmittedUserAnswersRef = useRef(new Set());
-  const renderedUserAnswersRef = useRef(new Set());
+  const recentlySubmittedUserAnswersMetaRef = useRef(new Map()); // Map<stableKey, {firstSeenAt, renderedAt}>
+  const lastRegressionLogRef = useRef(new Set()); // Track logged regressions (prevent spam)
 
   // ============================================================================
   // V3 PROMPT DETECTION + ACTIVE UI ITEM RESOLVER (TDZ-safe early placement)
@@ -9974,27 +9975,50 @@ export default function CandidateInterview() {
     }
   }
   
-  // D) REPAIR: ALL missing user answers (comprehensive safety net)
-  const allUserAnswersInDb = dbTranscript.filter(e => 
+  // B) IMMUTABLE INVARIANT: Enforce persisted user answers after all pipeline stages
+  // This runs AFTER all filtering/deduping/suppression - guarantees answers can't vanish
+  const persistedUserAnswers = dbTranscript.filter(e => 
     e.role === 'user' && 
     (e.stableKey || e.id) &&
     e.visibleToCandidate !== false
   );
   
-  const missingUserAnswers = allUserAnswersInDb.filter(dbEntry => {
+  const renderStreamKeys = new Set(finalRenderStream.map(r => r.stableKey || r.id));
+  const missingUserAnswers = persistedUserAnswers.filter(dbEntry => {
     const dbKey = dbEntry.stableKey || dbEntry.id;
-    return !finalRenderStream.some(r => (r.stableKey || r.id) === dbKey);
+    return !renderStreamKeys.has(dbKey);
   });
   
+  // D) REGRESSION LOG: Detect user answers dropped post-submit
+  if (recentlySubmittedUserAnswersRef.current.size > 0) {
+    for (const protectedKey of recentlySubmittedUserAnswersRef.current) {
+      if (!renderStreamKeys.has(protectedKey) && !lastRegressionLogRef.current.has(protectedKey)) {
+        const inDb = dbTranscript.some(e => (e.stableKey || e.id) === protectedKey);
+        const renderKeysTail = Array.from(renderStreamKeys).slice(-5);
+        
+        console.error('[CQ_TRANSCRIPT][REGRESSION_USER_ANSWER_DROPPED]', {
+          stableKey: protectedKey,
+          dbHasKey: inDb,
+          renderKeysTail,
+          renderLen: finalRenderStream.length,
+          dbLen: dbTranscript.length,
+          reason: 'Recently submitted answer missing from render stream'
+        });
+        
+        lastRegressionLogRef.current.add(protectedKey);
+      }
+    }
+  }
+  
   if (missingUserAnswers.length > 0) {
-    console.error('[CQ_TRANSCRIPT][REPAIR_REINJECTED_USER_ANSWER]', {
+    console.error('[CQ_TRANSCRIPT][IMMUTABLE_ENFORCE_REINJECT]', {
       missingCount: missingUserAnswers.length,
       missingKeys: missingUserAnswers.map(e => ({
         stableKey: e.stableKey || e.id,
         messageType: e.messageType || e.type,
         textPreview: (e.text || '').substring(0, 40)
       })),
-      reason: 'User answers in dbTranscript but missing from render - repairing'
+      reason: 'Persisted user answer missing after pipeline - enforcing immutability'
     });
     
     // Sort by transcript index for chronological order
@@ -10013,7 +10037,7 @@ export default function CandidateInterview() {
       finalRenderStream = [...finalRenderStream, ...toInject];
     }
     
-    console.log('[CQ_TRANSCRIPT][REPAIR_USER_ANSWER_IMMUTABLE_OK]', {
+    console.log('[CQ_TRANSCRIPT][IMMUTABLE_ENFORCE_OK]', {
       beforeLen: finalRenderStreamDeduped.length,
       afterLen: finalRenderStream.length,
       injectedCount: toInject.length
@@ -11019,23 +11043,59 @@ export default function CandidateInterview() {
               const isUserRole = entry.role === 'user';
               const isRecentlySubmitted = recentlySubmittedUserAnswersRef.current.has(stableKey);
               
-              if (isUserRole && (isRecentlySubmitted || stableKey)) {
-                // B) PROTECTION WINDOW: Force-include recently submitted answers
+              if (isUserRole && stableKey) {
+                // A) Fix protection lifecycle - don't delete immediately
                 if (isRecentlySubmitted) {
-                  console.log('[CQ_TRANSCRIPT][USER_ANSWER_PROTECT]', {
-                    stableKey,
-                    messageType: entry.messageType || entry.type,
-                    reason: 'Recently submitted - protection window active'
-                  });
+                  const now = Date.now();
+                  let meta = recentlySubmittedUserAnswersMetaRef.current.get(stableKey);
                   
-                  // Mark as rendered (clear protection after first render)
-                  renderedUserAnswersRef.current.add(stableKey);
-                  if (renderedUserAnswersRef.current.has(stableKey)) {
+                  if (!meta) {
+                    // First time seeing this answer - initialize metadata
+                    meta = { firstSeenAt: now, renderedAt: null };
+                    recentlySubmittedUserAnswersMetaRef.current.set(stableKey, meta);
+                  }
+                  
+                  // Mark as rendered
+                  meta.renderedAt = now;
+                  
+                  // Check if protection can be cleared (250ms + in DB + rendered)
+                  const ageMs = now - meta.firstSeenAt;
+                  const inDb = dbTranscript.some(e => (e.stableKey || e.id) === stableKey);
+                  const canClear = ageMs >= 250 && inDb && meta.renderedAt;
+                  
+                  if (canClear) {
                     recentlySubmittedUserAnswersRef.current.delete(stableKey);
+                    recentlySubmittedUserAnswersMetaRef.current.delete(stableKey);
+                    console.log('[CQ_TRANSCRIPT][USER_ANSWER_PROTECT_CLEARED]', {
+                      stableKey,
+                      ageMs,
+                      reason: 'Protection window expired - answer stable in DB'
+                    });
+                  } else {
+                    console.log('[CQ_TRANSCRIPT][USER_ANSWER_PROTECT]', {
+                      stableKey,
+                      messageType: entry.messageType || entry.type,
+                      ageMs,
+                      inDb,
+                      canClear,
+                      reason: 'Protection window active - waiting for stability'
+                    });
                   }
                 }
                 
-                return true; // ALWAYS include user answers with stableKey
+                // C) Tighten to persisted-only: Only force-include if in protection OR in dbTranscript
+                const inDb = dbTranscript.some(e => (e.stableKey || e.id) === stableKey);
+                if (isRecentlySubmitted || inDb) {
+                  return true; // Include protected or persisted user answers
+                }
+                
+                // Not persisted and not protected - exclude
+                console.warn('[CQ_TRANSCRIPT][USER_ANSWER_NOT_PERSISTED]', {
+                  stableKey,
+                  messageType: entry.messageType || entry.type,
+                  reason: 'User answer has stableKey but not in DB transcript - excluding'
+                });
+                return false;
               }
               
               // Check both stableKey prefix and messageType/type
