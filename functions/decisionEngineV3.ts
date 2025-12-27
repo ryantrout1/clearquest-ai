@@ -1675,6 +1675,7 @@ async function decisionEngineV3Probe(base44, {
       
       // Found first truly missing field
       candidateField = field;
+      selectedFieldIdForLogging = field.field_id;
       break;
     }
     
