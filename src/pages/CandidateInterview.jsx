@@ -11138,44 +11138,91 @@ export default function CandidateInterview() {
                   textPreview: (e.text || '').substring(0, 40)
                 })),
                 reason: 'Persisted user answer missing from transcript renderable - reinjecting at transcript layer',
-                normalizer: 'same_as_dbTranscript_entries'
+                normalizer: 'applying __canonicalKey normalization'
               });
               
               // Sort by transcript index for chronological order
               const toInject = [...missingFromTranscript].sort((a, b) => (a.index || 0) - (b.index || 0));
               
-              // Inject at transcript layer (entries already normalized - from dbTranscript)
-              // Find MI gate in transcript list (if present)
+              // 1) NORMALIZE: Apply same normalization as existing transcript pipeline (adds __canonicalKey)
+              const toInjectNormalized = toInject.map(entry => {
+                const messageType = entry.messageType || entry.type;
+                const role = entry.role || 'unknown';
+                const uniqueId = entry.stableKey || entry.id || `idx-${entry.index || Math.random()}`;
+                const canonicalKey = `${role}:${messageType}:${uniqueId}`;
+                
+                return {
+                  ...entry,
+                  __canonicalKey: canonicalKey
+                };
+              }).filter(Boolean);
+              
+              // 2) INJECT: Find MI gate in transcript list (if present) - IMPROVED detection
               const miGateIndexInTranscript = transcriptToRenderDeduped.findIndex(e => 
                 e.messageType === 'MULTI_INSTANCE_GATE_SHOWN' ||
+                e.kind === 'multi_instance_gate' ||
                 (e.stableKey && e.stableKey.startsWith('mi-gate:'))
               );
               
               if (miGateIndexInTranscript !== -1) {
                 transcriptToRenderDeduped = [
                   ...transcriptToRenderDeduped.slice(0, miGateIndexInTranscript),
-                  ...toInject,
+                  ...toInjectNormalized,
                   ...transcriptToRenderDeduped.slice(miGateIndexInTranscript)
                 ];
-                console.log('[CQ_TRANSCRIPT][IMMUTABLE_LAYER_ASSERT]', {
-                  dbUserAnswerCount: persistedUserAnswers.length,
-                  renderedUserAnswerCount: transcriptKeys.size,
-                  missingCount: missingFromTranscript.length,
-                  injectedBeforeGateAt: miGateIndexInTranscript
-                });
               } else {
-                transcriptToRenderDeduped = [...transcriptToRenderDeduped, ...toInject];
-                console.log('[CQ_TRANSCRIPT][IMMUTABLE_LAYER_ASSERT]', {
-                  dbUserAnswerCount: persistedUserAnswers.length,
-                  renderedUserAnswerCount: transcriptKeys.size,
-                  missingCount: missingFromTranscript.length,
-                  injectedAt: 'end'
-                });
+                transcriptToRenderDeduped = [...transcriptToRenderDeduped, ...toInjectNormalized];
               }
-            } else {
+              
+              // 4) POST-INJECT DEDUPE: Remove any duplicates created by injection
+              transcriptToRenderDeduped = dedupeBeforeRender(transcriptToRenderDeduped);
+              
+              // 3) FIXED COUNTS: Actual user answer counts (not total keys)
+              const renderedUserAnswerCount = transcriptToRenderDeduped.filter(e => 
+                e.role === 'user' && e.visibleToCandidate !== false
+              ).length;
+              
+              const renderedHasKeyCount = persistedUserAnswers.filter(dbEntry => {
+                const dbKey = dbEntry.stableKey || dbEntry.id;
+                return transcriptToRenderDeduped.some(r => (r.stableKey || r.id) === dbKey);
+              }).length;
+              
               console.log('[CQ_TRANSCRIPT][IMMUTABLE_LAYER_ASSERT]', {
                 dbUserAnswerCount: persistedUserAnswers.length,
-                renderedUserAnswerCount: transcriptKeys.size,
+                renderedUserAnswerCount,
+                missingCount: missingFromTranscript.length,
+                renderedHasKeyCount,
+                injectedAt: miGateIndexInTranscript !== -1 ? `index ${miGateIndexInTranscript}` : 'end'
+              });
+              
+              // 4) POST-INJECT ASSERT: Verify all injected entries survived (dev only)
+              if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+                const postInjectKeys = new Set(transcriptToRenderDeduped.map(e => e.stableKey || e.id));
+                const failedInjections = toInjectNormalized.filter(entry => {
+                  const key = entry.stableKey || entry.id;
+                  return !postInjectKeys.has(key);
+                });
+                
+                if (failedInjections.length > 0) {
+                  console.error('[CQ_TRANSCRIPT][IMMUTABLE_REINJECT_FAILED]', {
+                    failedCount: failedInjections.length,
+                    failedKeys: failedInjections.map(e => ({
+                      stableKey: e.stableKey || e.id,
+                      messageType: e.messageType || e.type
+                    })),
+                    reason: 'Normalization or post-inject dedupe removed entries - check normalizer logic'
+                  });
+                }
+              }
+            } else {
+              // 3) FIXED COUNTS: Log even when no missing (proves counts are correct)
+              const renderedUserAnswerCount = transcriptToRenderDeduped.filter(e => 
+                e.role === 'user' && e.visibleToCandidate !== false
+              ).length;
+              
+              console.log('[CQ_TRANSCRIPT][IMMUTABLE_LAYER_ASSERT]', {
+                dbUserAnswerCount: persistedUserAnswers.length,
+                renderedUserAnswerCount,
                 missingCount: 0
               });
             }
