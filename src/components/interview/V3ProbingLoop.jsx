@@ -934,17 +934,43 @@ export default function V3ProbingLoop({
           reason: 'Backend call exceeded 12s timeout - failing open with fallback probe'
         });
         
-        // Set safe fallback probe question
+        // Set safe fallback probe question - same state as normal ASK response
         const fallbackPrompt = "What was the name of the law enforcement agency you applied to?";
+        const fallbackPromptId = `v3-fallback-${sessionId}-${categoryId}-${instanceNumber || 1}-${Date.now()}`;
+        
         setActivePromptText(fallbackPrompt);
-        setActivePromptId(`v3-fallback-${incidentId}-${probeCount}`);
+        setActivePromptId(fallbackPromptId);
+        
+        // ANSWER_NEEDED state: same as normal ASK response
         setIsDeciding(false);
         setIsLoading(false);
-        engineInFlightRef.current = false;
+        
+        // Notify parent that answer is needed (same as normal ASK)
+        if (onAnswerNeeded) {
+          onAnswerNeeded({
+            promptText: fallbackPrompt,
+            incidentId: incidentId,
+            probeCount: probeCount
+          });
+        }
+        
+        if (onPromptChange) {
+          onPromptChange({
+            promptText: fallbackPrompt,
+            promptId: fallbackPromptId,
+            loopKey,
+            packId: packData?.followup_pack_id,
+            instanceNumber: instanceNumber || 1,
+            categoryId,
+            v3PromptSource: 'FALLBACK_TIMEOUT',
+            v3LlmMs: null
+          });
+        }
         
         console.log('[V3_PROBE][FALLBACK_PROMPT_SET]', {
           promptPreview: fallbackPrompt.slice(0, 60),
-          reason: 'BACKEND_TIMEOUT'
+          reason: 'BACKEND_TIMEOUT',
+          answerNeeded: true
         });
         return;
       }
@@ -966,7 +992,6 @@ export default function V3ProbingLoop({
         // Continue interview flow - don't show error card
         setIsComplete(true);
         setCompletionReason("STOP");
-        engineInFlightRef.current = false;
         return; // ✓ EXPLICIT RETURN - guarantees no fallthrough to error card
       }
       
@@ -976,26 +1001,49 @@ export default function V3ProbingLoop({
         reason: 'Runtime exception - failing open with fallback probe'
       });
       
+      // Set safe fallback probe question - same state as normal ASK response
       const fallbackPrompt = "What was the name of the law enforcement agency you applied to?";
+      const fallbackPromptId = `v3-fallback-${sessionId}-${categoryId}-${instanceNumber || 1}-${Date.now()}`;
+      
       setActivePromptText(fallbackPrompt);
-      setActivePromptId(`v3-fallback-${incidentId}-${probeCount}`);
+      setActivePromptId(fallbackPromptId);
+      
+      // ANSWER_NEEDED state: same as normal ASK response
       setIsDeciding(false);
       setIsLoading(false);
-      engineInFlightRef.current = false;
+      
+      // Notify parent that answer is needed (same as normal ASK)
+      if (onAnswerNeeded) {
+        onAnswerNeeded({
+          promptText: fallbackPrompt,
+          incidentId: incidentId,
+          probeCount: probeCount
+        });
+      }
+      
+      if (onPromptChange) {
+        onPromptChange({
+          promptText: fallbackPrompt,
+          promptId: fallbackPromptId,
+          loopKey,
+          packId: packData?.followup_pack_id,
+          instanceNumber: instanceNumber || 1,
+          categoryId,
+          v3PromptSource: 'FALLBACK_EXCEPTION',
+          v3LlmMs: null
+        });
+      }
       
       console.log('[V3_PROBE][FALLBACK_PROMPT_SET]', {
         promptPreview: fallbackPrompt.slice(0, 60),
-        reason: 'RUNTIME_EXCEPTION'
+        reason: 'RUNTIME_EXCEPTION',
+        answerNeeded: true
       });
       return;
     } finally {
-      // Only reset if not already handled in catch block
-      if (!isLoading) {
-        setIsLoading(false);
-      }
-      if (!isDeciding) {
-        setIsDeciding(false);
-      }
+      setIsLoading(false);
+      setIsDeciding(false);
+      engineInFlightRef.current = false;
     }
   };
 
