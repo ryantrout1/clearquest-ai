@@ -443,8 +443,9 @@ export default function V3ProbingLoop({
       // TASK 1A: Compute editor preview flag (frontend SOT)
       const payloadIsEditorPreview = Boolean(window?.location?.pathname?.includes('/editor/preview/'));
       
-      // PAYLOAD HARDENING: Ensure flags are always present and consistent
-      const payloadUseLLMProbeWording = Boolean(shouldUseLLMProbeWording);
+      // TASK 1B: Force LLM in editor preview (preview-only)
+      const payloadUseLLMProbeWording = payloadIsEditorPreview ? true : Boolean(shouldUseLLMProbeWording);
+      const payloadUseLLMForced = payloadIsEditorPreview && !Boolean(shouldUseLLMProbeWording);
       const payloadPackInstructions = packData?.ai_probe_instructions || '';
       const packInstructionsLen = payloadPackInstructions.length;
       const hasPackInstructions = packInstructionsLen > 0;
@@ -466,7 +467,7 @@ export default function V3ProbingLoop({
         });
       }
       
-      // TASK 1C: PAYLOAD SOT LOG - Extended with isEditorPreview
+      // TASK 1C: PAYLOAD SOT LOG - Extended with forcing metadata
       console.log('[V3_LLM][PAYLOAD_SOT]', {
         sessionId,
         categoryId,
@@ -476,6 +477,7 @@ export default function V3ProbingLoop({
         packIdSource,
         shouldUseLLMProbeWording,
         payloadUseLLMProbeWording,
+        payloadUseLLMForced,
         packInstructionsLen,
         hasPackInstructions,
         isEditorPreview: payloadIsEditorPreview,

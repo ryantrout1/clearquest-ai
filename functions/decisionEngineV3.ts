@@ -2185,6 +2185,9 @@ Deno.serve(async (req) => {
     const headerIsEditorPreview = Boolean(referer.includes('/editor/preview/'));
     const isEditorPreviewSOT = Boolean(payloadIsEditorPreview) || headerIsEditorPreview;
     
+    // TASK 2A: Force useLLMProbeWording in preview (defense in depth)
+    const useLLMProbeWordingSOT = isEditorPreviewSOT ? true : Boolean(useLLMProbeWording);
+    
     // TASK 2D: Compact detection log (both sources)
     console.log('[V3_EDITOR_PREVIEW][DETECT]', {
       payloadIsEditorPreview: Boolean(payloadIsEditorPreview),
@@ -2193,12 +2196,14 @@ Deno.serve(async (req) => {
       refererPreview: referer.slice(0, 80) || '(none)'
     });
     
-    // SOT LOG: Prove backend receives enablement flags + pack identity
+    // TASK 2B: SOT LOG - Extended with forcing metadata
     console.log('[V3_ENGINE][REQ_SOT]', {
       categoryId,
       instanceNumber: instanceNumber || 1,
       packId: packId || null,
-      useLLMProbeWording: useLLMProbeWording || false,
+      useLLMProbeWordingRaw: Boolean(useLLMProbeWording),
+      useLLMProbeWordingSOT,
+      useLLMProbeWordingForced: isEditorPreviewSOT && !Boolean(useLLMProbeWording),
       packInstructionsLen: (packInstructions || '').length
     });
     
@@ -2233,6 +2238,7 @@ Deno.serve(async (req) => {
       answerLength: latestAnswerText?.length || 0
     });
     
+    // TASK 2C: Pass useLLMProbeWordingSOT to engine
     const result = await decisionEngineV3Probe(base44, {
       sessionId,
       categoryId,
@@ -2245,7 +2251,7 @@ Deno.serve(async (req) => {
       isInitialCall: isInitialCall || false,
       config: extendedConfig,
       packInstructions: packInstructions || null,
-      useLLMProbeWording: useLLMProbeWording || false,
+      useLLMProbeWording: useLLMProbeWordingSOT,
       packId: packId || null
     });
     
