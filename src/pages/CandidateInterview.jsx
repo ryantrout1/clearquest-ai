@@ -1020,6 +1020,9 @@ export default function CandidateInterview() {
   
   // STABLE: Track if transcript has been initialized to prevent resets
   const transcriptInitializedRef = useRef(false);
+  
+  // TRANSCRIPT SOT: Single source of truth for all rendering and metrics
+  const transcriptSOT = canonicalTranscriptRef.current.length > 0 ? canonicalTranscriptRef.current : dbTranscript;
 
   // STATE HOISTED: Must be declared before forensicCheck (prevents TDZ crash)
   const [screenMode, setScreenMode] = useState("LOADING");
@@ -1851,8 +1854,8 @@ export default function CandidateInterview() {
 
   const totalQuestionsAllSections = engine?.TotalQuestions || 0;
   const answeredQuestionsAllSections = React.useMemo(
-    () => dbTranscript.filter(t => t.type === 'question').length,
-    [dbTranscript]
+    () => transcriptSOT.filter(t => t.type === 'question').length,
+    [transcriptSOT]
   );
   const questionCompletionPct = totalQuestionsAllSections > 0
     ? Math.round((answeredQuestionsAllSections / totalQuestionsAllSections) * 100)
@@ -1943,7 +1946,7 @@ export default function CandidateInterview() {
   // Compute next renderable (dedupe + filter)
   // CRITICAL: This memo MUST NOT trigger component remount
   const nextRenderable = React.useMemo(() => {
-    const base = Array.isArray(dbTranscript) ? dbTranscript : [];
+    const base = Array.isArray(transcriptSOT) ? transcriptSOT : [];
     
     // V3 probe Q/A now allowed in transcript (no longer filtered)
     const baseWithoutV3Probes = base;
@@ -1999,14 +2002,14 @@ export default function CandidateInterview() {
     }
     
     return deduped;
-  }, [dbTranscript]);
+  }, [transcriptSOT]);
 
   // Loading watchdog state
   const [showLoadingRetry, setShowLoadingRetry] = useState(false);
   
   // STABLE RENDER LIST: Pure deterministic filtering (no UI-state-dependent shrink/grow)
   const renderedTranscript = useMemo(() => {
-    const base = Array.isArray(dbTranscript) ? dbTranscript : [];
+    const base = Array.isArray(transcriptSOT) ? transcriptSOT : [];
     
     // V3 probe Q/A now allowed in transcript (no longer filtered)
     const baseFiltered = base;
@@ -2244,7 +2247,7 @@ export default function CandidateInterview() {
     }
     
     return finalFiltered;
-  }, [dbTranscript, currentItem, multiInstanceGate]);
+  }, [transcriptSOT, currentItem, multiInstanceGate]);
 
   // Render-time freeze: Capture/clear snapshot based on isUserTyping
   useEffect(() => {
@@ -2281,7 +2284,7 @@ export default function CandidateInterview() {
     }
     
     prevKeysSetRef.current = nextKeys;
-  }, [dbTranscript]);
+  }, [transcriptSOT]);
 
   // Verification instrumentation (moved above early returns)
   const uiContractViolationKeyRef = useRef(null);
@@ -2602,7 +2605,7 @@ export default function CandidateInterview() {
     if (!bottomAnchorRef.current || !historyRef.current) return;
     
     // Gate on transcript growth: only scroll when canonical transcript grows
-    const currentLen = Array.isArray(dbTranscript) ? dbTranscript.length : 0;
+    const currentLen = Array.isArray(transcriptSOT) ? transcriptSOT.length : 0;
     if (currentLen <= lastAutoScrollLenRef.current) {
       return; // No growth, no scroll (prevents snap on rerenders)
     }
@@ -2640,7 +2643,7 @@ export default function CandidateInterview() {
         isProgrammaticScrollRef.current = false;
       });
     });
-  }, [footerHeightPx, dbTranscript]);
+  }, [footerHeightPx, transcriptSOT]);
 
   const autoScrollToBottom = useCallback(() => {
     if (isUserTyping) return;
@@ -3211,7 +3214,7 @@ export default function CandidateInterview() {
       console.log("[CANDIDATE_INTERVIEW][READY]", { 
         screenMode: sessionIsNew ? 'WELCOME' : 'QUESTION',
         currentItemType: loadedSession.current_item_snapshot?.type || null,
-        transcriptLen: loadedSession.transcript_snapshot?.length || 0,
+        transcriptLen: transcriptSOT.length,
         engineReady: bootCompletedRef.value
       });
 
@@ -6873,7 +6876,7 @@ export default function CandidateInterview() {
     
     // FIX F: Check if gate already answered (prevent re-show)
     const gateAnswerKey = `mi-gate:${packId}:${instanceNumber}:a`;
-    const alreadyAnswered = dbTranscript.some(e => e.stableKey === gateAnswerKey);
+    const alreadyAnswered = transcriptSOT.some(e => e.stableKey === gateAnswerKey);
     
     if (alreadyAnswered) {
       console.log('[MI_GATE][SKIP_ALREADY_ANSWERED]', {
@@ -8636,7 +8639,7 @@ export default function CandidateInterview() {
       if (!bottomAnchorRef.current || !scrollContainer) return;
       
       const lenBefore = lastRenderStreamLenRef.current;
-      const lenNow = dbTranscript.length;
+      const lenNow = transcriptSOT.length;
       const lenDelta = lenNow - lenBefore;
       
       // GUARD E: Only scroll on small transcript appends (1-2 entries)
@@ -8678,7 +8681,7 @@ export default function CandidateInterview() {
       lastRenderStreamLenRef.current = lenNow;
     });
   }, [
-    dbTranscript.length,
+    transcriptSOT.length,
     isUserTyping,
     bottomBarMode
   ]);
@@ -8761,7 +8764,7 @@ export default function CandidateInterview() {
       
       recentAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
     });
-  }, [dbTranscript.length, bottomBarMode, effectiveItemType, dynamicBottomPaddingPx, cqDiagEnabled]);
+  }, [transcriptSOT.length, bottomBarMode, effectiveItemType, dynamicBottomPaddingPx, cqDiagEnabled]);
   
   // ANCHOR V3 PROBE QUESTION: Keep just-appended question visible (ChatGPT-style)
   React.useLayoutEffect(() => {
@@ -8827,7 +8830,7 @@ export default function CandidateInterview() {
       
       v3ScrollAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
     });
-  }, [dbTranscript.length, bottomBarMode, dynamicBottomPaddingPx, cqDiagEnabled]);
+  }, [transcriptSOT.length, bottomBarMode, dynamicBottomPaddingPx, cqDiagEnabled]);
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
@@ -9140,7 +9143,7 @@ export default function CandidateInterview() {
     // Check if we should exit WELCOME based on state
     const hasCurrentItem = currentItem && currentItem.type;
     const hasV3Probing = v3ProbingActive;
-    const hasProgressMarkers = dbTranscript?.some(t => 
+    const hasProgressMarkers = transcriptSOT?.some(t => 
       t.messageType === 'QUESTION_SHOWN' || 
       t.messageType === 'ANSWER' ||
       t.messageType === 'v3_probe_question' ||
@@ -9153,13 +9156,13 @@ export default function CandidateInterview() {
         reason: hasCurrentItem ? 'currentItem exists' : hasV3Probing ? 'V3 probing active' : 'progress markers in transcript',
         screenModeBefore: screenMode,
         currentItemType: currentItem?.type,
-        transcriptLen: dbTranscript?.length || 0,
+        transcriptLen: transcriptSOT?.length || 0,
         action: 'forcing QUESTION mode'
       });
       
       setScreenMode("QUESTION");
     }
-  }, [screenMode, currentItem, v3ProbingActive, dbTranscript]);
+  }, [screenMode, currentItem, v3ProbingActive, transcriptSOT]);
 
   // Transcript logging is now handled in answer saving functions where we have Response IDs
   // This prevents logging questions with null responseId
@@ -9723,7 +9726,7 @@ export default function CandidateInterview() {
     
     // SINGLE SOURCE: Check if transcript already has V3_PROBE_QUESTION for this promptId
     const qStableKey = `v3-probe-q:${promptId}`;
-    const transcriptHasThisProbeQ = dbTranscript.some(e => 
+    const transcriptHasThisProbeQ = transcriptSOT.some(e => 
       (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
       (e.meta?.promptId === promptId || e.stableKey === qStableKey)
     );
@@ -10039,7 +10042,7 @@ export default function CandidateInterview() {
     const instanceNumber = currentItem?.instanceNumber || 1;
     
     // Find most recent V3 probe answer in dbTranscript for this pack/instance
-    const v3ProbeAnswersInDb = dbTranscript.filter(e => 
+    const v3ProbeAnswersInDb = transcriptSOT.filter(e => 
       (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER' || e.stableKey?.startsWith('v3-probe-a:')) &&
       e.meta?.packId === packId &&
       e.meta?.instanceNumber === instanceNumber
@@ -11176,43 +11179,7 @@ export default function CandidateInterview() {
                 probeQuestionCount
               });
               
-              // D) FINAL INVARIANT: Verify all persisted user answers are present AND non-empty
-              const missingOrEmptyKeys = [];
-              for (const dbEntry of persistedUserAnswers) {
-                const dbKey = dbEntry.stableKey || dbEntry.id;
-                const renderedEntry = transcriptToRenderDeduped.find(r => (r.stableKey || r.id) === dbKey);
-                
-                if (!renderedEntry) {
-                  missingOrEmptyKeys.push({ key: dbKey, reason: 'missing' });
-                } else if (!(renderedEntry.text || '').trim()) {
-                  missingOrEmptyKeys.push({ key: dbKey, reason: 'empty_text' });
-                } else {
-                  // STEP 2: Verify text matches (not an old shadow)
-                  const dbTextPrefix = (dbEntry.text || '').trim().slice(0, 15);
-                  const renderedTextPrefix = (renderedEntry.text || '').trim().slice(0, 15);
-                  
-                  if (dbTextPrefix && !renderedTextPrefix.startsWith(dbTextPrefix)) {
-                    missingOrEmptyKeys.push({ 
-                      key: dbKey, 
-                      reason: 'text_mismatch_shadow',
-                      dbPrefix: dbTextPrefix,
-                      renderedPrefix: renderedTextPrefix
-                    });
-                  }
-                }
-              }
-              
-              if (missingOrEmptyKeys.length > 0) {
-                console.error('[CQ_TRANSCRIPT][FINAL_INVARIANT_FAIL]', {
-                  missingKeys: missingOrEmptyKeys,
-                  note: 'User answers must be present and non-empty'
-                });
-              } else {
-                console.log('[CQ_TRANSCRIPT][FINAL_INVARIANT_OK]', {
-                  count: persistedUserAnswers.length
-                });
-              }
-            }
+              // STEP 4: REPAIR SYSTEMS REMOVED - diagnostics deleted (persistedUserAnswers undefined)
             
             // REGRESSION LOG: Prove what we're about to render (source of truth for UI)
             const packId = currentItem?.packId || v3ProbingContext?.packId;
