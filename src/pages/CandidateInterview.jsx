@@ -4554,6 +4554,9 @@ export default function CandidateInterview() {
           transcriptLenAfter: transcriptAfterAnswer.length
         });
         
+        // B) Track recently submitted user answer for protection
+        recentlySubmittedUserAnswersRef.current.add(openerAnswerStableKey);
+        
         // REGRESSION GUARD: Verify appended entry is in returned transcript
         const foundInReturned = transcriptAfterAnswer.some(e => e.stableKey === openerAnswerStableKey);
         console.log('[CQ_TRANSCRIPT][SOT_AFTER_USER_APPEND]', {
@@ -7344,6 +7347,9 @@ export default function CandidateInterview() {
                 answerLen: answerText?.length || 0,
                 transcriptLenAfter: updated.length
               });
+              
+              // B) Track recently submitted user answer for protection
+              recentlySubmittedUserAnswersRef.current.add(aStableKey);
               
               // ANCHOR: Mark this answer for viewport anchoring
               recentAnchorRef.current = {
