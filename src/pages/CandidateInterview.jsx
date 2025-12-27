@@ -6986,7 +6986,11 @@ export default function CandidateInterview() {
     const effectiveLoopKey = loopKey || `${sessionId}:${categoryId}:${instanceNumber}`;
     // FIX: promptId already contains sessionId via loopKey - don't duplicate
     const qStableKey = `v3-probe-q:${canonicalPromptId}`;
-    
+
+    // TASK 3: Extract provenance metadata from prompt payload (if provided)
+    const v3PromptSource = typeof promptData === 'object' ? promptData?.v3PromptSource : undefined;
+    const v3LlmMs = typeof promptData === 'object' ? promptData?.v3LlmMs : undefined;
+
     // OPTIMISTIC APPEND: Check + append in single functional update
     const appendSuccess = await new Promise((resolve) => {
       setDbTranscriptSafe(prev => {
@@ -7000,7 +7004,7 @@ export default function CandidateInterview() {
           resolve(false);
           return prev;
         }
-        
+
         const qEntry = {
           id: `v3-probe-q-${canonicalPromptId}`,
           stableKey: qStableKey,
@@ -7017,8 +7021,14 @@ export default function CandidateInterview() {
             packId,
             instanceNumber,
             categoryId,
-            source: 'v3'
+            source: 'v3',
+            // TASK 3: Store provenance in meta for render-time access
+            v3PromptSource,
+            v3LlmMs
           },
+          // TASK 3: Also store at top-level for easier access
+          v3PromptSource,
+          v3LlmMs,
           visibleToCandidate: true
         };
         

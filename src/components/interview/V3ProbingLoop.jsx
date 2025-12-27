@@ -688,7 +688,10 @@ export default function V3ProbingLoop({
             loopKey,
             packId: packData?.followup_pack_id,
             instanceNumber: instanceNumber || 1,
-            categoryId
+            categoryId,
+            // TASK 3: Wire provenance metadata through to parent
+            v3PromptSource: data?.v3PromptSource,
+            v3LlmMs: data?.v3LlmMs
           });
         }
 
