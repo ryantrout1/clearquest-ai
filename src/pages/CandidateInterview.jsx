@@ -10924,6 +10924,22 @@ export default function CandidateInterview() {
                     const cardKind = entry.kind;
                     
                     if (cardKind === "v3_probe_q") {
+                      // TASK 2: RENDER-TIME PROVENANCE LOG - Prove what UI actually displays
+                      const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+                      const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+                      
+                      console.log('[V3_PROMPT][PROMPT_CARD_SOT]', {
+                        v3ProbingActive,
+                        v3PromptPhase,
+                        loopKey,
+                        promptId,
+                        stableKey: entry.stableKey || null,
+                        promptTextPreview: String(entry.text || '').slice(0, 90),
+                        // Provenance metadata (if present on entry object)
+                        v3PromptSource: entry?.v3PromptSource ?? entry?.meta?.v3PromptSource ?? '(missing)',
+                        v3LlmMs: entry?.v3LlmMs ?? entry?.meta?.v3LlmMs ?? null
+                      });
+                      
                       return (
                         <div key={entryKey}>
                           <ContentContainer>
