@@ -6788,9 +6788,22 @@ export default function CandidateInterview() {
         return prev; // No mutation - just logging fresh state
       });
 
-      // Clear active probe refs (but not history state)
+      // C) Clear active probe refs AND any stale prompt state
       v3ActiveProbeQuestionRef.current = null;
       v3ActiveProbeQuestionLoopKeyRef.current = null;
+      
+      // C) Clear stale V3 prompt rendering flags (prevents lingering prompt cards)
+      setV3ActivePromptText(null);
+      v3ActivePromptTextRef.current = null;
+      lastRenderedV3PromptKeyRef.current = null;
+      
+      console.log('[MI_GATE][V3_PROMPT_CLEARED_ON_ENTER]', {
+        packId,
+        instanceNumber,
+        clearedPromptText: true,
+        clearedPromptKey: true,
+        reason: 'Entering MI_GATE - preventing stale V3 prompt cards'
+      });
 
       // Set up multi-instance gate as first-class currentItem
       const gateItem = {
@@ -7753,9 +7766,22 @@ export default function CandidateInterview() {
             return prev; // No mutation - just logging fresh state
           });
           
-          // Clear active probe refs (but not history state)
+          // C) Clear active probe refs AND any stale prompt state
           v3ActiveProbeQuestionRef.current = null;
           v3ActiveProbeQuestionLoopKeyRef.current = null;
+          
+          // C) Clear stale V3 prompt rendering flags (prevents lingering prompt cards)
+          setV3ActivePromptText(null);
+          v3ActivePromptTextRef.current = null;
+          lastRenderedV3PromptKeyRef.current = null;
+          
+          console.log('[MI_GATE][V3_PROMPT_CLEARED_ON_INLINE_GATE]', {
+            packId,
+            instanceNumber,
+            clearedPromptText: true,
+            clearedPromptKey: true,
+            reason: 'Inline gate transition - preventing stale V3 prompt cards'
+          });
 
           // Set up multi-instance gate as first-class currentItem
           const gateItem = {
@@ -9689,101 +9715,27 @@ export default function CandidateInterview() {
     }
   }
   
-  // DETERMINISTIC V3 PROBE Q/A INCLUSION: Ensure V3 probe Q/A are in stream before MI_GATE
+  // A) V3_PROBE_QA_ATTACH DISABLED: Do NOT inject V3 probe Q/A when MI gate is active
+  // V3 probe history is ONLY visible in canonical transcript above the gate
+  // MI gate renders standalone as the last active card
   let filteredTranscriptRenderable = transcriptRenderable;
   let removedCount = 0;
   
-  // Collect V3 probe Q/A for current pack/instance (if MI_GATE active)
-  let v3ProbeEntriesForGate = [];
+  // HARD-DISABLED: v3ProbeEntriesForGate always empty (no injection)
+  const v3ProbeEntriesForGate = [];
   
   if (activeCard?.kind === "multi_instance_gate") {
     const activeGateId = currentItem?.id;
     const activeStableKeyBase = `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`;
-    const gatePackId = currentItem?.packId;
-    const gateInstanceNumber = currentItem?.instanceNumber || 1;
     
-    // PAIR-AWARE CHECK: Detect Q and A separately (prevents partial skips)
-    const probeQInTranscript = transcriptRenderable.filter(e => 
-      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
-      e.meta?.packId === gatePackId &&
-      e.meta?.instanceNumber === gateInstanceNumber &&
-      e.visibleToCandidate !== false
-    );
-    
-    const probeAInTranscript = transcriptRenderable.filter(e => 
-      (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER') &&
-      e.meta?.packId === gatePackId &&
-      e.meta?.instanceNumber === gateInstanceNumber &&
-      e.visibleToCandidate !== false
-    );
-    
-    const hasQ = probeQInTranscript.length > 0;
-    const hasA = probeAInTranscript.length > 0;
-    const bothPresent = hasQ && hasA;
-    
-    console.log('[MI_GATE][V3_PROBE_QA_PRESENCE]', {
-      packId: gatePackId,
-      instanceNumber: gateInstanceNumber,
-      hasQ,
-      hasA,
-      qCount: probeQInTranscript.length,
-      aCount: probeAInTranscript.length,
-      action: bothPresent ? 'SKIP' : 'APPEND_MISSING'
+    console.log('[MI_GATE][V3_PROBE_QA_ATTACH_DISABLED]', {
+      packId: currentItem.packId,
+      instanceNumber: currentItem.instanceNumber,
+      reason: 'MI gate renders standalone - V3 history in transcript only',
+      v3ProbeEntriesForGate: []
     });
     
-    if (bothPresent) {
-      console.log('[MI_GATE][V3_PROBE_QA_SKIP_BOTH_PRESENT]', {
-        packId: gatePackId,
-        instanceNumber: gateInstanceNumber,
-        qKeys: probeQInTranscript.map(e => e.stableKey || e.id),
-        aKeys: probeAInTranscript.map(e => e.stableKey || e.id),
-        reason: 'Both Q and A already in filteredTranscriptRenderable - skipping append'
-      });
-      v3ProbeEntriesForGate = [];
-    } else {
-      // Extract ALL V3 probe Q/A for this pack/instance from dbTranscript
-      const v3ProbeQAFromDb = dbTranscript.filter(e => 
-        ((e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') ||
-         (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER')) &&
-        e.meta?.packId === gatePackId &&
-        e.meta?.instanceNumber === gateInstanceNumber &&
-        e.visibleToCandidate !== false
-      );
-      
-      // Build Set of already-present canonical keys
-      const alreadyPresentKeys = new Set([
-        ...probeQInTranscript.map(e => e.stableKey || e.id),
-        ...probeAInTranscript.map(e => e.stableKey || e.id)
-      ]);
-      
-      // Append ONLY items not already in transcript
-      const toAppend = v3ProbeQAFromDb.filter(e => {
-        const canonicalKey = e.stableKey || e.id;
-        return !alreadyPresentKeys.has(canonicalKey);
-      });
-      
-      if (toAppend.length > 0) {
-        console.log('[MI_GATE][V3_PROBE_QA_APPEND_MISSING]', {
-          packId: gatePackId,
-          instanceNumber: gateInstanceNumber,
-          appendedKeys: toAppend.map(e => e.stableKey || e.id),
-          appendedCount: toAppend.length,
-          hadQ: hasQ,
-          hadA: hasA
-        });
-        
-        v3ProbeEntriesForGate = toAppend;
-      } else {
-        console.log('[MI_GATE][V3_PROBE_QA_NONE_TO_APPEND]', {
-          packId: gatePackId,
-          instanceNumber: gateInstanceNumber,
-          reason: 'No V3 probe Q/A found in dbTranscript or all already present'
-        });
-        v3ProbeEntriesForGate = [];
-      }
-    }
-    
-    // Filter out duplicate MI_GATE entries
+    // Filter out duplicate MI_GATE entries from transcript (current gate only)
     filteredTranscriptRenderable = transcriptRenderable.filter(e => {
       // Keep non-gate entries
       if (e.messageType !== 'MULTI_INSTANCE_GATE_SHOWN') return true;
@@ -9812,13 +9764,35 @@ export default function CandidateInterview() {
     }
   }
   
-  // Build base stream: filtered transcript + v3ProbeQA (if MI_GATE) + v3UI + activeCard
+  // Build base stream: filtered transcript + v3UI + activeCard
+  // B) ORDERING RULE: If MI_GATE is active, it MUST be last (no items after it)
   const baseRenderStream = [
     ...filteredTranscriptRenderable,
-    ...v3ProbeEntriesForGate, // Deterministically include V3 probe Q/A before MI_GATE (if not already in transcript)
+    // v3ProbeEntriesForGate removed - no injection (A)
     ...v3UiRenderable,
     ...(activeCard ? [activeCard] : [])
   ];
+  
+  // B) ENFORCE: MI gate is last - suppress any items that would render after it
+  let orderedStream = baseRenderStream;
+  if (activeCard?.kind === "multi_instance_gate") {
+    // Find index of active MI_GATE card
+    const miGateIndex = baseRenderStream.findIndex(e => e.__activeCard && e.kind === "multi_instance_gate");
+    
+    if (miGateIndex !== -1 && miGateIndex < baseRenderStream.length - 1) {
+      // Items exist after MI_GATE - suppress them
+      const itemsAfter = baseRenderStream.slice(miGateIndex + 1);
+      orderedStream = baseRenderStream.slice(0, miGateIndex + 1);
+      
+      console.warn('[MI_GATE][ORDERING_ENFORCED]', {
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+        suppressedItemsCount: itemsAfter.length,
+        suppressedKinds: itemsAfter.map(e => ({ kind: e.kind || e.messageType, key: e.stableKey || e.id })),
+        reason: 'MI gate must be last - items after gate suppressed'
+      });
+    }
+  }
   
   // SAFETY NET: Dedupe by canonical key (prevents duplicate key warnings)
   // Minimal single-pass dedupe - preserves first occurrence order
@@ -9859,7 +9833,7 @@ export default function CandidateInterview() {
     return deduped;
   };
   
-  const finalRenderStreamDeduped = dedupeByCanonicalKey(baseRenderStream);
+  const finalRenderStreamDeduped = dedupeByCanonicalKey(orderedStream);
   
   // SAFETY NET: Re-inject missing v3_opener_answer if it exists in canonical but not in render
   // IMMUTABLE: Creates new array rather than mutating (guarantees React re-render)
@@ -9984,6 +9958,42 @@ export default function CandidateInterview() {
     : finalRenderStream;
   
   // Use renderableTranscriptStream for all rendering below (immutable - safe for React)
+  
+  // D) MI_GATE_ALIGNMENT_ASSERT: Regression check when MI gate is active
+  if (activeCard?.kind === "multi_instance_gate") {
+    const tail3 = renderableTranscriptStream.slice(-3).map(x => ({
+      kind: x.kind || x.messageType || x.type,
+      id: (x.stableKey || x.id || '').substring(0, 40),
+      isActive: x.__activeCard || false
+    }));
+    
+    const miGateIndex = renderableTranscriptStream.findIndex(e => e.__activeCard && e.kind === "multi_instance_gate");
+    const hasItemsAfterMiGate = miGateIndex !== -1 && miGateIndex < renderableTranscriptStream.length - 1;
+    
+    console.log('[MI_GATE][ALIGNMENT_ASSERT]', {
+      activeUiItemKind: activeUiItem?.kind,
+      effectiveItemType,
+      streamLen: renderableTranscriptStream.length,
+      tail3,
+      hasItemsAfterMiGate,
+      miGateIsLast: !hasItemsAfterMiGate
+    });
+    
+    if (hasItemsAfterMiGate) {
+      const itemsAfter = renderableTranscriptStream.slice(miGateIndex + 1);
+      console.error('[MI_GATE][ALIGNMENT_VIOLATION]', {
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+        itemsAfterCount: itemsAfter.length,
+        itemsAfter: itemsAfter.map(e => ({
+          kind: e.kind || e.messageType || e.type,
+          key: (e.stableKey || e.id || '').substring(0, 40),
+          textPreview: (e.text || '').substring(0, 40)
+        })),
+        reason: 'MI gate must be last - regression detected'
+      });
+    }
+  }
   
   // PART E: Stream snapshot log (only on length changes, with array guard)
   const renderStreamLen = Array.isArray(renderableTranscriptStream) ? renderableTranscriptStream.length : 0;
@@ -10800,38 +10810,16 @@ export default function CandidateInterview() {
             // Use renderableTranscriptStream (frozen during typing to prevent flash)
             const transcriptToRender = renderableTranscriptStream;
             
-            // B2 — DETERMINISTIC V3 PROBE Q/A INCLUSION FOR MI_GATE
-            // When MI_GATE active, pull ALL V3 probe Q/A for this pack/instance from dbTranscript
-            let v3ProbeQAForGateDeterministic = [];
+            // A) V3_PROBE_QA_ATTACH DISABLED: Do NOT extract or attach V3 probe Q/A when MI_GATE active
+            // V3 probe history appears ONLY in canonical transcript (above gate in chronological order)
+            const v3ProbeQAForGateDeterministic = [];
             
             if (activeUiItem?.kind === "MI_GATE" && currentItem?.packId && currentItem?.instanceNumber) {
-              const gatePackId = currentItem.packId;
-              const gateInstanceNumber = currentItem.instanceNumber;
-              
-              // Extract all V3 probe Q/A from canonical transcript
-              const v3ProbeQuestions = dbTranscript.filter(e => 
-                (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
-                e.meta?.packId === gatePackId &&
-                e.meta?.instanceNumber === gateInstanceNumber &&
-                e.visibleToCandidate !== false
-              );
-              
-              const v3ProbeAnswers = dbTranscript.filter(e => 
-                (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER') &&
-                e.meta?.packId === gatePackId &&
-                e.meta?.instanceNumber === gateInstanceNumber &&
-                e.visibleToCandidate !== false
-              );
-              
-              v3ProbeQAForGateDeterministic = [...v3ProbeQuestions, ...v3ProbeAnswers];
-              
-              console.log('[MI_GATE][V3_PROBE_QA_ATTACH]', {
-                gatePackId,
-                gateInstanceNumber,
-                qCount: v3ProbeQuestions.length,
-                aCount: v3ProbeAnswers.length,
-                attached: true,
-                totalAttached: v3ProbeQAForGateDeterministic.length
+              console.log('[MI_GATE][V3_PROBE_QA_ATTACH_DISABLED]', {
+                packId: currentItem.packId,
+                instanceNumber: currentItem.instanceNumber,
+                reason: 'MI gate renders standalone - transcript is canonical source for V3 history',
+                v3ProbeQAForGateDeterministic: []
               });
             }
             
