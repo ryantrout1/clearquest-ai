@@ -327,42 +327,21 @@ export default function V3ProbingLoop({
     if (typeof window === 'undefined') {
       return {
         enabled: false,
+        reason: 'server_side_render',
         pathname: '',
-        href: '',
-        host: '',
-        hostname: '',
-        isEditorPreviewPath: false,
-        isPreviewSandboxHost: false,
-        isBase44Host: false,
-        isAppsEditorPreview: false,
-        reason: 'server_side_render'
+        href: ''
       };
     }
     
     const pathname = window.location?.pathname || '';
     const href = window.location?.href || '';
-    const host = window.location?.host || '';
-    const hostname = window.location?.hostname || '';
-
-    const isEditorPreviewPath = pathname.includes('/editor/preview/');
-    const isPreviewSandboxHost = hostname.includes('preview-sandbox--');
-    const isBase44Host = hostname.includes('base44.app') || hostname.includes('base44.com');
-    const isAppsEditorPreview = href.includes('/apps/') && href.includes('/editor/preview/');
-
-    // Enable in editor preview environments only:
-    const enabled = (isEditorPreviewPath && isBase44Host) || isPreviewSandboxHost || isAppsEditorPreview;
-
+    const enabled = pathname.includes('/editor/preview/') || href.includes('/editor/preview/');
+    
     return {
       enabled,
+      reason: enabled ? 'editor_preview_path_detected' : 'not_editor_preview_path',
       pathname,
-      href,
-      host,
-      hostname,
-      isEditorPreviewPath,
-      isPreviewSandboxHost,
-      isBase44Host,
-      isAppsEditorPreview,
-      reason: enabled ? 'preview_env_detected' : 'non_preview_env'
+      href
     };
   };
 
@@ -391,7 +370,6 @@ export default function V3ProbingLoop({
       console.log('[V3_LLM][SOT_ENABLEMENT]', {
         ...v3LLMSOT,
         sessionId,
-        packId: packData?.followup_pack_id || packData?.packId,
         categoryId,
         instanceNumber: instanceNumber || 1,
         loopKey

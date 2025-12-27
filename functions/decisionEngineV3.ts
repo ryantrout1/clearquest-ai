@@ -2073,6 +2073,14 @@ Deno.serve(async (req) => {
     // ========== VALIDATE REQUIRED FIELDS ==========
     const { sessionId, categoryId, incidentId, latestAnswerText, baseQuestionId, questionCode, sectionId, instanceNumber, isInitialCall, config, packInstructions, useLLMProbeWording } = body;
     
+    // SOT LOG: Prove backend receives enablement flags
+    console.log('[V3_ENGINE][REQ_SOT]', {
+      categoryId,
+      instanceNumber: instanceNumber || 1,
+      useLLMProbeWording: useLLMProbeWording || false,
+      packInstructionsLen: (packInstructions || '').length
+    });
+    
     if (!sessionId || !categoryId) {
       console.error('[DECISION_V3][BAD_PAYLOAD] Missing required fields', {
         sessionId: !!sessionId,
