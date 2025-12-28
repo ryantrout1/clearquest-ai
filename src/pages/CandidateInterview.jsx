@@ -8063,6 +8063,28 @@ export default function CandidateInterview() {
   
   // V3 answer submit handler - routes answer to V3ProbingLoop
   const handleV3AnswerSubmit = useCallback(async (answerText) => {
+    // PART 3A: Send click trace
+    const v3PromptIdSOT = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+    
+    console.log('[V3_SEND][CLICK]', {
+      promptId: v3PromptIdSOT,
+      textLen: answerText?.length || 0,
+      hasText: !!answerText?.trim(),
+      v3PromptPhase,
+      activeUiItemKind: activeUiItem?.kind
+    });
+    
+    // PART 3A: Block if no promptId
+    if (!v3PromptIdSOT) {
+      console.error('[V3_SEND][BLOCKED_NO_PROMPT_ID]', {
+        v3PromptPhase,
+        hasV3Context: !!v3ProbingContext,
+        hasSnapshot: !!lastV3PromptSnapshotRef.current,
+        reason: 'Cannot persist without stable promptId'
+      });
+      return;
+    }
+    
     // TDZ FIX: Compute effectiveItemType locally (not from closure deps)
     const localEffectiveItemType = v3ProbingActive ? 'v3_probing' : currentItem?.type;
     
@@ -8160,6 +8182,16 @@ export default function CandidateInterview() {
         loopKey
       });
       return prev; // No mutation - just logging
+    });
+    
+    // PART 3B: Construct stableKeyA for persistence
+    const promptId = v3PromptIdSOT;
+    const stableKeyA = `v3-probe-a:${promptId}`;
+    
+    console.log('[V3_SEND][PERSIST_START]', {
+      stableKeyA,
+      promptId,
+      textLen: answerText?.length || 0
     });
     
     // CRITICAL: V3 probe ANSWERS must ALWAYS persist to canonical transcript BEFORE any MI_GATE stream suppression
@@ -8350,6 +8382,13 @@ export default function CandidateInterview() {
               e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER'
             ).length;
             
+            // PART 3B: Log persist success
+            console.log('[V3_SEND][PERSIST_OK]', {
+              stableKeyA: aStableKey,
+              promptId,
+              transcriptLenAfter: updated.length
+            });
+            
             console.log('[V3_PROBE][COMMIT_DONE]', {
               qAdded,
               aAdded,
@@ -8359,6 +8398,17 @@ export default function CandidateInterview() {
               sessionId,
               stableKeyA: aStableKey
             });
+            
+            // PART 3C: Post-persist validation (hard invariant)
+            const foundInUpdated = updated.some(e => (e.stableKey || e.id) === aStableKey);
+            if (!foundInUpdated) {
+              console.error('[V3_SEND][INVARIANT_FAIL_NOT_IN_DB_AFTER_OK]', {
+                stableKeyA: aStableKey,
+                promptId,
+                updatedLen: updated.length,
+                reason: 'Persist OK but answer not in updated transcript array'
+              });
+            }
             
             // CQ_TRANSCRIPT_CONTRACT: Invariant check after V3 probe append
             if (ENFORCE_TRANSCRIPT_CONTRACT) {
@@ -8373,6 +8423,12 @@ export default function CandidateInterview() {
               });
             }
           }).catch(err => {
+            // PART 3B: Log persist failure
+            console.error('[V3_SEND][PERSIST_FAIL]', {
+              stableKeyA: aStableKey,
+              promptId,
+              error: err.message
+            });
             console.error('[CQ_TRANSCRIPT][V3_PROBE_PERSIST_ERROR]', { error: err.message, sessionId });
           });
           
@@ -12639,6 +12695,45 @@ export default function CandidateInterview() {
     // Use placeholder-injected list for rendering
     transcriptToRenderDeduped = transcriptWithParentPlaceholders;
     
+    // PART 2: ADJACENCY-BASED QUESTIONID INFERENCE (orphan Yes/No answers)
+    // Infer questionId for answers that have no questionId/meta by finding nearby QUESTION_SHOWN
+    let lastSeenQuestionId = null;
+    let itemsSinceQuestion = 0;
+    const ADJACENCY_WINDOW = 3; // Max items between question and answer to infer
+    
+    for (let i = 0; i < transcriptToRenderDeduped.length; i++) {
+      const entry = transcriptToRenderDeduped[i];
+      const mt = getMessageTypeSOT(entry);
+      
+      // Track last seen question
+      if (mt === 'QUESTION_SHOWN') {
+        const qId = entry.meta?.questionDbId || entry.questionId;
+        if (qId) {
+          lastSeenQuestionId = qId;
+          itemsSinceQuestion = 0;
+        }
+      } else {
+        itemsSinceQuestion++;
+      }
+      
+      // Infer questionId for orphan Yes/No answers
+      if (mt === 'ANSWER' && (entry.text === 'Yes' || entry.text === 'No')) {
+        const hasQuestionId = !!(entry.questionId || entry.meta?.questionId);
+        
+        if (!hasQuestionId && lastSeenQuestionId && itemsSinceQuestion <= ADJACENCY_WINDOW) {
+          entry.__inferredQuestionId = lastSeenQuestionId;
+          entry.__inferredBy = 'ADJACENCY';
+          
+          console.log('[CQ_TRANSCRIPT][ANSWER_INFERRED_QUESTION_ID]', {
+            stableKey: entry.stableKey || entry.id,
+            inferredQuestionId: lastSeenQuestionId,
+            itemsSinceQuestion,
+            text: entry.text
+          });
+        }
+      }
+    }
+    
     // CANONICAL ANSWER DEDUPE: Remove duplicate base-question answers (same questionId)
     // SCOPE: ONLY base-question answers - excludes V3/MI/followup answers
     
@@ -12685,8 +12780,8 @@ export default function CandidateInterview() {
       
       const stableKey = entry.stableKey || entry.id || '';
       
-      // Extract questionId from entry or parse from stableKey
-      let questionId = entry.questionId || entry.meta?.questionId;
+      // Extract questionId from entry or parse from stableKey (with adjacency inference)
+      let questionId = entry.questionId || entry.meta?.questionId || entry.__inferredQuestionId;
       
       if (!questionId && stableKey.startsWith('answer:')) {
         // Parse from stableKey format: 'answer:<sessionId>:<questionId>:<index>'
@@ -12769,7 +12864,7 @@ export default function CandidateInterview() {
       const check = isBaseAnswerSubjectToDedupe(entry);
       if (!check.isBase) continue; // Only check base answers
       
-      let questionId = entry.questionId || entry.meta?.questionId;
+      let questionId = entry.questionId || entry.meta?.questionId || entry.__inferredQuestionId;
       if (!questionId && entry.stableKey) {
         const keyMatch = entry.stableKey.match(/^answer:[^:]+:([^:]+):/);
         if (keyMatch) questionId = keyMatch[1];
@@ -13377,6 +13472,29 @@ export default function CandidateInterview() {
 
             // User answer (ANSWER from chatTranscriptHelpers)
             if (entry.role === 'user' && getMessageTypeSOT(entry) === 'ANSWER') {
+              // PART 1: FORENSIC - Log UUID/unknown-prefix answers
+              const stableKey = entry.stableKey || entry.id || '';
+              const isYesOrNo = entry.text === 'Yes' || entry.text === 'No';
+              const hasKnownPrefix = stableKey.startsWith('answer:') || 
+                                     stableKey.startsWith('v3-') || 
+                                     stableKey.startsWith('mi-gate:') || 
+                                     stableKey.startsWith('followup-');
+              const looksLikeUUID = !hasKnownPrefix && stableKey.length > 20;
+              
+              if (isYesOrNo && looksLikeUUID) {
+                console.log('[YES_BUBBLE_FORENSIC]', {
+                  stableKey,
+                  mt: entry.messageType || entry.type || entry.kind,
+                  text: entry.text,
+                  hasQuestionId: !!(entry.questionId || entry.meta?.questionId),
+                  entryQuestionId: entry.questionId || entry.meta?.questionId || null,
+                  keysPresent: Object.keys(entry).slice(0, 30),
+                  metaKeysPresent: entry.meta ? Object.keys(entry.meta).slice(0, 30) : null,
+                  fromDbTranscript: (dbTranscript || []).some(x => (x.stableKey || x.id) === stableKey),
+                  fromNonDbStream: true
+                });
+              }
+              
               // DIAGNOSTIC: Log "Yes" bubble renders to trace duplicate source
               if (entry.text === 'Yes') {
                 console.log('[YES_BUBBLE_RENDER_TRACE]', {
