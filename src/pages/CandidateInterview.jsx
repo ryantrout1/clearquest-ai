@@ -12640,6 +12640,7 @@ export default function CandidateInterview() {
     transcriptToRenderDeduped = transcriptWithParentPlaceholders;
     
     // CANONICAL ANSWER DEDUPE: Remove duplicate base-question answers (same questionId)
+    // SCOPE: ONLY base-question answers - excludes V3/MI/followup answers
     const canonicalAnswerMap = new Map();
     const answersToDedupe = [];
     
@@ -12647,12 +12648,38 @@ export default function CandidateInterview() {
       const mt = getMessageTypeSOT(entry);
       if (mt !== 'ANSWER') continue;
       
+      const stableKey = entry.stableKey || entry.id || '';
+      
+      // EXCLUSION RULES: Explicitly NOT base-question answers
+      const isV3Answer = stableKey.startsWith('v3-') || 
+                         mt === 'V3_PROBE_ANSWER' || 
+                         mt === 'V3_OPENER_ANSWER';
+      const isMiGateAnswer = stableKey.startsWith('mi-gate:') || 
+                             mt === 'MULTI_INSTANCE_GATE_ANSWER';
+      const isFollowupAnswer = stableKey.startsWith('followup-');
+      
+      if (isV3Answer || isMiGateAnswer || isFollowupAnswer) {
+        continue; // Skip - not base-question answer
+      }
+      
+      // INCLUSION RULES: Identify base-question answers
+      const hasDeterministicKey = stableKey.startsWith('answer:');
+      const hasBaseContext = entry.meta?.answerContext === 'BASE_QUESTION';
+      const hasQuestionIdNoPackMeta = entry.questionId && 
+        !entry.meta?.packId && 
+        !entry.meta?.instanceNumber && 
+        !entry.meta?.promptId;
+      
+      const isBaseQuestionAnswer = hasDeterministicKey || hasBaseContext || hasQuestionIdNoPackMeta;
+      
+      if (!isBaseQuestionAnswer) continue; // Skip - not base-question answer
+      
       // Extract questionId from entry or parse from stableKey
       let questionId = entry.questionId || entry.meta?.questionId;
       
-      if (!questionId && entry.stableKey) {
+      if (!questionId && stableKey.startsWith('answer:')) {
         // Parse from stableKey format: 'answer:<sessionId>:<questionId>:<index>'
-        const keyMatch = entry.stableKey.match(/^answer:[^:]+:([^:]+):/);
+        const keyMatch = stableKey.match(/^answer:[^:]+:([^:]+):/);
         if (keyMatch) {
           questionId = keyMatch[1];
         }
@@ -12667,7 +12694,7 @@ export default function CandidateInterview() {
       }
       
       canonicalAnswerMap.get(canonicalKey).push(entry);
-      answersToDedupe.push({ entry, canonicalKey, questionId });
+      answersToDedupe.push({ entry, canonicalKey, questionId, isBaseQuestionAnswer, stableKeyPrefix: stableKey.split(':')[0] });
     }
     
     // Build final list: keep one answer per canonicalKey, drop duplicates
@@ -12694,21 +12721,55 @@ export default function CandidateInterview() {
       );
       
       if (dropped.length > 0) {
+        const keptKey = answerToKeep.stableKey || answerToKeep.id;
+        const keptPrefix = keptKey.split(':')[0];
+        
         console.log('[CQ_TRANSCRIPT][ANSWER_DEDUPED_CANONICAL]', {
           canonicalAnswerKey: canonicalKey,
-          keptStableKey: answerToKeep.stableKey || answerToKeep.id,
-          droppedStableKeys: dropped.map(d => d.stableKey || d.id)
+          keptStableKey: keptKey,
+          droppedStableKeys: dropped.map(d => d.stableKey || d.id),
+          isBaseQuestionAnswer: true,
+          stableKeyPrefix: keptPrefix
         });
         
         droppedAnswers.push(...dropped.map(d => d.stableKey || d.id));
       }
     }
     
-    // Filter out dropped answers from render list
+    // Filter out dropped answers from render list (base-question answers only)
     transcriptToRenderDeduped = transcriptToRenderDeduped.filter(entry => {
       const mt = getMessageTypeSOT(entry);
       if (mt !== 'ANSWER') return true; // Keep non-answers
       
+      const stableKey = entry.stableKey || entry.id || '';
+      
+      // SCOPE GUARD: Only apply dedupe to base-question answers
+      const isV3Answer = stableKey.startsWith('v3-') || 
+                         mt === 'V3_PROBE_ANSWER' || 
+                         mt === 'V3_OPENER_ANSWER';
+      const isMiGateAnswer = stableKey.startsWith('mi-gate:') || 
+                             mt === 'MULTI_INSTANCE_GATE_ANSWER';
+      const isFollowupAnswer = stableKey.startsWith('followup-');
+      
+      if (isV3Answer || isMiGateAnswer || isFollowupAnswer) {
+        return true; // Keep - not subject to base dedupe
+      }
+      
+      // Apply dedupe to base-question answers only
+      const hasDeterministicKey = stableKey.startsWith('answer:');
+      const hasBaseContext = entry.meta?.answerContext === 'BASE_QUESTION';
+      const hasQuestionIdNoPackMeta = entry.questionId && 
+        !entry.meta?.packId && 
+        !entry.meta?.instanceNumber && 
+        !entry.meta?.promptId;
+      
+      const isBaseQuestionAnswer = hasDeterministicKey || hasBaseContext || hasQuestionIdNoPackMeta;
+      
+      if (!isBaseQuestionAnswer) {
+        return true; // Keep - not a base-question answer
+      }
+      
+      // Base-question answer: apply dedupe constraint
       const entryKey = entry.stableKey || entry.id;
       if (!entryKey) return true; // Keep if no key
       
@@ -12733,12 +12794,17 @@ export default function CandidateInterview() {
       const canonicalKey = `base-answer:${questionId}`;
       
       if (finalCanonicalCheck.has(canonicalKey)) {
+        const stableKey = entry.stableKey || entry.id || '';
+        const stableKeyPrefix = stableKey.split(':')[0];
+        
         console.error('[CQ_TRANSCRIPT][BUG][ANSWER_DUPLICATE_AFTER_DEDUPE]', {
           canonicalAnswerKey: canonicalKey,
           stableKeys: [
             finalCanonicalCheck.get(canonicalKey),
-            entry.stableKey || entry.id
+            stableKey
           ],
+          isBaseQuestionAnswer: true,
+          stableKeyPrefix,
           reason: 'Multiple answers for same base question survived dedupe'
         });
       } else {
