@@ -12176,12 +12176,13 @@ export default function CandidateInterview() {
       });
     }
     
-    // B1 — CANONICAL DEDUPE: Final dedupe before rendering (parent/child aware)
+    // B1 — CANONICAL DEDUPE: Final dedupe before rendering (parent/child aware + stableKey enforcement)
     const dedupeBeforeRender = (list) => {
       const seen = new Map();
       const deduped = [];
       const dropped = [];
       const parentChildMap = new Map(); // Track parent dependencies
+      const stableKeysSeen = new Set(); // REGRESSION GUARD: Enforce no duplicate stableKeys
       
       // First pass: Build parent-child relationships
       for (const entry of list) {
@@ -12199,6 +12200,23 @@ export default function CandidateInterview() {
         if (!canonicalKey) {
           deduped.push(entry);
           continue;
+        }
+        
+        // REGRESSION GUARD: Hard-block duplicate stableKeys (prevents duplicate renders)
+        const stableKey = entry.stableKey || entry.id;
+        if (stableKey && stableKeysSeen.has(stableKey)) {
+          console.log('[RENDER][DUPLICATE_STABLEKEY_BLOCKED]', {
+            stableKey,
+            messageType: entry.messageType || entry.type,
+            textPreview: (entry.text || '').substring(0, 40),
+            reason: 'Same stableKey already rendered - blocking duplicate'
+          });
+          dropped.push(canonicalKey);
+          continue; // Skip duplicate
+        }
+        
+        if (stableKey) {
+          stableKeysSeen.add(stableKey);
         }
         
         if (!seen.has(canonicalKey)) {
@@ -13200,6 +13218,19 @@ export default function CandidateInterview() {
 
             // User answer (ANSWER from chatTranscriptHelpers)
             if (entry.role === 'user' && getMessageTypeSOT(entry) === 'ANSWER') {
+              // DIAGNOSTIC: Log "Yes" bubble renders to trace duplicate source
+              if (entry.text === 'Yes') {
+                console.log('[YES_BUBBLE_RENDER_TRACE]', {
+                  stableKey: entry.stableKey || entry.id,
+                  mt: entry.messageType || entry.type || entry.kind,
+                  questionId: entry.questionId || entry.meta?.questionId || null,
+                  packId: entry.meta?.packId || null,
+                  instanceNumber: entry.meta?.instanceNumber || null,
+                  answerContext: entry.meta?.answerContext || entry.answerContext || 'unknown',
+                  sourceList: 'finalRenderStream'
+                });
+              }
+              
               // CONTEXT-AWARE LABELING: Distinguish base answers from other answer types
               let displayText = entry.text;
               const answerContext = entry.meta?.answerContext || entry.answerContext;
@@ -13251,18 +13282,13 @@ export default function CandidateInterview() {
                 return null; // Suppress current gate from transcript (renders as activeCard instead)
               }
 
-              // FIX: History gates are read-only - skip rendering if not active
-              // Active gate renders via activeCard in canonical stream
-              if (!isActiveMiGate) {
-                console.log('[MI_GATE][HISTORY_SKIP]', {
-                  packId: entryPackId,
-                  instanceNumber: entryInstanceNumber,
-                  reason: 'not_active_gate',
-                  currentItemId: currentItem?.id,
-                  note: 'History gate - already answered (answer bubble renders separately)'
-                });
-                return null;
-              }
+              // FIX: History gates render from transcript (no separate bubble)
+              // Active gate renders via activeCard with ring highlight
+              const activeClass = isActiveMiGate 
+                ? 'ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20' 
+                : '';
+              
+              // History gates render normally (no skip)
 
               // STEP 2: Sanitize MI gate prompt in transcript
               const safeMiGateTranscript = sanitizeCandidateFacingText(entry.text, 'TRANSCRIPT_MI_GATE');
@@ -13275,7 +13301,7 @@ export default function CandidateInterview() {
               };
 
               // UI CONTRACT SELF-TEST: Track main pane render
-              if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
+              if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id && isActiveMiGate) {
                 const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
                 tracker.mainPaneRendered = true;
                 miGateTestTrackerRef.current.set(currentItem.id, tracker);
@@ -13286,8 +13312,6 @@ export default function CandidateInterview() {
                   tracker
                 });
               }
-
-              const activeClass = 'ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20';
 
               return (
                 <div key={entryKey} data-stablekey={entry.stableKey || entry.id}>
