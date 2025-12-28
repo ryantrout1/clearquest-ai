@@ -8185,12 +8185,11 @@ export default function CandidateInterview() {
     });
     
     // PART 3B: Construct stableKeyA for persistence
-    const promptId = v3PromptIdSOT;
-    const stableKeyA = `v3-probe-a:${promptId}`;
+    const stableKeyA = `v3-probe-a:${v3PromptIdSOT}`;
     
     console.log('[V3_SEND][PERSIST_START]', {
       stableKeyA,
-      promptId,
+      promptId: v3PromptIdSOT,
       textLen: answerText?.length || 0
     });
     
@@ -8385,7 +8384,7 @@ export default function CandidateInterview() {
             // PART 3B: Log persist success
             console.log('[V3_SEND][PERSIST_OK]', {
               stableKeyA: aStableKey,
-              promptId,
+              promptId: promptId,
               transcriptLenAfter: updated.length
             });
             
@@ -8404,7 +8403,7 @@ export default function CandidateInterview() {
             if (!foundInUpdated) {
               console.error('[V3_SEND][INVARIANT_FAIL_NOT_IN_DB_AFTER_OK]', {
                 stableKeyA: aStableKey,
-                promptId,
+                promptId: promptId,
                 updatedLen: updated.length,
                 reason: 'Persist OK but answer not in updated transcript array'
               });
@@ -8426,7 +8425,7 @@ export default function CandidateInterview() {
             // PART 3B: Log persist failure
             console.error('[V3_SEND][PERSIST_FAIL]', {
               stableKeyA: aStableKey,
-              promptId,
+              promptId: promptId,
               error: err.message
             });
             console.error('[CQ_TRANSCRIPT][V3_PROBE_PERSIST_ERROR]', { error: err.message, sessionId });
