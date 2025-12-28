@@ -263,7 +263,112 @@ function hasQuestionBeenLogged(sessionId, questionKey) {
 // - Ephemeral UI (V3 prompt lane) MUST NOT be used as history source
 // - STREAM_SUPPRESS MUST NEVER remove items from dbTranscript
 // - Transcript is permanent and immutable (append-only, monotonic)
+// - BASE Q+A MUST be committed BEFORE V3 probing activates (hard lifecycle ordering)
 const ENFORCE_TRANSCRIPT_CONTRACT = true;
+
+// CQ_RULE: Base Q+A commit barrier - MUST commit to transcript BEFORE V3 activation
+// This prevents "lost first question" when V3 probing starts without base Q/A in transcript
+const commitBaseQAIfMissing = async ({ questionId, questionText, answerText, sessionId }) => {
+  try {
+    const freshSession = await base44.entities.InterviewSession.get(sessionId);
+    const currentTranscript = freshSession.transcript_snapshot || [];
+    
+    const qStableKey = `question:${sessionId}:${questionId}`;
+    const aStableKey = `answer:${sessionId}:${questionId}:0`;
+    
+    const hasQ = currentTranscript.some(e => e.stableKey === qStableKey || (e.meta?.questionDbId === questionId && e.messageType === 'QUESTION_SHOWN'));
+    const hasA = currentTranscript.some(e => e.stableKey === aStableKey || (e.meta?.questionDbId === questionId && e.messageType === 'ANSWER'));
+    
+    console.log('[CQ_TRANSCRIPT][BASE_QA_CHECK]', {
+      questionId,
+      hasQ,
+      hasA,
+      transcriptLen: currentTranscript.length,
+      qKey: qStableKey,
+      aKey: aStableKey
+    });
+    
+    if (hasQ && hasA) {
+      console.log('[CQ_TRANSCRIPT][BASE_QA_BARRIER_PASS]', {
+        questionId,
+        reason: 'Both Q+A already in transcript',
+        order: 'BASE_QA_BEFORE_V3'
+      });
+      return currentTranscript;
+    }
+    
+    // Missing - commit now (synchronous barrier)
+    let updated = [...currentTranscript];
+    
+    if (!hasQ) {
+      // Append BASE_QUESTION
+      const qEntry = {
+        id: `base-q-${questionId}-barrier`,
+        stableKey: qStableKey,
+        index: getNextIndex(updated),
+        role: "assistant",
+        text: questionText,
+        timestamp: new Date().toISOString(),
+        createdAt: Date.now(),
+        messageType: 'QUESTION_SHOWN',
+        type: 'QUESTION_SHOWN',
+        meta: {
+          questionDbId: questionId,
+          source: 'base_qa_barrier'
+        },
+        visibleToCandidate: true
+      };
+      
+      updated = [...updated, qEntry];
+      console.log('[CQ_TRANSCRIPT][BASE_Q_INSERTED]', { qKey: qStableKey, questionId });
+    }
+    
+    if (!hasA) {
+      // Append BASE_ANSWER
+      const aEntry = {
+        id: `base-a-${questionId}-barrier`,
+        stableKey: aStableKey,
+        index: getNextIndex(updated),
+        role: "user",
+        text: answerText,
+        timestamp: new Date().toISOString(),
+        createdAt: Date.now(),
+        messageType: 'ANSWER',
+        type: 'ANSWER',
+        meta: {
+          questionDbId: questionId,
+          source: 'base_qa_barrier'
+        },
+        visibleToCandidate: true
+      };
+      
+      updated = [...updated, aEntry];
+      console.log('[CQ_TRANSCRIPT][BASE_A_INSERTED]', { aKey: aStableKey, questionId });
+    }
+    
+    // Persist to DB synchronously
+    await base44.entities.InterviewSession.update(sessionId, {
+      transcript_snapshot: updated
+    });
+    
+    console.log('[CQ_TRANSCRIPT][BASE_QA_COMMITTED]', {
+      questionId,
+      sessionId,
+      transcriptLen: updated.length,
+      order: 'BASE_QA_BEFORE_V3',
+      insertedQ: !hasQ,
+      insertedA: !hasA
+    });
+    
+    return updated;
+  } catch (err) {
+    console.error('[CQ_TRANSCRIPT][BASE_QA_BARRIER_ERROR]', {
+      questionId,
+      error: err.message
+    });
+    return [];
+  }
+};
 
 // V3 Probing feature flag
 const ENABLE_V3_PROBING = true;
@@ -5319,6 +5424,15 @@ export default function CandidateInterview() {
           loopKey,
           submitToken,
           openerAnswerLength: value?.length || 0
+        });
+        
+        // CQ_RULE: TRANSCRIPT LIFECYCLE BARRIER - Commit base Q+A BEFORE V3 activation
+        // This prevents "lost first question" when V3 starts without base pair in transcript
+        await commitBaseQAIfMissing({
+          questionId: baseQuestionId,
+          questionText: question?.question_text || `Question ${baseQuestionId}`,
+          answerText: 'Yes',
+          sessionId
         });
         
         // Track opener submission
@@ -11999,6 +12113,7 @@ export default function CandidateInterview() {
     
     // CQ_FORBIDDEN: This suppresses UNANSWERED questions only (render filter, NOT transcript mutation)
     // Transcript is permanent - this only affects what renders while V3 is active
+    // CQ_RULE: STREAM_SUPPRESS must never block transcript writes - this is render-time only
     // ORDER GATING: Suppress UNANSWERED base questions during V3
     const v3UiHistoryLen = v3UiRenderable.length;
     const hasVisibleV3PromptCard = v3HasVisiblePromptCard;
