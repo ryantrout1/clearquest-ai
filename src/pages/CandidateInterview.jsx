@@ -7433,12 +7433,39 @@ export default function CandidateInterview() {
       e.meta?.promptId === promptId
     );
     
-    // TIER 2: Match by stableKey prefix scan (session+category+instance)
+    // TIER 2: Latest-answer alignment (prevents false skip for new probes in same incident)
     const stableKeyPrefix = `v3-probe-a:${sessionId}:${categoryId}:${instanceNumber}:`;
     const answersByPrefix = dbTranscript.filter(e => 
       e.stableKey?.startsWith(stableKeyPrefix)
     );
-    const foundByPrefix = answersByPrefix.length > 0;
+    
+    // Compute current prompt signature for matching
+    const normalizeForSignature = (s) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    const currentPromptSignature = normalizeForSignature(promptText?.substring(0, 100) || '');
+    
+    let foundByPrefixAligned = false;
+    let tier2LatestAnswerPromptId = null;
+    let tier2LatestAnswerPromptSignature = null;
+    
+    if (answersByPrefix.length > 0) {
+      // Find LATEST answer (by createdAt timestamp or index)
+      const latestAnswer = answersByPrefix.reduce((latest, current) => {
+        const latestTs = latest?.createdAt || new Date(latest?.timestamp || 0).getTime() || 0;
+        const currentTs = current?.createdAt || new Date(current?.timestamp || 0).getTime() || 0;
+        return currentTs > latestTs ? current : latest;
+      });
+      
+      tier2LatestAnswerPromptId = latestAnswer?.meta?.promptId || null;
+      tier2LatestAnswerPromptSignature = latestAnswer?.meta?.promptSignature || null;
+      
+      // Alignment check: Does latest answer correspond to THIS prompt?
+      const promptIdMatches = tier2LatestAnswerPromptId && tier2LatestAnswerPromptId === promptId;
+      const signatureMatches = tier2LatestAnswerPromptSignature && 
+                               currentPromptSignature &&
+                               tier2LatestAnswerPromptSignature === currentPromptSignature;
+      
+      foundByPrefixAligned = promptIdMatches || signatureMatches;
+    }
     
     // TIER 3: Match by probeQuestionCount-based expectedAKey (fallback)
     const currentProbeCount = dbTranscript.filter(e => 
@@ -7457,7 +7484,7 @@ export default function CandidateInterview() {
        e.meta?.probeIndex === currentProbeCount)
     );
     
-    const foundAnswer = foundByPromptId || foundByPrefix || foundByExpectedKey;
+    const foundAnswer = foundByPromptId || foundByPrefixAligned || foundByExpectedKey;
     
     console.log('[V3_PROBE][ANSWER_CHECK_STRONG]', {
       promptId,
@@ -7466,15 +7493,18 @@ export default function CandidateInterview() {
       instanceNumber,
       probeIndex: currentProbeCount,
       foundByPromptId,
-      foundByPrefix,
+      foundByPrefixAligned,
       foundByExpectedKey,
       foundAnswer,
-      answersByPrefixCount: answersByPrefix.length
+      answersByPrefixCount: answersByPrefix.length,
+      tier2LatestAnswerPromptId,
+      tier2LatestAnswerPromptSignature,
+      currentPromptSignature
     });
     
     if (foundAnswer) {
       const detectionMethod = foundByPromptId ? 'promptId_match' : 
-                             foundByPrefix ? 'stableKey_prefix_scan' : 
+                             foundByPrefixAligned ? 'prefix_latest_aligned' : 
                              'expectedKey_fallback';
       
       console.log('[V3_PROBE][SKIP_REASK]', {
@@ -7695,6 +7725,9 @@ export default function CandidateInterview() {
     });
   }, [commitV3PromptToBottomBar, v3ProbingContext, currentItem, sessionId, setDbTranscriptSafe]);
 
+  // Helper: Normalize text for signature matching (shared by guard and commit)
+  const normalizeForSignature = (s) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  
   // V3 answer submit handler - routes answer to V3ProbingLoop
   const handleV3AnswerSubmit = useCallback(async (answerText) => {
     // TDZ FIX: Compute effectiveItemType locally (not from closure deps)
@@ -7842,6 +7875,9 @@ export default function CandidateInterview() {
           if (!questionExists) {
             const promptText = lastV3PromptSnapshotRef.current?.promptText || v3ActivePromptText || "(Question text unavailable)";
             
+            // Compute promptSignature for Tier 2 matching
+            const questionPromptSignature = normalizeForSignature(promptText?.substring(0, 100) || '');
+            
             const qEntry = {
               id: `v3-probe-q-${sessionId}-${categoryId}-${instanceNumber}-${probeIndex}`,
               stableKey: qStableKey,
@@ -7854,6 +7890,7 @@ export default function CandidateInterview() {
               type: 'V3_PROBE_QUESTION',
               meta: {
                 promptId,
+                promptSignature: questionPromptSignature,
                 loopKey,
                 packId,
                 instanceNumber,
@@ -7887,7 +7924,9 @@ export default function CandidateInterview() {
             return working; // No changes needed
           }
           
-          // Append answer
+          // Append answer with promptSignature for Tier 2 matching
+          const answerPromptSignature = normalizeForSignature(lastV3PromptSnapshotRef.current?.promptText?.substring(0, 100) || '');
+          
           const aEntry = {
             id: `v3-probe-a-${sessionId}-${categoryId}-${instanceNumber}-${probeIndex}`,
             stableKey: aStableKey,
@@ -7900,6 +7939,7 @@ export default function CandidateInterview() {
             type: 'V3_PROBE_ANSWER',
             meta: {
               promptId,
+              promptSignature: answerPromptSignature,
               loopKey,
               packId,
               instanceNumber,
