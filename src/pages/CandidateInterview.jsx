@@ -7662,8 +7662,7 @@ export default function CandidateInterview() {
       answerLen: answerText?.length || 0
     });
     
-    // FIX C: Clear V3 draft on successful submit
-    const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+    // FIX C: Clear V3 draft on successful submit (promptId already declared above)
     if (sessionId && loopKey && promptId) {
       const v3DraftKey = `cq_v3draft_${sessionId}_${loopKey}_${promptId}`;
       try {
