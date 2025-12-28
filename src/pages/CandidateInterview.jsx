@@ -7424,6 +7424,78 @@ export default function CandidateInterview() {
     // REGRESSION GUARD: Capture transcript length before V3 prompt commit
     const transcriptLenBeforePromptCommit = dbTranscript.length;
     
+    // ============================================================================
+    // ALREADY ANSWERED GUARD: Multi-tier detection to prevent re-ask
+    // ============================================================================
+    // TIER 1: Match by promptId (strongest - invariant to Q commit failures)
+    const foundByPromptId = dbTranscript.some(e => 
+      (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER') &&
+      e.meta?.promptId === promptId
+    );
+    
+    // TIER 2: Match by stableKey prefix scan (session+category+instance)
+    const stableKeyPrefix = `v3-probe-a:${sessionId}:${categoryId}:${instanceNumber}:`;
+    const answersByPrefix = dbTranscript.filter(e => 
+      e.stableKey?.startsWith(stableKeyPrefix)
+    );
+    const foundByPrefix = answersByPrefix.length > 0;
+    
+    // TIER 3: Match by probeQuestionCount-based expectedAKey (fallback)
+    const currentProbeCount = dbTranscript.filter(e => 
+      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+      e.meta?.sessionId === sessionId &&
+      e.meta?.categoryId === categoryId &&
+      e.meta?.instanceNumber === instanceNumber
+    ).length;
+    const expectedAKey = buildV3ProbeAStableKey(sessionId, categoryId, instanceNumber, currentProbeCount);
+    const foundByExpectedKey = dbTranscript.some(e => 
+      e.stableKey === expectedAKey ||
+      (e.messageType === 'V3_PROBE_ANSWER' && 
+       e.meta?.sessionId === sessionId && 
+       e.meta?.categoryId === categoryId && 
+       e.meta?.instanceNumber === instanceNumber && 
+       e.meta?.probeIndex === currentProbeCount)
+    );
+    
+    const foundAnswer = foundByPromptId || foundByPrefix || foundByExpectedKey;
+    
+    console.log('[V3_PROBE][ANSWER_CHECK_STRONG]', {
+      promptId,
+      sessionId,
+      categoryId,
+      instanceNumber,
+      probeIndex: currentProbeCount,
+      foundByPromptId,
+      foundByPrefix,
+      foundByExpectedKey,
+      foundAnswer,
+      answersByPrefixCount: answersByPrefix.length
+    });
+    
+    if (foundAnswer) {
+      const detectionMethod = foundByPromptId ? 'promptId_match' : 
+                             foundByPrefix ? 'stableKey_prefix_scan' : 
+                             'expectedKey_fallback';
+      
+      console.log('[V3_PROBE][SKIP_REASK]', {
+        promptId,
+        detectionMethod,
+        expectedStableKey: expectedAKey,
+        reason: 'answer_already_present',
+        sessionId,
+        categoryId,
+        instanceNumber,
+        probeIndex: currentProbeCount
+      });
+      
+      // Don't show prompt again - mark as satisfied
+      setV3PromptPhase("IDLE");
+      setV3ActivePromptText(null);
+      v3ActivePromptTextRef.current = null;
+      return promptId; // Return early without setting ANSWER_NEEDED
+    }
+    // ============================================================================
+    
     // ATOMIC STATE UPDATE: All V3 prompt activation in one place
     // CRITICAL: Does NOT modify dbTranscript - only sets prompt state
     unstable_batchedUpdates(() => {
