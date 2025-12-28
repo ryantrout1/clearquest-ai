@@ -7431,7 +7431,14 @@ export default function CandidateInterview() {
       createdAt: Date.now()
     };
     
-    console.log('[V3_ANSWER_SUBMIT]', { submitId, answerPreview: answerText?.substring(0, 50), loopKey });
+    console.log('[V3_PROBE][ANSWER_SUBMIT]', { 
+      sessionId, 
+      submitId, 
+      answerPreview: answerText?.substring(0, 50), 
+      loopKey,
+      v3ProbingActive,
+      localEffectiveItemType
+    });
     
     // FIX C: Clear V3 draft on successful submit
     const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
@@ -7653,11 +7660,24 @@ export default function CandidateInterview() {
       });
     }
     
+    // Store answer in snapshot for reconciliation (before any UI state changes)
+    if (lastV3PromptSnapshotRef.current && wroteTranscript) {
+      lastV3PromptSnapshotRef.current.lastAnswerText = answerText;
+      lastV3PromptSnapshotRef.current.lastAnswerTimestamp = Date.now();
+      
+      console.log('[V3_PROBE][SNAPSHOT_ANSWER_STORED]', {
+        promptId: lastV3PromptSnapshotRef.current.promptId,
+        answerLen: answerText?.length || 0,
+        wroteTranscript
+      });
+    }
+    
     // CRITICAL: Set PROCESSING state ONLY after DB write completes
     setV3PromptPhase("PROCESSING");
     console.log('[V3_PROMPT_PHASE][SET_PROCESSING_AFTER_DB]', {
       submitId,
       loopKey,
+      wroteTranscript,
       reason: 'DB write complete - now ready for engine call'
     });
     
