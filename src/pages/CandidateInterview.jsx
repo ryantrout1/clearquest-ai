@@ -11084,10 +11084,10 @@ export default function CandidateInterview() {
       <main className="flex-1 overflow-y-auto cq-scroll scrollbar-thin" ref={historyRef} onScroll={handleTranscriptScroll}>
         <div className="px-4 pt-6" style={{ paddingBottom: `${dynamicBottomPaddingPx}px` }}>
           <div className="space-y-3 relative isolate">
-          {/* CANONICAL RENDER STREAM: Single source of truth for all main pane content */}
-          {(() => {
-            // Use renderableTranscriptStream (frozen during typing to prevent flash)
-            const transcriptToRender = renderableTranscriptStream;
+            {/* CANONICAL RENDER STREAM: Single source of truth for all main pane content */}
+            {(() => {
+              // Use renderableTranscriptStream (frozen during typing to prevent flash)
+              const transcriptToRender = renderableTranscriptStream;
             
             // A) V3_PROBE_QA_ATTACH DISABLED: Do NOT extract or attach V3 probe Q/A when MI_GATE active
             // V3 probe history appears ONLY in canonical transcript (above gate in chronological order)
@@ -11425,9 +11425,9 @@ export default function CandidateInterview() {
               });
             }
             
-            return (
-              <div className="opacity-100">
-                {finalList.map((entry, index) => {
+              return (
+                <div className="opacity-100">
+                  {finalList.map((entry, index) => {
                   // CANONICAL STREAM: Handle both transcript entries AND active cards
                   const isActiveCard = entry.__activeCard === true;
                   
@@ -12155,10 +12155,10 @@ export default function CandidateInterview() {
       })()}
 
       {/* CANONICAL STREAM ACTIVE CARDS: Removed - duplicate renderer */}
-          {/* Active cards render in main loop via isActiveCard check (lines 8627-8692) */}
-          
-          {/* V3 Pack Opener Card - SYNTHETIC RENDER (disabled by ENABLE_SYNTHETIC_TRANSCRIPT) */}
-          {false && ENABLE_SYNTHETIC_TRANSCRIPT && (() => {
+      {/* Active cards render in main loop via isActiveCard check (lines 8627-8692) */}
+
+      {/* V3 Pack Opener Card - SYNTHETIC RENDER (disabled by ENABLE_SYNTHETIC_TRANSCRIPT) */}
+      {false && ENABLE_SYNTHETIC_TRANSCRIPT && (() => {
             // UI CONTRACT: Use effectiveItemType (never render opener during probing)
             const isV3OpenerMode = effectiveItemType === 'v3_pack_opener';
             
@@ -12247,11 +12247,11 @@ export default function CandidateInterview() {
                   )}
                 </div>
               </ContentContainer>
-            );
-          })()}
+              );
+            })()}
 
-          {/* V3 Probing Loop - HEADLESS (no visible cards in main transcript area) */}
-          {(() => {
+            {/* V3 Probing Loop - HEADLESS (no visible cards in main transcript area) */}
+            {(() => {
             const shouldRenderV3Loop = v3ProbingActive && v3ProbingContext && 
               v3ProbingContext.categoryId && v3ProbingContext.packId;
             
@@ -12372,16 +12372,16 @@ export default function CandidateInterview() {
                   console.log('[V3_INCIDENT_COMPLETE][ADVANCE]', { loopKey, packId, instanceNumber, nextAction: completionReason, recapSuppressed: true });
                 }}
               />
-            );
-          })()}
+              );
+            })()}
 
-          {/* MI_GATE/V3_PROMPT/V3_OPENER ACTIVE CARDS: Removed - now rendered via canonical stream */}
-          {/* CANONICAL STREAM: All active cards injected via renderStream (lines 8471-8539) */}
+            {/* MI_GATE/V3_PROMPT/V3_OPENER ACTIVE CARDS: Removed - now rendered via canonical stream */}
+            {/* CANONICAL STREAM: All active cards injected via renderStream (lines 8471-8539) */}
 
 
 
-          {/* LEGACY V3 PROMPT RENDER PATH - HARD DISABLED */}
-          {(() => {
+            {/* LEGACY V3 PROMPT RENDER PATH - HARD DISABLED */}
+            {(() => {
             // HARD DISABLED: Legacy V3 prompt render path must NEVER render UI
             // All V3 prompts render via canonical stream (activeCard in renderStream)
             // This block exists only as a diagnostic error detector
@@ -12393,11 +12393,11 @@ export default function CandidateInterview() {
                 note: 'This path returns null - all V3 prompts render via canonical stream'
               });
             }
-            return null; // UNCONDITIONAL NULL - no UI output ever
-          })()}
+              return null; // UNCONDITIONAL NULL - no UI output ever
+            })()}
 
-          {/* UNIFIED STREAM: Active cards disabled - all content in transcript */}
-          {false && !activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
+            {/* UNIFIED STREAM: Active cards disabled - all content in transcript */}
+            {false && !activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
            <ContentContainer>
            <div ref={questionCardRef} className="relative z-20 w-full rounded-xl p-1">
              {(() => {
@@ -12429,12 +12429,12 @@ export default function CandidateInterview() {
              )}
            </div>
            </ContentContainer>
-          )}
+           )}
 
 
 
-          {/* UNIFIED STREAM: Active cards disabled - all content in transcript */}
-          {false && !activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && currentItem?.type !== 'v3_probing' && (
+           {/* UNIFIED STREAM: Active cards disabled - all content in transcript */}
+           {false && !activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && currentItem?.type !== 'v3_probing' && (
            <ContentContainer>
            <div ref={questionCardRef} className="relative z-30 w-full rounded-xl p-1">
              {isV3PackOpener || currentPrompt?.type === 'v3_pack_opener' ? (
@@ -12482,17 +12482,17 @@ export default function CandidateInterview() {
                 </div>
               )}
               </div>
-               </ContentContainer>
+              </ContentContainer>
               )}
 
               {/* V3 UI-ONLY HISTORY: Rendered via canonical stream (lines 8942-8985) */}
-              {/* Separate loop removed - renderStream includes v3UiRenderable */}
-              
-              {/* Bottom anchor - minimal-height sentinel for scroll positioning */}
-              <div ref={bottomAnchorRef} aria-hidden="true" style={{ height: '1px', margin: 0, padding: 0 }} />
-              </div>
-              </div>
-              </main>
+            {/* Separate loop removed - renderStream includes v3UiRenderable */}
+            
+            {/* Bottom anchor - minimal-height sentinel for scroll positioning */}
+            <div ref={bottomAnchorRef} aria-hidden="true" style={{ height: '1px', margin: 0, padding: 0 }} />
+          </div>
+        </div>
+      </main>
 
               <footer className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
         <div ref={footerRef} className="max-w-5xl mx-auto">
