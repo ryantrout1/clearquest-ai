@@ -1307,6 +1307,33 @@ export default function CandidateInterview() {
       upsertTranscriptState(merged, `refresh_${reason}`);
       setSession(freshSession);
       
+      // DIAGNOSTIC: Check for YES ambiguity in last 5 entries
+      if (merged.length >= 5) {
+        const last5 = merged.slice(-5);
+        const yesAnswers = last5.filter(e => 
+          (e.role === 'user' && (e.messageType === 'ANSWER' || e.messageType === 'MULTI_INSTANCE_GATE_ANSWER')) &&
+          (e.text === 'Yes' || e.text?.startsWith('Yes'))
+        );
+        
+        if (yesAnswers.length >= 2) {
+          const contexts = yesAnswers.map(a => ({
+            stableKey: a.stableKey || a.id,
+            context: a.meta?.answerContext || a.answerContext || 'unknown',
+            text: a.text
+          }));
+          
+          const hasMultipleContexts = new Set(contexts.map(c => c.context)).size > 1;
+          
+          if (hasMultipleContexts) {
+            console.log('[CQ_TRANSCRIPT][YES_AMBIGUITY]', {
+              last5: last5.map(e => e.stableKey || e.id),
+              contexts,
+              reason: 'Multiple YES answers with different contexts in recent history'
+            });
+          }
+        }
+      }
+      
       return merged;
     } catch (err) {
       console.error('[TRANSCRIPT_REFRESH][ERROR]', { reason, error: err.message });
@@ -4230,7 +4257,9 @@ export default function CandidateInterview() {
       messageType: 'MULTI_INSTANCE_GATE_ANSWER',
       packId: gate.packId,
       categoryId: gate.categoryId,
-      instanceNumber: gate.instanceNumber
+      instanceNumber: gate.instanceNumber,
+      answerContext: 'MI_GATE',
+      parentStableKey: gateQuestionStableKey
     });
     
     const transcriptLenAfter = transcriptAfterA.length;
@@ -5668,13 +5697,16 @@ export default function CandidateInterview() {
         // STATIC IMPORT: Use top-level imports (prevents React context duplication)
         const appendUserMessage = appendUserMessageImport;
         const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
+        const questionStableKey = `question:${sessionId}:${currentItem.id}`;
         await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], answerDisplayText, {
           messageType: 'ANSWER',
           questionDbId: currentItem.id,
           questionCode: question.question_id,
           responseId: savedResponse?.id,
           sectionId: question.section_id,
-          answerDisplayText
+          answerDisplayText,
+          answerContext: 'BASE_QUESTION',
+          parentStableKey: questionStableKey
         });
         
         // CQ_TRANSCRIPT_CONTRACT: Invariant check after base answer append
@@ -12658,12 +12690,19 @@ export default function CandidateInterview() {
 
             // User answer (ANSWER from chatTranscriptHelpers)
             if (entry.role === 'user' && getMessageTypeSOT(entry) === 'ANSWER') {
+              // CONTEXT-AWARE LABELING: Distinguish base answers from other answer types
+              let displayText = entry.text;
+              const answerContext = entry.meta?.answerContext || entry.answerContext;
+              
+              // Base question answers: keep as-is ("Yes" / "No")
+              // No modification needed for BASE_QUESTION context
+              
               return (
                 <div key={entryKey} style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
                     <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
-                      <p className="text-white text-sm">{entry.text}</p>
+                      <p className="text-white text-sm">{displayText}</p>
                     </div>
                   </div>
                   </ContentContainer>
@@ -12754,12 +12793,22 @@ export default function CandidateInterview() {
 
             // Multi-instance gate answer (user's Yes/No)
             if (entry.role === 'user' && getMessageTypeSOT(entry) === 'MULTI_INSTANCE_GATE_ANSWER') {
+              // CONTEXT-AWARE LABELING: Clarify MI gate answers
+              const rawAnswer = entry.text;
+              let displayText = rawAnswer;
+              
+              if (rawAnswer === 'Yes') {
+                displayText = 'Yes (Continue)';
+              } else if (rawAnswer === 'No') {
+                displayText = 'No (No more to report)';
+              }
+              
               return (
                 <div key={entryKey} style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
                     <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                      <p className="text-white text-sm">{entry.text}</p>
+                      <p className="text-white text-sm">{displayText}</p>
                     </div>
                   </div>
                   </ContentContainer>
