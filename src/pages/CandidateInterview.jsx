@@ -1746,6 +1746,9 @@ export default function CandidateInterview() {
   // V3 COMMIT ACK: Lightweight acknowledgement for post-submit verification
   const lastV3AnswerCommitAckRef = useRef(null);
   
+  // CANONICAL DETECTOR: Log once per session (reduce noise)
+  const canonicalDetectorLoggedRef = useRef(false);
+  
   // V3 ACK METRICS: Track reliability counters (observability only)
   const v3AckSetCountRef = useRef(0);
   const v3AckClearCountRef = useRef(0);
@@ -12788,13 +12791,18 @@ export default function CandidateInterview() {
       }
     }
     
-    console.log('[CQ_TRANSCRIPT][CANONICAL_BASE_YESNO_DETECTOR]', {
-      hasAnyCanonicalBaseYesNo,
-      canonicalCount: canonicalBaseYesNoKeys.size,
-      sampleKeys: Array.from(canonicalBaseYesNoKeys).slice(0, 3)
-    });
+    // DEBUG LOG: Once per session only (reduce noise)
+    if (hasAnyCanonicalBaseYesNo && !canonicalDetectorLoggedRef.current) {
+      canonicalDetectorLoggedRef.current = true;
+      console.log('[CQ_TRANSCRIPT][CANONICAL_BASE_YESNO_DETECTOR]', {
+        hasAnyCanonicalBaseYesNo,
+        canonicalCount: canonicalBaseYesNoKeys.size,
+        sampleKeys: Array.from(canonicalBaseYesNoKeys).slice(0, 3)
+      });
+    }
     
     // SUPPRESSION: Remove legacy UUID Yes/No answers without identity
+    let suppressedCount = 0;
     const transcriptWithLegacyUuidSuppressed = transcriptToRenderDeduped.filter(entry => {
       const mt = getMessageTypeSOT(entry);
       if (mt !== 'ANSWER') return true; // Keep non-answers
@@ -12828,6 +12836,7 @@ export default function CandidateInterview() {
       
       // Legacy UUID answer without identity - suppress only if canonical exists
       if (hasAnyCanonicalBaseYesNo) {
+        suppressedCount++;
         console.warn('[CQ_TRANSCRIPT][SUPPRESSED_LEGACY_UUID_YESNO]', {
           stableKey,
           text: entry.text,
@@ -12838,6 +12847,15 @@ export default function CandidateInterview() {
       
       return true; // Keep (fail-open if no canonical exists)
     });
+    
+    // GOAL ACHIEVED AUDIT: Log once per session if suppressions occurred
+    if (suppressedCount > 0 && !canonicalDetectorLoggedRef.current) {
+      console.log('[CQ_TRANSCRIPT][GOAL][MYSTERY_YES_SUPPRESSED]', {
+        sessionId,
+        suppressedCount,
+        reason: 'Legacy UUID Yes/No answers removed - canonical base answer preserved'
+      });
+    }
     
     // Use suppressed list for further processing
     transcriptToRenderDeduped = transcriptWithLegacyUuidSuppressed;
