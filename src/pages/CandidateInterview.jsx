@@ -1754,6 +1754,11 @@ export default function CandidateInterview() {
   // V3 SUBMIT PAYLOAD: Store last submitted answer for reconciliation
   const lastV3SubmittedAnswerRef = useRef(null);
   
+  // V3 REFRESH REQUEST: Safe post-commit refresh mechanism
+  const v3RefreshRequestedRef = useRef(null); // { reason, promptId, stableKeyA, requestedAt }
+  const v3RefreshInFlightRef = useRef(false);
+  const [v3RefreshTick, setV3RefreshTick] = useState(0);
+  
   // MI_GATE UI CONTRACT SELF-TEST: Track main pane render + footer buttons per itemId
   const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { mainPaneRendered: bool, footerButtonsOnly: bool, testStarted: bool }>
   const miGateTestTimeoutRef = useRef(null);
@@ -8313,6 +8318,17 @@ export default function CandidateInterview() {
             ackSetCount: v3AckSetCountRef.current
           });
           
+          // REQUEST REFRESH: Set request instead of calling refresh directly
+          v3RefreshRequestedRef.current = {
+            reason: 'v3_probe_answer_persisted',
+            promptId,
+            stableKeyA: aStableKey,
+            requestedAt: Date.now()
+          };
+          
+          // Trigger refresh tick to activate effect
+          setV3RefreshTick(prev => prev + 1);
+          
           // Track for protection (E)
           recentlySubmittedUserAnswersRef.current.add(aStableKey);
           
@@ -8361,15 +8377,6 @@ export default function CandidateInterview() {
           });
           
           return updated;
-        });
-        
-        // CRITICAL: Refresh transcript immediately after persist attempt
-        await refreshTranscriptFromDB('v3_probe_answer_persisted');
-        
-        console.log('[V3_PROBE][REFRESH_TRIGGERED]', {
-          promptId,
-          stableKeyA: aStableKey,
-          reason: 'V3 answer persisted - refreshing transcript'
         });
       }
       
@@ -8424,6 +8431,50 @@ export default function CandidateInterview() {
     
     setV3PendingAnswer(payload);
   }, [v3ProbingContext, sessionId, v3ActivePromptText, currentItem, setDbTranscriptSafe, dbTranscript]);
+  
+  // V3 REFRESH RUNNER: Safe post-commit transcript refresh
+  useEffect(() => {
+    const request = v3RefreshRequestedRef.current;
+    if (!request) return;
+    if (v3RefreshInFlightRef.current) return;
+    
+    // Clear request BEFORE starting refresh (prevents loops)
+    const { reason, promptId, stableKeyA, requestedAt } = request;
+    v3RefreshRequestedRef.current = null;
+    
+    // Execute refresh asynchronously
+    const runRefresh = async () => {
+      v3RefreshInFlightRef.current = true;
+      
+      try {
+        const ageMs = Date.now() - requestedAt;
+        
+        console.log('[V3_PROBE][REFRESH_TRIGGERED]', {
+          promptId,
+          stableKeyA,
+          reason,
+          ageMs
+        });
+        
+        await refreshTranscriptFromDB(reason);
+        
+        console.log('[V3_PROBE][REFRESH_COMPLETE]', {
+          promptId,
+          stableKeyA
+        });
+      } catch (err) {
+        console.error('[V3_PROBE][REFRESH_ERROR]', {
+          promptId,
+          stableKeyA,
+          error: err.message
+        });
+      } finally {
+        v3RefreshInFlightRef.current = false;
+      }
+    };
+    
+    runRefresh();
+  }, [v3RefreshTick, refreshTranscriptFromDB]);
   
   // V3 COMMIT ACK VERIFICATION: Verify answer persisted + repair if missing
   useEffect(() => {
