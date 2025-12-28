@@ -2981,16 +2981,7 @@ export default function CandidateInterview() {
       }
     };
     
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-
-    // Return cleanup function
-    return () => {
+    const handleError = (event) => {
       console.error('[FORENSIC][CRASH]', {
         type: 'error',
         message: event.message || event.error?.message,
@@ -3024,6 +3015,8 @@ export default function CandidateInterview() {
       });
     };
     
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('error', handleError);
     window.addEventListener('unhandledrejection', handleRejection);
     
@@ -3037,9 +3030,10 @@ export default function CandidateInterview() {
         WARNING: '⚠️ UNMOUNT during session - should only occur on route exit or browser close'
       });
       
-      // Reset mount tracker on unmount (allows clean restart if user navigates back)
       resetMountTracker(sessionId);
       
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('error', handleError);
       window.removeEventListener('unhandledrejection', handleRejection);
     };
@@ -9718,59 +9712,10 @@ export default function CandidateInterview() {
     return null;
   };
 
-  // GUARD: Show redirecting state if no sessionId (hooks already declared above)
-  if (!sessionId) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <p className="text-slate-300">Redirecting to start interview...</p>
-        </div>
-      </div>
-    );
-  }
-  
-  // GUARD: Only show full-screen loader on true initial mount (not during mid-flow transitions)
+  // Compute guard states (no early returns before JSX to maintain hook order)
+  const showMissingSession = !sessionId;
   const shouldShowFullScreenLoader = isLoading && !engine && !session;
-  
-  if (shouldShowFullScreenLoader) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
-          <p className="text-slate-300">Loading interview...</p>
-          <p className="text-slate-500 text-xs">Session: {sessionId?.substring(0, 8)}...</p>
-          {showLoadingRetry && (
-            <div className="mt-6 space-y-3">
-              <p className="text-slate-400 text-sm">Taking longer than expected...</p>
-              <Button 
-                onClick={() => window.location.reload()} 
-                variant="outline"
-                className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700"
-              >
-                Retry
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="max-w-md space-y-4">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-          <Button onClick={() => navigate(createPageUrl("Home"))} className="w-full">
-            Return to Home
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const showError = !!error;
 
   // Calculate currentPrompt (after all hooks declared)
   const isV3PromptAllowedInMainBody = (promptText) => {
@@ -11333,6 +11278,57 @@ export default function CandidateInterview() {
     cqDiagEnabled,
     v3UiRenderable
   ]);
+
+  // GUARD: Show guard screens without early return (maintains hook order)
+  if (showMissingSession) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <p className="text-slate-300">Redirecting to start interview...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (shouldShowFullScreenLoader) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
+          <p className="text-slate-300">Loading interview...</p>
+          <p className="text-slate-500 text-xs">Session: {sessionId?.substring(0, 8)}...</p>
+          {showLoadingRetry && (
+            <div className="mt-6 space-y-3">
+              <p className="text-slate-400 text-sm">Taking longer than expected...</p>
+              <Button 
+                onClick={() => window.location.reload()} 
+                variant="outline"
+                className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700"
+              >
+                Retry
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (showError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="max-w-md space-y-4">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+          <Button onClick={() => navigate(createPageUrl("Home"))} className="w-full">
+            Return to Home
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
