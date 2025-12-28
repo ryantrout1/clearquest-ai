@@ -12904,8 +12904,8 @@ export default function CandidateInterview() {
 
                   // V3_PROBE_ANSWER (user) - CRITICAL: Must always render
                   if (entry.role === 'user' && getMessageTypeSOT(entry) === 'V3_PROBE_ANSWER') {
-                   // REGRESSION GUARD: Log render to confirm visibility
-                   console.log('[CQ_TRANSCRIPT][V3_PROBE_ANSWER_RENDERED]', {
+                   // AUDIT: Log V3 probe answer render
+                   console.log('[CQ_TRANSCRIPT][V3_PROBE_A_RENDERED]', {
                      stableKey: entry.stableKey || entry.id,
                      promptId: entry.meta?.promptId,
                      loopKey: entry.meta?.loopKey,
