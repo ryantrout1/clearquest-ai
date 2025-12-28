@@ -1302,18 +1302,10 @@ export default function CandidateInterview() {
       
       // STEP 2: Upsert into canonical ref (monotonic merge)
       const merged = upsertTranscriptMonotonic(canonicalTranscriptRef.current, freshTranscript, `refresh_${reason}`);
-      canonicalTranscriptRef.current = merged;
       
-      // Update React state from canonical ref
-      setDbTranscriptSafe(merged);
+      // ATOMIC SYNC: Use unified helper
+      upsertTranscriptState(merged, `refresh_${reason}`);
       setSession(freshSession);
-      
-      console.log('[TRANSCRIPT_REFRESH]', { 
-        reason, 
-        canonicalLen: merged.length,
-        freshLen: freshTranscript.length,
-        lastKey: merged[merged.length - 1]?.stableKey || merged[merged.length - 1]?.id
-      });
       
       return merged;
     } catch (err) {
@@ -1355,6 +1347,25 @@ export default function CandidateInterview() {
     }
   }, [sessionId, dbTranscript]);
 
+  // UNIFIED TRANSCRIPT STATE SYNC - Single source of truth updater
+  const upsertTranscriptState = useCallback((nextArray, reason) => {
+    if (!Array.isArray(nextArray)) {
+      console.error('[TRANSCRIPT_SYNC][NOT_ARRAY]', { reason, type: typeof nextArray });
+      return;
+    }
+    
+    // ATOMIC UPDATE: Sync ref + state in one operation
+    canonicalTranscriptRef.current = nextArray;
+    setDbTranscriptSafe(nextArray);
+    
+    const lastKey = nextArray[nextArray.length - 1]?.stableKey || nextArray[nextArray.length - 1]?.id;
+    console.log('[TRANSCRIPT_SYNC]', {
+      reason,
+      len: nextArray.length,
+      lastKey
+    });
+  }, [setDbTranscriptSafe]);
+  
   // STEP 2: Optimistic append helper (canonical as input)
   const appendAndRefresh = useCallback(async (kind, payload, reasonLabel) => {
     // STATIC IMPORT: Use top-level imports (already imported at line 57-58)
@@ -1374,19 +1385,9 @@ export default function CandidateInterview() {
       return currentTranscript || [];
     }
     
-    // STEP 2: OPTIMISTIC UPDATE - Immediately upsert to canonical ref
+    // STEP 2: OPTIMISTIC UPDATE - Use unified sync helper
     const optimistic = upsertTranscriptMonotonic(canonicalTranscriptRef.current, updatedTranscript, `append_${kind}_${reasonLabel}`);
-    canonicalTranscriptRef.current = optimistic;
-    
-    // Update React state from canonical ref
-    setDbTranscriptSafe(optimistic);
-    
-    console.log('[APPEND_OPTIMISTIC]', { 
-      kind, 
-      reasonLabel, 
-      canonicalLen: optimistic.length,
-      lastKey: optimistic[optimistic.length - 1]?.stableKey || optimistic[optimistic.length - 1]?.id
-    });
+    upsertTranscriptState(optimistic, `append_${kind}_${reasonLabel}`);
     
     // Background refresh (upsert only, never replace)
     setTimeout(async () => {
@@ -1395,14 +1396,8 @@ export default function CandidateInterview() {
         const freshTranscript = freshAfterAppend.transcript_snapshot || [];
         
         const refreshed = upsertTranscriptMonotonic(canonicalTranscriptRef.current, freshTranscript, `refresh_after_${reasonLabel}`);
-        canonicalTranscriptRef.current = refreshed;
-        setDbTranscriptSafe(refreshed);
+        upsertTranscriptState(refreshed, `refresh_after_${reasonLabel}`);
         setSession(freshAfterAppend);
-        
-        console.log('[APPEND_REFRESH_BG]', { 
-          canonicalLen: refreshed.length,
-          source: reasonLabel
-        });
       } catch (err) {
         console.error('[APPEND_REFRESH_BG][ERROR]', { error: err.message });
       }
@@ -1410,7 +1405,7 @@ export default function CandidateInterview() {
     
     // RETURN CONTRACT: Return optimistic transcript (immediate visibility)
     return optimistic;
-  }, [sessionId, setDbTranscriptSafe]);
+  }, [sessionId, upsertTranscriptState]);
 
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
   
@@ -3217,8 +3212,8 @@ export default function CandidateInterview() {
         const updated = [...working, aEntry];
         insertedA = true;
         
-        // Update canonical ref
-        canonicalTranscriptRef.current = updated;
+        // Update canonical ref + state atomically
+        upsertTranscriptState(updated, 'mi_gate_reconcile_insert');
         
         // Persist repair to DB
         base44.entities.InterviewSession.update(sessionId, {
@@ -5193,15 +5188,9 @@ export default function CandidateInterview() {
           transcriptLenAfter: transcriptAfterAnswer.length
         });
         
-        // STEP 3: OPTIMISTIC UPDATE - Immediately upsert to canonical
+        // STEP 3: OPTIMISTIC UPDATE - Use unified sync helper
         const optimistic = upsertTranscriptMonotonic(canonicalTranscriptRef.current, transcriptAfterAnswer, 'v3_opener_answer');
-        canonicalTranscriptRef.current = optimistic;
-        setDbTranscriptSafe(optimistic);
-        
-        console.log('[APPEND_OPTIMISTIC][V3_OPENER]', {
-          stableKey: openerAnswerStableKey,
-          canonicalLen: optimistic.length
-        });
+        upsertTranscriptState(optimistic, 'v3_opener_answer');
         
         // STEP 3: Submit SOT log (dev only)
         if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
@@ -5428,9 +5417,19 @@ export default function CandidateInterview() {
         
         // CQ_RULE: TRANSCRIPT LIFECYCLE BARRIER - Commit base Q+A BEFORE V3 activation
         // This prevents "lost first question" when V3 starts without base pair in transcript
+        const baseQuestion = engine?.QById?.[baseQuestionId];
+        if (!baseQuestion) {
+          console.error('[V3_OPENER][SUBMIT_ERROR_CONTEXT]', {
+            baseQuestionId,
+            currentItemType: currentItem?.type,
+            currentItemId: currentItem?.id,
+            note: 'missing base question ref from engine - using fallback'
+          });
+        }
+        
         await commitBaseQAIfMissing({
           questionId: baseQuestionId,
-          questionText: question?.question_text || `Question ${baseQuestionId}`,
+          questionText: baseQuestion?.question_text || `Question ${baseQuestionId}`,
           answerText: 'Yes',
           sessionId
         });
@@ -7930,6 +7929,9 @@ export default function CandidateInterview() {
         
         const updated = [...prev, qEntry];
         
+        // ATOMIC SYNC: Update ref + state together
+        upsertTranscriptState(updated, 'v3_probe_q_append');
+
         // Persist to DB async
         base44.entities.InterviewSession.update(sessionId, {
           transcript_snapshot: updated
@@ -7941,20 +7943,20 @@ export default function CandidateInterview() {
             promptLen: promptText?.length || 0,
             transcriptLenAfter: updated.length
           });
-          
+
           // ANCHOR: Mark this question for viewport anchoring
           v3ScrollAnchorRef.current = {
             kind: 'V3_PROBE_QUESTION',
             stableKey: qStableKey,
             ts: Date.now()
           };
-          
+
           resolve(true);
         }).catch(err => {
           console.error('[CQ_TRANSCRIPT][V3_PROBE_Q_ERROR]', { error: err.message });
           resolve(false);
         });
-        
+
         return updated;
       });
     });
@@ -8204,9 +8206,9 @@ export default function CandidateInterview() {
           aAdded = true;
           wroteTranscript = true;
           
-          // IMMEDIATE CANONICAL UPDATE: Sync canonicalRef (no async wait)
-          canonicalTranscriptRef.current = updated;
-          
+          // IMMEDIATE CANONICAL UPDATE: Use unified sync helper
+          upsertTranscriptState(updated, 'v3_probe_answer');
+
           // COMMIT ACK: Record expected keys for verification
           lastV3AnswerCommitAckRef.current = {
             sessionId,
@@ -8473,8 +8475,8 @@ export default function CandidateInterview() {
       
       const repaired = [...working, aEntry];
       
-      // Update canonical ref
-      canonicalTranscriptRef.current = repaired;
+      // Update canonical ref + state atomically
+      upsertTranscriptState(repaired, 'v3_ack_repair');
       
       // Persist to DB
       base44.entities.InterviewSession.update(sessionId, {
@@ -11867,7 +11869,10 @@ export default function CandidateInterview() {
   // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
   // ============================================================================
   const finalTranscriptList = useMemo(() => {
-    // CQ_TRANSCRIPT_CONTRACT: Render-time invariant check
+    // CQ_TRANSCRIPT_CONTRACT: Render-time invariant check + ENFORCEMENT
+    // Ephemeral items (active cards) MUST NOT appear in chat history
+    let transcriptToRender = renderableTranscriptStream;
+    
     if (ENFORCE_TRANSCRIPT_CONTRACT) {
       const ephemeralSources = renderableTranscriptStream.filter(e => 
         e.__activeCard === true || 
@@ -11886,12 +11891,26 @@ export default function CandidateInterview() {
             stableKey: e.stableKey,
             isActiveCard: e.__activeCard
           })),
-          reason: 'Ephemeral items detected in chat history — must use dbTranscript only'
+          reason: 'Ephemeral items detected in chat history — filtering out',
+          action: 'FILTER_EPHEMERAL'
+        });
+        
+        // ENFORCEMENT: Remove ephemeral items from chat history
+        transcriptToRender = renderableTranscriptStream.filter(e => 
+          !(e.__activeCard === true || 
+            e.kind === 'v3_probe_q' || 
+            e.kind === 'v3_probe_a' ||
+            e.source === 'ephemeral' ||
+            e.source === 'prompt_lane_temporary')
+        );
+        
+        console.log('[CQ_TRANSCRIPT][EPHEMERAL_FILTERED]', {
+          beforeLen: renderableTranscriptStream.length,
+          afterLen: transcriptToRender.length,
+          removedCount: ephemeralSources.length
         });
       }
     }
-    
-    const transcriptToRender = renderableTranscriptStream;
   
     // CQ_FORBIDDEN: transcript must never be filtered or mutated by UI suppression logic
     // A) V3_PROBE_QA_ATTACH DISABLED: Do NOT extract or attach V3 probe Q/A when MI_GATE active
