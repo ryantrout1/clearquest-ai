@@ -11401,9 +11401,8 @@ export default function CandidateInterview() {
       <main className="flex-1 overflow-y-auto cq-scroll scrollbar-thin" ref={historyRef} onScroll={handleTranscriptScroll}>
         <div className="px-4 pt-6" style={{ paddingBottom: `${dynamicBottomPaddingPx}px` }}>
           <div className="space-y-3 relative isolate">
-            {/* CANONICAL RENDER STREAM: Single source of truth for all main pane content */}
-            {(() => {
-              const transcriptToRender = renderableTranscriptStream;
+            {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
+            {finalTranscriptList.map((entry, index) => {
             
             // A) V3_PROBE_QA_ATTACH DISABLED: Do NOT extract or attach V3 probe Q/A when MI_GATE active
             // V3 probe history appears ONLY in canonical transcript (above gate in chronological order)
