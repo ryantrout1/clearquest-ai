@@ -2976,104 +2976,144 @@ export default function CandidateInterview() {
   
   // Multi-instance gate V3 transcript reconciliation (repair missing probe Q+A)
   useEffect(() => {
-    if (!multiInstanceGate) return;
+    // Only trigger when entering MI_GATE (not on every multiInstanceGate change)
+    if (!multiInstanceGate || activeUiItem?.kind !== "MI_GATE") return;
     
-    const sessionId = new URLSearchParams(window.location.search).get("session");
-    if (!sessionId) return;
+    const urlSessionId = new URLSearchParams(window.location.search).get("session");
+    if (!urlSessionId || urlSessionId !== sessionId) return;
     
-    // Extract last V3 promptId from context or snapshot
-    const lastPromptId = lastV3PromptSnapshotRef.current?.promptId || v3ProbingContext?.promptId;
+    // Check if we have a stored payload from last V3 submit
+    const payload = lastV3SubmittedAnswerRef.current;
     
-    if (!lastPromptId) {
-      console.log('[MI_GATE][V3_RECONCILE]', {
+    if (!payload) {
+      console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
         sessionId,
-        promptId: null,
-        actionTaken: 'SKIP_NO_PROMPTID'
+        hasPayload: false,
+        actionTaken: 'SKIP_NO_PAYLOAD'
       });
       return;
     }
     
-    // Construct expected stableKeys (session-scoped)
-    const expectedQKey = `v3-probe-q:${sessionId}:${lastPromptId}`;
-    const expectedAKey = `v3-probe-a:${sessionId}:${lastPromptId}`;
+    // Validate payload belongs to current session/category/instance
+    const payloadMatches = 
+      payload.sessionId === sessionId &&
+      payload.packId === multiInstanceGate.packId &&
+      payload.categoryId === multiInstanceGate.categoryId &&
+      payload.instanceNumber === multiInstanceGate.instanceNumber;
     
-    // Check if answer exists in transcript
-    setDbTranscriptSafe(prev => {
-      const foundQuestion = prev.some(e => e.stableKey === expectedQKey);
-      const foundAnswer = prev.some(e => e.stableKey === expectedAKey);
-      
-      console.log('[MI_GATE][V3_RECONCILE]', {
+    if (!payloadMatches) {
+      console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
         sessionId,
-        promptId: lastPromptId,
-        expectedStableKey: expectedAKey,
-        foundInTranscript: foundAnswer,
-        foundQuestion,
-        actionTaken: foundAnswer ? 'SKIP_ALREADY_EXISTS' : 'WILL_REPAIR'
+        hasPayload: true,
+        payloadMatches: false,
+        actionTaken: 'SKIP_STALE_PAYLOAD',
+        payloadPackId: payload.packId,
+        currentPackId: multiInstanceGate.packId
       });
-      
-      // If answer missing but we have snapshot data, repair it
-      if (!foundAnswer && lastV3PromptSnapshotRef.current?.lastAnswerText) {
-        const promptText = lastV3PromptSnapshotRef.current.promptText;
-        const answerText = lastV3PromptSnapshotRef.current.lastAnswerText;
+      return;
+    }
+    
+    // Check if answer already exists in transcript
+    const foundQuestion = dbTranscript.some(e => e.stableKey === payload.expectedQKey);
+    const foundAnswer = dbTranscript.some(e => e.stableKey === payload.expectedAKey);
+    
+    console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
+      sessionId,
+      expectedAKey: payload.expectedAKey,
+      expectedQKey: payload.expectedQKey,
+      foundQ: foundQuestion,
+      foundA: foundAnswer,
+      actionTaken: foundAnswer ? 'SKIP_ALREADY_EXISTS' : 'WILL_INSERT'
+    });
+    
+    // If answer missing, insert it (idempotent)
+    if (!foundAnswer && payload.answerText && payload.answerText.trim()) {
+      setDbTranscriptSafe(prev => {
+        // Double-check not already present (race guard)
+        const alreadyHasA = prev.some(e => e.stableKey === payload.expectedAKey);
+        if (alreadyHasA) {
+          console.log('[MI_GATE][V3_RECONCILE_SKIP]', {
+            expectedAKey: payload.expectedAKey,
+            reason: 'answer_appeared_during_reconcile'
+          });
+          return prev;
+        }
         
-        let working = prev;
+        let working = [...prev];
+        let insertedQ = false;
+        let insertedA = false;
         
         // Ensure question exists first
-        if (!foundQuestion && promptText) {
+        const alreadyHasQ = working.some(e => e.stableKey === payload.expectedQKey);
+        if (!alreadyHasQ && payload.promptText) {
           const qEntry = {
-            id: `v3-probe-q-${lastPromptId}`,
-            stableKey: expectedQKey,
+            id: `v3-probe-q-reconcile-${payload.promptId}`,
+            stableKey: payload.expectedQKey,
             index: getNextIndex(working),
             role: "assistant",
-            text: promptText,
+            text: payload.promptText,
             timestamp: new Date().toISOString(),
             createdAt: Date.now(),
             messageType: 'V3_PROBE_QUESTION',
             type: 'V3_PROBE_QUESTION',
             meta: {
-              promptId: lastPromptId,
-              sessionId,
-              source: 'v3_reconcile'
+              promptId: payload.promptId,
+              sessionId: payload.sessionId,
+              categoryId: payload.categoryId,
+              instanceNumber: payload.instanceNumber,
+              packId: payload.packId,
+              source: 'mi_gate_reconcile'
             },
             visibleToCandidate: true
           };
           
           working = [...working, qEntry];
+          insertedQ = true;
           
-          console.log('[MI_GATE][V3_RECONCILE_Q_REPAIR]', {
-            stableKey: expectedQKey,
+          console.log('[MI_GATE][V3_RECONCILE_INSERT_Q]', {
+            stableKey: payload.expectedQKey,
             sessionId
           });
         }
         
         // Append missing answer
         const aEntry = {
-          id: `v3-probe-a-${lastPromptId}`,
-          stableKey: expectedAKey,
+          id: `v3-probe-a-reconcile-${payload.promptId}`,
+          stableKey: payload.expectedAKey,
           index: getNextIndex(working),
           role: "user",
-          text: answerText,
+          text: payload.answerText,
           timestamp: new Date().toISOString(),
           createdAt: Date.now(),
           messageType: 'V3_PROBE_ANSWER',
           type: 'V3_PROBE_ANSWER',
           meta: {
-            promptId: lastPromptId,
-            sessionId,
-            source: 'v3_reconcile'
+            promptId: payload.promptId,
+            sessionId: payload.sessionId,
+            categoryId: payload.categoryId,
+            instanceNumber: payload.instanceNumber,
+            packId: payload.packId,
+            source: 'mi_gate_reconcile'
           },
           visibleToCandidate: true
         };
         
         const updated = [...working, aEntry];
+        insertedA = true;
         
-        // Persist repair
+        // Update canonical ref
+        canonicalTranscriptRef.current = updated;
+        
+        // Persist repair to DB
         base44.entities.InterviewSession.update(sessionId, {
           transcript_snapshot: updated
         }).then(() => {
-          console.log('[MI_GATE][V3_RECONCILE_A_REPAIR_OK]', {
-            stableKey: expectedAKey,
-            sessionId,
+          console.log('[MI_GATE][V3_RECONCILE_INSERT]', {
+            insertedA: true,
+            insertedQ,
+            expectedAKey: payload.expectedAKey,
+            expectedQKey: payload.expectedQKey,
+            reason: 'missing_after_gate',
             transcriptLenAfter: updated.length
           });
         }).catch(err => {
@@ -3081,11 +3121,26 @@ export default function CandidateInterview() {
         });
         
         return updated;
-      }
+      });
       
-      return prev; // No repair needed
-    });
-  }, [multiInstanceGate, setDbTranscriptSafe]);
+      // Clear payload after reconciliation (prevent duplicate inserts)
+      console.log('[MI_GATE][V3_RECONCILE_CLEAR]', {
+        reason: 'reconciled_or_not_needed',
+        expectedAKey: payload.expectedAKey
+      });
+      lastV3SubmittedAnswerRef.current = null;
+    } else if (foundAnswer) {
+      // Clear payload if answer already exists (no reconciliation needed)
+      console.log('[MI_GATE][V3_RECONCILE_CLEAR]', {
+        reason: 'found_in_transcript',
+        expectedAKey: payload.expectedAKey
+      });
+      lastV3SubmittedAnswerRef.current = null;
+    }
+  }, [multiInstanceGate, activeUiItem, sessionId, dbTranscript, setDbTranscriptSafe]);
+
+    // ROUTE: V3 probing answer (headless mode) - use submitIntent routing
+    if (submitIntent.isV3Submit) {
 
   // ACTIVE UI ITEM CHANGE TRACE: Moved to render section (after activeUiItem is initialized)
   // This avoids TDZ error while keeping hook order consistent
