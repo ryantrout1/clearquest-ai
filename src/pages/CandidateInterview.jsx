@@ -11085,7 +11085,6 @@ export default function CandidateInterview() {
         <div className="px-4 pt-6" style={{ paddingBottom: `${dynamicBottomPaddingPx}px` }}>
           <div className="space-y-3 relative isolate">
             {/* CANONICAL RENDER STREAM: Single source of truth for all main pane content */}
-            {/* Logic moved to pre-render block above - direct JSX rendering */}
             {(() => {
               const transcriptToRender = renderableTranscriptStream;
             
@@ -11425,7 +11424,8 @@ export default function CandidateInterview() {
               });
             }
 
-            return finalList.map((entry, index) => {
+              
+              return finalList.map((entry, index) => {
                   // CANONICAL STREAM: Handle both transcript entries AND active cards
                   const isActiveCard = entry.__activeCard === true;
                   
