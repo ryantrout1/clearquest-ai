@@ -12148,13 +12148,13 @@ export default function CandidateInterview() {
                 </ContentContainer>
               )}
             </div>
-            );
-          })}
-            </div>
           );
-          })()}
+        })}
+          </div>
+        );
+      })()}
 
-          {/* CANONICAL STREAM ACTIVE CARDS: Removed - duplicate renderer */}
+      {/* CANONICAL STREAM ACTIVE CARDS: Removed - duplicate renderer */}
           {/* Active cards render in main loop via isActiveCard check (lines 8627-8692) */}
           
           {/* V3 Pack Opener Card - SYNTHETIC RENDER (disabled by ENABLE_SYNTHETIC_TRANSCRIPT) */}
