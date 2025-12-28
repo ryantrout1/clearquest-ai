@@ -8128,7 +8128,32 @@ export default function CandidateInterview() {
     
     const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
     const qStableKey = buildV3ProbeQStableKey(sessionId, categoryId, instanceNumber, probeIndex);
-    const aStableKey = buildV3ProbeAStableKey(sessionId, categoryId, instanceNumber, probeIndex);
+    let aStableKey = buildV3ProbeAStableKey(sessionId, categoryId, instanceNumber, probeIndex);
+    
+    // VERIFICATION GUARD 1: Log built keys
+    console.log('[V3_SEND][KEYS_BUILT]', {
+      v3PromptIdSOT,
+      qStableKey,
+      aStableKey
+    });
+    
+    // VERIFICATION GUARD 2: Invariant check - aStableKey must contain promptId
+    if (!aStableKey.includes(v3PromptIdSOT)) {
+      console.error('[V3_SEND][BUG][AKEY_DOES_NOT_CONTAIN_PROMPTID]', {
+        v3PromptIdSOT,
+        aStableKey,
+        reason: 'Builder output does not contain promptId - using fallback'
+      });
+      
+      // Fallback to canonical format
+      const fallbackAKey = `v3-probe-a:${v3PromptIdSOT}`;
+      aStableKey = fallbackAKey;
+      
+      console.warn('[V3_SEND][AKEY_FALLBACK_USED]', {
+        v3PromptIdSOT,
+        fallbackAKey
+      });
+    }
     
     console.log('[V3_PROBE][COMMIT_BEGIN]', { 
       sessionId, 
