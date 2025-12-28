@@ -258,6 +258,9 @@ function hasQuestionBeenLogged(sessionId, questionKey) {
 // V3 Probing feature flag
 const ENABLE_V3_PROBING = true;
 
+// V3 ACK/REPAIR feature flag (kill switch for prod safety)
+const ENABLE_V3_ACK_REPAIR = true;
+
 // Feature flag: Enable chat virtualization for long interviews
 const ENABLE_CHAT_VIRTUALIZATION = false;
 
@@ -1603,6 +1606,11 @@ export default function CandidateInterview() {
   // V3 COMMIT ACK: Lightweight acknowledgement for post-submit verification
   const lastV3AnswerCommitAckRef = useRef(null);
   
+  // V3 ACK METRICS: Track reliability counters (observability only)
+  const v3AckSetCountRef = useRef(0);
+  const v3AckClearCountRef = useRef(0);
+  const v3AckRepairCountRef = useRef(0);
+  
   // MI_GATE UI CONTRACT SELF-TEST: Track main pane render + footer buttons per itemId
   const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { mainPaneRendered: bool, footerButtonsOnly: bool, testStarted: bool }>
   const miGateTestTimeoutRef = useRef(null);
@@ -2859,6 +2867,16 @@ export default function CandidateInterview() {
   useEffect(() => {
     if (!sessionId) return;
     
+    // V3 ACK METRICS: Log final stats on session change
+    if (v3AckSetCountRef.current > 0) {
+      console.log('[V3_PROBE][ACK_METRICS]', {
+        ackSet: v3AckSetCountRef.current,
+        ackCleared: v3AckClearCountRef.current,
+        ackRepaired: v3AckRepairCountRef.current,
+        sessionId: 'session_reset'
+      });
+    }
+    
     console.log('[INTERVIEW_RESET][START]', { 
       sessionId,
       transcriptLenBefore: canonicalTranscriptRef.current.length,
@@ -2931,6 +2949,11 @@ export default function CandidateInterview() {
     lastWatchdogSnapshotRef.current = null;
     lastWatchdogDecisionRef.current = null;
     lastWatchdogOutcomeRef.current = null;
+    
+    // Reset ACK metrics counters
+    v3AckSetCountRef.current = 0;
+    v3AckClearCountRef.current = 0;
+    v3AckRepairCountRef.current = 0;
     
     // TRANSCRIPT SOT RESET: Reset initialization flag
     transcriptInitializedRef.current = false;
@@ -7075,6 +7098,14 @@ export default function CandidateInterview() {
     setIsCompletingInterview(true);
 
     try {
+      // V3 ACK METRICS: Log final reliability stats
+      console.log('[V3_PROBE][ACK_METRICS]', {
+        ackSet: v3AckSetCountRef.current,
+        ackCleared: v3AckClearCountRef.current,
+        ackRepaired: v3AckRepairCountRef.current,
+        sessionId
+      });
+      
       await base44.entities.InterviewSession.update(sessionId, {
         status: 'completed',
         completed_date: new Date().toISOString(),
@@ -7975,11 +8006,15 @@ export default function CandidateInterview() {
             promptText: lastV3PromptSnapshotRef.current?.promptText || v3ActivePromptText
           };
           
+          // METRICS: Increment ack set counter
+          v3AckSetCountRef.current++;
+          
           console.log('[V3_PROBE][ACK_SET]', {
             expectedAKey: aStableKey,
             expectedQKey: qStableKey,
             promptId,
-            committedAt: lastV3AnswerCommitAckRef.current.committedAt
+            committedAt: lastV3AnswerCommitAckRef.current.committedAt,
+            ackSetCount: v3AckSetCountRef.current
           });
           
           // Track for protection (E)
@@ -8074,6 +8109,9 @@ export default function CandidateInterview() {
   
   // V3 COMMIT ACK VERIFICATION: Verify answer persisted + repair if missing
   useEffect(() => {
+    // KILL SWITCH: Allow instant disable if needed
+    if (!ENABLE_V3_ACK_REPAIR) return;
+    
     const ack = lastV3AnswerCommitAckRef.current;
     if (!ack) return;
     
@@ -8102,10 +8140,13 @@ export default function CandidateInterview() {
     
     if (foundA) {
       // Success - answer found in transcript
+      v3AckClearCountRef.current++;
+      
       console.log('[V3_PROBE][ACK_CLEAR]', {
         expectedAKey: ack.expectedAKey,
         reason: 'found_in_transcript',
-        ageMs
+        ageMs,
+        ackClearCount: v3AckClearCountRef.current
       });
       lastV3AnswerCommitAckRef.current = null;
       return;
@@ -8117,12 +8158,24 @@ export default function CandidateInterview() {
     }
     
     // Missing after grace - repair
+    v3AckRepairCountRef.current++;
+    
+    // INVARIANT CHECK: Repair count should never exceed set count (dev-only)
+    if (v3AckRepairCountRef.current > v3AckSetCountRef.current) {
+      console.error('[V3_PROBE][ACK_INVARIANT_FAIL]', {
+        ackSet: v3AckSetCountRef.current,
+        ackRepaired: v3AckRepairCountRef.current,
+        reason: 'Repair count exceeds set count - impossible state detected'
+      });
+    }
+    
     console.error('[V3_PROBE][ACK_REPAIR]', {
       expectedAKey: ack.expectedAKey,
       expectedQKey: ack.expectedQKey,
       reason: 'missing_after_grace',
       ageMs,
-      action: 'repairing_transcript'
+      action: 'repairing_transcript',
+      ackRepairCount: v3AckRepairCountRef.current
     });
     
     // Perform repair (idempotent functional update)
