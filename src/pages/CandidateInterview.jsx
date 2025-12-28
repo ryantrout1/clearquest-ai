@@ -8362,6 +8362,15 @@ export default function CandidateInterview() {
           
           return updated;
         });
+        
+        // CRITICAL: Refresh transcript immediately after persist attempt
+        await refreshTranscriptFromDB('v3_probe_answer_persisted');
+        
+        console.log('[V3_PROBE][REFRESH_TRIGGERED]', {
+          promptId,
+          stableKeyA: aStableKey,
+          reason: 'V3 answer persisted - refreshing transcript'
+        });
       }
       
     } else {
@@ -8372,11 +8381,6 @@ export default function CandidateInterview() {
         hasAnswerText: !!answerText?.trim(),
         reason: 'Preconditions not met for V3 commit'
       });
-    }
-    
-    // CRITICAL: Refresh transcript after V3 answer persisted
-    if (wroteTranscript) {
-      await refreshTranscriptFromDB('v3_probe_answer_persisted');
     }
     
     // Clear active probe question after processing
@@ -12449,6 +12453,18 @@ export default function CandidateInterview() {
             expectedStableKey,
             reason: 'Question exists but answer never persisted'
           });
+          
+          // REGRESSION CHECK: Did we recently attempt to persist this answer?
+          const lastSubmit = lastV3SubmittedAnswerRef.current;
+          if (lastSubmit && lastSubmit.expectedAKey === expectedStableKey) {
+            const ageMs = Date.now() - lastSubmit.capturedAt;
+            console.error('[V3_PROBE_AUDIT][PERSIST_MISSING_AFTER_SEND]', {
+              promptId,
+              expectedStableKey,
+              lastSubmitAge: ageMs,
+              reason: 'Answer was submitted but never persisted to DB'
+            });
+          }
         }
       }
     }
