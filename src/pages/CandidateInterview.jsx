@@ -12939,6 +12939,15 @@ export default function CandidateInterview() {
             return (
             <div key={entryKey}>
 
+              {/* Parent placeholder (injected for orphaned answers) */}
+              {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'PARENT_PLACEHOLDER' && (
+                <ContentContainer>
+                <div className="w-full bg-slate-800/40 border border-slate-600/40 rounded-xl p-4 opacity-90">
+                  <p className="text-slate-300 text-sm leading-relaxed italic">{entry.text}</p>
+                </div>
+                </ContentContainer>
+              )}
+
               {/* Welcome message (from transcript) - READ-ONLY history only */}
               {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (() => {
                 // ACTIVE CARD DETECTION: Check if WELCOME is currently active
