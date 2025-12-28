@@ -12778,6 +12778,7 @@ export default function CandidateInterview() {
       if (!questionId) continue;
       
       const canonicalKey = `base-answer:${questionId}`;
+      const stableKey = entry.stableKey || entry.id || '';
       
       if (finalCanonicalCheck.has(canonicalKey)) {
         const stableKeyPrefix = stableKey.split(':')[0];
