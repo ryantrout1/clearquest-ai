@@ -12639,6 +12639,113 @@ export default function CandidateInterview() {
     // Use placeholder-injected list for rendering
     transcriptToRenderDeduped = transcriptWithParentPlaceholders;
     
+    // CANONICAL ANSWER DEDUPE: Remove duplicate base-question answers (same questionId)
+    const canonicalAnswerMap = new Map();
+    const answersToDedupe = [];
+    
+    for (const entry of transcriptToRenderDeduped) {
+      const mt = getMessageTypeSOT(entry);
+      if (mt !== 'ANSWER') continue;
+      
+      // Extract questionId from entry or parse from stableKey
+      let questionId = entry.questionId || entry.meta?.questionId;
+      
+      if (!questionId && entry.stableKey) {
+        // Parse from stableKey format: 'answer:<sessionId>:<questionId>:<index>'
+        const keyMatch = entry.stableKey.match(/^answer:[^:]+:([^:]+):/);
+        if (keyMatch) {
+          questionId = keyMatch[1];
+        }
+      }
+      
+      if (!questionId) continue; // Cannot dedupe without questionId
+      
+      const canonicalKey = `base-answer:${questionId}`;
+      
+      if (!canonicalAnswerMap.has(canonicalKey)) {
+        canonicalAnswerMap.set(canonicalKey, []);
+      }
+      
+      canonicalAnswerMap.get(canonicalKey).push(entry);
+      answersToDedupe.push({ entry, canonicalKey, questionId });
+    }
+    
+    // Build final list: keep one answer per canonicalKey, drop duplicates
+    const answersToKeep = new Set();
+    const droppedAnswers = [];
+    
+    for (const [canonicalKey, answers] of canonicalAnswerMap.entries()) {
+      if (answers.length <= 1) {
+        // No duplicates - keep as-is
+        answersToKeep.add(answers[0].stableKey || answers[0].id);
+        continue;
+      }
+      
+      // DUPLICATES FOUND: Keep deterministic stableKey, drop UUID
+      const deterministicAnswer = answers.find(a => 
+        a.stableKey && a.stableKey.startsWith('answer:')
+      );
+      
+      const answerToKeep = deterministicAnswer || answers[answers.length - 1];
+      answersToKeep.add(answerToKeep.stableKey || answerToKeep.id);
+      
+      const dropped = answers.filter(a => 
+        (a.stableKey || a.id) !== (answerToKeep.stableKey || answerToKeep.id)
+      );
+      
+      if (dropped.length > 0) {
+        console.log('[CQ_TRANSCRIPT][ANSWER_DEDUPED_CANONICAL]', {
+          canonicalAnswerKey: canonicalKey,
+          keptStableKey: answerToKeep.stableKey || answerToKeep.id,
+          droppedStableKeys: dropped.map(d => d.stableKey || d.id)
+        });
+        
+        droppedAnswers.push(...dropped.map(d => d.stableKey || d.id));
+      }
+    }
+    
+    // Filter out dropped answers from render list
+    transcriptToRenderDeduped = transcriptToRenderDeduped.filter(entry => {
+      const mt = getMessageTypeSOT(entry);
+      if (mt !== 'ANSWER') return true; // Keep non-answers
+      
+      const entryKey = entry.stableKey || entry.id;
+      if (!entryKey) return true; // Keep if no key
+      
+      // Only keep if in answersToKeep set
+      return answersToKeep.has(entryKey);
+    });
+    
+    // SAFETY GUARD: Verify no duplicate canonical answers remain
+    const finalCanonicalCheck = new Map();
+    for (const entry of transcriptToRenderDeduped) {
+      const mt = getMessageTypeSOT(entry);
+      if (mt !== 'ANSWER') continue;
+      
+      let questionId = entry.questionId || entry.meta?.questionId;
+      if (!questionId && entry.stableKey) {
+        const keyMatch = entry.stableKey.match(/^answer:[^:]+:([^:]+):/);
+        if (keyMatch) questionId = keyMatch[1];
+      }
+      
+      if (!questionId) continue;
+      
+      const canonicalKey = `base-answer:${questionId}`;
+      
+      if (finalCanonicalCheck.has(canonicalKey)) {
+        console.error('[CQ_TRANSCRIPT][BUG][ANSWER_DUPLICATE_AFTER_DEDUPE]', {
+          canonicalAnswerKey: canonicalKey,
+          stableKeys: [
+            finalCanonicalCheck.get(canonicalKey),
+            entry.stableKey || entry.id
+          ],
+          reason: 'Multiple answers for same base question survived dedupe'
+        });
+      } else {
+        finalCanonicalCheck.set(canonicalKey, entry.stableKey || entry.id);
+      }
+    }
+    
     // TRUTH TABLE AUDIT: V3 probe answer visibility (only when relevant)
     if (activeUiItem?.kind === "MI_GATE" || dbV3ProbeAnswers.length > 0) {
       // Get most recent V3 probe answer for current pack/instance
