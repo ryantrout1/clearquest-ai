@@ -11017,6 +11017,323 @@ export default function CandidateInterview() {
   // IMPORTANT: Do NOT gate by currentItemType === 'question' - we want v2_pack_field to work too
   const isBottomBarSubmitDisabled = !currentItem || isCommitting || !(input ?? "").trim();
 
+  // ============================================================================
+  // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
+  // ============================================================================
+  const finalTranscriptList = useMemo(() => {
+    const transcriptToRender = renderableTranscriptStream;
+  
+    // A) V3_PROBE_QA_ATTACH DISABLED: Do NOT extract or attach V3 probe Q/A when MI_GATE active
+    const v3ProbeQAForGateDeterministic = [];
+    
+    if (activeUiItem?.kind === "MI_GATE" && currentItem?.packId && currentItem?.instanceNumber) {
+      console.log('[MI_GATE][V3_PROBE_QA_ATTACH_DISABLED]', {
+        packId: currentItem.packId,
+        instanceNumber: currentItem.instanceNumber,
+        reason: 'MI gate renders standalone - transcript is canonical source for V3 history',
+        v3ProbeQAForGateDeterministic: []
+      });
+    }
+    
+    // B1 — CANONICAL DEDUPE: Final dedupe before rendering
+    const dedupeBeforeRender = (list) => {
+      const seen = new Map();
+      const deduped = [];
+      const dropped = [];
+      
+      for (const entry of list) {
+        const canonicalKey = entry.__canonicalKey || entry.stableKey || entry.id;
+        if (!canonicalKey) {
+          deduped.push(entry);
+          continue;
+        }
+        
+        if (!seen.has(canonicalKey)) {
+          seen.set(canonicalKey, entry);
+          deduped.push(entry);
+        } else {
+          const existing = seen.get(canonicalKey);
+          
+          const score = (e) => {
+            const isUser = e.role === 'user';
+            const hasText = (e.text || '').trim().length > 0;
+            const isVisible = e.visibleToCandidate !== false;
+            
+            if (isUser && hasText && isVisible) return 4;
+            if (isUser && hasText) return 3;
+            if (isUser) return 2;
+            if (e.role === 'assistant' && hasText) return 1;
+            return 0;
+          };
+          
+          const existingScore = score(existing);
+          const entryScore = score(entry);
+          
+          if (entryScore > existingScore) {
+            const replacedIndex = deduped.findIndex(d => (d.stableKey || d.id) === canonicalKey);
+            if (replacedIndex !== -1) {
+              deduped[replacedIndex] = entry;
+              seen.set(canonicalKey, entry);
+              console.log('[STREAM][DEDUP_UPGRADE]', {
+                canonicalKey,
+                existingScore,
+                entryScore,
+                reason: 'Replaced weaker entry with stronger one'
+              });
+            }
+          } else {
+            dropped.push(canonicalKey);
+          }
+        }
+      }
+      
+      if (dropped.length > 0) {
+        console.log('[STREAM][DEDUP_KEYS]', {
+          beforeLen: list.length,
+          afterLen: deduped.length,
+          droppedCount: dropped.length,
+          droppedKeysPreview: dropped.slice(0, 3)
+        });
+      }
+      
+      return deduped;
+    };
+    
+    // A) ALLOW PERSISTED V3 PROBE Q/A + PROTECT USER ANSWERS
+    const transcriptWithV3ProbesBlocked = transcriptToRender.filter(entry => {
+      const stableKey = entry.stableKey || entry.id || '';
+      const isUserRole = entry.role === 'user';
+      const isRecentlySubmitted = recentlySubmittedUserAnswersRef.current.has(stableKey);
+      
+      if (isUserRole && stableKey) {
+        if (isRecentlySubmitted) {
+          const now = Date.now();
+          let meta = recentlySubmittedUserAnswersMetaRef.current.get(stableKey);
+          
+          if (!meta) {
+            meta = { firstSeenAt: now, renderedAt: null };
+            recentlySubmittedUserAnswersMetaRef.current.set(stableKey, meta);
+          }
+          
+          meta.renderedAt = now;
+          
+          const ageMs = now - meta.firstSeenAt;
+          const inDb = dbTranscript.some(e => (e.stableKey || e.id) === stableKey);
+          const canClear = ageMs >= 250 && inDb && meta.renderedAt;
+          
+          if (canClear) {
+            recentlySubmittedUserAnswersRef.current.delete(stableKey);
+            recentlySubmittedUserAnswersMetaRef.current.delete(stableKey);
+            console.log('[CQ_TRANSCRIPT][USER_ANSWER_PROTECT_CLEARED]', {
+              stableKey,
+              ageMs,
+              reason: 'Protection window expired - answer stable in DB'
+            });
+          } else {
+            console.log('[CQ_TRANSCRIPT][USER_ANSWER_PROTECT]', {
+              stableKey,
+              messageType: getMessageTypeSOT(entry),
+              ageMs,
+              inDb,
+              canClear,
+              reason: 'Protection window active - waiting for stability'
+            });
+          }
+        }
+        
+        return true;
+      }
+      
+      const mt = getMessageTypeSOT(entry);
+      const hasV3ProbeQPrefix = stableKey.startsWith('v3-probe-q:');
+      const hasV3ProbeAPrefix = stableKey.startsWith('v3-probe-a:');
+      const isV3ProbeQuestionType = mt === 'V3_PROBE_QUESTION';
+      const isV3ProbeAnswerType = mt === 'V3_PROBE_ANSWER';
+      
+      const isV3ProbeQA = (hasV3ProbeQPrefix || hasV3ProbeAPrefix || isV3ProbeQuestionType || isV3ProbeAnswerType);
+      
+      if (isV3ProbeQA) {
+        const currentPromptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+        const isActivePrompt = hasActiveV3Prompt && 
+                              v3PromptPhase === 'ANSWER_NEEDED' &&
+                              entry.meta?.promptId === currentPromptId;
+        
+        if (isActivePrompt) {
+          console.log('[V3_UI_CONTRACT][ACTIVE_PROMPT_BLOCKED]', { 
+            stableKey, 
+            promptId: entry.meta?.promptId,
+            mt,
+            reason: 'Active prompt renders in prompt lane only'
+          });
+          return false;
+        }
+        
+        console.log('[V3_UI_CONTRACT][PERSISTED_PROBE_ALLOWED]', { 
+          stableKey,
+          promptId: entry.meta?.promptId,
+          mt,
+          reason: 'Persisted V3 probe Q/A allowed in transcript'
+        });
+        return true;
+      }
+      
+      return true;
+    });
+    
+    const transcriptWithV3ProbeQA = [...transcriptWithV3ProbesBlocked, ...v3ProbeQAForGateDeterministic];
+    let transcriptToRenderDeduped = dedupeBeforeRender(transcriptWithV3ProbeQA);
+    
+    // Diagnostic logging
+    if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+      const openerAnswerCount = transcriptToRenderDeduped.filter(e => getMessageTypeSOT(e) === 'V3_OPENER_ANSWER').length;
+      const probeAnswerCount = transcriptToRenderDeduped.filter(e => getMessageTypeSOT(e) === 'V3_PROBE_ANSWER').length;
+      const probeQuestionCount = transcriptToRenderDeduped.filter(e => getMessageTypeSOT(e) === 'V3_PROBE_QUESTION').length;
+      
+      console.log('[CQ_TRANSCRIPT][TYPE_COUNTS_SOT]', {
+        openerAnswerCount,
+        probeAnswerCount,
+        probeQuestionCount
+      });
+    
+      const packId = currentItem?.packId || v3ProbingContext?.packId;
+      const instanceNumber = currentItem?.instanceNumber || v3ProbingContext?.instanceNumber || 1;
+      const openerAnswerStableKeyForLog = `v3-opener-a:${sessionId}:${packId}:${instanceNumber}`;
+      
+      const hasOpenerAnswerByStableKey = transcriptToRenderDeduped.some(e => 
+        e.stableKey === openerAnswerStableKeyForLog
+      );
+      
+      const openerAnswerByIdentity = transcriptToRenderDeduped.find(e => 
+        (e.messageType === 'v3_opener_answer' || e.kind === 'v3_opener_a') &&
+        e.packId === packId && 
+        (e.instanceNumber === instanceNumber || e.meta?.instanceNumber === instanceNumber)
+      );
+      const hasOpenerAnswerByIdentity = !!openerAnswerByIdentity;
+      const hasOpenerAnswer = hasOpenerAnswerByStableKey || hasOpenerAnswerByIdentity;
+      
+      console.log('[CQ_RENDER_SOT][BEFORE_MAP]', {
+        listName: 'finalRenderStream',
+        len: transcriptToRenderDeduped.length,
+        hasOpenerAnswer,
+        hasOpenerAnswerByStableKey,
+        hasOpenerAnswerByIdentity,
+        foundStableKey: openerAnswerByIdentity?.stableKey || null,
+        verifyStableKey: openerAnswerStableKeyForLog,
+        last3: transcriptToRenderDeduped.slice(-3).map(e => ({
+          stableKey: e.stableKey || e.id,
+          messageType: e.messageType || e.type || e.kind,
+          role: e.role,
+          textPreview: (e.text || '').substring(0, 40)
+        }))
+      });
+      
+      if (cqDiagEnabled) {
+        console.log('[CQ_GO_STATUS]', {
+          crashSeen: false,
+          hasOpenerAnswer,
+          renderLen: transcriptToRender.length,
+          hasOpenerAnswerByStableKey,
+          hasOpenerAnswerByIdentity
+        });
+      }
+    }
+    
+    // ORDER GATING: Suppress UNANSWERED base questions during V3
+    const v3UiHistoryLen = v3UiRenderable.length;
+    const hasVisibleV3PromptCard = v3HasVisiblePromptCard;
+    const shouldSuppressBaseQuestions = v3ProbingActive || hasVisibleV3PromptCard;
+    
+    const finalList = shouldSuppressBaseQuestions 
+      ? transcriptToRenderDeduped.filter((entry, idx) => {
+          if (entry.messageType !== 'QUESTION_SHOWN') return true;
+          if (entry.meta?.packId) return true;
+          
+          const suppressedQuestionId = entry.meta?.questionDbId || entry.questionId;
+          const suppressedQuestionCode = entry.meta?.questionCode || 'unknown';
+          
+          const hasAnswerAfter = transcriptToRenderDeduped
+            .slice(idx + 1)
+            .some(laterEntry => 
+              laterEntry.role === 'user' && 
+              laterEntry.messageType === 'ANSWER' &&
+              (laterEntry.questionDbId === suppressedQuestionId || laterEntry.meta?.questionDbId === suppressedQuestionId)
+            );
+          
+          if (hasAnswerAfter) {
+            console.log('[CQ_TRANSCRIPT][BASE_Q_PRESERVED_DURING_V3]', {
+              suppressedQuestionId,
+              suppressedQuestionCode,
+              reason: 'Question answered - keeping in transcript history',
+              v3ProbingActive,
+              loopKey: v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null
+            });
+            return true;
+          }
+          
+          console.log('[ORDER][BASE_Q_SUPPRESSED_ONLY_ACTIVE]', {
+            suppressedQuestionId,
+            suppressedQuestionCode,
+            reason: 'V3_PROBING_ACTIVE - unanswered question suppressed',
+            v3ProbingActive,
+            v3UiHistoryLen,
+            hasVisibleV3PromptCard,
+            loopKey: v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null
+          });
+          
+          return false;
+        })
+      : transcriptToRenderDeduped;
+    
+    // Regression guard logging
+    const candidateVisibleQuestionsInDb = transcriptToRenderDeduped.filter(e => 
+      e.messageType === 'QUESTION_SHOWN' && e.visibleToCandidate === true
+    ).length;
+    const candidateVisibleQuestionsInRender = finalList.filter(e => 
+      e.messageType === 'QUESTION_SHOWN' && e.visibleToCandidate === true
+    ).length;
+    
+    if (candidateVisibleQuestionsInRender < candidateVisibleQuestionsInDb && shouldSuppressBaseQuestions) {
+      const droppedQuestions = transcriptToRenderDeduped.filter(e => 
+        e.messageType === 'QUESTION_SHOWN' && 
+        e.visibleToCandidate === true &&
+        !finalList.some(r => (r.stableKey && r.stableKey === e.stableKey) || (r.id && r.id === e.id))
+      );
+      
+      console.log('[CQ_TRANSCRIPT][BASE_Q_SUPPRESSED_STATS]', {
+        candidateVisibleQuestionsInDb,
+        candidateVisibleQuestionsInRender,
+        droppedCount: candidateVisibleQuestionsInDb - candidateVisibleQuestionsInRender,
+        droppedKeys: droppedQuestions.map(e => ({
+          questionId: e.meta?.questionDbId || e.questionId,
+          questionCode: e.meta?.questionCode || 'unknown',
+          stableKey: e.stableKey || e.id,
+          textPreview: (e.text || '').substring(0, 40)
+        }))
+      });
+    } else if (shouldSuppressBaseQuestions && candidateVisibleQuestionsInRender === candidateVisibleQuestionsInDb) {
+      console.log('[CQ_TRANSCRIPT][BASE_Q_NO_REGRESSION]', {
+        candidateVisibleQuestionsInDb,
+        candidateVisibleQuestionsInRender,
+        reason: 'All answered base questions preserved during V3'
+      });
+    }
+    
+    return finalList;
+  }, [
+    renderableTranscriptStream,
+    activeUiItem,
+    currentItem,
+    v3ProbingActive,
+    v3HasVisiblePromptCard,
+    v3ProbingContext,
+    hasActiveV3Prompt,
+    v3PromptPhase,
+    sessionId,
+    dbTranscript,
+    cqDiagEnabled,
+    v3UiRenderable
+  ]);
+
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
       <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
@@ -12147,8 +12464,7 @@ export default function CandidateInterview() {
               )}
             </div>
           );
-        });
-      })()}
+        })}
           </div>
         </div>
       </main>
