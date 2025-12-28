@@ -6958,23 +6958,8 @@ export default function CandidateInterview() {
           packId: currentItem.packId,
           instanceNumber: currentItem.instanceNumber,
           answer: value,
-          source: 'handleAnswer',
-          activeUiItemKind: activeUiItem?.kind
+          source: 'handleAnswer'
         });
-        
-        // FIX: Block MI_GATE answer if gate is not active
-        if (activeUiItem?.kind !== "MI_GATE") {
-          console.error('[MI_GATE][ANSWER_BLOCKED_NOT_ACTIVE]', {
-            clicked: value,
-            reason: 'gate_suppressed_or_not_active',
-            activeUiItemKind: activeUiItem?.kind,
-            effectiveItemType,
-            currentItemType: currentItem.type,
-            action: 'BLOCKED'
-          });
-          setIsCommitting(false);
-          return;
-        }
         
         // PART C: Multi-instance gate handler - append Q+A after user answers
         const normalized = value.trim().toLowerCase();
@@ -11654,21 +11639,8 @@ export default function CandidateInterview() {
       currentItemId: currentItem?.id,
       packId: currentItem?.packId,
       instanceNumber: currentItem?.instanceNumber,
-      bottomBarMode,
-      activeUiItemKind: activeUiItem?.kind
+      bottomBarMode
     });
-    
-    // FIX: Block MI_GATE answer if gate is not active (prevents orphan "Yes" during V3 suppression)
-    if (effectiveItemType === 'multi_instance_gate' && activeUiItem?.kind !== "MI_GATE") {
-      console.error('[MI_GATE][ANSWER_BLOCKED_NOT_ACTIVE]', {
-        clicked: answer,
-        reason: 'gate_suppressed_or_not_active',
-        activeUiItemKind: activeUiItem?.kind,
-        effectiveItemType,
-        action: 'BLOCKED'
-      });
-      return; // Do not append answer
-    }
     
     // Route to handleAnswer (same path as all other answer types)
     if (!isCommitting) {
