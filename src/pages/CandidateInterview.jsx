@@ -11403,8 +11403,8 @@ export default function CandidateInterview() {
           <div className="space-y-3 relative isolate">
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {finalTranscriptList.map((entry, index) => {
-                  // CANONICAL STREAM: Handle both transcript entries AND active cards
-                  const isActiveCard = entry.__activeCard === true;
+              // CANONICAL STREAM: Handle both transcript entries AND active cards
+              const isActiveCard = entry.__activeCard === true;
                   
                   // STABLE KEY: Use helper for all entries (prevents React refresh)
                   const entryKey = isActiveCard 
@@ -11624,17 +11624,17 @@ export default function CandidateInterview() {
                   // V3 UPDATE: V3_PROBE_QUESTION and V3_PROBE_ANSWER now allowed (renders above)
                   // Only block internal system events
                   const isV3SystemEvent = 
-                   mt === 'V3_PROBE_ASKED' ||
-                   mt === 'V3_PROBE_PROMPT' ||
-                   mt === 'V3_PROBE' ||
-                   (mt === 'ai_probe_question' && entrySource.includes('v3_internal'));
+                    mt === 'V3_PROBE_ASKED' ||
+                    mt === 'V3_PROBE_PROMPT' ||
+                    mt === 'V3_PROBE' ||
+                    (mt === 'ai_probe_question' && entrySource.includes('v3_internal'));
 
                   if (isV3SystemEvent) {
-                   console.log("[V3_SYSTEM_EVENT][BLOCKED]", { 
-                     messageType: mt,
-                     reason: 'Internal V3 system event - not legal record'
-                   });
-                   return null;
+                    console.log("[V3_SYSTEM_EVENT][BLOCKED]", { 
+                      messageType: mt,
+                      reason: 'Internal V3 system event - not legal record'
+                    });
+                    return null;
                   }
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
@@ -12123,9 +12123,9 @@ export default function CandidateInterview() {
                 </ContentContainer>
               )}
             </div>
-          );
-        })}
-          </div>
+            );
+            })}
+            </div>
         </div>
       </main>
 
