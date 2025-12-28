@@ -11997,19 +11997,34 @@ export default function CandidateInterview() {
           action: 'FILTER_EPHEMERAL'
         });
         
-        // ENFORCEMENT: Remove ephemeral items from chat history
-        transcriptToRender = renderableTranscriptStream.filter(e => 
-          !(e.__activeCard === true || 
+        // ENFORCEMENT: Remove ephemeral items ONLY (never real transcript items)
+        transcriptToRender = renderableTranscriptStream.filter(e => {
+          // CRITICAL: Never filter items with real DB stableKeys
+          const hasStableKey = !!(e.stableKey || e.id);
+          const isRealTranscriptType = ['QUESTION_SHOWN', 'ANSWER', 'MULTI_INSTANCE_GATE_SHOWN', 'MULTI_INSTANCE_GATE_ANSWER', 'V3_PROBE_QUESTION', 'V3_PROBE_ANSWER', 'FOLLOWUP_CARD_SHOWN', 'V3_OPENER_ANSWER'].includes(e.messageType || e.type);
+          
+          if (hasStableKey && isRealTranscriptType) {
+            return true; // Always keep real transcript items
+          }
+          
+          // Filter out ephemeral-only items
+          const isEphemeral = e.__activeCard === true || 
             e.kind === 'v3_probe_q' || 
             e.kind === 'v3_probe_a' ||
             e.source === 'ephemeral' ||
-            e.source === 'prompt_lane_temporary')
-        );
+            e.source === 'prompt_lane_temporary';
+          
+          return !isEphemeral;
+        });
         
         console.log('[CQ_TRANSCRIPT][EPHEMERAL_FILTERED]', {
           beforeLen: renderableTranscriptStream.length,
           afterLen: transcriptToRender.length,
-          removedCount: ephemeralSources.length
+          removedCount: ephemeralSources.length,
+          stableKeysRemoved: ephemeralSources
+            .filter(e => e.__activeCard || e.source === 'prompt_lane_temporary')
+            .map(e => e.stableKey || e.id)
+            .slice(0, 5)
         });
       }
     }
@@ -12194,7 +12209,95 @@ export default function CandidateInterview() {
     const transcriptWithV3ProbeQA = [...transcriptWithV3ProbesBlocked, ...v3ProbeQAForGateDeterministic];
     let transcriptToRenderDeduped = dedupeBeforeRender(transcriptWithV3ProbeQA);
     
-    // PARENT PLACEHOLDER INJECTION: Ensure every YES/NO answer has visible parent
+    // INTEGRITY PASS: Ensure every ANSWER has its QUESTION_SHOWN parent
+    const transcriptWithIntegrityPass = [];
+    const questionIdToQuestionShown = new Map();
+    const questionIdToAnswers = new Map();
+    
+    // Build indexes
+    for (const entry of transcriptToRenderDeduped) {
+      const mt = getMessageTypeSOT(entry);
+      
+      if (mt === 'QUESTION_SHOWN') {
+        const questionId = entry.meta?.questionDbId;
+        if (questionId && !questionIdToQuestionShown.has(questionId)) {
+          questionIdToQuestionShown.set(questionId, entry);
+        }
+      }
+      
+      if (mt === 'ANSWER' && entry.meta?.answerContext === 'BASE_QUESTION') {
+        const questionId = entry.meta?.questionDbId;
+        if (questionId) {
+          if (!questionIdToAnswers.has(questionId)) {
+            questionIdToAnswers.set(questionId, []);
+          }
+          questionIdToAnswers.get(questionId).push(entry);
+        }
+      }
+    }
+    
+    // Insert missing QUESTION_SHOWN entries
+    const synthesizedQuestions = [];
+    for (const [questionId, answers] of questionIdToAnswers.entries()) {
+      if (!questionIdToQuestionShown.has(questionId)) {
+        // Find question text from engine or use placeholder
+        const questionText = engine?.QById?.[questionId]?.question_text || "(Question)";
+        const questionNumber = engine?.QById?.[questionId]?.question_number || '';
+        const sectionId = engine?.QById?.[questionId]?.section_id;
+        const sectionEntity = engine?.Sections?.find(s => s.id === sectionId);
+        const sectionName = sectionEntity?.section_name || '';
+        
+        const synthQuestion = {
+          id: `synth-question-shown-${questionId}`,
+          stableKey: `question-shown:${questionId}`,
+          role: 'assistant',
+          messageType: 'QUESTION_SHOWN',
+          type: 'QUESTION_SHOWN',
+          text: questionText,
+          timestamp: new Date(new Date(answers[0].timestamp).getTime() - 1000).toISOString(),
+          createdAt: (answers[0].createdAt || Date.now()) - 1000,
+          visibleToCandidate: true,
+          __synthetic: true,
+          meta: {
+            questionDbId: questionId,
+            questionNumber,
+            sectionName,
+            source: 'integrity_pass'
+          }
+        };
+        
+        synthesizedQuestions.push({ questionId, synthQuestion });
+        
+        console.log('[TRANSCRIPT_INTEGRITY][SYNTH_QUESTION_SHOWN]', {
+          questionId,
+          questionCode: engine?.QById?.[questionId]?.question_id || questionId,
+          inserted: true,
+          reason: 'Answer exists but QUESTION_SHOWN missing from render list'
+        });
+      }
+    }
+    
+    // Rebuild list with synthesized questions inserted before their first answer
+    for (let i = 0; i < transcriptToRenderDeduped.length; i++) {
+      const entry = transcriptToRenderDeduped[i];
+      
+      // Check if we need to insert a synthesized question before this entry
+      if (entry.role === 'user' && getMessageTypeSOT(entry) === 'ANSWER') {
+        const questionId = entry.meta?.questionDbId;
+        const synth = synthesizedQuestions.find(s => s.questionId === questionId);
+        
+        if (synth && !transcriptWithIntegrityPass.some(e => e.stableKey === synth.synthQuestion.stableKey)) {
+          transcriptWithIntegrityPass.push(synth.synthQuestion);
+        }
+      }
+      
+      transcriptWithIntegrityPass.push(entry);
+    }
+    
+    // Use integrity-passed list for placeholder injection
+    transcriptToRenderDeduped = transcriptWithIntegrityPass;
+    
+    // PARENT PLACEHOLDER INJECTION: Only for MI_GATE (BASE_QUESTION already handled by integrity pass)
     const transcriptWithParentPlaceholders = [];
     const placeholdersInjected = [];
     
@@ -12202,14 +12305,14 @@ export default function CandidateInterview() {
       const entry = transcriptToRenderDeduped[i];
       const isYesNoAnswer = 
         entry.role === 'user' && 
-        (entry.messageType === 'ANSWER' || entry.messageType === 'MULTI_INSTANCE_GATE_ANSWER') &&
+        entry.messageType === 'MULTI_INSTANCE_GATE_ANSWER' &&
         (entry.text === 'Yes' || entry.text === 'No' || entry.text?.startsWith('Yes (') || entry.text?.startsWith('No ('));
       
       if (isYesNoAnswer) {
         const answerContext = entry.meta?.answerContext || entry.answerContext;
         
-        // FIX: Skip placeholder injection for BASE_QUESTION (already has QUESTION_SHOWN parent)
-        if (answerContext === 'BASE_QUESTION') {
+        // Only inject for MI_GATE (BASE_QUESTION handled by integrity pass above)
+        if (answerContext !== 'MI_GATE') {
           transcriptWithParentPlaceholders.push(entry);
           continue;
         }
@@ -12223,10 +12326,8 @@ export default function CandidateInterview() {
         );
         
         if (parentKey && !parentExists) {
-          // Inject placeholder parent
-          const placeholderText = answerContext === 'MI_GATE' 
-            ? 'Continue this section?'
-            : entry.meta?.questionText || `Answer to Question ${entry.meta?.questionNumber || ''}`;
+          // Inject placeholder parent for MI_GATE only
+          const placeholderText = 'Continue this section?';
           
           const placeholder = {
             id: `placeholder:${answerStableKey}`,
@@ -12238,6 +12339,7 @@ export default function CandidateInterview() {
             timestamp: new Date(new Date(entry.timestamp).getTime() - 1).toISOString(),
             createdAt: (entry.createdAt || Date.now()) - 1,
             visibleToCandidate: true,
+            __synthetic: true,
             meta: {
               answerContext,
               originalParentKey: parentKey,
@@ -12785,24 +12887,14 @@ export default function CandidateInterview() {
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
             if (entry.role === 'assistant' && getMessageTypeSOT(entry) === 'QUESTION_SHOWN') {
-              // ACTIVE ITEM CHECK: Only the current active question may render (never history)
+              // ACTIVE ITEM CHECK: Determine if this is the current active question
               const questionDbId = entry.meta?.questionDbId;
               const isActiveQuestion = effectiveItemType === 'question' && 
                 currentItem?.type === 'question' &&
                 currentItem?.id === questionDbId;
               
-              // FIX: History items are read-only - skip rendering if not active
-              // The active question renders via getCurrentPrompt/currentPrompt path
-              if (!isActiveQuestion) {
-                console.log('[BASE_Q][HISTORY_SKIP]', {
-                  questionId: questionDbId,
-                  reason: 'not_active_question',
-                  currentItemId: currentItem?.id,
-                  note: 'History question - already answered (answer bubble renders separately)'
-                });
-                return null;
-              }
-              
+              // FIX: ALWAYS render base questions (history mode) - active styling only
+              // Answered questions render in history with their answer bubbles below
               const activeClass = isActiveQuestion 
                 ? 'ring-2 ring-blue-400/40 shadow-lg shadow-blue-500/20' 
                 : '';
