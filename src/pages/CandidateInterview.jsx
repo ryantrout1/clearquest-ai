@@ -1847,7 +1847,7 @@ export default function CandidateInterview() {
 
   // CANONICAL ACTIVE UI ITEM RESOLVER - Single source of truth
   // Determines what UI should be shown based on strict precedence:
-  // V3_PROMPT > V3_OPENER > MI_GATE > DEFAULT
+  // V3_PROMPT > V3_WAITING > V3_OPENER > MI_GATE > DEFAULT
   const resolveActiveUiItem = () => {
     // Priority 1: V3 prompt active (multi-signal detection)
     // HARDENED: V3_PROMPT takes absolute precedence - even if MI_GATE exists in state
@@ -1859,6 +1859,30 @@ export default function CandidateInterview() {
         instanceNumber: v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1,
         promptText: v3ActivePromptText || v3ActiveProbeQuestionRef.current || "",
         loopKey: v3ActiveProbeQuestionLoopKeyRef.current,
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id
+      };
+    }
+    
+    // Priority 1.5: V3 probing active but no prompt yet (V3_WAITING state)
+    // CRITICAL FIX: Force V3_WAITING kind when effectiveItemType is v3_probing
+    if (v3ProbingActive && !hasActiveV3Prompt) {
+      const forcedKind = "V3_WAITING";
+      console.log('[V3_CONTROLLER][FORCE_ACTIVE_KIND]', {
+        effectiveItemType: currentItem?.type === 'v3_probing' ? 'v3_probing' : currentItem?.type,
+        v3ProbingActive,
+        v3PromptPhase,
+        forcedKind,
+        reason: 'V3 active but no prompt - forcing V3_WAITING controller'
+      });
+      
+      return {
+        kind: forcedKind,
+        packId: v3ProbingContext?.packId || currentItem?.packId,
+        categoryId: v3ProbingContext?.categoryId || currentItem?.categoryId,
+        instanceNumber: v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1,
+        promptText: null,
+        loopKey: v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null,
         currentItemType: currentItem?.type,
         currentItemId: currentItem?.id
       };
@@ -1987,6 +2011,7 @@ export default function CandidateInterview() {
   // ============================================================================
   // CRITICAL: Declared at top-level so ALL render code can access it
   const bottomBarRenderTypeSOT = activeUiItem?.kind === "V3_PROMPT" ? "v3_probing" :
+                                  activeUiItem?.kind === "V3_WAITING" ? "v3_waiting" :
                                   activeUiItem?.kind === "V3_OPENER" ? "v3_pack_opener" :
                                   activeUiItem?.kind === "MI_GATE" ? "multi_instance_gate" :
                                   "default";
@@ -10666,11 +10691,13 @@ export default function CandidateInterview() {
       
       activeCard = {
         __activeCard: true,
+        isEphemeralPromptLaneCard: true,
         kind: "v3_probe_q",
         stableKey,
         text: v3PromptText,
         packId: v3ProbingContext?.packId,
-        instanceNumber: v3ProbingContext?.instanceNumber
+        instanceNumber: v3ProbingContext?.instanceNumber,
+        source: 'prompt_lane_temporary'
       };
       
       // Mark this promptId as rendered
@@ -10680,7 +10707,8 @@ export default function CandidateInterview() {
         loopKey, 
         promptId,
         promptPreview: v3PromptText.slice(0, 60),
-        source: 'prompt_lane_temporary'
+        source: 'prompt_lane_temporary',
+        isEphemeralPromptLaneCard: true
       });
     }
     
@@ -10688,6 +10716,26 @@ export default function CandidateInterview() {
     if (!activeCard && lastRenderedV3PromptKeyRef.current) {
       lastRenderedV3PromptKeyRef.current = null;
     }
+  } else if (activeUiItem.kind === "V3_WAITING") {
+    // V3_WAITING: Show thinking placeholder card
+    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+    activeCard = {
+      __activeCard: true,
+      isEphemeralPromptLaneCard: true,
+      kind: "v3_thinking",
+      stableKey: `v3-thinking:${loopKey}`,
+      text: "Processing your response...",
+      packId: v3ProbingContext?.packId,
+      instanceNumber: v3ProbingContext?.instanceNumber || 1,
+      source: 'prompt_lane_temporary'
+    };
+    
+    console.log("[V3_WAITING][ACTIVE_CARD_ADDED]", {
+      loopKey,
+      packId: v3ProbingContext?.packId,
+      instanceNumber: v3ProbingContext?.instanceNumber,
+      reason: "V3 deciding - showing thinking card"
+    });
   } else if (activeUiItem.kind === "V3_OPENER") {
     const openerText = currentItem?.openerText || "";
     const stableKey = `followup-card:${currentItem.packId}:opener:${currentItem.instanceNumber || 1}`;
@@ -10701,36 +10749,25 @@ export default function CandidateInterview() {
     if (!alreadyInStream && openerText) {
       activeCard = {
         __activeCard: true,
+        isEphemeralPromptLaneCard: true,
         kind: "v3_pack_opener",
         stableKey,
         text: openerText,
         packId: currentItem.packId,
         categoryLabel: currentItem.categoryLabel,
         instanceNumber: currentItem.instanceNumber || 1,
-        exampleNarrative: currentItem.exampleNarrative
+        exampleNarrative: currentItem.exampleNarrative,
+        source: 'prompt_lane_temporary'
       };
     } else if (alreadyInStream) {
       console.log("[STREAM][ACTIVE_CARD_DEDUPED]", { kind: "V3_OPENER", reason: "already_in_transcriptRenderable" });
     }
-  } else if (v3ProbingActive && !hasActiveV3Prompt && v3PromptPhase !== "IDLE") {
-    // TASK B: V3 probing active but no prompt yet (initial decide cycle)
-    // Show stable "thinking" placeholder
-    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
-    activeCard = {
-      __activeCard: true,
-      kind: "v3_thinking",
-      stableKey: `v3-thinking:${loopKey}`,
-      text: "Processing your response...",
-      packId: v3ProbingContext?.packId,
-      instanceNumber: v3ProbingContext?.instanceNumber || 1
-    };
-    
-    console.log("[V3_PROMPT_PENDING]", {
-      loopKey,
-      packId: v3ProbingContext?.packId,
-      instanceNumber: v3ProbingContext?.instanceNumber,
-      v3PromptPhase,
-      reason: "Initial decide cycle - showing thinking card"
+  } else if (activeUiItem.kind === "V3_WAITING" && !activeCard) {
+    // MOVED UP: V3_WAITING card creation now handled in main if/else chain above
+    // This block kept for backwards compatibility but should not execute
+    console.warn('[V3_WAITING][DUPLICATE_PATH]', {
+      reason: 'V3_WAITING card should be created in main chain',
+      activeUiItemKind: activeUiItem.kind
     });
   }
   
@@ -10761,11 +10798,13 @@ export default function CandidateInterview() {
       if (miGatePrompt) {
         activeCard = {
           __activeCard: true,
+          isEphemeralPromptLaneCard: true,
           kind: "multi_instance_gate",
           stableKey,
           text: miGatePrompt,
           packId: currentItemForRender.packId,
-          instanceNumber: currentItemForRender.instanceNumber
+          instanceNumber: currentItemForRender.instanceNumber,
+          source: 'prompt_lane_temporary'
         };
         
         console.log("[MI_GATE][ACTIVE_CARD_ADDED]", {
@@ -12045,26 +12084,28 @@ export default function CandidateInterview() {
       const isV3ProbeQA = (hasV3ProbeQPrefix || hasV3ProbeAPrefix || isV3ProbeQuestionType || isV3ProbeAnswerType);
       
       if (isV3ProbeQA) {
-        const currentPromptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
-        const isActivePrompt = hasActiveV3Prompt && 
-                              v3PromptPhase === 'ANSWER_NEEDED' &&
-                              entry.meta?.promptId === currentPromptId;
+        // CRITICAL FIX: Only block if EXPLICITLY marked as ephemeral
+        // Persisted transcript items (from DB) must NEVER be filtered
+        const isEphemeralPromptLane = entry.__activeCard === true || 
+                                     entry.source === 'prompt_lane_temporary' ||
+                                     entry.isEphemeralPromptLaneCard === true;
         
-        if (isActivePrompt) {
-          console.log('[V3_UI_CONTRACT][ACTIVE_PROMPT_BLOCKED]', { 
+        if (isEphemeralPromptLane) {
+          console.log('[V3_UI_CONTRACT][EPHEMERAL_PROMPT_LANE_BLOCKED]', { 
             stableKey, 
             promptId: entry.meta?.promptId,
             mt,
-            reason: 'Active prompt renders in prompt lane only'
+            reason: 'Ephemeral prompt lane card - not persisted history'
           });
           return false;
         }
         
+        // PERSISTED PATH: Allow all persisted V3 probe Q/A
         console.log('[V3_UI_CONTRACT][PERSISTED_PROBE_ALLOWED]', { 
           stableKey,
           promptId: entry.meta?.promptId,
           mt,
-          reason: 'Persisted V3 probe Q/A allowed in transcript'
+          reason: 'Persisted V3 probe Q/A from dbTranscript - always allowed'
         });
         return true;
       }
