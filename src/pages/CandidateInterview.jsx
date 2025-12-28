@@ -3216,6 +3216,86 @@ export default function CandidateInterview() {
 
     // ROUTE: V3 probing answer (headless mode) - use submitIntent routing
     if (submitIntent.isV3Submit) {
+      const trimmed = (input ?? "").trim();
+      if (!trimmed) {
+        console.log("[BOTTOM_BAR_SUBMIT][V3] blocked: empty input");
+        return;
+      }
+      
+      console.log("[BOTTOM_BAR_SUBMIT][V3] Routing to V3ProbingLoop via pendingAnswer");
+      
+      // Route answer to V3ProbingLoop via state
+      await handleV3AnswerSubmit(trimmed);
+      setInput(""); // Clear input immediately
+      
+      // NOTE: V3ProbingLoop will call handleV3AnswerConsumed to clear pendingAnswer
+      // Do NOT clear here - let the loop control the lifecycle
+      return;
+    }
+
+    if (!currentItem) {
+      console.warn("[BOTTOM_BAR_SUBMIT] No currentItem – aborting submit");
+      return;
+    }
+
+    if (isCommitting) {
+      console.log("[BOTTOM_BAR_SUBMIT] blocked: isCommitting");
+      return;
+    }
+
+    // V3 OPENER: Use dedicated openerDraft state (strict currentItem.type check)
+    const effectiveValue = currentItem?.type === 'v3_pack_opener' ? openerDraft : input;
+    const trimmed = (effectiveValue ?? "").trim();
+    
+    // GUARD: Prevent submit if value is prompt text
+    if (currentItem?.type === 'v3_pack_opener') {
+      const promptText = currentItem.openerText || activePromptText || "";
+      const valueMatchesPrompt = trimmed === promptText.trim() && trimmed.length > 0;
+      
+      if (valueMatchesPrompt) {
+        console.error('[V3_UI_CONTRACT][SUBMIT_BLOCKED_PROMPT_AS_VALUE]', {
+          packId: currentItem.packId,
+          instanceNumber: currentItem.instanceNumber,
+          reason: 'Cannot submit prompt text as answer - clearing value'
+        });
+        setOpenerDraft(""); // Clear prompt from value
+        return;
+      }
+    }
+    
+    if (!trimmed) {
+      console.log("[BOTTOM_BAR_SUBMIT] blocked: empty input", { effectiveItemType, currentItemType: currentItem?.type, openerDraftLen: openerDraft?.length, inputLen: input?.length });
+      return;
+    }
+
+    console.log("[BOTTOM_BAR_SUBMIT] ========== CALLING handleAnswer ==========");
+    console.log("[BOTTOM_BAR_SUBMIT]", {
+      currentItemType: currentItem.type,
+      currentItemId: currentItem.id,
+      packId: currentItem.packId,
+      fieldKey: currentItem.fieldKey,
+      instanceNumber: currentItem.instanceNumber,
+      answer: trimmed.substring(0, 60),
+      isV2PackField: currentItem.type === 'v2_pack_field',
+      usingOpenerDraft: effectiveItemType === 'v3_pack_opener'
+    });
+
+    // Call handleAnswer with the answer text - handleAnswer reads currentItem from state
+    await handleAnswer(trimmed);
+
+    // UX: Clear draft on successful submit
+    if (currentItem?.type === 'v3_pack_opener') {
+      setOpenerDraft("");
+      openerDraftChangeCountRef.current = 0;
+      console.log('[V3_OPENER][DRAFT_CLEARED_AFTER_SUBMIT]', {
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber
+      });
+    } else {
+      clearDraft();
+      setInput("");
+    }
+  };
 
   // ACTIVE UI ITEM CHANGE TRACE: Moved to render section (after activeUiItem is initialized)
   // This avoids TDZ error while keeping hook order consistent
