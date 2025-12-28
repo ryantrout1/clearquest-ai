@@ -4455,6 +4455,23 @@ export default function CandidateInterview() {
   };
 
   const handleAnswer = useCallback(async (value) => {
+    // GUARD: Block YES/NO during V3 prompt answering (prevents stray "Yes" bubble)
+    if (activeUiItem?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarMode === 'TEXT_INPUT')) {
+      // Allow V3 probe answer submission (text input), block YES/NO only
+      const isYesNoAnswer = value === 'Yes' || value === 'No';
+      if (isYesNoAnswer) {
+        console.log('[YESNO_BLOCKED_DURING_V3_PROMPT]', {
+          clicked: value,
+          activeUiItemKind: activeUiItem?.kind,
+          v3PromptPhase,
+          currentItemType: currentItem?.type,
+          bottomBarMode,
+          reason: 'V3 prompt active - YES/NO submission blocked'
+        });
+        return; // Hard block - prevent stray "Yes"/"No" appends
+      }
+    }
+    
     // IDEMPOTENCY GUARD: Build submit key and check if already submitted
     const buildSubmitKey = (item, answerValue = null) => {
       if (!item) return null;
@@ -8257,7 +8274,8 @@ export default function CandidateInterview() {
               categoryId,
               sessionId,
               probeIndex,
-              source: 'v3'
+              source: 'v3',
+              answerContext: 'V3_PROBE'
             },
             visibleToCandidate: true
           };
@@ -8286,10 +8304,11 @@ export default function CandidateInterview() {
           // METRICS: Increment ack set counter
           v3AckSetCountRef.current++;
           
-          console.log('[V3_PROBE][ACK_SET]', {
+          console.log('[V3_PROBE_AUDIT][PERSIST_OK]', {
             expectedAKey: aStableKey,
             expectedQKey: qStableKey,
             promptId,
+            textPreview: answerText?.substring(0, 40),
             committedAt: lastV3AnswerCommitAckRef.current.committedAt,
             ackSetCount: v3AckSetCountRef.current
           });
@@ -8353,6 +8372,11 @@ export default function CandidateInterview() {
         hasAnswerText: !!answerText?.trim(),
         reason: 'Preconditions not met for V3 commit'
       });
+    }
+    
+    // CRITICAL: Refresh transcript after V3 answer persisted
+    if (wroteTranscript) {
+      await refreshTranscriptFromDB('v3_probe_answer_persisted');
     }
     
     // Clear active probe question after processing
@@ -11661,6 +11685,19 @@ export default function CandidateInterview() {
 
   // Unified YES/NO click handler - routes to handleAnswer with trace logging (plain function, no hooks)
   const handleYesNoClick = (answer) => {
+    // GUARD: Block YES/NO during V3 prompt answering
+    if (activeUiItem?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarMode === 'TEXT_INPUT')) {
+      console.log('[YESNO_BLOCKED_DURING_V3_PROMPT]', {
+        clicked: answer,
+        activeUiItemKind: activeUiItem?.kind,
+        v3PromptPhase,
+        bottomBarMode,
+        currentItemType: currentItem?.type,
+        reason: 'V3 prompt active - YES/NO blocked'
+      });
+      return; // Hard block - do not append stray "Yes"/"No"
+    }
+    
     // MI_GATE TRACE A: YES/NO button click entry
     console.log('[MI_GATE][TRACE][YESNO_CLICK]', {
       clicked: answer,
