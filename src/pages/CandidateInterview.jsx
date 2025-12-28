@@ -10814,50 +10814,71 @@ export default function CandidateInterview() {
   if (activeUiItem.kind === "MI_GATE") {
     // FIX: Use currentItem directly when activeUiItem.kind is MI_GATE
     // activeUiItem resolver already handles V3 blocking precedence correctly
-    const miGateItem = currentItem;
+    let miGateItem = currentItem;
     
-    if (!miGateItem || !miGateItem.packId || !miGateItem.instanceNumber) {
-      console.error('[MI_GATE][BUG][MAIN_PANE_NOT_RENDERED]', {
+    // INVARIANT CHECK: Ensure currentItem is a valid gate when activeUiItem says MI_GATE
+    if (!miGateItem || miGateItem.type !== 'multi_instance_gate' || !miGateItem.packId || !miGateItem.instanceNumber) {
+      console.error('[MI_GATE][INVARIANT_FAIL][CURRENT_ITEM_NOT_GATE]', {
+        currentItemType: currentItem?.type,
         currentItemId: currentItem?.id,
+        activeUiItemKind: activeUiItem?.kind,
+        expected: 'multi_instance_gate',
         packId: currentItem?.packId,
         instanceNumber: currentItem?.instanceNumber,
-        activeUiItemKind: activeUiItem.kind,
-        reason: 'Missing gate context - cannot render'
       });
-    } else {
-      const miGatePrompt = miGateItem.promptText || multiInstanceGate?.promptText || `Do you have another incident to report?`;
-      const stableKey = `mi-gate:${miGateItem.packId}:${miGateItem.instanceNumber}`;
+      
+      // FALLBACK: Attempt to use activeUiItem payload if it carries gate metadata
+      if (activeUiItem.packId && activeUiItem.instanceNumber) {
+        miGateItem = {
+          type: 'multi_instance_gate',
+          packId: activeUiItem.packId,
+          instanceNumber: activeUiItem.instanceNumber,
+          promptText: activeUiItem.promptText || multiInstanceGate?.promptText
+        };
+      }
+    }
+    
+    // Resolve prompt text with cascading fallbacks
+    const miGatePrompt = miGateItem?.promptText || 
+                         multiInstanceGate?.promptText || 
+                         activeUiItem?.promptText ||
+                         `Do you have another item to report in this section?`;
+    
+    const packId = miGateItem?.packId || activeUiItem?.packId;
+    const instanceNumber = miGateItem?.instanceNumber || activeUiItem?.instanceNumber;
+    
+    if (packId && instanceNumber && miGatePrompt) {
+      const stableKey = `mi-gate:${packId}:${instanceNumber}`;
       
       // ALWAYS render active MI_GATE card when activeUiItem.kind is MI_GATE
       // The active gate MUST be visible as the current question in main pane
-      if (miGatePrompt) {
-        activeCard = {
-          __activeCard: true,
-          isEphemeralPromptLaneCard: true,
-          kind: "multi_instance_gate",
-          stableKey,
-          text: miGatePrompt,
-          packId: miGateItem.packId,
-          instanceNumber: miGateItem.instanceNumber,
-          source: 'prompt_lane_temporary'
-        };
-        
-        console.log("[MI_GATE][ACTIVE_CARD_ADDED]", {
-          packId: miGateItem.packId,
-          instanceNumber: miGateItem.instanceNumber,
-          stableKey,
-          promptPreview: miGatePrompt.substring(0, 60),
-          activeUiItemKind: activeUiItem.kind
-        });
-      } else {
-        console.error('[MI_GATE][BUG][MAIN_PANE_NOT_RENDERED]', {
-          currentItemId: miGateItem.id,
-          packId: miGateItem.packId,
-          instanceNumber: miGateItem.instanceNumber,
-          activeUiItemKind: activeUiItem.kind,
-          reason: 'Missing prompt text - cannot render'
-        });
-      }
+      activeCard = {
+        __activeCard: true,
+        isEphemeralPromptLaneCard: true,
+        kind: "multi_instance_gate",
+        stableKey,
+        text: miGatePrompt,
+        packId,
+        instanceNumber,
+        source: 'prompt_lane_temporary'
+      };
+      
+      console.log("[MI_GATE][ACTIVE_CARD_ADDED]", {
+        packId,
+        instanceNumber,
+        stableKey,
+        promptPreview: miGatePrompt.substring(0, 60),
+        activeUiItemKind: activeUiItem.kind,
+        usedFallback: miGateItem !== currentItem
+      });
+    } else {
+      console.error('[MI_GATE][BUG][MAIN_PANE_NOT_RENDERED]', {
+        currentItemId: currentItem?.id,
+        packId,
+        instanceNumber,
+        activeUiItemKind: activeUiItem.kind,
+        reason: 'Cannot resolve gate metadata for rendering'
+      });
     }
   }
   
