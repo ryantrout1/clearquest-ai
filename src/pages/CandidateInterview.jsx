@@ -12465,12 +12465,6 @@ export default function CandidateInterview() {
 
               {/* V3 UI-ONLY HISTORY: Rendered via canonical stream (lines 8942-8985) */}
             {/* Separate loop removed - renderStream includes v3UiRenderable */}
-            
-            {/* Bottom anchor - minimal-height sentinel for scroll positioning */}
-            <div ref={bottomAnchorRef} aria-hidden="true" style={{ height: '1px', margin: 0, padding: 0 }} />
-          </div>
-        </div>
-      </main>
 
       <footer className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
         <div ref={footerRef} className="max-w-5xl mx-auto">
