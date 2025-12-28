@@ -255,6 +255,16 @@ function hasQuestionBeenLogged(sessionId, questionKey) {
   return false;
 }
 
+// ============================================================================
+// CQ_TRANSCRIPT_CONTRACT - Canonical Source of Truth
+// ============================================================================
+// - dbTranscript is the ONLY source for chat history rendering
+// - Every candidate-visible item MUST be written to dbTranscript exactly once
+// - Ephemeral UI (V3 prompt lane) MUST NOT be used as history source
+// - STREAM_SUPPRESS MUST NEVER remove items from dbTranscript
+// - Transcript is permanent and immutable (append-only, monotonic)
+const ENFORCE_TRANSCRIPT_CONTRACT = true;
+
 // V3 Probing feature flag
 const ENABLE_V3_PROBING = true;
 
@@ -3457,6 +3467,13 @@ export default function CandidateInterview() {
         status: loadedSession.status,
         transcriptLen: loadedSession.transcript_snapshot?.length || 0
       });
+      
+      // CQ_TRANSCRIPT_CONTRACT: Session start assertion
+      console.log('[CQ_TRANSCRIPT][SESSION_START]', {
+        sessionId: loadedSession.id,
+        transcriptLen: loadedSession.transcript_snapshot?.length || 0,
+        note: 'Transcript-backed history only (dbTranscript = single source of truth)'
+      });
 
       if (loadedSession.status === 'paused') {
         await base44.entities.InterviewSession.update(sessionId, {
@@ -5521,6 +5538,26 @@ export default function CandidateInterview() {
           sectionId: question.section_id,
           answerDisplayText
         });
+        
+        // CQ_TRANSCRIPT_CONTRACT: Invariant check after base answer append
+        if (ENFORCE_TRANSCRIPT_CONTRACT) {
+          const freshCheck = await base44.entities.InterviewSession.get(sessionId);
+          const expectedAKey = `answer:${sessionId}:${currentItem.id}`;
+          const found = (freshCheck.transcript_snapshot || []).some(e => 
+            (e.stableKey && e.stableKey.includes(currentItem.id)) ||
+            (e.messageType === 'ANSWER' && e.meta?.questionDbId === currentItem.id)
+          );
+          
+          if (!found) {
+            console.error('[CQ_TRANSCRIPT][VIOLATION]', {
+              messageType: 'ANSWER',
+              questionId: currentItem.id,
+              transcriptLen: (freshCheck.transcript_snapshot || []).length,
+              reason: 'Base answer not found in transcript after append',
+              stack: new Error().stack?.split('\n').slice(1, 4).join(' | ')
+            });
+          }
+        }
 
         // Log answer submitted (audit only)
         await logAnswerSubmitted(sessionId, {
@@ -8111,6 +8148,19 @@ export default function CandidateInterview() {
               sessionId,
               stableKeyA: aStableKey
             });
+            
+            // CQ_TRANSCRIPT_CONTRACT: Invariant check after V3 probe append
+            if (ENFORCE_TRANSCRIPT_CONTRACT) {
+              const candidateVisibleCount = updated.filter(e => e.visibleToCandidate === true).length;
+              const last3StableKeys = updated.slice(-3).map(e => e.stableKey || e.id);
+              
+              console.log('[CQ_TRANSCRIPT][INVARIANT]', {
+                transcriptLen: updated.length,
+                candidateVisibleCount,
+                last3StableKeys,
+                context: 'v3_probe_answer'
+              });
+            }
           }).catch(err => {
             console.error('[CQ_TRANSCRIPT][V3_PROBE_PERSIST_ERROR]', { error: err.message, sessionId });
           });
@@ -11703,8 +11753,33 @@ export default function CandidateInterview() {
   // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
   // ============================================================================
   const finalTranscriptList = useMemo(() => {
+    // CQ_TRANSCRIPT_CONTRACT: Render-time invariant check
+    if (ENFORCE_TRANSCRIPT_CONTRACT) {
+      const ephemeralSources = renderableTranscriptStream.filter(e => 
+        e.__activeCard === true || 
+        e.kind === 'v3_probe_q' || 
+        e.kind === 'v3_probe_a' ||
+        e.source === 'ephemeral' ||
+        e.source === 'prompt_lane_temporary'
+      );
+      
+      if (ephemeralSources.length > 0) {
+        console.error('[CQ_TRANSCRIPT][RENDER_VIOLATION]', {
+          source: 'non_dbTranscript',
+          ephemeralCount: ephemeralSources.length,
+          ephemeralItems: ephemeralSources.map(e => ({
+            kind: e.kind || e.messageType,
+            stableKey: e.stableKey,
+            isActiveCard: e.__activeCard
+          })),
+          reason: 'Ephemeral items detected in chat history — must use dbTranscript only'
+        });
+      }
+    }
+    
     const transcriptToRender = renderableTranscriptStream;
   
+    // CQ_FORBIDDEN: transcript must never be filtered or mutated by UI suppression logic
     // A) V3_PROBE_QA_ATTACH DISABLED: Do NOT extract or attach V3 probe Q/A when MI_GATE active
     const v3ProbeQAForGateDeterministic = [];
     
@@ -11781,6 +11856,8 @@ export default function CandidateInterview() {
       return deduped;
     };
     
+    // CQ_FORBIDDEN: This filter protects active prompts only (NOT a transcript mutation)
+    // Persisted V3 probe Q/A always allowed — only active prompts render in prompt lane
     // A) ALLOW PERSISTED V3 PROBE Q/A + PROTECT USER ANSWERS
     const transcriptWithV3ProbesBlocked = transcriptToRender.filter(entry => {
       const stableKey = entry.stableKey || entry.id || '';
@@ -11920,6 +11997,8 @@ export default function CandidateInterview() {
       }
     }
     
+    // CQ_FORBIDDEN: This suppresses UNANSWERED questions only (render filter, NOT transcript mutation)
+    // Transcript is permanent - this only affects what renders while V3 is active
     // ORDER GATING: Suppress UNANSWERED base questions during V3
     const v3UiHistoryLen = v3UiRenderable.length;
     const hasVisibleV3PromptCard = v3HasVisiblePromptCard;
