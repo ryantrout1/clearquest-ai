@@ -163,6 +163,9 @@ const resetMountTracker = (sid) => {
 
     const mt = t.messageType || t.type;
     
+    // PRIORITY 0: QUESTION_SHOWN always renders (base Q/A contract - never filter)
+    if (mt === 'QUESTION_SHOWN') return true;
+    
     // PRIORITY 1: LEGAL RECORD - visibleToCandidate=true ALWAYS renders
     // This ensures all candidate-visible entries appear in UI (no drops)
     if (t.visibleToCandidate === true) {
@@ -5697,7 +5700,7 @@ export default function CandidateInterview() {
         // STATIC IMPORT: Use top-level imports (prevents React context duplication)
         const appendUserMessage = appendUserMessageImport;
         const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
-        const questionStableKey = `question:${sessionId}:${currentItem.id}`;
+        const questionStableKey = `question-shown:${currentItem.id}`;
         await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], answerDisplayText, {
           messageType: 'ANSWER',
           questionDbId: currentItem.id,
@@ -12175,9 +12178,16 @@ export default function CandidateInterview() {
         (entry.text === 'Yes' || entry.text === 'No' || entry.text?.startsWith('Yes (') || entry.text?.startsWith('No ('));
       
       if (isYesNoAnswer) {
+        const answerContext = entry.meta?.answerContext || entry.answerContext;
+        
+        // FIX: Skip placeholder injection for BASE_QUESTION (already has QUESTION_SHOWN parent)
+        if (answerContext === 'BASE_QUESTION') {
+          transcriptWithParentPlaceholders.push(entry);
+          continue;
+        }
+        
         const parentKey = entry.meta?.parentStableKey || entry.parentStableKey;
         const answerStableKey = entry.stableKey || entry.id;
-        const answerContext = entry.meta?.answerContext || entry.answerContext;
         
         // Check if parent exists in rendered list
         const parentExists = parentKey && transcriptToRenderDeduped.some(e => 
