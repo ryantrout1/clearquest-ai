@@ -11996,11 +11996,23 @@ export default function CandidateInterview() {
       });
     }
     
-    // B1 — CANONICAL DEDUPE: Final dedupe before rendering
+    // B1 — CANONICAL DEDUPE: Final dedupe before rendering (parent/child aware)
     const dedupeBeforeRender = (list) => {
       const seen = new Map();
       const deduped = [];
       const dropped = [];
+      const parentChildMap = new Map(); // Track parent dependencies
+      
+      // First pass: Build parent-child relationships
+      for (const entry of list) {
+        const parentKey = entry.meta?.parentStableKey || entry.parentStableKey;
+        if (parentKey) {
+          if (!parentChildMap.has(parentKey)) {
+            parentChildMap.set(parentKey, []);
+          }
+          parentChildMap.get(parentKey).push(entry.stableKey || entry.id);
+        }
+      }
       
       for (const entry of list) {
         const canonicalKey = entry.__canonicalKey || entry.stableKey || entry.id;
@@ -12019,7 +12031,10 @@ export default function CandidateInterview() {
             const isUser = e.role === 'user';
             const hasText = (e.text || '').trim().length > 0;
             const isVisible = e.visibleToCandidate !== false;
+            // Bonus: Keep parents if they have children in the list
+            const isParent = parentChildMap.has(e.stableKey || e.id);
             
+            if (isParent && isUser && hasText && isVisible) return 5;
             if (isUser && hasText && isVisible) return 4;
             if (isUser && hasText) return 3;
             if (isUser) return 2;
@@ -12147,6 +12162,80 @@ export default function CandidateInterview() {
     
     const transcriptWithV3ProbeQA = [...transcriptWithV3ProbesBlocked, ...v3ProbeQAForGateDeterministic];
     let transcriptToRenderDeduped = dedupeBeforeRender(transcriptWithV3ProbeQA);
+    
+    // PARENT PLACEHOLDER INJECTION: Ensure every YES/NO answer has visible parent
+    const transcriptWithParentPlaceholders = [];
+    const placeholdersInjected = [];
+    
+    for (let i = 0; i < transcriptToRenderDeduped.length; i++) {
+      const entry = transcriptToRenderDeduped[i];
+      const isYesNoAnswer = 
+        entry.role === 'user' && 
+        (entry.messageType === 'ANSWER' || entry.messageType === 'MULTI_INSTANCE_GATE_ANSWER') &&
+        (entry.text === 'Yes' || entry.text === 'No' || entry.text?.startsWith('Yes (') || entry.text?.startsWith('No ('));
+      
+      if (isYesNoAnswer) {
+        const parentKey = entry.meta?.parentStableKey || entry.parentStableKey;
+        const answerStableKey = entry.stableKey || entry.id;
+        const answerContext = entry.meta?.answerContext || entry.answerContext;
+        
+        // Check if parent exists in rendered list
+        const parentExists = parentKey && transcriptToRenderDeduped.some(e => 
+          (e.stableKey || e.id) === parentKey
+        );
+        
+        if (parentKey && !parentExists) {
+          // Inject placeholder parent
+          const placeholderText = answerContext === 'MI_GATE' 
+            ? 'Continue this section?'
+            : entry.meta?.questionText || `Answer to Question ${entry.meta?.questionNumber || ''}`;
+          
+          const placeholder = {
+            id: `placeholder:${answerStableKey}`,
+            stableKey: `placeholder:${answerStableKey}`,
+            role: 'assistant',
+            messageType: 'PARENT_PLACEHOLDER',
+            type: 'PARENT_PLACEHOLDER',
+            text: placeholderText,
+            timestamp: new Date(new Date(entry.timestamp).getTime() - 1).toISOString(),
+            createdAt: (entry.createdAt || Date.now()) - 1,
+            visibleToCandidate: true,
+            meta: {
+              answerContext,
+              originalParentKey: parentKey,
+              injectedFor: answerStableKey
+            }
+          };
+          
+          transcriptWithParentPlaceholders.push(placeholder);
+          placeholdersInjected.push({
+            answerStableKey,
+            parentStableKey: parentKey,
+            answerContext
+          });
+          
+          console.log('[CQ_TRANSCRIPT][PARENT_INJECTED]', {
+            answerStableKey,
+            parentStableKey: parentKey,
+            answerContext,
+            placeholderText: placeholderText.substring(0, 60)
+          });
+        }
+      }
+      
+      transcriptWithParentPlaceholders.push(entry);
+    }
+    
+    // Log injection summary
+    if (placeholdersInjected.length > 0) {
+      console.log('[CQ_TRANSCRIPT][PARENT_INJECTION_SUMMARY]', {
+        count: placeholdersInjected.length,
+        injections: placeholdersInjected
+      });
+    }
+    
+    // Use placeholder-injected list for rendering
+    transcriptToRenderDeduped = transcriptWithParentPlaceholders;
     
     // Diagnostic logging
     if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
