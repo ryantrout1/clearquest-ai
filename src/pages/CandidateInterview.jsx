@@ -12770,6 +12770,78 @@ export default function CandidateInterview() {
       }
     }
     
+    // CANONICAL BASE YES/NO DETECTOR: Build set of canonical base answers
+    const canonicalBaseYesNoKeys = new Set();
+    let hasAnyCanonicalBaseYesNo = false;
+    
+    for (const entry of transcriptToRenderDeduped) {
+      const mt = getMessageTypeSOT(entry);
+      if (mt !== 'ANSWER') continue;
+      
+      const stableKey = entry.stableKey || entry.id || '';
+      const isCanonicalBase = stableKey.startsWith('answer:');
+      const isYesOrNo = entry.text === 'Yes' || entry.text === 'No';
+      
+      if (isCanonicalBase && isYesOrNo) {
+        canonicalBaseYesNoKeys.add(stableKey);
+        hasAnyCanonicalBaseYesNo = true;
+      }
+    }
+    
+    console.log('[CQ_TRANSCRIPT][CANONICAL_BASE_YESNO_DETECTOR]', {
+      hasAnyCanonicalBaseYesNo,
+      canonicalCount: canonicalBaseYesNoKeys.size,
+      sampleKeys: Array.from(canonicalBaseYesNoKeys).slice(0, 3)
+    });
+    
+    // SUPPRESSION: Remove legacy UUID Yes/No answers without identity
+    const transcriptWithLegacyUuidSuppressed = transcriptToRenderDeduped.filter(entry => {
+      const mt = getMessageTypeSOT(entry);
+      if (mt !== 'ANSWER') return true; // Keep non-answers
+      
+      const stableKey = entry.stableKey || entry.id || '';
+      const isYesOrNo = entry.text === 'Yes' || entry.text === 'No';
+      
+      if (!isYesOrNo) return true; // Keep non-Yes/No answers
+      
+      // Check if this is a known answer type (has identity)
+      const hasKnownPrefix = 
+        stableKey.startsWith('answer:') ||
+        stableKey.startsWith('v3-') ||
+        stableKey.startsWith('v3-probe-') ||
+        stableKey.startsWith('v3-opener-') ||
+        stableKey.startsWith('mi-gate:') ||
+        stableKey.startsWith('followup-');
+      
+      if (hasKnownPrefix) return true; // Keep known answer types
+      
+      // Check if entry has identity metadata
+      const hasIdentity = !!(
+        entry.questionId ||
+        entry.meta?.questionId ||
+        entry.meta?.packId ||
+        entry.meta?.instanceNumber ||
+        entry.meta?.promptId
+      );
+      
+      if (hasIdentity) return true; // Keep answers with identity
+      
+      // Legacy UUID answer without identity - suppress only if canonical exists
+      if (hasAnyCanonicalBaseYesNo) {
+        console.warn('[CQ_TRANSCRIPT][SUPPRESSED_LEGACY_UUID_YESNO]', {
+          stableKey,
+          text: entry.text,
+          reason: 'UUID yes/no answer without questionId/meta while canonical base yes/no exists'
+        });
+        return false; // DROP
+      }
+      
+      return true; // Keep (fail-open if no canonical exists)
+    });
+    
+    // Use suppressed list for further processing
+    transcriptToRenderDeduped = transcriptWithLegacyUuidSuppressed;
+    
     // CANONICAL ANSWER DEDUPE: Remove duplicate base-question answers (same questionId)
     // SCOPE: ONLY base-question answers - excludes V3/MI/followup answers
     
