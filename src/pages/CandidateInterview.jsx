@@ -8385,6 +8385,7 @@ export default function CandidateInterview() {
             });
             
             // PART 3C: Post-persist validation (hard invariant, RISK 3: use v3PromptIdSOT)
+            // VERIFICATION GUARD 3: Use actual persisted key (may be fallback)
             const foundInUpdated = updated.some(e => (e.stableKey || e.id) === aStableKey);
             if (!foundInUpdated) {
               console.error('[V3_SEND][INVARIANT_FAIL_NOT_IN_DB_AFTER_OK]', {
