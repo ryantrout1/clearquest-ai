@@ -12641,38 +12641,49 @@ export default function CandidateInterview() {
     
     // CANONICAL ANSWER DEDUPE: Remove duplicate base-question answers (same questionId)
     // SCOPE: ONLY base-question answers - excludes V3/MI/followup answers
-    const canonicalAnswerMap = new Map();
-    const answersToDedupe = [];
     
-    for (const entry of transcriptToRenderDeduped) {
+    // HELPER: Single predicate for base-answer identification (prevents drift)
+    const isBaseAnswerSubjectToDedupe = (entry) => {
       const mt = getMessageTypeSOT(entry);
-      if (mt !== 'ANSWER') continue;
+      if (mt !== 'ANSWER') return { isBase: false, reason: 'not_answer_type' };
       
       const stableKey = entry.stableKey || entry.id || '';
       
       // EXCLUSION RULES: Explicitly NOT base-question answers
       const isV3Answer = stableKey.startsWith('v3-') || 
+                         stableKey.startsWith('v3-opener-') ||
+                         stableKey.startsWith('v3-probe-') ||
                          mt === 'V3_PROBE_ANSWER' || 
                          mt === 'V3_OPENER_ANSWER';
       const isMiGateAnswer = stableKey.startsWith('mi-gate:') || 
                              mt === 'MULTI_INSTANCE_GATE_ANSWER';
-      const isFollowupAnswer = stableKey.startsWith('followup-');
+      const hasPackMeta = entry.meta?.packId || entry.meta?.instanceNumber || entry.meta?.followupPackId;
+      const isFollowupAnswer = stableKey.startsWith('followup-') || hasPackMeta;
       
-      if (isV3Answer || isMiGateAnswer || isFollowupAnswer) {
-        continue; // Skip - not base-question answer
-      }
+      if (isV3Answer) return { isBase: false, reason: 'v3_answer' };
+      if (isMiGateAnswer) return { isBase: false, reason: 'mi_gate_answer' };
+      if (isFollowupAnswer) return { isBase: false, reason: 'followup_answer' };
       
       // INCLUSION RULES: Identify base-question answers
       const hasDeterministicKey = stableKey.startsWith('answer:');
       const hasBaseContext = entry.meta?.answerContext === 'BASE_QUESTION';
-      const hasQuestionIdNoPackMeta = entry.questionId && 
-        !entry.meta?.packId && 
-        !entry.meta?.instanceNumber && 
-        !entry.meta?.promptId;
+      const hasQuestionIdNoPackMeta = entry.questionId && !hasPackMeta;
       
       const isBaseQuestionAnswer = hasDeterministicKey || hasBaseContext || hasQuestionIdNoPackMeta;
       
-      if (!isBaseQuestionAnswer) continue; // Skip - not base-question answer
+      if (!isBaseQuestionAnswer) return { isBase: false, reason: 'no_base_markers' };
+      
+      return { isBase: true, reason: 'base_question_answer' };
+    };
+    
+    const canonicalAnswerMap = new Map();
+    const answersToDedupe = [];
+    
+    for (const entry of transcriptToRenderDeduped) {
+      const check = isBaseAnswerSubjectToDedupe(entry);
+      if (!check.isBase) continue;
+      
+      const stableKey = entry.stableKey || entry.id || '';
       
       // Extract questionId from entry or parse from stableKey
       let questionId = entry.questionId || entry.meta?.questionId;
@@ -12694,7 +12705,7 @@ export default function CandidateInterview() {
       }
       
       canonicalAnswerMap.get(canonicalKey).push(entry);
-      answersToDedupe.push({ entry, canonicalKey, questionId, isBaseQuestionAnswer, stableKeyPrefix: stableKey.split(':')[0] });
+      answersToDedupe.push({ entry, canonicalKey, questionId, isBaseQuestionAnswer: true, stableKeyPrefix: stableKey.split(':')[0] });
     }
     
     // Build final list: keep one answer per canonicalKey, drop duplicates
@@ -12738,35 +12749,10 @@ export default function CandidateInterview() {
     
     // Filter out dropped answers from render list (base-question answers only)
     transcriptToRenderDeduped = transcriptToRenderDeduped.filter(entry => {
-      const mt = getMessageTypeSOT(entry);
-      if (mt !== 'ANSWER') return true; // Keep non-answers
+      const check = isBaseAnswerSubjectToDedupe(entry);
       
-      const stableKey = entry.stableKey || entry.id || '';
-      
-      // SCOPE GUARD: Only apply dedupe to base-question answers
-      const isV3Answer = stableKey.startsWith('v3-') || 
-                         mt === 'V3_PROBE_ANSWER' || 
-                         mt === 'V3_OPENER_ANSWER';
-      const isMiGateAnswer = stableKey.startsWith('mi-gate:') || 
-                             mt === 'MULTI_INSTANCE_GATE_ANSWER';
-      const isFollowupAnswer = stableKey.startsWith('followup-');
-      
-      if (isV3Answer || isMiGateAnswer || isFollowupAnswer) {
+      if (!check.isBase) {
         return true; // Keep - not subject to base dedupe
-      }
-      
-      // Apply dedupe to base-question answers only
-      const hasDeterministicKey = stableKey.startsWith('answer:');
-      const hasBaseContext = entry.meta?.answerContext === 'BASE_QUESTION';
-      const hasQuestionIdNoPackMeta = entry.questionId && 
-        !entry.meta?.packId && 
-        !entry.meta?.instanceNumber && 
-        !entry.meta?.promptId;
-      
-      const isBaseQuestionAnswer = hasDeterministicKey || hasBaseContext || hasQuestionIdNoPackMeta;
-      
-      if (!isBaseQuestionAnswer) {
-        return true; // Keep - not a base-question answer
       }
       
       // Base-question answer: apply dedupe constraint
