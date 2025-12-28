@@ -12469,7 +12469,7 @@ export default function CandidateInterview() {
         </div>
       </main>
 
-              <footer className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
+      <footer className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
         <div ref={footerRef} className="max-w-5xl mx-auto">
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
           {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarMode guard above */}
