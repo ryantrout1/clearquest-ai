@@ -2524,7 +2524,7 @@ export default function CandidateInterview() {
     return raw;
   };
   
-  // STEP 1: KEY-BASED monotonic transcript upsert (hoisted function)
+  // HOISTED: KEY-BASED monotonic transcript upsert (moved BEFORE refreshTranscriptFromDB to prevent TDZ)
   function upsertTranscriptMonotonic(prev, incoming, sourceLabel = 'unknown') {
     if (!Array.isArray(prev)) prev = [];
     if (!Array.isArray(incoming)) incoming = [];
@@ -12153,7 +12153,6 @@ export default function CandidateInterview() {
             </div>
           );
           })()}
-          </div>
 
           {/* CANONICAL STREAM ACTIVE CARDS: Removed - duplicate renderer */}
           {/* Active cards render in main loop via isActiveCard check (lines 8627-8692) */}
