@@ -12124,9 +12124,12 @@ export default function CandidateInterview() {
                 </ContentContainer>
               )}
             </div>
-            );
-            })}
-            </div>
+          );
+        })}
+        
+        {/* Bottom anchor - minimal-height sentinel for scroll positioning */}
+        <div ref={bottomAnchorRef} aria-hidden="true" style={{ height: '1px', margin: 0, padding: 0 }} />
+          </div>
         </div>
       </main>
 
