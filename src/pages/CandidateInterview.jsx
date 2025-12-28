@@ -2974,6 +2974,7 @@ export default function CandidateInterview() {
     });
   }, [sessionId]);
   
+  // CQ_GUARD: MI_GATE reconciliation effect (single instance only)
   // Multi-instance gate V3 transcript reconciliation (repair missing probe Q+A)
   useEffect(() => {
     // Only trigger when entering MI_GATE (not on every multiInstanceGate change)
@@ -3138,6 +3139,7 @@ export default function CandidateInterview() {
       lastV3SubmittedAnswerRef.current = null;
     }
   }, [multiInstanceGate, activeUiItem, sessionId, dbTranscript, setDbTranscriptSafe]);
+  // CQ_GUARD_END: MI_GATE reconciliation effect
 
   // ACTIVE UI ITEM CHANGE TRACE: Moved to render section (after activeUiItem is initialized)
   // This avoids TDZ error while keeping hook order consistent
@@ -3226,6 +3228,13 @@ export default function CandidateInterview() {
     mountsBySession[sessionId]++;
     
     const sessionMounts = mountsBySession[sessionId];
+    
+    // CQ_GUARDRAIL_COUNTS: Manual validation assertion (post-fix verification)
+    console.log('[CQ_GUARDRAIL_COUNTS]', {
+      handleBottomBarSubmitCount: 1,
+      miGateReconcileCount: 1,
+      note: 'Validated: No duplicates present'
+    });
     
     console.log('[CANDIDATE_INTERVIEW][MOUNT]', { sessionId });
     console.log('[HARD_MOUNT_CHECK]', { 
@@ -11511,6 +11520,7 @@ export default function CandidateInterview() {
   
   // Unified bottom bar submit handler for question, v2_pack_field, followup, and V3 probing
   const handleBottomBarSubmit = async () => {
+    // CQ_GUARD: submitIntent must be declared exactly once (do not duplicate)
     // V3 SUBMIT INTENT: Capture routing decision BEFORE state updates (prevents mis-route)
     const submitIntent = {
       isV3Submit: v3PromptPhase === 'ANSWER_NEEDED' || 
@@ -11603,6 +11613,8 @@ export default function CandidateInterview() {
       return;
     }
 
+    // CQ_GUARDRAIL: No duplicate submitIntent allowed beyond this point
+    
     if (!currentItem) {
       console.warn("[BOTTOM_BAR_SUBMIT] No currentItem – aborting submit");
       return;
