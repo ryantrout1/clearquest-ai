@@ -1060,6 +1060,111 @@ export default function CandidateInterview() {
     });
   }, []);
   
+  // STEP 1: KEY-BASED monotonic transcript upsert (hoisted function)
+  function upsertTranscriptMonotonic(prev, incoming, sourceLabel = 'unknown') {
+    if (!Array.isArray(prev)) prev = [];
+    if (!Array.isArray(incoming)) incoming = [];
+    
+    // Key extractor: canonical key > stableKey > id
+    const getKey = (e) => e.__canonicalKey || e.stableKey || e.id;
+    
+    // Priority scorer: higher = better
+    const scoreEntry = (e) => {
+      const isUser = e.role === 'user';
+      const hasText = (e.text || '').trim().length > 0;
+      const isVisible = e.visibleToCandidate !== false;
+      
+      if (isUser && hasText && isVisible) return 4;
+      if (isUser && hasText) return 3;
+      if (isUser) return 2;
+      if (e.role === 'assistant' && hasText) return 1;
+      return 0;
+    };
+    
+    // Build maps by key
+    const prevMap = new Map();
+    const unkeyedPrev = [];
+    
+    for (const entry of prev) {
+      const key = getKey(entry);
+      if (!key) {
+        unkeyedPrev.push(entry);
+        continue;
+      }
+      
+      if (!prevMap.has(key) || scoreEntry(entry) > scoreEntry(prevMap.get(key))) {
+        prevMap.set(key, entry);
+      }
+    }
+    
+    const incomingMap = new Map();
+    const unkeyedIncoming = [];
+    
+    for (const entry of incoming) {
+      const key = getKey(entry);
+      if (!key) {
+        unkeyedIncoming.push(entry);
+        continue;
+      }
+      
+      if (!incomingMap.has(key) || scoreEntry(entry) > scoreEntry(incomingMap.get(key))) {
+        incomingMap.set(key, entry);
+      }
+    }
+    
+    // KEY-BASED MONOTONIC: Union of keys
+    const allKeys = new Set([...prevMap.keys(), ...incomingMap.keys()]);
+    const mergedMap = new Map();
+    
+    for (const key of allKeys) {
+      const prevEntry = prevMap.get(key);
+      const incomingEntry = incomingMap.get(key);
+      
+      if (!incomingEntry) {
+        // Key only in prev - must keep (monotonic)
+        mergedMap.set(key, prevEntry);
+      } else if (!prevEntry) {
+        // Key only in incoming - add
+        mergedMap.set(key, incomingEntry);
+      } else {
+        // Key in both - prefer higher score
+        mergedMap.set(key, scoreEntry(incomingEntry) >= scoreEntry(prevEntry) ? incomingEntry : prevEntry);
+      }
+    }
+    
+    // Sort keyed entries: index asc, createdAt asc, stableKey lexical (stable)
+    const keyedSorted = Array.from(mergedMap.values()).sort((a, b) => {
+      const aIdx = a.index || 0;
+      const bIdx = b.index || 0;
+      if (aIdx !== bIdx) return aIdx - bIdx;
+      
+      const aTs = a.createdAt || new Date(a.timestamp || 0).getTime() || 0;
+      const bTs = b.createdAt || new Date(b.timestamp || 0).getTime() || 0;
+      if (aTs !== bTs) return aTs - bTs;
+      
+      // Stable fallback: lexical sort by stableKey
+      const aKey = a.stableKey || a.id || '';
+      const bKey = b.stableKey || b.id || '';
+      return aKey.localeCompare(bKey);
+    });
+    
+    // Append unkeyed entries (preserve original relative order)
+    const merged = [...keyedSorted, ...unkeyedIncoming, ...unkeyedPrev];
+    
+    console.log('[TRANSCRIPT_MONOTONIC][UPSERT_KEY_BASED]', {
+      prevLen: prev.length,
+      incomingLen: incoming.length,
+      mergedLen: merged.length,
+      prevKeysCount: prevMap.size,
+      incomingKeysCount: incomingMap.size,
+      mergedKeysCount: mergedMap.size,
+      unkeyedCount: unkeyedIncoming.length + unkeyedPrev.length,
+      source: sourceLabel
+    });
+    
+    return merged;
+  }
+
   // STEP 2: Monotonic refresh (upsert only, never replace)
   const refreshTranscriptFromDB = useCallback(async (reason) => {
     try {
