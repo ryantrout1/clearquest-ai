@@ -1600,6 +1600,9 @@ export default function CandidateInterview() {
   // V3 SUBMIT COUNTER: Monotonic counter for tokenized pendingAnswer payloads
   const v3SubmitCounterRef = useRef(0);
   
+  // V3 COMMIT ACK: Lightweight acknowledgement for post-submit verification
+  const lastV3AnswerCommitAckRef = useRef(null);
+  
   // MI_GATE UI CONTRACT SELF-TEST: Track main pane render + footer buttons per itemId
   const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { mainPaneRendered: bool, footerButtonsOnly: bool, testStarted: bool }>
   const miGateTestTimeoutRef = useRef(null);
@@ -7958,6 +7961,27 @@ export default function CandidateInterview() {
           // IMMEDIATE CANONICAL UPDATE: Sync canonicalRef (no async wait)
           canonicalTranscriptRef.current = updated;
           
+          // COMMIT ACK: Record expected keys for verification
+          lastV3AnswerCommitAckRef.current = {
+            sessionId,
+            promptId,
+            categoryId,
+            instanceNumber,
+            probeIndex,
+            expectedAKey: aStableKey,
+            expectedQKey: qStableKey,
+            committedAt: Date.now(),
+            answerLen: answerText?.length || 0,
+            promptText: lastV3PromptSnapshotRef.current?.promptText || v3ActivePromptText
+          };
+          
+          console.log('[V3_PROBE][ACK_SET]', {
+            expectedAKey: aStableKey,
+            expectedQKey: qStableKey,
+            promptId,
+            committedAt: lastV3AnswerCommitAckRef.current.committedAt
+          });
+          
           // Track for protection (E)
           recentlySubmittedUserAnswersRef.current.add(aStableKey);
           
@@ -8047,6 +8071,154 @@ export default function CandidateInterview() {
     
     setV3PendingAnswer(payload);
   }, [v3ProbingContext, sessionId, v3ActivePromptText, currentItem, setDbTranscriptSafe, dbTranscript]);
+  
+  // V3 COMMIT ACK VERIFICATION: Verify answer persisted + repair if missing
+  useEffect(() => {
+    const ack = lastV3AnswerCommitAckRef.current;
+    if (!ack) return;
+    
+    // Only verify for current session
+    if (ack.sessionId !== sessionId) {
+      lastV3AnswerCommitAckRef.current = null;
+      return;
+    }
+    
+    // Check if answer exists in transcript
+    const foundA = dbTranscript.some(e => 
+      e.stableKey === ack.expectedAKey ||
+      (e.messageType === 'V3_PROBE_ANSWER' && 
+       e.meta?.promptId === ack.promptId &&
+       e.meta?.probeIndex === ack.probeIndex)
+    );
+    
+    const ageMs = Date.now() - ack.committedAt;
+    
+    console.log('[V3_PROBE][ACK_VERIFY]', {
+      expectedAKey: ack.expectedAKey,
+      foundA,
+      ageMs,
+      probeIndex: ack.probeIndex
+    });
+    
+    if (foundA) {
+      // Success - answer found in transcript
+      console.log('[V3_PROBE][ACK_CLEAR]', {
+        expectedAKey: ack.expectedAKey,
+        reason: 'found_in_transcript',
+        ageMs
+      });
+      lastV3AnswerCommitAckRef.current = null;
+      return;
+    }
+    
+    // Grace period: wait 500ms before repairing
+    if (ageMs < 500) {
+      return; // Wait for next render cycle
+    }
+    
+    // Missing after grace - repair
+    console.error('[V3_PROBE][ACK_REPAIR]', {
+      expectedAKey: ack.expectedAKey,
+      expectedQKey: ack.expectedQKey,
+      reason: 'missing_after_grace',
+      ageMs,
+      action: 'repairing_transcript'
+    });
+    
+    // Perform repair (idempotent functional update)
+    setDbTranscriptSafe(prev => {
+      // Double-check not already present
+      const alreadyHasA = prev.some(e => e.stableKey === ack.expectedAKey);
+      if (alreadyHasA) {
+        console.log('[V3_PROBE][ACK_REPAIR_SKIP]', {
+          expectedAKey: ack.expectedAKey,
+          reason: 'answer_appeared_during_repair'
+        });
+        return prev;
+      }
+      
+      let working = [...prev];
+      
+      // Ensure Q exists first
+      const alreadyHasQ = working.some(e => e.stableKey === ack.expectedQKey);
+      if (!alreadyHasQ && ack.promptText) {
+        const qEntry = {
+          id: `v3-probe-q-repair-${ack.promptId}`,
+          stableKey: ack.expectedQKey,
+          index: getNextIndex(working),
+          role: "assistant",
+          text: ack.promptText,
+          timestamp: new Date().toISOString(),
+          createdAt: Date.now(),
+          messageType: 'V3_PROBE_QUESTION',
+          type: 'V3_PROBE_QUESTION',
+          meta: {
+            promptId: ack.promptId,
+            sessionId: ack.sessionId,
+            categoryId: ack.categoryId,
+            instanceNumber: ack.instanceNumber,
+            probeIndex: ack.probeIndex,
+            source: 'ack_repair'
+          },
+          visibleToCandidate: true
+        };
+        
+        working = [...working, qEntry];
+        console.log('[V3_PROBE][ACK_REPAIR_Q]', { stableKey: ack.expectedQKey });
+      }
+      
+      // Insert missing answer
+      const answerText = "(Answer was submitted but lost - recovered)";
+      const aEntry = {
+        id: `v3-probe-a-repair-${ack.promptId}`,
+        stableKey: ack.expectedAKey,
+        index: getNextIndex(working),
+        role: "user",
+        text: answerText,
+        timestamp: new Date().toISOString(),
+        createdAt: Date.now(),
+        messageType: 'V3_PROBE_ANSWER',
+        type: 'V3_PROBE_ANSWER',
+        meta: {
+          promptId: ack.promptId,
+          sessionId: ack.sessionId,
+          categoryId: ack.categoryId,
+          instanceNumber: ack.instanceNumber,
+          probeIndex: ack.probeIndex,
+          source: 'ack_repair'
+        },
+        visibleToCandidate: true
+      };
+      
+      const repaired = [...working, aEntry];
+      
+      // Update canonical ref
+      canonicalTranscriptRef.current = repaired;
+      
+      // Persist to DB
+      base44.entities.InterviewSession.update(sessionId, {
+        transcript_snapshot: repaired
+      }).then(() => {
+        console.log('[V3_PROBE][ACK_REPAIR_PERSISTED]', {
+          expectedAKey: ack.expectedAKey,
+          transcriptLenAfter: repaired.length
+        });
+      }).catch(err => {
+        console.error('[V3_PROBE][ACK_REPAIR_ERROR]', { error: err.message });
+      });
+      
+      console.log('[V3_PROBE][ACK_REPAIR_DONE]', {
+        insertedA: true,
+        insertedQ: !alreadyHasQ,
+        transcriptLenAfter: repaired.length
+      });
+      
+      return repaired;
+    });
+    
+    // Clear ack after repair
+    lastV3AnswerCommitAckRef.current = null;
+  }, [dbTranscript, sessionId, setDbTranscriptSafe]);
   
   // V3 answer consumed handler - clears pending answer after V3ProbingLoop consumes it
   const handleV3AnswerConsumed = useCallback(({ loopKey, answerToken, probeCount, submitId }) => {
