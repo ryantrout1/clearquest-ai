@@ -13568,13 +13568,32 @@ export default function CandidateInterview() {
             if (entry.role === 'assistant' && getMessageTypeSOT(entry) === 'QUESTION_SHOWN') {
               // ACTIVE ITEM CHECK: Determine if this is the current active question
               const questionDbId = entry.meta?.questionDbId;
-              const isActiveQuestion = effectiveItemType === 'question' && 
+              const isActiveBaseQuestion = effectiveItemType === 'question' && 
                 currentItem?.type === 'question' &&
-                currentItem?.id === questionDbId;
+                currentItem?.id === questionDbId &&
+                activeUiItem?.kind === 'DEFAULT' &&
+                bottomBarMode === 'YES_NO';
+              
+              // UI CONTRACT: Inline Yes/No buttons ONLY when this is the active question
+              // History mode: read-only card (no buttons, no actions)
+              const shouldRenderInlineActions = isActiveBaseQuestion && !v3ProbingActive;
+              
+              // AUDIT: Log inline action rendering (should only occur for active question)
+              if (shouldRenderInlineActions) {
+                console.log('[BASE_Q][INLINE_ACTIONS_RENDER]', {
+                  questionId: questionDbId,
+                  isActiveBaseQuestion,
+                  currentItemId: currentItem?.id,
+                  effectiveItemType,
+                  bottomBarMode,
+                  activeUiItemKind: activeUiItem?.kind,
+                  v3ProbingActive
+                });
+              }
               
               // FIX: ALWAYS render base questions (history mode) - active styling only
               // Answered questions render in history with their answer bubbles below
-              const activeClass = isActiveQuestion 
+              const activeClass = isActiveBaseQuestion 
                 ? 'ring-2 ring-blue-400/40 shadow-lg shadow-blue-500/20' 
                 : '';
               
@@ -13594,6 +13613,9 @@ export default function CandidateInterview() {
                       )}
                     </div>
                     <p className="text-white text-base leading-relaxed">{entry.text}</p>
+                    
+                    {/* UI CONTRACT: NO inline actions in history mode - bottom bar owns all user actions */}
+                    {/* shouldRenderInlineActions is always false - all actions in bottom bar */}
                   </div>
                   </ContentContainer>
                 </div>
@@ -13930,20 +13952,41 @@ export default function CandidateInterview() {
               {/* Moved to transcript stream above (lines ~9166-9194) - renders with proper styling */}
 
               {/* Base question (assistant) */}
-              {entry.role === 'assistant' && entry.type === 'base_question' && (
-                <ContentContainer>
-                <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-base font-semibold text-blue-400">
-                      Question {entry.questionNumber || getQuestionDisplayNumber(entry.questionId)}
-                    </span>
-                    <span className="text-sm text-slate-500">•</span>
-                    <span className="text-sm font-medium text-slate-300">{entry.category}</span>
+              {entry.role === 'assistant' && entry.type === 'base_question' && (() => {
+                // UI CONTRACT: NO inline actions - all actions in bottom bar only
+                const questionId = entry.questionId;
+                const isActiveBaseQuestion = effectiveItemType === 'question' && 
+                  currentItem?.type === 'question' &&
+                  currentItem?.id === questionId &&
+                  activeUiItem?.kind === 'DEFAULT' &&
+                  bottomBarMode === 'YES_NO';
+                
+                // AUDIT: Inline actions should never render (legacy type)
+                if (isActiveBaseQuestion) {
+                  console.log('[BASE_Q][INLINE_ACTIONS_RENDER]', {
+                    questionId,
+                    isActiveBaseQuestion,
+                    type: 'legacy_base_question',
+                    note: 'No inline actions - bottom bar owns all user actions'
+                  });
+                }
+                
+                return (
+                  <ContentContainer>
+                  <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-base font-semibold text-blue-400">
+                        Question {entry.questionNumber || getQuestionDisplayNumber(entry.questionId)}
+                      </span>
+                      <span className="text-sm text-slate-500">•</span>
+                      <span className="text-sm font-medium text-slate-300">{entry.category}</span>
+                    </div>
+                    <p className="text-white text-base leading-relaxed">{entry.questionText || entry.text}</p>
+                    {/* UI CONTRACT: NO inline actions - bottom bar owns all user actions */}
                   </div>
-                  <p className="text-white text-base leading-relaxed">{entry.questionText || entry.text}</p>
-                </div>
-                </ContentContainer>
-              )}
+                  </ContentContainer>
+                );
+              })()}
 
               {/* Base answer (user) */}
               {entry.role === 'user' && entry.type === 'base_answer' && (
@@ -13959,27 +14002,48 @@ export default function CandidateInterview() {
               )}
 
               {/* Legacy combined question+answer entries (backward compatibility) */}
-              {entry.type === 'question' && entry.answer && !entry.role && (
-               <ContentContainer>
-               <div className="w-full space-y-2">
-                 <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
-                   <div className="flex items-center gap-2 mb-2">
-                     <span className="text-base font-semibold text-blue-400">
-                       Question {getQuestionDisplayNumber(entry.questionId)}
-                     </span>
-                     <span className="text-sm text-slate-500">•</span>
-                     <span className="text-sm font-medium text-slate-300">{entry.category}</span>
-                   </div>
-                   <p className="text-white text-base leading-relaxed">{entry.questionText}</p>
-                 </div>
-                 <div className="flex justify-end">
-                   <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
-                     <p className="text-white text-sm">{entry.answer}</p>
-                   </div>
-                 </div>
-               </div>
-               </ContentContainer>
-              )}
+              {entry.type === 'question' && entry.answer && !entry.role && (() => {
+                // UI CONTRACT: NO inline actions for legacy combined entries
+                const questionId = entry.questionId;
+                const isActiveBaseQuestion = effectiveItemType === 'question' && 
+                  currentItem?.type === 'question' &&
+                  currentItem?.id === questionId &&
+                  activeUiItem?.kind === 'DEFAULT' &&
+                  bottomBarMode === 'YES_NO';
+                
+                // AUDIT: Log if this legacy type is somehow active (should not happen)
+                if (isActiveBaseQuestion) {
+                  console.warn('[BASE_Q][INLINE_ACTIONS_RENDER]', {
+                    questionId,
+                    isActiveBaseQuestion,
+                    type: 'legacy_combined',
+                    note: 'Legacy combined type should not be active - no inline actions'
+                  });
+                }
+                
+                return (
+                  <ContentContainer>
+                  <div className="w-full space-y-2">
+                    <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-base font-semibold text-blue-400">
+                          Question {getQuestionDisplayNumber(entry.questionId)}
+                        </span>
+                        <span className="text-sm text-slate-500">•</span>
+                        <span className="text-sm font-medium text-slate-300">{entry.category}</span>
+                      </div>
+                      <p className="text-white text-base leading-relaxed">{entry.questionText}</p>
+                      {/* UI CONTRACT: NO inline actions - bottom bar owns all user actions */}
+                    </div>
+                    <div className="flex justify-end">
+                      <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
+                        <p className="text-white text-sm">{entry.answer}</p>
+                      </div>
+                    </div>
+                  </div>
+                  </ContentContainer>
+                );
+              })()}
 
               {/* V2 Pack followups (combined question+answer, only show after answer submitted) */}
               {entry.type === 'followup_question' && (entry.source === 'V2_PACK' || entry.source === 'AI_FOLLOWUP') && entry.answer && (() => {
@@ -14359,94 +14423,31 @@ export default function CandidateInterview() {
               return null; // UNCONDITIONAL NULL - no UI output ever
             })()}
 
-            {/* UNIFIED STREAM: Active cards disabled - all content in transcript */}
-            {false && !activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
-           <ContentContainer>
-           <div ref={questionCardRef} className="relative z-20 w-full rounded-xl p-1">
-             {(() => {
-               const question = engine.QById[currentItem.id];
-               if (!question) return null;
-
-               const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
-               const sectionName = sectionEntity?.section_name || question.category || '';
-               const questionNumber = getQuestionDisplayNumber(currentItem.id);
-
-               return (
-                 <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-5 shadow-2xl">
-                   <div className="flex items-center gap-2 mb-2">
-                     <span className="text-base font-semibold text-blue-400">
-                       Question {questionNumber}
-                     </span>
-                     <span className="text-sm text-slate-500">•</span>
-                     <span className="text-sm font-medium text-slate-300">{sectionName}</span>
-                   </div>
-                   <p className="text-white text-base leading-relaxed">{question.question_text}</p>
-                 </div>
-               );
-             })()}
-
-             {validationHint && (
-               <div className="mt-2 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
-                 <p className="text-yellow-200 text-sm">{validationHint}</p>
-               </div>
-             )}
-           </div>
-           </ContentContainer>
-           )}
+            {/* UI CONTRACT: Active base questions render ONLY in transcript stream - NO separate active card */}
+            {/* This section PERMANENTLY DISABLED - all base questions render via transcript entries */}
+            {/* Yes/No buttons ONLY in bottom bar (footer) - NEVER inline in transcript */}
+            {false && (() => {
+              console.error('[UI_CONTRACT][VIOLATION][ACTIVE_CARD_PATH_REACHED]', {
+                currentItemType: currentItem?.type,
+                currentItemId: currentItem?.id,
+                reason: 'This code path is disabled and should never execute'
+              });
+              return null;
+            })()}
 
 
 
-           {/* UNIFIED STREAM: Active cards disabled - all content in transcript */}
-           {false && !activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && currentItem?.type !== 'v3_probing' && (
-           <ContentContainer>
-           <div ref={questionCardRef} className="relative z-30 w-full rounded-xl p-1">
-             {isV3PackOpener || currentPrompt?.type === 'v3_pack_opener' ? (
-               <div className="bg-slate-900/95 backdrop-blur-md border border-purple-700/80 rounded-xl p-4 shadow-2xl">
-             <div className="flex items-center gap-2 mb-2">
-               <span className="text-sm font-medium text-purple-400">
-                 {currentPrompt.category}{currentPrompt.instanceNumber > 1 ? ` — Instance ${currentPrompt.instanceNumber}` : ''}
-               </span>
-             </div>
-             <p className="text-white text-sm leading-relaxed">{currentPrompt.text}</p>
-             {currentPrompt.exampleNarrative && (
-              <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
-                <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
-                <p className="text-slate-300 text-xs italic">{currentPrompt.exampleNarrative}</p>
-              </div>
-             )}
-             </div>
-              ) : isV2PackField || currentPrompt?.type === 'ai_probe' ? (
-              <div className="bg-slate-900/95 backdrop-blur-md border border-purple-700/80 rounded-xl p-4 shadow-2xl">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm font-medium text-purple-400">
-                  {currentPrompt.category}{currentPrompt.instanceNumber > 1 ? ` — Instance ${currentPrompt.instanceNumber}` : ''}
-                </span>
-              </div>
-              <p className="text-white text-sm leading-relaxed">{currentPrompt.text}</p>
-            </div>
-          ) : currentPrompt?.type === 'multi_instance_gate' ? (
-            <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 shadow-2xl">
-              <p className="text-white text-base leading-relaxed">{currentPrompt.text}</p>
-            </div>
-          ) : (
-            <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-5 shadow-2xl">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-base font-semibold text-blue-400">
-                  {currentPrompt.type === 'question' ? `Question ${getQuestionDisplayNumber(currentItem?.id)}` : currentPrompt.category}
-                </span>
-              </div>
-              <p className="text-white text-base leading-relaxed">{currentPrompt.text}</p>
-            </div>
-          )}
-
-              {validationHint && (
-                <div className="mt-2 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
-                  <p className="text-yellow-200 text-sm">{validationHint}</p>
-                </div>
-              )}
-              </div>
-              </ContentContainer>
-              )}
+           {/* UI CONTRACT: All active cards render via transcript stream - NO separate currentPrompt renderer */}
+           {/* This section PERMANENTLY DISABLED - prevents duplicate card rendering */}
+           {/* All user actions (Yes/No, text input) ONLY in bottom bar */}
+           {false && (() => {
+             console.error('[UI_CONTRACT][VIOLATION][CURRENT_PROMPT_PATH_REACHED]', {
+               currentItemType: currentItem?.type,
+               currentItemId: currentItem?.id,
+               reason: 'This code path is disabled and should never execute'
+             });
+             return null;
+           })()}
 
               {/* V3 UI-ONLY HISTORY: Rendered via canonical stream (lines 8942-8985) */}
             {/* Separate loop removed - renderStream includes v3UiRenderable */}
