@@ -8200,9 +8200,8 @@ export default function CandidateInterview() {
     let aAdded = false;
     
     if (v3ProbingActive && localEffectiveItemType === 'v3_probing' && loopKey && answerText?.trim()) {
-      const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
-      
-      if (!promptId) {
+      // RISK 3 FIX: Use v3PromptIdSOT consistently (already validated above)
+      if (!v3PromptIdSOT) {
         console.error('[V3_TRANSCRIPT][APPEND_FAILED_NO_PROMPTID]', {
           loopKey,
           hasV3Context: !!v3ProbingContext,
@@ -8210,21 +8209,8 @@ export default function CandidateInterview() {
           reason: 'Cannot append without stable promptId'
         });
       } else {
-        // CANONICAL KEYS: Use centralized builders (session+category+instance+index scoped)
-        const qStableKey = buildV3ProbeQStableKey(sessionId, categoryId, instanceNumber, probeIndex);
-        const aStableKey = buildV3ProbeAStableKey(sessionId, categoryId, instanceNumber, probeIndex);
-        
-        console.log('[V3_PROBE][COMMIT_BEGIN]', {
-          sessionId,
-          categoryId,
-          instanceNumber,
-          probeIndex,
-          promptId,
-          loopKey,
-          qKey: qStableKey,
-          aKey: aStableKey,
-          answerLen: answerText?.length || 0
-        });
+        // stableKeys already constructed above (qStableKey, aStableKey)
+        // No need to rebuild - use existing variables
         
         // SYNCHRONOUS COMMIT: Update canonical ref IMMEDIATELY (not in async callback)
         setDbTranscriptSafe(prev => {
@@ -8381,10 +8367,10 @@ export default function CandidateInterview() {
               e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER'
             ).length;
             
-            // PART 3B: Log persist success
+            // PART 3B: Log persist success (RISK 3: use v3PromptIdSOT from outer scope)
             console.log('[V3_SEND][PERSIST_OK]', {
               stableKeyA: aStableKey,
-              promptId: promptId,
+              promptId: v3PromptIdSOT,
               transcriptLenAfter: updated.length
             });
             
@@ -8398,12 +8384,12 @@ export default function CandidateInterview() {
               stableKeyA: aStableKey
             });
             
-            // PART 3C: Post-persist validation (hard invariant)
+            // PART 3C: Post-persist validation (hard invariant, RISK 3: use v3PromptIdSOT)
             const foundInUpdated = updated.some(e => (e.stableKey || e.id) === aStableKey);
             if (!foundInUpdated) {
               console.error('[V3_SEND][INVARIANT_FAIL_NOT_IN_DB_AFTER_OK]', {
                 stableKeyA: aStableKey,
-                promptId: promptId,
+                promptId: v3PromptIdSOT,
                 updatedLen: updated.length,
                 reason: 'Persist OK but answer not in updated transcript array'
               });
@@ -8422,10 +8408,10 @@ export default function CandidateInterview() {
               });
             }
           }).catch(err => {
-            // PART 3B: Log persist failure
+            // PART 3B: Log persist failure (RISK 3: use v3PromptIdSOT from outer scope)
             console.error('[V3_SEND][PERSIST_FAIL]', {
               stableKeyA: aStableKey,
-              promptId: promptId,
+              promptId: v3PromptIdSOT,
               error: err.message
             });
             console.error('[CQ_TRANSCRIPT][V3_PROBE_PERSIST_ERROR]', { error: err.message, sessionId });
@@ -12696,6 +12682,28 @@ export default function CandidateInterview() {
     
     // PART 2: ADJACENCY-BASED QUESTIONID INFERENCE (orphan Yes/No answers)
     // Infer questionId for answers that have no questionId/meta by finding nearby QUESTION_SHOWN
+    
+    // RISK 1 FIX: Use Map instead of in-place mutation
+    const inferredQuestionIdByKey = new Map(); // key -> questionId
+    
+    // RISK 2 FIX: Helper for consistent questionId extraction from QUESTION_SHOWN
+    const getQuestionIdFromQuestionShown = (entry) => {
+      // Priority 1: entry.questionId
+      if (entry.questionId) return entry.questionId;
+      
+      // Priority 2: entry.meta.questionDbId
+      if (entry.meta?.questionDbId) return entry.meta.questionDbId;
+      
+      // Priority 3: Parse from stableKey 'question-shown:<id>'
+      const stableKey = entry.stableKey || entry.id || '';
+      if (stableKey.startsWith('question-shown:') || stableKey.startsWith('question:')) {
+        const match = stableKey.match(/^question(?:-shown)?:(?:[^:]+:)?([^:]+)/);
+        if (match) return match[1];
+      }
+      
+      return null;
+    };
+    
     let lastSeenQuestionId = null;
     let itemsSinceQuestion = 0;
     const ADJACENCY_WINDOW = 3; // Max items between question and answer to infer
@@ -12704,12 +12712,14 @@ export default function CandidateInterview() {
       const entry = transcriptToRenderDeduped[i];
       const mt = getMessageTypeSOT(entry);
       
-      // Track last seen question
+      // Track last seen question (RISK 2: use helper)
       if (mt === 'QUESTION_SHOWN') {
-        const qId = entry.meta?.questionDbId || entry.questionId;
+        const qId = getQuestionIdFromQuestionShown(entry);
         if (qId) {
           lastSeenQuestionId = qId;
-          itemsSinceQuestion = 0;
+          itemsSinceQuestion = 0; // Reset counter only when qId found
+        } else {
+          itemsSinceQuestion++;
         }
       } else {
         itemsSinceQuestion++;
@@ -12720,11 +12730,12 @@ export default function CandidateInterview() {
         const hasQuestionId = !!(entry.questionId || entry.meta?.questionId);
         
         if (!hasQuestionId && lastSeenQuestionId && itemsSinceQuestion <= ADJACENCY_WINDOW) {
-          entry.__inferredQuestionId = lastSeenQuestionId;
-          entry.__inferredBy = 'ADJACENCY';
+          // RISK 1 FIX: Use Map instead of mutation
+          const answerKey = entry.stableKey || entry.id;
+          inferredQuestionIdByKey.set(answerKey, lastSeenQuestionId);
           
           console.log('[CQ_TRANSCRIPT][ANSWER_INFERRED_QUESTION_ID]', {
-            stableKey: entry.stableKey || entry.id,
+            stableKey: answerKey,
             inferredQuestionId: lastSeenQuestionId,
             itemsSinceQuestion,
             text: entry.text
@@ -12780,7 +12791,8 @@ export default function CandidateInterview() {
       const stableKey = entry.stableKey || entry.id || '';
       
       // Extract questionId from entry or parse from stableKey (with adjacency inference)
-      let questionId = entry.questionId || entry.meta?.questionId || entry.__inferredQuestionId;
+      // RISK 1 FIX: Use Map lookup instead of __inferredQuestionId property
+      let questionId = entry.questionId || entry.meta?.questionId || inferredQuestionIdByKey.get(stableKey);
       
       if (!questionId && stableKey.startsWith('answer:')) {
         // Parse from stableKey format: 'answer:<sessionId>:<questionId>:<index>'
@@ -12863,9 +12875,12 @@ export default function CandidateInterview() {
       const check = isBaseAnswerSubjectToDedupe(entry);
       if (!check.isBase) continue; // Only check base answers
       
-      let questionId = entry.questionId || entry.meta?.questionId || entry.__inferredQuestionId;
-      if (!questionId && entry.stableKey) {
-        const keyMatch = entry.stableKey.match(/^answer:[^:]+:([^:]+):/);
+      const entryKey = entry.stableKey || entry.id || '';
+      
+      // RISK 1 FIX: Use Map lookup instead of __inferredQuestionId property
+      let questionId = entry.questionId || entry.meta?.questionId || inferredQuestionIdByKey.get(entryKey);
+      if (!questionId && entryKey.startsWith('answer:')) {
+        const keyMatch = entryKey.match(/^answer:[^:]+:([^:]+):/);
         if (keyMatch) questionId = keyMatch[1];
       }
       
