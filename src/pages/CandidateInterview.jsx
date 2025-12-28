@@ -6958,8 +6958,23 @@ export default function CandidateInterview() {
           packId: currentItem.packId,
           instanceNumber: currentItem.instanceNumber,
           answer: value,
-          source: 'handleAnswer'
+          source: 'handleAnswer',
+          activeUiItemKind: activeUiItem?.kind
         });
+        
+        // FIX: Block MI_GATE answer if gate is not active
+        if (activeUiItem?.kind !== "MI_GATE") {
+          console.error('[MI_GATE][ANSWER_BLOCKED_NOT_ACTIVE]', {
+            clicked: value,
+            reason: 'gate_suppressed_or_not_active',
+            activeUiItemKind: activeUiItem?.kind,
+            effectiveItemType,
+            currentItemType: currentItem.type,
+            action: 'BLOCKED'
+          });
+          setIsCommitting(false);
+          return;
+        }
         
         // PART C: Multi-instance gate handler - append Q+A after user answers
         const normalized = value.trim().toLowerCase();
@@ -11639,8 +11654,21 @@ export default function CandidateInterview() {
       currentItemId: currentItem?.id,
       packId: currentItem?.packId,
       instanceNumber: currentItem?.instanceNumber,
-      bottomBarMode
+      bottomBarMode,
+      activeUiItemKind: activeUiItem?.kind
     });
+    
+    // FIX: Block MI_GATE answer if gate is not active (prevents orphan "Yes" during V3 suppression)
+    if (effectiveItemType === 'multi_instance_gate' && activeUiItem?.kind !== "MI_GATE") {
+      console.error('[MI_GATE][ANSWER_BLOCKED_NOT_ACTIVE]', {
+        clicked: answer,
+        reason: 'gate_suppressed_or_not_active',
+        activeUiItemKind: activeUiItem?.kind,
+        effectiveItemType,
+        action: 'BLOCKED'
+      });
+      return; // Do not append answer
+    }
     
     // Route to handleAnswer (same path as all other answer types)
     if (!isCommitting) {
@@ -12757,11 +12785,25 @@ export default function CandidateInterview() {
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
             if (entry.role === 'assistant' && getMessageTypeSOT(entry) === 'QUESTION_SHOWN') {
-              // ACTIVE CARD DETECTION: Check if this is the current question
-              const isActiveBaseQ = currentItem?.type === 'question' && 
-                currentItem?.id === entry.meta?.questionDbId;
+              // ACTIVE ITEM CHECK: Only the current active question may render (never history)
+              const questionDbId = entry.meta?.questionDbId;
+              const isActiveQuestion = effectiveItemType === 'question' && 
+                currentItem?.type === 'question' &&
+                currentItem?.id === questionDbId;
               
-              const activeClass = isActiveBaseQ 
+              // FIX: History items are read-only - skip rendering if not active
+              // The active question renders via getCurrentPrompt/currentPrompt path
+              if (!isActiveQuestion) {
+                console.log('[BASE_Q][HISTORY_SKIP]', {
+                  questionId: questionDbId,
+                  reason: 'not_active_question',
+                  currentItemId: currentItem?.id,
+                  note: 'History question - already answered (answer bubble renders separately)'
+                });
+                return null;
+              }
+              
+              const activeClass = isActiveQuestion 
                 ? 'ring-2 ring-blue-400/40 shadow-lg shadow-blue-500/20' 
                 : '';
               
@@ -12811,21 +12853,25 @@ export default function CandidateInterview() {
 
             // Multi-instance gate prompt shown (suppress CURRENT gate only during V3 blocking)
             if (entry.role === 'assistant' && getMessageTypeSOT(entry) === 'MULTI_INSTANCE_GATE_SHOWN') {
-              // STEP 2: Sanitize MI gate prompt in transcript
-              const safeMiGateTranscript = sanitizeCandidateFacingText(entry.text, 'TRANSCRIPT_MI_GATE');
-
               // Extract entry's pack/instance identity
               const entryPackId = entry.packId || entry.meta?.packId;
               const entryInstanceNumber = entry.instanceNumber || entry.meta?.instanceNumber;
+              const entryGateId = entry.id;
 
-              // PART B: Only suppress if this entry matches the CURRENT active gate
-              // Preserves historical gate entries from previous instances
-              const isCurrentGate = isV3UiBlockingSOT && 
+              // ACTIVE ITEM CHECK: Only the current active gate may render
+              const isActiveMiGate = effectiveItemType === 'multi_instance_gate' && 
+                currentItem?.type === 'multi_instance_gate' &&
+                currentItem?.id === entryGateId &&
+                currentItem?.packId === entryPackId &&
+                currentItem?.instanceNumber === entryInstanceNumber;
+
+              // PART B: Suppress current gate during V3 blocking (renders as activeCard instead)
+              const isCurrentGateButSuppressed = isV3UiBlockingSOT && 
                                    currentItem?.type === 'multi_instance_gate' &&
                                    entryPackId === currentItem.packId &&
                                    entryInstanceNumber === currentItem.instanceNumber;
 
-              if (isCurrentGate) {
+              if (isCurrentGateButSuppressed) {
                 console.log('[MI_GATE][STREAM_SUPPRESSED]', {
                   packId: entryPackId,
                   instanceNumber: entryInstanceNumber,
@@ -12837,6 +12883,21 @@ export default function CandidateInterview() {
                 return null; // Suppress current gate from transcript (renders as activeCard instead)
               }
 
+              // FIX: History gates are read-only - skip rendering if not active
+              // Active gate renders via activeCard in canonical stream
+              if (!isActiveMiGate) {
+                console.log('[MI_GATE][HISTORY_SKIP]', {
+                  packId: entryPackId,
+                  instanceNumber: entryInstanceNumber,
+                  reason: 'not_active_gate',
+                  currentItemId: currentItem?.id,
+                  note: 'History gate - already answered (answer bubble renders separately)'
+                });
+                return null;
+              }
+
+              // STEP 2: Sanitize MI gate prompt in transcript
+              const safeMiGateTranscript = sanitizeCandidateFacingText(entry.text, 'TRANSCRIPT_MI_GATE');
 
               // ANCHOR: Mark as system transition to prevent false scroll state changes
               recentAnchorRef.current = {
@@ -12844,40 +12905,21 @@ export default function CandidateInterview() {
                 stableKey: entry.stableKey || entry.id,
                 ts: Date.now()
               };
-              // UI CONTRACT: Active MI_GATE renders in main pane (above footer)
-              const stableKey = entry.stableKey || entry.id;
-              const isActiveGate = isMiGateActive && 
-                (entry.id === currentItem?.id || 
-                 stableKey === `mi-gate:${currentItem?.packId}:${currentItem?.instanceNumber}:q` ||
-                 stableKey?.startsWith(`mi-gate:${currentItem?.packId}:${currentItem?.instanceNumber}`));
 
-              if (isActiveGate) {
-                console.log('[MI_GATE][MAIN_PANE_ACTIVE_RENDER]', {
-                  currentItemId: currentItem?.id,
-                  packId: currentItem?.packId,
-                  instanceNumber: currentItem?.instanceNumber,
-                  stableKey,
-                  promptPreview: (safeMiGateTranscript || "").slice(0, 120),
-                  sanitized: safeMiGateTranscript !== entry.text
+              // UI CONTRACT SELF-TEST: Track main pane render
+              if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
+                const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
+                tracker.mainPaneRendered = true;
+                miGateTestTrackerRef.current.set(currentItem.id, tracker);
+
+                console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
+                  itemId: currentItem.id,
+                  event: 'MAIN_PANE_RENDERED',
+                  tracker
                 });
-
-                // UI CONTRACT SELF-TEST: Track main pane render
-                if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
-                  const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
-                  tracker.mainPaneRendered = true;
-                  miGateTestTrackerRef.current.set(currentItem.id, tracker);
-
-                  console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
-                    itemId: currentItem.id,
-                    event: 'MAIN_PANE_RENDERED',
-                    tracker
-                  });
-                }
               }
 
-              const activeClass = isActiveGate 
-                ? 'ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20' 
-                : '';
+              const activeClass = 'ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20';
 
               return (
                 <div key={entryKey} data-stablekey={entry.stableKey || entry.id}>
