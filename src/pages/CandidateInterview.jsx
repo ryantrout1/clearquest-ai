@@ -12953,7 +12953,6 @@ export default function CandidateInterview() {
               // ACTIVE ITEM CHECK: Only the current active gate may render
               const isActiveMiGate = effectiveItemType === 'multi_instance_gate' && 
                 currentItem?.type === 'multi_instance_gate' &&
-                currentItem?.id === entryGateId &&
                 currentItem?.packId === entryPackId &&
                 currentItem?.instanceNumber === entryInstanceNumber;
 
