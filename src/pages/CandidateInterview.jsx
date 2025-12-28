@@ -10812,23 +10812,23 @@ export default function CandidateInterview() {
   }
   
   if (activeUiItem.kind === "MI_GATE") {
-    // PART B: Use currentItemForRender (null if suppressed) instead of currentItem
-    // This prevents MI_GATE card creation during V3 transitions
-    if (!currentItemForRender) {
-      console.log('[STREAM_SUPPRESS]', {
-        suppressed: 'MI_GATE_CARD',
-        reason: 'V3_UI_BLOCKING_PHASE',
-        v3PromptPhase,
+    // FIX: Use currentItem directly when activeUiItem.kind is MI_GATE
+    // activeUiItem resolver already handles V3 blocking precedence correctly
+    const miGateItem = currentItem;
+    
+    if (!miGateItem || !miGateItem.packId || !miGateItem.instanceNumber) {
+      console.error('[MI_GATE][BUG][MAIN_PANE_NOT_RENDERED]', {
+        currentItemId: currentItem?.id,
         packId: currentItem?.packId,
         instanceNumber: currentItem?.instanceNumber,
-        currentItemForRender: null
+        activeUiItemKind: activeUiItem.kind,
+        reason: 'Missing gate context - cannot render'
       });
-      // Do NOT set activeCard - currentItemForRender is null
     } else {
-      const miGatePrompt = currentItemForRender.promptText || multiInstanceGate?.promptText || `Do you have another incident to report?`;
-      const stableKey = `mi-gate:${currentItemForRender.packId}:${currentItemForRender.instanceNumber}`;
+      const miGatePrompt = miGateItem.promptText || multiInstanceGate?.promptText || `Do you have another incident to report?`;
+      const stableKey = `mi-gate:${miGateItem.packId}:${miGateItem.instanceNumber}`;
       
-      // FIX A: ALWAYS render active MI_GATE card (no dedupe skip) when V3 not blocking
+      // ALWAYS render active MI_GATE card when activeUiItem.kind is MI_GATE
       // The active gate MUST be visible as the current question in main pane
       if (miGatePrompt) {
         activeCard = {
@@ -10837,16 +10837,25 @@ export default function CandidateInterview() {
           kind: "multi_instance_gate",
           stableKey,
           text: miGatePrompt,
-          packId: currentItemForRender.packId,
-          instanceNumber: currentItemForRender.instanceNumber,
+          packId: miGateItem.packId,
+          instanceNumber: miGateItem.instanceNumber,
           source: 'prompt_lane_temporary'
         };
         
         console.log("[MI_GATE][ACTIVE_CARD_ADDED]", {
-          packId: currentItemForRender.packId,
-          instanceNumber: currentItemForRender.instanceNumber,
+          packId: miGateItem.packId,
+          instanceNumber: miGateItem.instanceNumber,
           stableKey,
-          promptPreview: miGatePrompt.substring(0, 60)
+          promptPreview: miGatePrompt.substring(0, 60),
+          activeUiItemKind: activeUiItem.kind
+        });
+      } else {
+        console.error('[MI_GATE][BUG][MAIN_PANE_NOT_RENDERED]', {
+          currentItemId: miGateItem.id,
+          packId: miGateItem.packId,
+          instanceNumber: miGateItem.instanceNumber,
+          activeUiItemKind: activeUiItem.kind,
+          reason: 'Missing prompt text - cannot render'
         });
       }
     }
@@ -11270,7 +11279,7 @@ export default function CandidateInterview() {
     // REGRESSION SUMMARY: Single log per gate activation (once per itemId)
     const itemId = currentItem?.id;
     if (itemId) {
-      const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, activeGateSuppressed: false, testStarted: false };
+      const tracker = miGateTestTrackerRef.current.get(itemId) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
       
       if (!tracker.testStarted) {
         // Log regression summary on first activation
