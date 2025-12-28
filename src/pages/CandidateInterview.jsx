@@ -7372,12 +7372,13 @@ export default function CandidateInterview() {
   }, []);
 
   // V3 ATOMIC PROMPT COMMIT: All state changes for activating V3 prompt in bottom bar
-  const commitV3PromptToBottomBar = useCallback(async ({ packId, instanceNumber, loopKey, promptText, promptId: providedPromptId }) => {
+  const commitV3PromptToBottomBar = useCallback(async ({ packId, instanceNumber, loopKey, promptText, promptId: providedPromptId, categoryId }) => {
     // Use provided canonical promptId (from V3ProbingLoop) or fallback
     const promptId = providedPromptId || `${loopKey}:${promptIdCounterRef.current++}`;
     
     console.log('[V3_PROMPT_COMMIT]', {
       packId,
+      categoryId,
       instanceNumber,
       loopKey,
       promptId,
@@ -7389,15 +7390,17 @@ export default function CandidateInterview() {
     console.log('[V3_PROMPT][PROMPT_ID_ASSIGNED]', {
       loopKey,
       promptId,
+      categoryId,
       reason: 'commit',
       promptPreview: promptText?.substring(0, 60) || ''
     });
 
-    // SNAPSHOT: Capture expected state BEFORE atomic update
+    // SNAPSHOT: Capture expected state BEFORE atomic update (include categoryId)
     const snapshot = {
     promptId,
     loopKey,
     packId,
+    categoryId,
     instanceNumber,
     promptText,
     expectedBottomBarMode: 'TEXT_INPUT',
@@ -7451,10 +7454,11 @@ export default function CandidateInterview() {
       currentPromptText: promptText
     }));
     
-    // Update snapshot ref for answer submit
+    // Update snapshot ref for answer submit (include categoryId)
     lastV3PromptSnapshotRef.current = {
       ...snapshot,
       promptId,
+      categoryId,
       promptText
     };
     
@@ -7495,7 +7499,7 @@ export default function CandidateInterview() {
     }
     
     return promptId;
-  }, [v3ProbingActive, screenMode, sessionId, setDbTranscriptSafe]);
+  }, [v3ProbingActive, screenMode, sessionId, setDbTranscriptSafe, dbTranscript]);
 
   // V3 prompt change handler - receives prompt with canonical promptId from V3ProbingLoop
   const handleV3PromptChange = useCallback(async (promptData) => {
@@ -7608,9 +7612,10 @@ export default function CandidateInterview() {
       console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_SKIP]', { stableKey: qStableKey });
     }
     
-    // ATOMIC COMMIT: All state changes in one place
+    // ATOMIC COMMIT: All state changes in one place (include categoryId)
     await commitV3PromptToBottomBar({ 
       packId, 
+      categoryId,
       instanceNumber, 
       loopKey: effectiveLoopKey, 
       promptText,
@@ -7625,10 +7630,25 @@ export default function CandidateInterview() {
     
     v3SubmitCounterRef.current++;
     const submitId = v3SubmitCounterRef.current;
-    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
-    const categoryId = v3ProbingContext?.categoryId;
-    const instanceNumber = v3ProbingContext?.instanceNumber || 1;
-    const packId = v3ProbingContext?.packId;
+    
+    // IDENTIFIER FALLBACK CHAIN: Use context first, snapshot second
+    const categoryId = v3ProbingContext?.categoryId || lastV3PromptSnapshotRef.current?.categoryId;
+    const instanceNumber = v3ProbingContext?.instanceNumber || lastV3PromptSnapshotRef.current?.instanceNumber || 1;
+    const packId = v3ProbingContext?.packId || lastV3PromptSnapshotRef.current?.packId;
+    const loopKey = v3ProbingContext ? `${sessionId}:${categoryId}:${instanceNumber}` : null;
+    
+    // GUARD: Validate identifiers before proceeding
+    if (!categoryId || !packId) {
+      console.error('[V3_PROBE][MISSING_IDENTIFIERS]', {
+        categoryId,
+        packId,
+        instanceNumber,
+        hasContext: !!v3ProbingContext,
+        hasSnapshot: !!lastV3PromptSnapshotRef.current,
+        reason: 'Cannot commit without categoryId and packId'
+      });
+      return;
+    }
     
     // Compute probeIndex from current probe count in transcript
     const currentProbeCount = dbTranscript.filter(e => 
@@ -7890,17 +7910,31 @@ export default function CandidateInterview() {
       });
     }
     
+    // DIAGNOSTIC: Verify commit succeeded
+    if (wroteTranscript) {
+      console.log('[V3_PROBE][ANSWER_COMMIT]', {
+        expectedStableKey: aStableKey,
+        wrote: true,
+        transcriptLenAfter: canonicalTranscriptRef.current.length,
+        sessionId,
+        categoryId,
+        instanceNumber,
+        probeIndex
+      });
+    }
+    
     // CRITICAL: Set PROCESSING state ONLY after DB write completes
     setV3PromptPhase("PROCESSING");
     console.log('[V3_PROMPT_PHASE][SET_PROCESSING_AFTER_DB]', {
       submitId,
       loopKey,
+      categoryId,
       wroteTranscript,
       reason: 'DB write complete - now ready for engine call'
     });
     
     setV3PendingAnswer(payload);
-  }, [v3ProbingContext, sessionId, v3ActivePromptText, currentItem, setDbTranscriptSafe]);
+  }, [v3ProbingContext, sessionId, v3ActivePromptText, currentItem, setDbTranscriptSafe, dbTranscript]);
   
   // V3 answer consumed handler - clears pending answer after V3ProbingLoop consumes it
   const handleV3AnswerConsumed = useCallback(({ loopKey, answerToken, probeCount, submitId }) => {
