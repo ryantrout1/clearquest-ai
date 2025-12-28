@@ -11970,9 +11970,37 @@ export default function CandidateInterview() {
         });
         
         // ENFORCEMENT: Remove ephemeral items ONLY (never real transcript items)
+        const filteredOut = [];
         transcriptToRender = renderableTranscriptStream.filter(e => {
+          // CRITICAL: V3 probe Q/A are ALWAYS canonical (never filter)
+          const stableKey = e.stableKey || e.id;
+          const isV3ProbeQ = stableKey?.startsWith('v3-probe-q:') || e.messageType === 'V3_PROBE_QUESTION';
+          const isV3ProbeA = stableKey?.startsWith('v3-probe-a:') || e.messageType === 'V3_PROBE_ANSWER';
+          
+          if (isV3ProbeQ || isV3ProbeA) {
+            // BUG DETECTION: Alert if ephemeral filter tried to remove V3 probe items
+            const wouldFilter = e.__activeCard === true || 
+              e.kind === 'v3_probe_q' || 
+              e.kind === 'v3_probe_a' ||
+              e.source === 'ephemeral' ||
+              e.source === 'prompt_lane_temporary';
+            
+            if (wouldFilter && isV3ProbeA) {
+              console.error('[CQ_TRANSCRIPT][BUG][EPHEMERAL_FILTER_TRIED_TO_REMOVE_V3_PROBE_A]', {
+                stableKey,
+                messageType: e.messageType,
+                type: e.type,
+                kind: e.kind,
+                source: e.source,
+                __activeCard: e.__activeCard
+              });
+            }
+            
+            return true; // ALWAYS keep V3 probe Q/A
+          }
+          
           // CRITICAL: Never filter items with real DB stableKeys
-          const hasStableKey = !!(e.stableKey || e.id);
+          const hasStableKey = !!stableKey;
           const isRealTranscriptType = ['QUESTION_SHOWN', 'ANSWER', 'MULTI_INSTANCE_GATE_SHOWN', 'MULTI_INSTANCE_GATE_ANSWER', 'V3_PROBE_QUESTION', 'V3_PROBE_ANSWER', 'FOLLOWUP_CARD_SHOWN', 'V3_OPENER_ANSWER'].includes(e.messageType || e.type);
           
           if (hasStableKey && isRealTranscriptType) {
@@ -11986,6 +12014,17 @@ export default function CandidateInterview() {
             e.source === 'ephemeral' ||
             e.source === 'prompt_lane_temporary';
           
+          if (isEphemeral) {
+            filteredOut.push({
+              stableKey,
+              messageType: e.messageType,
+              type: e.type,
+              isV3ProbeQ,
+              isV3ProbeA,
+              hasStableKey
+            });
+          }
+          
           return !isEphemeral;
         });
         
@@ -11993,10 +12032,8 @@ export default function CandidateInterview() {
           beforeLen: renderableTranscriptStream.length,
           afterLen: transcriptToRender.length,
           removedCount: ephemeralSources.length,
-          stableKeysRemoved: ephemeralSources
-            .filter(e => e.__activeCard || e.source === 'prompt_lane_temporary')
-            .map(e => e.stableKey || e.id)
-            .slice(0, 5)
+          stableKeysRemoved: filteredOut.map(e => e.stableKey).slice(0, 5),
+          filteredDetails: filteredOut.slice(0, 3)
         });
       }
     }
@@ -12181,12 +12218,12 @@ export default function CandidateInterview() {
     const transcriptWithV3ProbeQA = [...transcriptWithV3ProbesBlocked, ...v3ProbeQAForGateDeterministic];
     let transcriptToRenderDeduped = dedupeBeforeRender(transcriptWithV3ProbeQA);
     
-    // INTEGRITY PASS: Ensure every ANSWER has its QUESTION_SHOWN parent
+    // INTEGRITY PASS 1: Ensure every ANSWER has its QUESTION_SHOWN parent
     const transcriptWithIntegrityPass = [];
     const questionIdToQuestionShown = new Map();
     const questionIdToAnswers = new Map();
     
-    // Build indexes
+    // Build indexes for base questions
     for (const entry of transcriptToRenderDeduped) {
       const mt = getMessageTypeSOT(entry);
       
@@ -12266,8 +12303,92 @@ export default function CandidateInterview() {
       transcriptWithIntegrityPass.push(entry);
     }
     
-    // Use integrity-passed list for placeholder injection
+    // Use integrity-passed list
     transcriptToRenderDeduped = transcriptWithIntegrityPass;
+    
+    // INTEGRITY PASS 2: Ensure every V3 probe answer has its question parent
+    const transcriptWithV3Integrity = [];
+    const promptIdToV3ProbeQ = new Map();
+    const promptIdToV3ProbeA = new Map();
+    
+    // Build indexes for V3 probe Q/A
+    for (const entry of transcriptToRenderDeduped) {
+      const stableKey = entry.stableKey || entry.id;
+      
+      if (stableKey?.startsWith('v3-probe-q:')) {
+        const promptId = stableKey.replace('v3-probe-q:', '');
+        if (!promptIdToV3ProbeQ.has(promptId)) {
+          promptIdToV3ProbeQ.set(promptId, entry);
+        }
+      }
+      
+      if (stableKey?.startsWith('v3-probe-a:')) {
+        const promptId = stableKey.replace('v3-probe-a:', '');
+        if (!promptIdToV3ProbeA.has(promptId)) {
+          promptIdToV3ProbeA.set(promptId, entry);
+        }
+      }
+    }
+    
+    // Check if V3 probe answers exist in dbTranscript but missing from render list
+    const dbTranscriptV3ProbeAnswers = (dbTranscript || []).filter(e => 
+      (e.stableKey || e.id)?.startsWith('v3-probe-a:')
+    );
+    
+    for (const dbEntry of dbTranscriptV3ProbeAnswers) {
+      const stableKey = dbEntry.stableKey || dbEntry.id;
+      const promptId = stableKey.replace('v3-probe-a:', '');
+      
+      if (!promptIdToV3ProbeA.has(promptId)) {
+        console.log('[CQ_TRANSCRIPT][V3_PROBE_A_REINSERTED]', {
+          promptId,
+          stableKey,
+          reason: 'present_in_db_missing_in_render'
+        });
+        
+        // Mark for reinsertion
+        promptIdToV3ProbeA.set(promptId, { ...dbEntry, __reinserted: true });
+      }
+    }
+    
+    // Check for missing V3 probe answers not in DB at all
+    for (const [promptId, qEntry] of promptIdToV3ProbeQ.entries()) {
+      if (!promptIdToV3ProbeA.has(promptId)) {
+        const expectedStableKey = `v3-probe-a:${promptId}`;
+        const existsInDb = (dbTranscript || []).some(e => 
+          (e.stableKey || e.id) === expectedStableKey
+        );
+        
+        if (!existsInDb) {
+          console.log('[CQ_TRANSCRIPT][V3_PROBE_A_NOT_IN_DB]', {
+            promptId,
+            expectedStableKey,
+            reason: 'Question exists but answer never persisted'
+          });
+        }
+      }
+    }
+    
+    // Rebuild list with V3 probe answers inserted after their questions
+    for (let i = 0; i < transcriptToRenderDeduped.length; i++) {
+      const entry = transcriptToRenderDeduped[i];
+      transcriptWithV3Integrity.push(entry);
+      
+      // Check if this is a V3 probe question that needs its answer inserted
+      const stableKey = entry.stableKey || entry.id;
+      if (stableKey?.startsWith('v3-probe-q:')) {
+        const promptId = stableKey.replace('v3-probe-q:', '');
+        const answerEntry = promptIdToV3ProbeA.get(promptId);
+        
+        if (answerEntry && answerEntry.__reinserted) {
+          // Insert answer after question
+          transcriptWithV3Integrity.push(answerEntry);
+        }
+      }
+    }
+    
+    // Use V3 integrity-passed list for placeholder injection
+    transcriptToRenderDeduped = transcriptWithV3Integrity;
     
     // PARENT PLACEHOLDER INJECTION: Only for MI_GATE (BASE_QUESTION already handled by integrity pass)
     const transcriptWithParentPlaceholders = [];
