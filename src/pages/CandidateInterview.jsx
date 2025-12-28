@@ -12766,8 +12766,8 @@ export default function CandidateInterview() {
     // SAFETY GUARD: Verify no duplicate canonical answers remain
     const finalCanonicalCheck = new Map();
     for (const entry of transcriptToRenderDeduped) {
-      const mt = getMessageTypeSOT(entry);
-      if (mt !== 'ANSWER') continue;
+      const check = isBaseAnswerSubjectToDedupe(entry);
+      if (!check.isBase) continue; // Only check base answers
       
       let questionId = entry.questionId || entry.meta?.questionId;
       if (!questionId && entry.stableKey) {
@@ -12780,7 +12780,6 @@ export default function CandidateInterview() {
       const canonicalKey = `base-answer:${questionId}`;
       
       if (finalCanonicalCheck.has(canonicalKey)) {
-        const stableKey = entry.stableKey || entry.id || '';
         const stableKeyPrefix = stableKey.split(':')[0];
         
         console.error('[CQ_TRANSCRIPT][BUG][ANSWER_DUPLICATE_AFTER_DEDUPE]', {
@@ -12789,7 +12788,7 @@ export default function CandidateInterview() {
             finalCanonicalCheck.get(canonicalKey),
             stableKey
           ],
-          isBaseQuestionAnswer: true,
+          baseSubject: true,
           stableKeyPrefix,
           reason: 'Multiple answers for same base question survived dedupe'
         });
