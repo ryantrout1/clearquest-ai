@@ -853,6 +853,17 @@ const maybeAutoSkipV2Field = async ({
   }
 };
 
+// ============================================================================
+// V3 PROBE STABLEKEY BUILDERS - Single source of truth for key format
+// ============================================================================
+const buildV3ProbeQStableKey = (sessionId, categoryId, instanceNumber, probeIndex) => {
+  return `v3-probe-q:${sessionId}:${categoryId}:${instanceNumber}:${probeIndex}`;
+};
+
+const buildV3ProbeAStableKey = (sessionId, categoryId, instanceNumber, probeIndex) => {
+  return `v3-probe-a:${sessionId}:${categoryId}:${instanceNumber}:${probeIndex}`;
+};
+
 // Centralized V2 probe runner for both base questions and follow-ups
 // CRITICAL: For V2 packs, we ALWAYS call the backend - it controls progression
 /**
@@ -7615,6 +7626,18 @@ export default function CandidateInterview() {
     v3SubmitCounterRef.current++;
     const submitId = v3SubmitCounterRef.current;
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+    const categoryId = v3ProbingContext?.categoryId;
+    const instanceNumber = v3ProbingContext?.instanceNumber || 1;
+    const packId = v3ProbingContext?.packId;
+    
+    // Compute probeIndex from current probe count in transcript
+    const currentProbeCount = dbTranscript.filter(e => 
+      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+      e.meta?.sessionId === sessionId &&
+      e.meta?.categoryId === categoryId &&
+      e.meta?.instanceNumber === instanceNumber
+    ).length;
+    const probeIndex = currentProbeCount;
     
     const payload = {
       text: answerText,
@@ -7623,13 +7646,20 @@ export default function CandidateInterview() {
       createdAt: Date.now()
     };
     
-    console.log('[V3_PROBE][ANSWER_SUBMIT]', { 
+    const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+    const qStableKey = buildV3ProbeQStableKey(sessionId, categoryId, instanceNumber, probeIndex);
+    const aStableKey = buildV3ProbeAStableKey(sessionId, categoryId, instanceNumber, probeIndex);
+    
+    console.log('[V3_PROBE][COMMIT_BEGIN]', { 
       sessionId, 
-      submitId, 
-      answerPreview: answerText?.substring(0, 50), 
+      categoryId,
+      instanceNumber,
+      probeIndex,
+      promptId,
       loopKey,
-      v3ProbingActive,
-      localEffectiveItemType
+      qKey: qStableKey,
+      aKey: aStableKey,
+      answerLen: answerText?.length || 0
     });
     
     // FIX C: Clear V3 draft on successful submit
@@ -7678,6 +7708,9 @@ export default function CandidateInterview() {
     // CRITICAL: V3 probe ANSWERS must ALWAYS persist to canonical transcript BEFORE any MI_GATE stream suppression
     // This ensures transcript completeness regardless of UI state transitions
     let wroteTranscript = false;
+    let qAdded = false;
+    let aAdded = false;
+    
     if (v3ProbingActive && localEffectiveItemType === 'v3_probing' && loopKey && answerText?.trim()) {
       const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
       
@@ -7689,170 +7722,162 @@ export default function CandidateInterview() {
           reason: 'Cannot append without stable promptId'
         });
       } else {
-        // Session-scoped stableKeys (consistent with handleV3PromptChange)
-        const qStableKey = `v3-probe-q:${sessionId}:${promptId}`;
-        const aStableKey = `v3-probe-a:${sessionId}:${promptId}`;
+        // CANONICAL KEYS: Use centralized builders (session+category+instance+index scoped)
+        const qStableKey = buildV3ProbeQStableKey(sessionId, categoryId, instanceNumber, probeIndex);
+        const aStableKey = buildV3ProbeAStableKey(sessionId, categoryId, instanceNumber, probeIndex);
         
-        // TRANSCRIPT PERSISTENCE: Must happen BEFORE any stream suppression or UI state changes
-        await new Promise((resolve) => {
-          setDbTranscriptSafe(prev => {
-            // ORDERING GUARANTEE: Ensure question exists before appending answer
-            const questionExists = prev.some(e => 
-              e.stableKey === qStableKey || 
-              (e.messageType === 'V3_PROBE_QUESTION' && e.meta?.promptId === promptId && e.meta?.sessionId === sessionId)
-            );
+        console.log('[V3_PROBE][COMMIT_BEGIN]', {
+          sessionId,
+          categoryId,
+          instanceNumber,
+          probeIndex,
+          promptId,
+          loopKey,
+          qKey: qStableKey,
+          aKey: aStableKey,
+          answerLen: answerText?.length || 0
+        });
+        
+        // SYNCHRONOUS COMMIT: Update canonical ref IMMEDIATELY (not in async callback)
+        setDbTranscriptSafe(prev => {
+          let working = [...prev];
+          
+          // Step 1: Ensure question exists (append if missing)
+          const questionExists = working.some(e => 
+            e.stableKey === qStableKey ||
+            (e.messageType === 'V3_PROBE_QUESTION' && e.meta?.promptId === promptId && e.meta?.sessionId === sessionId)
+          );
+          
+          if (!questionExists) {
+            const promptText = lastV3PromptSnapshotRef.current?.promptText || v3ActivePromptText || "(Question text unavailable)";
             
-            let working = prev;
-            
-            if (!questionExists) {
-              console.error('[CQ_TRANSCRIPT][V3_PROBE_MISSING_Q_REGRESSION]', {
-                promptId,
-                loopKey,
-                sessionId,
-                stableKeyQ: qStableKey,
-                stableKeyA: aStableKey,
-                reason: 'Answer submitted but question missing from transcript'
-              });
-              
-              // RECOVERY: Append question first (with session-scoped key)
-              const promptText = lastV3PromptSnapshotRef.current?.promptText || v3ActivePromptText || "(Question text unavailable)";
-              
-              const qEntry = {
-                id: `v3-probe-q-${promptId}`,
-                stableKey: qStableKey,
-                index: getNextIndex(working),
-                role: "assistant",
-                text: promptText,
-                timestamp: new Date().toISOString(),
-                createdAt: Date.now(),
-                messageType: 'V3_PROBE_QUESTION',
-                type: 'V3_PROBE_QUESTION',
-                meta: {
-                  promptId,
-                  loopKey,
-                  packId: v3ProbingContext.packId,
-                  instanceNumber: v3ProbingContext.instanceNumber,
-                  categoryId: v3ProbingContext.categoryId,
-                  sessionId,
-                  source: 'v3'
-                },
-                visibleToCandidate: true
-              };
-              
-              working = [...working, qEntry];
-              
-              console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_RECOVERY_APPEND]', {
-                stableKey: qStableKey,
-                promptId,
-                sessionId,
-                reason: 'Question appended before answer to fix ordering'
-              });
-            }
-            
-            // Check for duplicate answer (session-scoped)
-            const answerExists = working.some(e => 
-              e.stableKey === aStableKey ||
-              (e.messageType === 'V3_PROBE_ANSWER' && e.meta?.promptId === promptId && e.meta?.sessionId === sessionId)
-            );
-            
-            if (answerExists) {
-              console.log('[V3_TRANSCRIPT][DEDUPE_A]', { stableKey: aStableKey, sessionId });
-              resolve(false);
-              return working;
-            }
-            
-            // Append answer (session-scoped key)
-            const aEntry = {
-              id: `v3-probe-a-${promptId}`,
-              stableKey: aStableKey,
+            const qEntry = {
+              id: `v3-probe-q-${sessionId}-${categoryId}-${instanceNumber}-${probeIndex}`,
+              stableKey: qStableKey,
               index: getNextIndex(working),
-              role: "user",
-              text: answerText,
+              role: "assistant",
+              text: promptText,
               timestamp: new Date().toISOString(),
               createdAt: Date.now(),
-              messageType: 'V3_PROBE_ANSWER',
-              type: 'V3_PROBE_ANSWER',
+              messageType: 'V3_PROBE_QUESTION',
+              type: 'V3_PROBE_QUESTION',
               meta: {
                 promptId,
                 loopKey,
-                packId: v3ProbingContext.packId,
-                instanceNumber: v3ProbingContext.instanceNumber,
-                categoryId: v3ProbingContext.categoryId,
+                packId,
+                instanceNumber,
+                categoryId,
                 sessionId,
+                probeIndex,
                 source: 'v3'
               },
               visibleToCandidate: true
             };
             
-            const updated = [...working, aEntry];
+            working = [...working, qEntry];
+            qAdded = true;
             
-            // Persist to DB immediately (synchronous for transcript integrity)
-            base44.entities.InterviewSession.update(sessionId, {
-              transcript_snapshot: updated
-            }).then(() => {
-              wroteTranscript = true;
-              
-              console.log('[V3_PROBE][ANSWER_SUBMIT]', {
-                sessionId,
-                promptId,
-                stableKey: aStableKey,
-                wroteTranscript: true,
-                answerLen: answerText?.length || 0,
-                transcriptLenAfter: updated.length
-              });
-              
-              // OPTIMISTIC UPDATE: Immediately upsert to canonical
-              const optimistic = upsertTranscriptMonotonic(canonicalTranscriptRef.current, updated, 'v3_probe_answer');
-              canonicalTranscriptRef.current = optimistic;
-              
-              console.log('[APPEND_OPTIMISTIC][V3_PROBE]', {
-                stableKey: aStableKey,
-                canonicalLen: optimistic.length,
-                sessionId
-              });
-
-              // Track for protection
-              recentlySubmittedUserAnswersRef.current.add(aStableKey);
-              
-              // ANCHOR: Mark for viewport
-              recentAnchorRef.current = {
-                kind: 'V3_PROBE_ANSWER',
-                stableKey: aStableKey,
-                ts: Date.now()
-              };
-              
-              resolve(true);
-            }).catch(err => {
-              console.error('[CQ_TRANSCRIPT][V3_PROBE_A_ERROR]', { error: err.message, sessionId });
-              resolve(false);
+            console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_COMMIT]', {
+              stableKey: qStableKey,
+              promptId,
+              sessionId,
+              probeIndex
             });
+          }
+          
+          // Step 2: Append answer (dedupe check)
+          const answerExists = working.some(e => 
+            e.stableKey === aStableKey ||
+            (e.messageType === 'V3_PROBE_ANSWER' && e.meta?.promptId === promptId && e.meta?.sessionId === sessionId && e.meta?.probeIndex === probeIndex)
+          );
+          
+          if (answerExists) {
+            console.log('[V3_TRANSCRIPT][DEDUPE_A]', { stableKey: aStableKey, sessionId, probeIndex });
+            return working; // No changes needed
+          }
+          
+          // Append answer
+          const aEntry = {
+            id: `v3-probe-a-${sessionId}-${categoryId}-${instanceNumber}-${probeIndex}`,
+            stableKey: aStableKey,
+            index: getNextIndex(working),
+            role: "user",
+            text: answerText,
+            timestamp: new Date().toISOString(),
+            createdAt: Date.now(),
+            messageType: 'V3_PROBE_ANSWER',
+            type: 'V3_PROBE_ANSWER',
+            meta: {
+              promptId,
+              loopKey,
+              packId,
+              instanceNumber,
+              categoryId,
+              sessionId,
+              probeIndex,
+              source: 'v3'
+            },
+            visibleToCandidate: true
+          };
+          
+          const updated = [...working, aEntry];
+          aAdded = true;
+          wroteTranscript = true;
+          
+          // IMMEDIATE CANONICAL UPDATE: Sync canonicalRef (no async wait)
+          canonicalTranscriptRef.current = updated;
+          
+          // Track for protection (E)
+          recentlySubmittedUserAnswersRef.current.add(aStableKey);
+          
+          // ANCHOR: Mark for viewport
+          recentAnchorRef.current = {
+            kind: 'V3_PROBE_ANSWER',
+            stableKey: aStableKey,
+            ts: Date.now()
+          };
+          
+          // Persist to DB async (non-blocking)
+          base44.entities.InterviewSession.update(sessionId, {
+            transcript_snapshot: updated
+          }).then(() => {
+            const probeQuestionCountAfter = updated.filter(e => 
+              e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION'
+            ).length;
+            const probeAnswerCountAfter = updated.filter(e => 
+              e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER'
+            ).length;
             
-            return updated;
+            console.log('[V3_PROBE][COMMIT_DONE]', {
+              qAdded,
+              aAdded,
+              transcriptLenAfter: updated.length,
+              probeQuestionCountAfter,
+              probeAnswerCountAfter,
+              sessionId,
+              stableKeyA: aStableKey
+            });
+          }).catch(err => {
+            console.error('[CQ_TRANSCRIPT][V3_PROBE_PERSIST_ERROR]', { error: err.message, sessionId });
           });
+          
+          return updated;
         });
       }
       
-      // Clear active probe question after answering
-      v3ActiveProbeQuestionRef.current = null;
-      v3ActiveProbeQuestionLoopKeyRef.current = null;
-    } else if (!v3ProbingActive || localEffectiveItemType !== 'v3_probing') {
-      // GUARD: Prevent append after V3 exit
-      console.log('[V3_TRANSCRIPT][APPEND_BLOCKED]', {
-        v3ProbingActive,
-        effectiveItemType: localEffectiveItemType,
-        loopKey,
-        answerTextLen: answerText?.length || 0,
-        reason: 'V3 probing not active - skipping append'
-      });
     } else {
-      console.error('[V3_TRANSCRIPT][APPEND_FAILED_PRECONDITIONS]', {
+      console.log('[V3_TRANSCRIPT][APPEND_SKIPPED]', {
         v3ProbingActive,
-        effectiveItemType: localEffectiveItemType,
+        localEffectiveItemType,
         hasLoopKey: !!loopKey,
-        hasAnswerText: !!(answerText?.trim()),
-        reason: 'Preconditions not met for V3 answer append'
+        hasAnswerText: !!answerText?.trim(),
+        reason: 'Preconditions not met for V3 commit'
       });
     }
+    
+    // Clear active probe question after processing
+    v3ActiveProbeQuestionRef.current = null;
+    v3ActiveProbeQuestionLoopKeyRef.current = null;
     
     // Store answer in snapshot for reconciliation (before any UI state changes)
     if (lastV3PromptSnapshotRef.current && wroteTranscript) {
