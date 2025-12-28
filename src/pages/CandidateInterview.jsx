@@ -1611,6 +1611,9 @@ export default function CandidateInterview() {
   const v3AckClearCountRef = useRef(0);
   const v3AckRepairCountRef = useRef(0);
   
+  // V3 SUBMIT PAYLOAD: Store last submitted answer for reconciliation
+  const lastV3SubmittedAnswerRef = useRef(null);
+  
   // MI_GATE UI CONTRACT SELF-TEST: Track main pane render + footer buttons per itemId
   const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { mainPaneRendered: bool, footerButtonsOnly: bool, testStarted: bool }>
   const miGateTestTimeoutRef = useRef(null);
