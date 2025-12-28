@@ -11459,6 +11459,20 @@ export default function CandidateInterview() {
   
   // Unified bottom bar submit handler for question, v2_pack_field, followup, and V3 probing
   const handleBottomBarSubmit = async () => {
+    // V3 SUBMIT INTENT: Capture routing decision BEFORE state updates (prevents mis-route)
+    const submitIntent = {
+      isV3Submit: v3PromptPhase === 'ANSWER_NEEDED' || 
+                  activeUiItem.kind === 'V3_PROMPT' ||
+                  (v3PromptIdSOT && v3PromptIdSOT.trim() !== ''),
+      promptId: v3PromptIdSOT,
+      loopKey: v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null,
+      categoryId: v3ProbingContext?.categoryId || lastV3PromptSnapshotRef.current?.categoryId,
+      instanceNumber: v3ProbingContext?.instanceNumber || lastV3PromptSnapshotRef.current?.instanceNumber || 1,
+      packId: v3ProbingContext?.packId || lastV3PromptSnapshotRef.current?.packId,
+      promptText: v3ActivePromptText || lastV3PromptSnapshotRef.current?.promptText,
+      capturedAt: Date.now()
+    };
+    
     console.log("[BOTTOM_BAR_SUBMIT][CLICK]", {
       hasCurrentItem: !!currentItem,
       currentItemType: currentItem?.type,
@@ -11470,9 +11484,55 @@ export default function CandidateInterview() {
       inputSnapshot: input?.substring?.(0, 50) || input,
       effectiveItemType
     });
+    
+    console.log('[V3_PROBE][SUBMIT_INTENT]', {
+      isV3Submit: submitIntent.isV3Submit,
+      promptId: submitIntent.promptId,
+      categoryId: submitIntent.categoryId,
+      instanceNumber: submitIntent.instanceNumber,
+      activeUiItemKindAtClick: activeUiItem.kind
+    });
 
-    // ROUTE: V3 probing answer (headless mode)
-    if (v3ProbingActive) {
+    // V3 SUBMIT PAYLOAD: Store answer before any state changes (survives transitions)
+    if (submitIntent.isV3Submit) {
+      const answerText = (input ?? "").trim();
+      
+      lastV3SubmittedAnswerRef.current = {
+        promptId: submitIntent.promptId,
+        expectedAKey: buildV3ProbeAStableKey(sessionId, submitIntent.categoryId, submitIntent.instanceNumber, 
+          dbTranscript.filter(e => 
+            (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+            e.meta?.sessionId === sessionId &&
+            e.meta?.categoryId === submitIntent.categoryId &&
+            e.meta?.instanceNumber === submitIntent.instanceNumber
+          ).length
+        ),
+        expectedQKey: buildV3ProbeQStableKey(sessionId, submitIntent.categoryId, submitIntent.instanceNumber,
+          dbTranscript.filter(e => 
+            (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+            e.meta?.sessionId === sessionId &&
+            e.meta?.categoryId === submitIntent.categoryId &&
+            e.meta?.instanceNumber === submitIntent.instanceNumber
+          ).length
+        ),
+        answerText,
+        capturedAt: Date.now(),
+        sessionId,
+        categoryId: submitIntent.categoryId,
+        instanceNumber: submitIntent.instanceNumber,
+        packId: submitIntent.packId
+      };
+      
+      console.log('[V3_PROBE][SUBMIT_PAYLOAD_STORED]', {
+        expectedAKey: lastV3SubmittedAnswerRef.current.expectedAKey,
+        expectedQKey: lastV3SubmittedAnswerRef.current.expectedQKey,
+        promptId: submitIntent.promptId,
+        answerLen: answerText?.length || 0
+      });
+    }
+
+    // ROUTE: V3 probing answer (headless mode) - use submitIntent routing
+    if (submitIntent.isV3Submit) {
       const trimmed = (input ?? "").trim();
       if (!trimmed) {
         console.log("[BOTTOM_BAR_SUBMIT][V3] blocked: empty input");
