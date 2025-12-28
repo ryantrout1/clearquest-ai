@@ -2841,19 +2841,211 @@ export default function CandidateInterview() {
     // Just track the current field - actual logging happens in handleAnswer
   }, [v2PackMode, activeV2Pack, currentItem]);
 
-  // Cleanup V3 recap append guard when sessionId changes (prevent cross-session leakage)
+  // FULL SESSION RESET: Cleanup all interview-local state when sessionId changes (prevent cross-session leakage)
   useEffect(() => {
     if (!sessionId) return;
     
-    console.log('[V3_RECAP][CLEANUP] Clearing recap append guard for session', { sessionId });
-    v3RecapAppendedKeysRef.current.clear();
+    console.log('[INTERVIEW_RESET][START]', { 
+      sessionId,
+      transcriptLenBefore: canonicalTranscriptRef.current.length,
+      dbTranscriptLenBefore: dbTranscript.length,
+      v3ProbeHistoryLenBefore: v3ProbeDisplayHistory.length
+    });
     
-    // Clear UI-only probe display history on session change
+    // CRITICAL: Reset canonical transcript ref (prevents cross-session contamination)
+    canonicalTranscriptRef.current = [];
+    
+    // Reset all V3 probing state
     setV3ProbeDisplayHistory([]);
+    setV3ProbingActive(false);
+    setV3ProbingContext(null);
+    setV3ActivePromptText(null);
+    setV3PendingAnswer(null);
+    setV3PromptPhase('IDLE');
     
-    // Diagnostic: Confirm init after state change
-    console.log('[V3_UI_HISTORY][INIT_OK]', { len: 0, reason: 'session_change_cleanup' });
+    // Reset V3 gate state
+    setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
+    setMultiInstanceGate(null);
+    
+    // Clear V3 refs
+    v3ActiveProbeQuestionRef.current = null;
+    v3ActiveProbeQuestionLoopKeyRef.current = null;
+    lastV3PromptSnapshotRef.current = null;
+    v3RecapAppendedKeysRef.current.clear();
+    v3OpenerSubmittedRef.current.clear();
+    v3ProbingStartedRef.current.clear();
+    v3RecapReadyRef.current.clear();
+    lastRenderedV3PromptKeyRef.current = null;
+    v3PromptSnapshotsRef.current = [];
+    setV3PromptSnapshots([]);
+    
+    // Clear idempotency guards (prevent cross-session false positives)
+    submittedKeysRef.current.clear();
+    completedSectionKeysRef.current.clear();
+    appendedTranscriptKeysRef.current.clear();
+    triggeredPacksRef.current.clear();
+    
+    // Clear tracking refs
+    lastLoggedV2PackFieldRef.current = null;
+    lastLoggedFollowupCardIdRef.current = null;
+    lastQuestionShownIdRef.current = null;
+    promptMissingKeyRef.current = null;
+    handledPromptIdsRef.current.clear();
+    lastV3SubmitLockKeyRef.current = null;
+    
+    // Clear UI state
+    setV2PackMode("BASE");
+    setActiveV2Pack(null);
+    setV2ClarifierState(null);
+    setCurrentFieldProbe(null);
+    setFieldSuggestions({});
+    setAiFollowupCounts({});
+    setCurrentFollowUpAnswers({});
+    
+    // Clear scroll anchors
+    recentAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
+    v3ScrollAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
+    
+    // Clear protection refs
+    recentlySubmittedUserAnswersRef.current.clear();
+    recentlySubmittedUserAnswersMetaRef.current.clear();
+    
+    // Clear diagnostic refs
+    lastIdempotencyLockedRef.current = null;
+    lastIdempotencyReleasedRef.current = null;
+    lastPromptCommitRef.current = null;
+    lastWatchdogSnapshotRef.current = null;
+    lastWatchdogDecisionRef.current = null;
+    lastWatchdogOutcomeRef.current = null;
+    
+    // TRANSCRIPT SOT RESET: Reset initialization flag
+    transcriptInitializedRef.current = false;
+    
+    // Clear render stream tracking
+    lastRenderStreamLenRef.current = 0;
+    renderedTranscriptSnapshotRef.current = null;
+    frozenRenderStreamRef.current = null;
+    
+    console.log('[INTERVIEW_RESET][COMPLETE]', {
+      sessionId,
+      transcriptLenBefore: 0,
+      transcriptLenAfter: canonicalTranscriptRef.current.length,
+      allStateCleared: true
+    });
   }, [sessionId]);
+  
+  // Multi-instance gate V3 transcript reconciliation (repair missing probe Q+A)
+  useEffect(() => {
+    if (!multiInstanceGate) return;
+    
+    const sessionId = new URLSearchParams(window.location.search).get("session");
+    if (!sessionId) return;
+    
+    // Extract last V3 promptId from context or snapshot
+    const lastPromptId = lastV3PromptSnapshotRef.current?.promptId || v3ProbingContext?.promptId;
+    
+    if (!lastPromptId) {
+      console.log('[MI_GATE][V3_RECONCILE]', {
+        sessionId,
+        promptId: null,
+        actionTaken: 'SKIP_NO_PROMPTID'
+      });
+      return;
+    }
+    
+    // Construct expected stableKeys (session-scoped)
+    const expectedQKey = `v3-probe-q:${sessionId}:${lastPromptId}`;
+    const expectedAKey = `v3-probe-a:${sessionId}:${lastPromptId}`;
+    
+    // Check if answer exists in transcript
+    setDbTranscriptSafe(prev => {
+      const foundQuestion = prev.some(e => e.stableKey === expectedQKey);
+      const foundAnswer = prev.some(e => e.stableKey === expectedAKey);
+      
+      console.log('[MI_GATE][V3_RECONCILE]', {
+        sessionId,
+        promptId: lastPromptId,
+        expectedStableKey: expectedAKey,
+        foundInTranscript: foundAnswer,
+        foundQuestion,
+        actionTaken: foundAnswer ? 'SKIP_ALREADY_EXISTS' : 'WILL_REPAIR'
+      });
+      
+      // If answer missing but we have snapshot data, repair it
+      if (!foundAnswer && lastV3PromptSnapshotRef.current?.lastAnswerText) {
+        const promptText = lastV3PromptSnapshotRef.current.promptText;
+        const answerText = lastV3PromptSnapshotRef.current.lastAnswerText;
+        
+        let working = prev;
+        
+        // Ensure question exists first
+        if (!foundQuestion && promptText) {
+          const qEntry = {
+            id: `v3-probe-q-${lastPromptId}`,
+            stableKey: expectedQKey,
+            index: getNextIndex(working),
+            role: "assistant",
+            text: promptText,
+            timestamp: new Date().toISOString(),
+            createdAt: Date.now(),
+            messageType: 'V3_PROBE_QUESTION',
+            type: 'V3_PROBE_QUESTION',
+            meta: {
+              promptId: lastPromptId,
+              sessionId,
+              source: 'v3_reconcile'
+            },
+            visibleToCandidate: true
+          };
+          
+          working = [...working, qEntry];
+          
+          console.log('[MI_GATE][V3_RECONCILE_Q_REPAIR]', {
+            stableKey: expectedQKey,
+            sessionId
+          });
+        }
+        
+        // Append missing answer
+        const aEntry = {
+          id: `v3-probe-a-${lastPromptId}`,
+          stableKey: expectedAKey,
+          index: getNextIndex(working),
+          role: "user",
+          text: answerText,
+          timestamp: new Date().toISOString(),
+          createdAt: Date.now(),
+          messageType: 'V3_PROBE_ANSWER',
+          type: 'V3_PROBE_ANSWER',
+          meta: {
+            promptId: lastPromptId,
+            sessionId,
+            source: 'v3_reconcile'
+          },
+          visibleToCandidate: true
+        };
+        
+        const updated = [...working, aEntry];
+        
+        // Persist repair
+        base44.entities.InterviewSession.update(sessionId, {
+          transcript_snapshot: updated
+        }).then(() => {
+          console.log('[MI_GATE][V3_RECONCILE_A_REPAIR_OK]', {
+            stableKey: expectedAKey,
+            sessionId,
+            transcriptLenAfter: updated.length
+          });
+        }).catch(err => {
+          console.error('[MI_GATE][V3_RECONCILE_ERROR]', { error: err.message });
+        });
+        
+        return updated;
+      }
+      
+      return prev; // No repair needed
+    });
+  }, [multiInstanceGate, setDbTranscriptSafe]);
 
   // ACTIVE UI ITEM CHANGE TRACE: Moved to render section (after activeUiItem is initialized)
   // This avoids TDZ error while keeping hook order consistent
@@ -7483,8 +7675,9 @@ export default function CandidateInterview() {
       return prev; // No mutation - just logging
     });
     
-    // FIX C: Append answer to DB transcript with ordering guarantee (optimistic)
-    // CRITICAL: V3 probe ANSWERS must always append to transcript (candidate-visible)
+    // CRITICAL: V3 probe ANSWERS must ALWAYS persist to canonical transcript BEFORE any MI_GATE stream suppression
+    // This ensures transcript completeness regardless of UI state transitions
+    let wroteTranscript = false;
     if (v3ProbingActive && localEffectiveItemType === 'v3_probing' && loopKey && answerText?.trim()) {
       const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
       
@@ -7496,17 +7689,17 @@ export default function CandidateInterview() {
           reason: 'Cannot append without stable promptId'
         });
       } else {
-        // FIX: promptId already contains sessionId via loopKey - don't duplicate
-        const qStableKey = `v3-probe-q:${promptId}`;
-        const aStableKey = `v3-probe-a:${promptId}`;
+        // Session-scoped stableKeys (consistent with handleV3PromptChange)
+        const qStableKey = `v3-probe-q:${sessionId}:${promptId}`;
+        const aStableKey = `v3-probe-a:${sessionId}:${promptId}`;
         
-        // OPTIMISTIC APPEND: Use functional update to work with latest local state
+        // TRANSCRIPT PERSISTENCE: Must happen BEFORE any stream suppression or UI state changes
         await new Promise((resolve) => {
           setDbTranscriptSafe(prev => {
             // ORDERING GUARANTEE: Ensure question exists before appending answer
             const questionExists = prev.some(e => 
               e.stableKey === qStableKey || 
-              (e.messageType === 'V3_PROBE_QUESTION' && e.meta?.promptId === promptId)
+              (e.messageType === 'V3_PROBE_QUESTION' && e.meta?.promptId === promptId && e.meta?.sessionId === sessionId)
             );
             
             let working = prev;
@@ -7515,12 +7708,13 @@ export default function CandidateInterview() {
               console.error('[CQ_TRANSCRIPT][V3_PROBE_MISSING_Q_REGRESSION]', {
                 promptId,
                 loopKey,
+                sessionId,
                 stableKeyQ: qStableKey,
                 stableKeyA: aStableKey,
                 reason: 'Answer submitted but question missing from transcript'
               });
               
-              // RECOVERY: Append question first
+              // RECOVERY: Append question first (with session-scoped key)
               const promptText = lastV3PromptSnapshotRef.current?.promptText || v3ActivePromptText || "(Question text unavailable)";
               
               const qEntry = {
@@ -7539,6 +7733,7 @@ export default function CandidateInterview() {
                   packId: v3ProbingContext.packId,
                   instanceNumber: v3ProbingContext.instanceNumber,
                   categoryId: v3ProbingContext.categoryId,
+                  sessionId,
                   source: 'v3'
                 },
                 visibleToCandidate: true
@@ -7549,20 +7744,24 @@ export default function CandidateInterview() {
               console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_RECOVERY_APPEND]', {
                 stableKey: qStableKey,
                 promptId,
+                sessionId,
                 reason: 'Question appended before answer to fix ordering'
               });
             }
             
-            // Check for duplicate answer
-            const answerExists = working.some(e => e.stableKey === aStableKey);
+            // Check for duplicate answer (session-scoped)
+            const answerExists = working.some(e => 
+              e.stableKey === aStableKey ||
+              (e.messageType === 'V3_PROBE_ANSWER' && e.meta?.promptId === promptId && e.meta?.sessionId === sessionId)
+            );
             
             if (answerExists) {
-              console.log('[V3_TRANSCRIPT][DEDUPE_A]', { stableKey: aStableKey });
+              console.log('[V3_TRANSCRIPT][DEDUPE_A]', { stableKey: aStableKey, sessionId });
               resolve(false);
               return working;
             }
             
-            // Append answer
+            // Append answer (session-scoped key)
             const aEntry = {
               id: `v3-probe-a-${promptId}`,
               stableKey: aStableKey,
@@ -7579,6 +7778,7 @@ export default function CandidateInterview() {
                 packId: v3ProbingContext.packId,
                 instanceNumber: v3ProbingContext.instanceNumber,
                 categoryId: v3ProbingContext.categoryId,
+                sessionId,
                 source: 'v3'
               },
               visibleToCandidate: true
@@ -7586,41 +7786,35 @@ export default function CandidateInterview() {
             
             const updated = [...working, aEntry];
             
-            // Persist to DB async (no wait)
+            // Persist to DB immediately (synchronous for transcript integrity)
             base44.entities.InterviewSession.update(sessionId, {
               transcript_snapshot: updated
             }).then(() => {
-              console.log('[CQ_TRANSCRIPT][V3_PROBE_ANSWER_APPEND_OK]', {
-                stableKey: aStableKey,
+              wroteTranscript = true;
+              
+              console.log('[V3_PROBE][ANSWER_SUBMIT]', {
+                sessionId,
                 promptId,
-                loopKey,
+                stableKey: aStableKey,
+                wroteTranscript: true,
                 answerLen: answerText?.length || 0,
                 transcriptLenAfter: updated.length
               });
               
-              // STEP 3: OPTIMISTIC UPDATE - Immediately upsert to canonical
+              // OPTIMISTIC UPDATE: Immediately upsert to canonical
               const optimistic = upsertTranscriptMonotonic(canonicalTranscriptRef.current, updated, 'v3_probe_answer');
               canonicalTranscriptRef.current = optimistic;
-              setDbTranscriptSafe(optimistic);
               
               console.log('[APPEND_OPTIMISTIC][V3_PROBE]', {
                 stableKey: aStableKey,
-                canonicalLen: optimistic.length
+                canonicalLen: optimistic.length,
+                sessionId
               });
 
-              // STEP 3: Submit SOT log (dev only)
-              if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-                console.log('[CQ_TRANSCRIPT][SUBMIT_SOT]', {
-                  stableKey: aStableKey,
-                  messageType: 'v3_probe_answer',
-                  textLen: answerText?.length || 0
-                });
-              }
-
-              // B) Track recently submitted user answer for protection
+              // Track for protection
               recentlySubmittedUserAnswersRef.current.add(aStableKey);
               
-              // ANCHOR: Mark this answer for viewport anchoring
+              // ANCHOR: Mark for viewport
               recentAnchorRef.current = {
                 kind: 'V3_PROBE_ANSWER',
                 stableKey: aStableKey,
@@ -7629,7 +7823,7 @@ export default function CandidateInterview() {
               
               resolve(true);
             }).catch(err => {
-              console.error('[CQ_TRANSCRIPT][V3_PROBE_A_ERROR]', { error: err.message });
+              console.error('[CQ_TRANSCRIPT][V3_PROBE_A_ERROR]', { error: err.message, sessionId });
               resolve(false);
             });
             
