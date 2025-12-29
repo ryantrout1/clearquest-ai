@@ -12488,16 +12488,31 @@ export default function CandidateInterview() {
       return deduped;
     };
     
-    // V3 UI CONTRACT: Hard denylist for V3 probe items in candidate transcript
-    // V3 probe Q/A render ONLY in active prompt lane - NEVER in transcript history
+    // V3 UI CONTRACT: Conditional probe filtering based on active UI state
+    // Rule: Suppress probes from transcript ONLY while a probe is actively being asked
+    // Once UI moves on (MI_GATE, next question, etc.), probes render in history normally
+    const suppressProbesInTranscript = activeUiItem?.kind === "V3_PROMPT" || 
+                                      activeUiItem?.kind === "V3_WAITING" ||
+                                      (v3ProbingActive && hasActiveV3Prompt);
+    
+    console.log('[V3_UI_CONTRACT][PROBE_TRANSCRIPT_POLICY]', {
+      activeUiItemKind: activeUiItem?.kind,
+      v3ProbingActive,
+      hasActiveV3Prompt,
+      suppressProbesInTranscript,
+      reason: suppressProbesInTranscript 
+        ? 'Active probe - suppress from transcript (render in prompt lane)' 
+        : 'No active probe - allow persisted probes in history'
+    });
+    
     const transcriptWithV3ProbesBlocked = transcriptToRender.filter(entry => {
       const mt = entry.messageType || entry.type || entry.kind || null;
       const stableKey = entry.stableKey || entry.id || null;
       const isUserRole = entry.role === 'user';
       const isRecentlySubmitted = stableKey && recentlySubmittedUserAnswersRef.current.has(stableKey);
       
-      // V3 UI CONTRACT HARD DENYLIST: Block V3 probe items from candidate transcript
-      const V3_PROBE_DENYLISTED_TYPES = [
+      // V3 PROBE TYPES
+      const V3_PROBE_TYPES = [
         'V3_PROBE_QUESTION',
         'V3_PROBE_PROMPT', 
         'V3_PROBE_ANSWER',
@@ -12505,14 +12520,29 @@ export default function CandidateInterview() {
         'AI_FOLLOWUP_QUESTION'
       ];
       
-      if (V3_PROBE_DENYLISTED_TYPES.includes(mt)) {
+      const isV3ProbeType = V3_PROBE_TYPES.includes(mt);
+      
+      // CONDITIONAL FILTER: Only suppress if probe is currently active
+      if (isV3ProbeType && suppressProbesInTranscript) {
         console.log('[V3_UI_CONTRACT][FILTERED_PROBE_FROM_TRANSCRIPT]', {
           mt,
           stableKey,
+          activeUiItemKind: activeUiItem?.kind,
           source: entry.__activeCard ? 'ephemeral' : 'dbTranscript',
-          reason: 'UI contract: probes render only in active prompt lane'
+          reason: 'Probe active - rendering in prompt lane only'
         });
-        return false; // BLOCK from transcript
+        return false; // BLOCK while active
+      }
+      
+      // Allow persisted probe Q/A when no active probe
+      if (isV3ProbeType && !suppressProbesInTranscript) {
+        console.log('[V3_UI_CONTRACT][PROBE_ALLOWED_IN_HISTORY]', {
+          mt,
+          stableKey,
+          activeUiItemKind: activeUiItem?.kind,
+          reason: 'No active probe - allowing in transcript history'
+        });
+        return true; // ALLOW in history
       }
       
       if (isUserRole && stableKey) {
@@ -12554,18 +12584,27 @@ export default function CandidateInterview() {
         return true;
       }
 
-      // V3 probe items already filtered by hard denylist above - this section removed
-      // Keeping stableKey prefix checks for additional safety only
+      // Additional safety: stableKey prefix check (conditional on suppressProbesInTranscript)
       const hasV3ProbeQPrefix = stableKey && stableKey.startsWith('v3-probe-q:');
       const hasV3ProbeAPrefix = stableKey && stableKey.startsWith('v3-probe-a:');
 
-      if (hasV3ProbeQPrefix || hasV3ProbeAPrefix) {
+      if ((hasV3ProbeQPrefix || hasV3ProbeAPrefix) && suppressProbesInTranscript) {
         console.log('[V3_UI_CONTRACT][FILTERED_PROBE_BY_PREFIX]', {
           stableKey,
+          activeUiItemKind: activeUiItem?.kind,
           source: 'stableKey_prefix_check',
-          reason: 'Additional safety filter for v3-probe- prefix'
+          reason: 'Probe active - filtering by prefix'
         });
-        return false; // BLOCK by stableKey prefix
+        return false; // BLOCK by stableKey prefix when active
+      }
+      
+      if ((hasV3ProbeQPrefix || hasV3ProbeAPrefix) && !suppressProbesInTranscript) {
+        console.log('[V3_UI_CONTRACT][PROBE_PREFIX_ALLOWED_IN_HISTORY]', {
+          stableKey,
+          activeUiItemKind: activeUiItem?.kind,
+          reason: 'No active probe - allowing in history'
+        });
+        return true; // ALLOW when not active
       }
       
       return true;
@@ -12687,7 +12726,8 @@ export default function CandidateInterview() {
       }
     }
     
-    // Check DB transcript for missing V3 probe answers (in-scope only)
+    // Check DB transcript for missing V3 probe answers - CONDITIONAL on suppressProbesInTranscript
+    // Only attempt reinsertion when probes should be visible (not suppressed)
     const dbV3ProbeAnswers = (dbTranscript || []).filter(e => {
       const mt = e.messageType || e.type || e.kind || null;
       const stableKey = e.stableKey || e.id || null;
@@ -12700,24 +12740,52 @@ export default function CandidateInterview() {
       return (stableKey && stableKey.startsWith('v3-probe-q:')) || mt === 'V3_PROBE_QUESTION';
     });
     
-    for (const dbEntry of dbV3ProbeAnswers) {
-      const stableKey = dbEntry.stableKey || dbEntry.id || null;
-      if (!stableKey) continue;
-      
-      const promptId = stableKey.startsWith('v3-probe-a:') 
-        ? stableKey.replace('v3-probe-a:', '') 
-        : null;
-      
-      if (promptId && !promptIdToV3ProbeA.has(promptId)) {
-        console.log('[CQ_TRANSCRIPT][V3_PROBE_A_REINSERTED]', {
-          promptId,
-          stableKey,
-          reason: 'present_in_db_missing_in_render'
-        });
+    // CONDITIONAL REINSERTION: Only run when probes should be visible in transcript
+    if (!suppressProbesInTranscript) {
+      for (const dbEntry of dbV3ProbeAnswers) {
+        const stableKey = dbEntry.stableKey || dbEntry.id || null;
+        if (!stableKey) continue;
         
-        // Mark for reinsertion (debug only, not persisted)
-        promptIdToV3ProbeA.set(promptId, { ...dbEntry, __reinserted: true });
+        const promptId = stableKey.startsWith('v3-probe-a:') 
+          ? stableKey.replace('v3-probe-a:', '') 
+          : null;
+        
+        if (promptId && !promptIdToV3ProbeA.has(promptId)) {
+          // Ensure question also exists before reinserting answer
+          const hasQuestionInDb = dbV3ProbeQuestions.some(q => {
+            const qKey = q.stableKey || q.id || '';
+            return qKey.includes(promptId);
+          });
+          
+          const hasQuestionInRender = promptIdToV3ProbeQ.has(promptId);
+          
+          if (hasQuestionInDb && hasQuestionInRender) {
+            console.log('[CQ_TRANSCRIPT][PROBE_REINSERT_SKIPPED_OR_PAIRED]', {
+              promptId,
+              stableKey,
+              action: 'PAIR',
+              reason: 'Question exists - reinserting paired answer'
+            });
+            
+            promptIdToV3ProbeA.set(promptId, { ...dbEntry, __reinserted: true });
+          } else {
+            console.log('[CQ_TRANSCRIPT][PROBE_REINSERT_SKIPPED_OR_PAIRED]', {
+              promptId,
+              stableKey,
+              action: 'SKIP',
+              hasQuestionInDb,
+              hasQuestionInRender,
+              reason: 'Question missing - skipping answer reinsertion to avoid orphan'
+            });
+          }
+        }
       }
+    } else {
+      console.log('[CQ_TRANSCRIPT][PROBE_REINSERT_SKIPPED_OR_PAIRED]', {
+        action: 'SKIP',
+        suppressProbesInTranscript: true,
+        reason: 'Probe active - no reinsertion needed'
+      });
     }
     
     // Check for missing V3 probe answers not in DB at all
@@ -12850,6 +12918,47 @@ export default function CandidateInterview() {
     
     // Use placeholder-injected list for rendering
     transcriptToRenderDeduped = transcriptWithParentPlaceholders;
+    
+    // C) MI GATE DEDUPE: Remove duplicate MI gate entries by stableKey
+    const miGateDedupeMap = new Map();
+    const transcriptWithMiGateDedupe = [];
+    let miGateRemovedCount = 0;
+    const miGateRemovedKeys = [];
+    
+    for (const entry of transcriptToRenderDeduped) {
+      const mt = entry.messageType || entry.type || null;
+      const stableKey = entry.stableKey || entry.id || null;
+      
+      // Identify MI gate entries
+      const isMiGateEntry = (stableKey && stableKey.startsWith('mi-gate:')) || 
+                           mt === 'MULTI_INSTANCE_GATE_SHOWN' ||
+                           mt === 'MULTI_INSTANCE_GATE_ANSWER';
+      
+      if (isMiGateEntry && stableKey) {
+        if (miGateDedupeMap.has(stableKey)) {
+          miGateRemovedCount++;
+          if (miGateRemovedKeys.length < 3) {
+            miGateRemovedKeys.push(stableKey);
+          }
+          continue; // Skip duplicate
+        }
+        miGateDedupeMap.set(stableKey, true);
+      }
+      
+      transcriptWithMiGateDedupe.push(entry);
+    }
+    
+    if (miGateRemovedCount > 0) {
+      console.log('[MI_GATE][DEDUP_APPLIED]', {
+        beforeLen: transcriptToRenderDeduped.length,
+        afterLen: transcriptWithMiGateDedupe.length,
+        removedCount: miGateRemovedCount,
+        removedKeysSample: miGateRemovedKeys
+      });
+    }
+    
+    // Use MI-gate-deduped list
+    transcriptToRenderDeduped = transcriptWithMiGateDedupe;
     
     // PART 2: ADJACENCY-BASED QUESTIONID INFERENCE (orphan Yes/No answers)
     // Infer questionId for answers that have no questionId/meta by finding nearby QUESTION_SHOWN
