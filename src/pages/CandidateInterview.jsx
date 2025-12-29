@@ -9880,13 +9880,14 @@ export default function CandidateInterview() {
     const hasActiveOpenerCard = activeCard && activeCard.kind === "v3_pack_opener";
     
     if (!hasActiveOpenerCard) {
-      console.error("[V3_UI_CONTRACT][ACTIVE_PROMPT_WITHOUT_CARD]", {
+      console.error("[V3_UI_CONTRACT][ORPHANED_TEXT_INPUT_PREVENTED]", {
         activeUiItemKind: activeUiItem.kind,
         packId: currentItem?.packId,
         instanceNumber: currentItem?.instanceNumber,
         hasActiveCard: !!activeCard,
         activeCardKind: activeCard?.kind || null,
-        reason: "V3_OPENER is active but no main-pane card mounted - preventing orphaned footer"
+        reason: "V3_OPENER is active but no main-pane card mounted - preventing orphaned footer",
+        action: "forcing DISABLED mode"
       });
       bottomBarMode = "DISABLED";
     } else {
@@ -13478,6 +13479,98 @@ export default function CandidateInterview() {
       <main className="flex-1 overflow-y-auto cq-scroll scrollbar-thin" ref={historyRef} onScroll={handleTranscriptScroll}>
         <div className="px-4 pt-6" style={{ paddingBottom: `${dynamicBottomPaddingPx}px` }}>
           <div className="space-y-3 relative isolate">
+            {/* ACTIVE CARD LANE: Render active prompt card independently (not part of transcript) */}
+            {activeCard && (activeUiItem.kind === "V3_OPENER" || activeUiItem.kind === "V3_PROMPT" || activeUiItem.kind === "MI_GATE") && (() => {
+              console.log('[ACTIVE_LANE][RENDER]', {
+                activeKind: activeUiItem.kind,
+                activeCardKind: activeCard.kind,
+                stableKey: activeCard.stableKey,
+                screenMode,
+                packId: activeCard.packId,
+                instanceNumber: activeCard.instanceNumber
+              });
+
+              const cardKind = activeCard.kind;
+
+              if (cardKind === "v3_probe_q") {
+                const safeCardPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_V3_PROBE');
+                return (
+                  <div key={`active-${activeCard.stableKey}`}>
+                    <ContentContainer>
+                      <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
+                          {activeCard.instanceNumber > 1 && (
+                            <>
+                              <span className="text-xs text-slate-500">•</span>
+                              <span className="text-xs text-slate-400">Instance {activeCard.instanceNumber}</span>
+                            </>
+                          )}
+                        </div>
+                        <p className="text-white text-sm leading-relaxed">{safeCardPrompt}</p>
+                      </div>
+                    </ContentContainer>
+                  </div>
+                );
+              }
+
+              if (cardKind === "v3_pack_opener") {
+                const safeOpenerPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_V3_OPENER');
+                return (
+                  <div key={`active-${activeCard.stableKey}`}>
+                    <ContentContainer>
+                      <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
+                        {activeCard.categoryLabel && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-sm font-medium text-purple-400">
+                              {activeCard.categoryLabel}{activeCard.instanceNumber > 1 ? ` — Instance ${activeCard.instanceNumber}` : ''}
+                            </span>
+                          </div>
+                        )}
+                        <p className="text-white text-sm leading-relaxed">{safeOpenerPrompt}</p>
+                        {activeCard.exampleNarrative && (
+                          <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
+                            <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
+                            <p className="text-slate-300 text-xs italic">{activeCard.exampleNarrative}</p>
+                          </div>
+                        )}
+                      </div>
+                    </ContentContainer>
+                  </div>
+                );
+              }
+
+              if (cardKind === "multi_instance_gate") {
+                const safeMiGatePrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_MI_GATE');
+                return (
+                  <div key={`active-${activeCard.stableKey}`}>
+                    <ContentContainer>
+                      <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
+                        <p className="text-white text-base leading-relaxed">{safeMiGatePrompt}</p>
+                      </div>
+                    </ContentContainer>
+                  </div>
+                );
+              }
+
+              if (cardKind === "v3_thinking") {
+                return (
+                  <div key={`active-${activeCard.stableKey}`}>
+                    <ContentContainer>
+                      <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                          <span className="text-sm text-purple-300">{activeCard.text}</span>
+                        </div>
+                      </div>
+                    </ContentContainer>
+                  </div>
+                );
+              }
+
+              return null;
+            })()}
+
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {finalTranscriptList.map((entry, index) => {
               // CANONICAL STREAM: Handle both transcript entries AND active cards
