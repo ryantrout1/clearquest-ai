@@ -1786,6 +1786,9 @@ export default function CandidateInterview() {
   const openerMergeStatusRef = React.useRef('UNKNOWN');
   const footerClearanceStatusRef = React.useRef('UNKNOWN');
   
+  // GOLDEN CONTRACT CHECK: Dedupe tracking for golden check emissions
+  const lastGoldenCheckPayloadRef = React.useRef(null);
+  
   // CANONICAL DETECTOR: Log once per session (reduce noise)
   const canonicalDetectorLoggedRef = useRef(false);
   
@@ -10115,9 +10118,9 @@ export default function CandidateInterview() {
       try {
         const scrollContainer = historyRef.current;
         const footerEl = footerRef.current;
-        
+
         if (!scrollContainer || !footerEl) return;
-        
+
         // Verify footer spacer exists
         const spacer = scrollContainer.querySelector('[data-cq-footer-spacer="true"]');
         if (!spacer) {
@@ -10127,14 +10130,14 @@ export default function CandidateInterview() {
             reason: 'Footer spacer element not found - clearance may fail'
           });
         }
-        
+
         const scrollRect = scrollContainer.getBoundingClientRect();
         const footerRect = footerEl.getBoundingClientRect();
-        
+
         // Get last REAL item (before footer spacer) in scroll container
         const allItems = scrollContainer.querySelectorAll('[data-stablekey]');
         let lastItem = null;
-        
+
         // Find last item that is NOT the spacer
         for (let i = allItems.length - 1; i >= 0; i--) {
           const item = allItems[i];
@@ -10143,7 +10146,7 @@ export default function CandidateInterview() {
             break;
           }
         }
-        
+
         if (!lastItem) {
           console.error('[UI_CONTRACT][FOOTER_CLEARANCE_UNMEASURABLE]', {
             mode: bottomBarMode,
@@ -10152,10 +10155,66 @@ export default function CandidateInterview() {
           });
           return;
         }
-        
-        const lastItemRect = lastItem.getBoundingClientRect();
+
+        // MEASUREMENT TARGET VALIDATION: Ensure lastItem is a real card container
+        const isRealCard = lastItem.hasAttribute('data-stablekey') &&
+                          (lastItem.querySelector('.rounded-xl') || // Card containers use rounded-xl
+                           lastItem.classList.contains('rounded-xl') ||
+                           lastItem.querySelector('[role]') ||
+                           lastItem.querySelector('p') || // Cards have text content
+                           lastItem.querySelector('div'));
+
+        let finalLastItem = lastItem;
+        let measurementCorrected = false;
+        let originalOverlapPx = 0;
+
+        if (!isRealCard) {
+          console.warn('[UI_CONTRACT][FOOTER_MEASURE_TARGET_SUSPECT]', {
+            reason: 'lastItem_not_card',
+            selectorUsed: '[data-stablekey] (excluding spacer)',
+            lastItemTagName: lastItem.tagName,
+            lastItemClassesSample: lastItem.className?.substring(0, 60),
+            hasDataStablekey: lastItem.hasAttribute('data-stablekey')
+          });
+
+          // Original measurement before correction
+          const suspectRect = lastItem.getBoundingClientRect();
+          originalOverlapPx = Math.max(0, suspectRect.bottom - footerRect.top);
+
+          // STRICTER SELECTOR: Find last actual card element
+          // Strategy 1: Last element with both data-stablekey AND card structure
+          const cardCandidates = Array.from(allItems).filter(el => 
+            el.getAttribute('data-cq-footer-spacer') !== 'true' &&
+            (el.querySelector('.rounded-xl') || el.classList.contains('rounded-xl'))
+          );
+
+          if (cardCandidates.length > 0) {
+            finalLastItem = cardCandidates[cardCandidates.length - 1];
+            measurementCorrected = true;
+
+            console.log('[UI_CONTRACT][FOOTER_MEASURE_TARGET_CORRECTED]', {
+              oldSelector: '[data-stablekey] (excluding spacer)',
+              newSelector: '[data-stablekey] with .rounded-xl card structure',
+              oldTagName: lastItem.tagName,
+              newTagName: finalLastItem.tagName,
+              correctedElement: true
+            });
+          }
+        }
+
+        const lastItemRect = finalLastItem.getBoundingClientRect();
         const lastItemBottomOverlapPx = Math.max(0, lastItemRect.bottom - footerRect.top);
-        
+
+        // Log correction if measurement changed
+        if (measurementCorrected) {
+          console.log('[UI_CONTRACT][FOOTER_MEASURE_TARGET_CORRECTED]', {
+            oldOverlapPx: Math.round(originalOverlapPx),
+            newOverlapPx: Math.round(lastItemBottomOverlapPx),
+            delta: Math.round(originalOverlapPx - lastItemBottomOverlapPx),
+            improved: lastItemBottomOverlapPx < originalOverlapPx
+          });
+        }
+
         console.log('[UI_CONTRACT][FOOTER_CLEARANCE_ASSERT]', {
           mode: bottomBarMode,
           footerMeasuredHeightPx,
@@ -10165,22 +10224,35 @@ export default function CandidateInterview() {
           clientHeight: Math.round(scrollRect.height),
           scrollHeight: Math.round(scrollContainer.scrollHeight),
           lastItemBottomOverlapPx: Math.round(lastItemBottomOverlapPx),
-          hasOverlap: lastItemBottomOverlapPx > 0
+          hasOverlap: lastItemBottomOverlapPx > 0,
+          measurementCorrected
         });
-        
-        // Status log: Deterministic PASS/FAIL
+
+        // Status log: Deterministic PASS/FAIL (use corrected overlap)
         const status = lastItemBottomOverlapPx <= 2 ? 'PASS' : 'FAIL';
         const statusPayload = {
           status,
           mode: bottomBarMode,
           overlapPx: Math.round(lastItemBottomOverlapPx),
-          spacerHeightPx: dynamicBottomPaddingPx
+          spacerHeightPx: dynamicBottomPaddingPx,
+          measurementCorrected
         };
 
         console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', statusPayload);
 
         // Store footer status for SOT log (component-level ref)
         footerClearanceStatusRef.current = status;
+
+        // CORRECTED FAIL: If corrected overlap shows failure
+        if (measurementCorrected && status === 'FAIL') {
+          console.error('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS_FAIL_CORRECTED]', {
+            correctedOverlapPx: Math.round(lastItemBottomOverlapPx),
+            mode: bottomBarMode,
+            reason: 'overlap_detected_after_target_correction',
+            originalOverlapPx: Math.round(originalOverlapPx),
+            correctionImproved: lastItemBottomOverlapPx < originalOverlapPx
+          });
+        }
         
         if (status === 'FAIL') {
           console.error('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS_FAIL]', {
@@ -14259,6 +14331,30 @@ export default function CandidateInterview() {
     v3UiRenderable
   ]);
   
+  // GOLDEN CONTRACT CHECK: Emit deterministic verification bundle (deduped)
+  const emitGoldenContractCheck = React.useCallback(() => {
+    const payload = {
+      sessionId,
+      activeUiItemKind: activeUiItem?.kind,
+      bottomBarMode,
+      footerClearanceStatus: footerClearanceStatusRef.current,
+      openerHistoryStatus: openerMergeStatusRef.current,
+      suppressProbesInTranscript: (activeUiItem?.kind === "V3_PROMPT" || activeUiItem?.kind === "V3_WAITING") && v3ProbingActive,
+      lastMeasuredOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
+      hasFooterSpacer: typeof window !== 'undefined' && !!historyRef.current?.querySelector('[data-cq-footer-spacer="true"]'),
+      transcriptLen: finalTranscriptList?.length || 0
+    };
+    
+    // Dedupe: Only emit if payload changed
+    const payloadKey = JSON.stringify(payload);
+    if (lastGoldenCheckPayloadRef.current === payloadKey) {
+      return; // No change - skip emission
+    }
+    
+    lastGoldenCheckPayloadRef.current = payloadKey;
+    console.log('[UI_CONTRACT][GOLDEN_CHECK]', payload);
+  }, [sessionId, activeUiItem, bottomBarMode, v3ProbingActive, finalTranscriptList]);
+  
   // CONSOLIDATED UI CONTRACT STATUS LOG (Single Source of Truth)
   // Emits once per mode change with all three contract aspects
   React.useEffect(() => {
@@ -14274,7 +14370,12 @@ export default function CandidateInterview() {
       bottomBarMode,
       sessionId
     });
-  }, [bottomBarMode, activeUiItem?.kind, v3ProbingActive, sessionId]);
+    
+    // Emit golden check after SOT status (only for active modes)
+    if (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO') {
+      emitGoldenContractCheck();
+    }
+  }, [bottomBarMode, activeUiItem?.kind, v3ProbingActive, sessionId, emitGoldenContractCheck]);
   
   // UI CONTRACT STATUS RESET: Clear status refs on session change
   React.useEffect(() => {
