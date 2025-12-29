@@ -12163,6 +12163,21 @@ export default function CandidateInterview() {
   // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
   // ============================================================================
   const finalTranscriptList = useMemo(() => {
+    // CRASH GUARD: Safe logging helper (prevents logging from crashing render)
+    const safeLog = (fn) => {
+      try {
+        fn();
+      } catch (e) {
+        console.warn('[CQ_TRANSCRIPT][LOGGING_GUARD_SUPPRESSED]', { 
+          message: e?.message,
+          stack: e?.stack?.substring(0, 200)
+        });
+      }
+    };
+    
+    // CRASH GUARD: Initialize filteredOut at outer scope (accessible to all downstream code)
+    let filteredOut = [];
+    
     // CQ_TRANSCRIPT_CONTRACT: Render-time invariant check + ENFORCEMENT
     // Ephemeral items (active cards) MUST NOT appear in chat history
     let transcriptToRender = renderableTranscriptStream;
@@ -12190,7 +12205,7 @@ export default function CandidateInterview() {
         });
         
         // ENFORCEMENT: Remove ephemeral items ONLY (never real transcript items)
-        let filteredOut = []; // CRASH GUARD: Initialize at outer scope
+        // filteredOut already initialized at outer useMemo scope
         transcriptToRender = renderableTranscriptStream.filter(e => {
           // NORMALIZE: Read type field consistently
           const mt = e.messageType || e.type || e.kind || null;
@@ -12252,20 +12267,21 @@ export default function CandidateInterview() {
         });
         
         // CRASH GUARD: Safe logging with fallback for filteredOut
-        const filteredOutSafe = Array.isArray(filteredOut) ? filteredOut : [];
-        
-        console.log('[CQ_TRANSCRIPT][CRASH_GUARD_OK]', {
-          hasFilteredOut: typeof filteredOut !== 'undefined',
-          usingSafeFallback: !Array.isArray(filteredOut),
-          filteredOutLen: filteredOutSafe.length
-        });
-        
-        console.log('[CQ_TRANSCRIPT][EPHEMERAL_FILTERED]', {
-          beforeLen: renderableTranscriptStream.length,
-          afterLen: transcriptToRender.length,
-          removedCount: ephemeralSources.length,
-          stableKeysRemoved: filteredOutSafe.map(e => e.stableKey).slice(0, 5),
-          filteredDetails: filteredOutSafe.slice(0, 3)
+        safeLog(() => {
+          const filteredOutSafe = Array.isArray(filteredOut) ? filteredOut : [];
+          
+          console.log('[CQ_TRANSCRIPT][CRASH_GUARD_OK]', {
+            hasFilteredOut: typeof filteredOut !== 'undefined',
+            filteredOutLen: filteredOutSafe.length
+          });
+          
+          console.log('[CQ_TRANSCRIPT][EPHEMERAL_FILTERED]', {
+            beforeLen: renderableTranscriptStream.length,
+            afterLen: transcriptToRender.length,
+            removedCount: ephemeralSources.length,
+            stableKeysRemoved: filteredOutSafe.map(e => e?.stableKey).filter(Boolean).slice(0, 5),
+            filteredDetails: filteredOutSafe.slice(0, 3)
+          });
         });
       }
     }
@@ -13079,19 +13095,21 @@ export default function CandidateInterview() {
         const existsInDeduped = transcriptWithV3ProbeQA.some(e => (e.stableKey || e.id) === stableKeyA);
         const existsInFinal = transcriptToRenderDeduped.some(e => (e.stableKey || e.id) === stableKeyA);
 
-        // CRASH GUARD: Use safe fallback for filteredOut
-        const filteredOutSafe = Array.isArray(filteredOut) ? filteredOut : [];
+        // CRASH GUARD: Safe logging with fallback for filteredOut
+        safeLog(() => {
+          const filteredOutSafe = Array.isArray(filteredOut) ? filteredOut : [];
 
-        console.log('[CQ_TRANSCRIPT][V3_PROBE_A_TRUTH_TABLE]', {
-          promptId,
-          stableKeyA,
-          existsInDb,
-          existsInDeduped,
-          existsInFinal,
-          activeUiItemKind: activeUiItem?.kind,
-          packId,
-          instanceNumber,
-          filteredStableKeysRemoved: filteredOutSafe.map(e => e.stableKey).filter(Boolean).slice(0, 5)
+          console.log('[CQ_TRANSCRIPT][V3_PROBE_A_TRUTH_TABLE]', {
+            promptId,
+            stableKeyA,
+            existsInDb,
+            existsInDeduped,
+            existsInFinal,
+            activeUiItemKind: activeUiItem?.kind,
+            packId,
+            instanceNumber,
+            filteredStableKeysRemoved: filteredOutSafe.map(e => e?.stableKey).filter(Boolean).slice(0, 5)
+          });
         });
       }
     }
