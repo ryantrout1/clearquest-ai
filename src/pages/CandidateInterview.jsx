@@ -13845,7 +13845,7 @@ export default function CandidateInterview() {
                   itemId: transcriptGateItemId,
                   event: 'TRANSCRIPT_MAIN_PANE_RENDERED',
                   tracker,
-                  renderContext
+                  renderContext: miGateRenderContext
                 });
               }
               
