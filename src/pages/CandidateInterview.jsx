@@ -86,6 +86,9 @@ if (typeof window !== "undefined" && !window.__CQAI_FETCH_WRAPPED__) {
 // Global logging flag for CandidateInterview
 const DEBUG_MODE = false;
 
+// Footer anchor diagnostics flag (set to true to enable flex layout diagnostics)
+const CQ_DEBUG_FOOTER_ANCHOR = false;
+
 // Simple in-memory registry so we only log each question once per session.
 // Key format: `${sessionId}::${questionKey}`
 const transcriptQuestionLogRegistry = new Set();
@@ -2985,6 +2988,18 @@ export default function CandidateInterview() {
     if (!el) return false;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     return distanceFromBottom <= thresholdPx;
+  };
+  
+  // BOTTOM ANCHOR HELPERS: Deterministic bottom-pinning for short transcripts
+  const isNearBottomStrict = (el, thresholdPx = 24) => {
+    if (!el) return false;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    return distanceFromBottom <= thresholdPx;
+  };
+  
+  const scrollToBottom = (el) => {
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
   };
 
   // MESSAGE TYPE SOT: Canonical messageType normalizer (handles DB casing mismatches)
@@ -10122,14 +10137,16 @@ export default function CandidateInterview() {
         if (!scrollContainer || !footerEl) return;
         
         // DIAGNOSTIC: Verify scroll container flex setup for bottom-anchoring
-        const computed = window.getComputedStyle(scrollContainer);
-        console.log('[UI_CONTRACT][SCROLL_CONTAINER_FLEX_DIAGNOSTIC]', {
-          display: computed.display,
-          flexDirection: computed.flexDirection,
-          clientHeight: scrollContainer.clientHeight,
-          scrollHeight: scrollContainer.scrollHeight,
-          overflowY: computed.overflowY
-        });
+        if (CQ_DEBUG_FOOTER_ANCHOR) {
+          const computed = window.getComputedStyle(scrollContainer);
+          console.log('[UI_CONTRACT][SCROLL_CONTAINER_FLEX_DIAGNOSTIC]', {
+            display: computed.display,
+            flexDirection: computed.flexDirection,
+            clientHeight: scrollContainer.clientHeight,
+            scrollHeight: scrollContainer.scrollHeight,
+            overflowY: computed.overflowY
+          });
+        }
 
         // YES_NO ACTIVE CARD VERIFICATION: Log active question stableKey for diagnostics
         if (screenMode === 'QUESTION' && bottomBarMode === 'YES_NO' && effectiveItemType === 'question') {
@@ -10937,6 +10954,44 @@ export default function CandidateInterview() {
       scrollTopAfter: scrollTop + delta
     });
   }, [dynamicBottomPaddingPx, screenMode, isUserTyping, bottomBarMode]);
+  
+  // DETERMINISTIC BOTTOM ANCHOR ENFORCEMENT: Keep transcript pinned to bottom when expected
+  React.useLayoutEffect(() => {
+    const scrollContainer = historyRef.current;
+    if (!scrollContainer) return;
+    
+    // Compute overflow state
+    const hasOverflow = scrollContainer.scrollHeight > scrollContainer.clientHeight + 1;
+    const nearBottom = isNearBottomStrict(scrollContainer, 24);
+    
+    // Decision: scroll to bottom if short OR if user is near bottom
+    const shouldScrollToBottom = !hasOverflow || nearBottom;
+    
+    if (!shouldScrollToBottom) return;
+    
+    // Execute scroll
+    const scrollTopBefore = scrollContainer.scrollTop;
+    scrollToBottom(scrollContainer);
+    const scrollTopAfter = scrollContainer.scrollTop;
+    const didScroll = Math.abs(scrollTopAfter - scrollTopBefore) > 1;
+    
+    if (CQ_DEBUG_FOOTER_ANCHOR && didScroll) {
+      console.log('[UI_CONTRACT][BOTTOM_ANCHOR_ENFORCE]', {
+        reason: !hasOverflow ? 'SHORT_NO_OVERFLOW' : 'NEAR_BOTTOM_OVERFLOW',
+        scrollTopBefore: Math.round(scrollTopBefore),
+        scrollTopAfter: Math.round(scrollTopAfter),
+        scrollHeight: scrollContainer.scrollHeight,
+        clientHeight: scrollContainer.clientHeight,
+        hasOverflow,
+        nearBottom
+      });
+    }
+  }, [
+    finalTranscriptList?.length,
+    activeUiItem?.kind,
+    activeCard?.stableKey,
+    dynamicBottomPaddingPx
+  ]);
   
   // ACTIVE CARD PIN: Prevent active card from sliding behind footer
   React.useLayoutEffect(() => {
