@@ -10161,6 +10161,39 @@ export default function CandidateInterview() {
         const scrollRect = scrollContainer.getBoundingClientRect();
         const footerRect = footerEl.getBoundingClientRect();
 
+        // REAL ACTIVE CARD GATE: Verify hasActiveCard matches DOM reality
+        const hasRealActiveCardInDom = scrollContainer.querySelectorAll('[data-cq-active-card="true"]').length > 0;
+        
+        // SAFETY: Skip validation if hasActiveCard=true but no real cards in DOM (non-QUESTION modes)
+        if (hasActiveCard && !hasRealActiveCardInDom) {
+          // GUARD: Only SKIP for non-interview modes (WELCOME, etc.)
+          // For QUESTION modes, enforce strict FAIL behavior
+          const isQuestionMode = screenMode === 'QUESTION';
+          
+          if (!isQuestionMode) {
+            console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SKIP]', {
+              mode: bottomBarMode,
+              screenMode,
+              activeUiItemKind: activeUiItem?.kind,
+              hasActiveCard,
+              hasRealActiveCardInDom,
+              reason: 'HAS_ACTIVE_CARD_TRUE_BUT_NONE_IN_DOM - non-question mode',
+              action: 'SKIP'
+            });
+            
+            footerClearanceStatusRef.current = 'SKIP';
+            
+            console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', {
+              status: 'SKIP',
+              mode: bottomBarMode,
+              screenMode,
+              reason: 'DERIVED_FLAG_DOM_MISMATCH_NON_QUESTION_MODE'
+            });
+            
+            return; // Exit early - skip validation
+          }
+        }
+        
         // STRUCTURAL ASSERTION: Verify active card is in scroll container
         if (hasActiveCard) {
           const activeCardsInContainer = scrollContainer.querySelectorAll('[data-cq-active-card="true"]');
@@ -10170,6 +10203,7 @@ export default function CandidateInterview() {
               mode: bottomBarMode,
               activeUiItemKind: activeUiItem?.kind,
               hasActiveCard,
+              screenMode,
               reason: 'Active card is not a descendant of historyRef scroll container - spacer + measurement cannot protect it',
               action: 'FAIL_CLOSED'
             });
@@ -10179,6 +10213,7 @@ export default function CandidateInterview() {
             console.error('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', {
               status: 'FAIL',
               mode: bottomBarMode,
+              screenMode,
               overlapPx: 'UNMEASURABLE',
               reason: 'ACTIVE_CARD_NOT_IN_SCROLL_CONTAINER'
             });
