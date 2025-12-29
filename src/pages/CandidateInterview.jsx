@@ -9959,7 +9959,8 @@ export default function CandidateInterview() {
     hasActiveCard,
     effectiveGap: hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX,
     gapReduction: hasActiveCard ? '~75%' : 'none',
-    shouldRenderFooter
+    shouldRenderFooter,
+    appliedTo: 'scroll_container_main_element'
   });
   
   // WELCOME-specific log to confirm unified path
@@ -9968,6 +9969,55 @@ export default function CandidateInterview() {
       bottomBarMode,
       computedPaddingPx: dynamicBottomPaddingPx,
       usesUnifiedLogic: true
+    });
+  }
+  
+  // FOOTER CLEARANCE ASSERTION: Verify no overlap (run when active card present)
+  if (hasActiveCard && typeof window !== 'undefined') {
+    requestAnimationFrame(() => {
+      try {
+        const scrollContainer = historyRef.current;
+        const footerEl = footerRef.current;
+        
+        if (!scrollContainer || !footerEl) return;
+        
+        const scrollRect = scrollContainer.getBoundingClientRect();
+        const footerRect = footerEl.getBoundingClientRect();
+        
+        // Get last rendered item in scroll container
+        const items = scrollContainer.querySelectorAll('[data-stablekey]');
+        const lastItem = items[items.length - 1];
+        
+        if (lastItem) {
+          const lastItemRect = lastItem.getBoundingClientRect();
+          const lastItemBottomOverlapPx = Math.max(0, lastItemRect.bottom - footerRect.top);
+          
+          console.log('[UI_CONTRACT][FOOTER_CLEARANCE_ASSERT]', {
+            mode: bottomBarMode,
+            footerMeasuredHeightPx,
+            safeFooterClearancePx: SAFE_FOOTER_CLEARANCE_PX,
+            appliedPaddingBottomPx: dynamicBottomPaddingPx,
+            clientHeight: Math.round(scrollRect.height),
+            scrollHeight: Math.round(scrollContainer.scrollHeight),
+            lastItemBottomOverlapPx: Math.round(lastItemBottomOverlapPx),
+            hasOverlap: lastItemBottomOverlapPx > 0
+          });
+          
+          if (lastItemBottomOverlapPx > 0) {
+            console.error('[UI_CONTRACT][FOOTER_OVERLAP_DETECTED]', {
+              mode: bottomBarMode,
+              overlapPx: Math.round(lastItemBottomOverlapPx),
+              footerMeasuredHeightPx,
+              appliedPaddingBottomPx: dynamicBottomPaddingPx,
+              lastItemBottom: Math.round(lastItemRect.bottom),
+              footerTop: Math.round(footerRect.top),
+              reason: 'Content obscured by footer - padding insufficient'
+            });
+          }
+        }
+      } catch (err) {
+        // Silent - assertion should never crash
+      }
     });
   }
   
@@ -13682,8 +13732,8 @@ export default function CandidateInterview() {
         `}
       </style>
 
-      <main className="flex-1 overflow-y-auto cq-scroll scrollbar-thin" ref={historyRef} onScroll={handleTranscriptScroll}>
-        <div className="px-4 pt-6" style={{ paddingBottom: `${dynamicBottomPaddingPx}px` }}>
+      <main className="flex-1 overflow-y-auto cq-scroll scrollbar-thin" ref={historyRef} onScroll={handleTranscriptScroll} style={{ paddingBottom: `${dynamicBottomPaddingPx}px` }}>
+        <div className="px-4 pt-6">
           <div className="space-y-3 relative isolate">
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {finalTranscriptList.map((entry, index) => {
