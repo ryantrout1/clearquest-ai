@@ -2018,8 +2018,16 @@ export default function CandidateInterview() {
   // ============================================================================
   // ACTIVE CARD COMPUTATION - MUST precede footer mode (prevents TDZ)
   // ============================================================================
-  // Compute transcriptRenderable early (needed for activeCard dedupe)
-  const transcriptRenderable = renderedTranscriptSnapshotRef.current || renderedTranscript;
+  // TDZ GUARD: Use dbTranscript for early dedupe (renderedTranscript not yet initialized)
+  // This is ONLY for activeCard dedupe checks - canonical render uses renderedTranscript later
+  const transcriptRenderableEarly = renderedTranscriptSnapshotRef.current || dbTranscript || [];
+  
+  console.log('[TDZ_GUARD][TRANSCRIPT_EARLY_FALLBACK]', {
+    usedSnapshot: !!renderedTranscriptSnapshotRef.current,
+    usedDb: !renderedTranscriptSnapshotRef.current && !!dbTranscript,
+    len: transcriptRenderableEarly.length,
+    reason: 'renderedTranscript not yet initialized - using early sources for activeCard dedupe'
+  });
   
   // Initialize activeCard (assigned below, read by footer mode computation)
   let activeCard = null;
@@ -2157,8 +2165,8 @@ export default function CandidateInterview() {
     const openerText = currentItem?.openerText || "";
     const stableKey = `followup-card:${currentItem.packId}:opener:${currentItem.instanceNumber || 1}`;
     
-    // DEDUPE: Check if opener already in transcriptRenderable
-    const alreadyInStream = transcriptRenderable.some(e => 
+    // DEDUPE: Check if opener already in transcript (using early TDZ-safe source)
+    const alreadyInStream = transcriptRenderableEarly.some(e => 
       e.__canonicalKey === stableKey || 
       (e.messageType === 'FOLLOWUP_CARD_SHOWN' && e.meta?.variant === 'opener' && e.meta?.packId === currentItem.packId && e.meta?.instanceNumber === currentItem.instanceNumber)
     );
