@@ -13800,7 +13800,7 @@ export default function CandidateInterview() {
               }
 
               // UI CONTRACT ENFORCEMENT: Transcript context = read-only (no inline actions)
-              const renderContext = "TRANSCRIPT";
+              const miGateRenderContext = "TRANSCRIPT";
               
               // DEFENSIVE GUARD: Prevent any future inline button rendering
               if (isActiveMiGate && renderContext === "TRANSCRIPT") {
