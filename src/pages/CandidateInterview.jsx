@@ -9963,6 +9963,40 @@ export default function CandidateInterview() {
     appliedTo: 'scroll_container_main_element'
   });
   
+  // GUARDRAIL A: Structural assertion - verify padding applied to scroll container
+  if (historyRef.current && typeof window !== 'undefined') {
+    requestAnimationFrame(() => {
+      try {
+        const scrollContainer = historyRef.current;
+        if (!scrollContainer) return;
+        
+        const computedStyle = window.getComputedStyle(scrollContainer);
+        const actualPaddingPx = parseFloat(computedStyle.paddingBottom) || 0;
+        const overflowY = computedStyle.overflowY;
+        const expectedPaddingPx = dynamicBottomPaddingPx;
+        const paddingTolerance = 1; // ±1px acceptable
+        
+        const paddingMatches = Math.abs(actualPaddingPx - expectedPaddingPx) <= paddingTolerance;
+        const isScrollContainer = overflowY === 'auto' || overflowY === 'scroll';
+        
+        if (!paddingMatches || !isScrollContainer) {
+          console.error('[UI_CONTRACT][FOOTER_PADDING_TARGET_INVALID]', {
+            mode: bottomBarMode,
+            expectedPaddingPx,
+            actualPaddingPx: Math.round(actualPaddingPx),
+            overflowY,
+            paddingMatches,
+            isScrollContainer,
+            appliedToHint: 'padding_must_be_on_scroll_container_with_overflow_auto',
+            reason: !paddingMatches ? 'padding_mismatch' : 'not_a_scroll_container'
+          });
+        }
+      } catch (err) {
+        // Silent - guardrail should never crash
+      }
+    });
+  }
+  
   // WELCOME-specific log to confirm unified path
   if (screenMode === 'WELCOME') {
     console.log('[WELCOME][FOOTER_PADDING_SOT]', {
@@ -9971,6 +10005,61 @@ export default function CandidateInterview() {
       usesUnifiedLogic: true
     });
   }
+  
+  // GUARDRAIL C: Mode switch assertion - verify padding recalculation on mode change
+  const prevBottomBarModeRef = React.useRef(bottomBarMode);
+  React.useEffect(() => {
+    const prevMode = prevBottomBarModeRef.current;
+    const currentMode = bottomBarMode;
+    
+    if (prevMode !== currentMode && typeof window !== 'undefined') {
+      requestAnimationFrame(() => {
+        try {
+          const scrollContainer = historyRef.current;
+          const footerEl = footerRef.current;
+          
+          if (!scrollContainer || !footerEl) return;
+          
+          const computedStyle = window.getComputedStyle(scrollContainer);
+          const actualPaddingPx = parseFloat(computedStyle.paddingBottom) || 0;
+          
+          // Check overlap after mode switch
+          const items = scrollContainer.querySelectorAll('[data-stablekey]');
+          const lastItem = items[items.length - 1];
+          let overlapPx = 0;
+          
+          if (lastItem) {
+            const lastItemRect = lastItem.getBoundingClientRect();
+            const footerRect = footerEl.getBoundingClientRect();
+            overlapPx = Math.max(0, Math.round(lastItemRect.bottom - footerRect.top));
+          }
+          
+          console.log('[UI_CONTRACT][FOOTER_MODE_SWITCH_OK]', {
+            fromMode: prevMode,
+            toMode: currentMode,
+            appliedPaddingBottomPx: Math.round(actualPaddingPx),
+            overlapPx,
+            hasOverlap: overlapPx > 0,
+            reason: overlapPx > 0 ? 'OVERLAP_AFTER_MODE_SWITCH' : 'clearance_maintained'
+          });
+          
+          if (overlapPx > 0) {
+            console.error('[UI_CONTRACT][FOOTER_MODE_SWITCH_OVERLAP]', {
+              fromMode: prevMode,
+              toMode: currentMode,
+              overlapPx,
+              appliedPaddingBottomPx: Math.round(actualPaddingPx),
+              reason: 'Mode switch caused overlap - padding recalculation may have failed'
+            });
+          }
+        } catch (err) {
+          // Silent - guardrail should never crash
+        }
+      });
+    }
+    
+    prevBottomBarModeRef.current = currentMode;
+  }, [bottomBarMode]);
   
   // FOOTER CLEARANCE ASSERTION: Verify no overlap (run when active card present)
   if (hasActiveCard && typeof window !== 'undefined') {
@@ -10013,6 +10102,24 @@ export default function CandidateInterview() {
               footerTop: Math.round(footerRect.top),
               reason: 'Content obscured by footer - padding insufficient'
             });
+          }
+          
+          // GUARDRAIL B: Track worst-case overlap for regression detection
+          const roundedOverlap = Math.round(lastItemBottomOverlapPx);
+          if (roundedOverlap > maxOverlapSeenRef.current.maxOverlapPx) {
+            console.error('[UI_CONTRACT][FOOTER_OVERLAP_REGRESSION]', {
+              mode: bottomBarMode,
+              overlapPx: roundedOverlap,
+              previousMaxOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
+              maxOverlapPx: roundedOverlap,
+              footerMeasuredHeightPx,
+              appliedPaddingBottomPx: dynamicBottomPaddingPx,
+              lastModeSeen: maxOverlapSeenRef.current.lastModeSeen,
+              reason: 'Overlap increased - potential regression'
+            });
+            
+            maxOverlapSeenRef.current.maxOverlapPx = roundedOverlap;
+            maxOverlapSeenRef.current.lastModeSeen = bottomBarMode;
           }
         }
       } catch (err) {
