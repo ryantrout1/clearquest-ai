@@ -12488,14 +12488,32 @@ export default function CandidateInterview() {
       return deduped;
     };
     
-    // CQ_FORBIDDEN: This filter protects active prompts only (NOT a transcript mutation)
-    // Persisted V3 probe Q/A always allowed — only active prompts render in prompt lane
-    // A) ALLOW PERSISTED V3 PROBE Q/A + PROTECT USER ANSWERS
+    // V3 UI CONTRACT: Hard denylist for V3 probe items in candidate transcript
+    // V3 probe Q/A render ONLY in active prompt lane - NEVER in transcript history
     const transcriptWithV3ProbesBlocked = transcriptToRender.filter(entry => {
       const mt = entry.messageType || entry.type || entry.kind || null;
       const stableKey = entry.stableKey || entry.id || null;
       const isUserRole = entry.role === 'user';
       const isRecentlySubmitted = stableKey && recentlySubmittedUserAnswersRef.current.has(stableKey);
+      
+      // V3 UI CONTRACT HARD DENYLIST: Block V3 probe items from candidate transcript
+      const V3_PROBE_DENYLISTED_TYPES = [
+        'V3_PROBE_QUESTION',
+        'V3_PROBE_PROMPT', 
+        'V3_PROBE_ANSWER',
+        'V3_PROBE',
+        'AI_FOLLOWUP_QUESTION'
+      ];
+      
+      if (V3_PROBE_DENYLISTED_TYPES.includes(mt)) {
+        console.log('[V3_UI_CONTRACT][FILTERED_PROBE_FROM_TRANSCRIPT]', {
+          mt,
+          stableKey,
+          source: entry.__activeCard ? 'ephemeral' : 'dbTranscript',
+          reason: 'UI contract: probes render only in active prompt lane'
+        });
+        return false; // BLOCK from transcript
+      }
       
       if (isUserRole && stableKey) {
         if (isRecentlySubmitted) {
@@ -12535,40 +12553,19 @@ export default function CandidateInterview() {
         
         return true;
       }
-      
-      const mtLocal = mt || entry.messageType || entry.type || entry.kind || null;
+
+      // V3 probe items already filtered by hard denylist above - this section removed
+      // Keeping stableKey prefix checks for additional safety only
       const hasV3ProbeQPrefix = stableKey && stableKey.startsWith('v3-probe-q:');
       const hasV3ProbeAPrefix = stableKey && stableKey.startsWith('v3-probe-a:');
-      const isV3ProbeQuestionType = mtLocal === 'V3_PROBE_QUESTION';
-      const isV3ProbeAnswerType = mtLocal === 'V3_PROBE_ANSWER';
-      
-      const isV3ProbeQA = (hasV3ProbeQPrefix || hasV3ProbeAPrefix || isV3ProbeQuestionType || isV3ProbeAnswerType);
-      
-      if (isV3ProbeQA) {
-        // CRITICAL FIX: Only block if EXPLICITLY marked as ephemeral
-        // Persisted transcript items (from DB) must NEVER be filtered
-        const isEphemeralPromptLane = entry.__activeCard === true || 
-                                     entry.source === 'prompt_lane_temporary' ||
-                                     entry.isEphemeralPromptLaneCard === true;
-        
-        if (isEphemeralPromptLane) {
-          console.log('[V3_UI_CONTRACT][EPHEMERAL_PROMPT_LANE_BLOCKED]', { 
-            stableKey, 
-            promptId: entry.meta?.promptId,
-            mt: mtLocal,
-            reason: 'Ephemeral prompt lane card - not persisted history'
-          });
-          return false;
-        }
-        
-        // PERSISTED PATH: Allow all persisted V3 probe Q/A
-        console.log('[V3_UI_CONTRACT][PERSISTED_PROBE_ALLOWED]', { 
+
+      if (hasV3ProbeQPrefix || hasV3ProbeAPrefix) {
+        console.log('[V3_UI_CONTRACT][FILTERED_PROBE_BY_PREFIX]', {
           stableKey,
-          promptId: entry.meta?.promptId,
-          mt: mtLocal,
-          reason: 'Persisted V3 probe Q/A from dbTranscript - always allowed'
+          source: 'stableKey_prefix_check',
+          reason: 'Additional safety filter for v3-probe- prefix'
         });
-        return true;
+        return false; // BLOCK by stableKey prefix
       }
       
       return true;
