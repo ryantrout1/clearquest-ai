@@ -13648,30 +13648,28 @@ export default function CandidateInterview() {
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
             if (entry.role === 'assistant' && getMessageTypeSOT(entry) === 'QUESTION_SHOWN') {
-              // ACTIVE ITEM CHECK: Determine if this is the current active question
-              const questionDbId = entry.meta?.questionDbId;
-              const isActiveBaseQuestion = effectiveItemType === 'question' && 
-                currentItem?.type === 'question' &&
-                currentItem?.id === questionDbId &&
-                activeUiItem?.kind === 'DEFAULT' &&
-                bottomBarMode === 'YES_NO';
-              
-              // UI CONTRACT: Inline Yes/No buttons ONLY when this is the active question
-              // History mode: read-only card (no buttons, no actions)
-              const shouldRenderInlineActions = isActiveBaseQuestion && !v3ProbingActive;
-              
-              // AUDIT: Log inline action rendering (should only occur for active question)
-              if (shouldRenderInlineActions) {
-                console.log('[BASE_Q][INLINE_ACTIONS_RENDER]', {
-                  questionId: questionDbId,
-                  isActiveBaseQuestion,
-                  currentItemId: currentItem?.id,
-                  effectiveItemType,
-                  bottomBarMode,
-                  activeUiItemKind: activeUiItem?.kind,
-                  v3ProbingActive
-                });
-              }
+            // ACTIVE ITEM CHECK: Determine if this is the current active question
+            const questionDbId = entry.meta?.questionDbId;
+            const isActiveBaseQuestion = effectiveItemType === 'question' && 
+              currentItem?.type === 'question' &&
+              currentItem?.id === questionDbId &&
+              activeUiItem?.kind === 'DEFAULT' &&
+              bottomBarMode === 'YES_NO';
+
+            // UI CONTRACT ENFORCEMENT: NEVER render inline actions in transcript
+            // All interactions MUST be footer-only (read-only transcript contract)
+            const renderContext = "TRANSCRIPT";
+            const shouldRenderInlineActions = false; // HARD-DISABLED: footer owns all controls
+
+            // DEFENSIVE GUARD: Log if code attempts inline render (should never happen)
+            if (isActiveBaseQuestion && renderContext === "TRANSCRIPT") {
+              console.warn('[UI_CONTRACT][TRANSCRIPT_INLINE_SUPPRESSED]', {
+                component: 'QUESTION_SHOWN',
+                questionId: questionDbId,
+                renderContext,
+                reason: 'Footer owns all controls - inline actions disabled'
+              });
+            }
               
               // FIX: ALWAYS render base questions (history mode) - active styling only
               // Answered questions render in history with their answer bubbles below
