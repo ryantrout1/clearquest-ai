@@ -10289,12 +10289,18 @@ export default function CandidateInterview() {
           const allItems = scrollContainer.querySelectorAll('[data-stablekey]');
           for (let i = allItems.length - 1; i >= 0; i--) {
             const item = allItems[i];
-            if (item.getAttribute('data-cq-footer-spacer') !== 'true') {
+            // HARDENED: Exclude spacer using all markers
+            const isSpacer = item.getAttribute('data-cq-footer-spacer') === 'true' ||
+                           item.getAttribute('data-ui-contract-spacer') === 'true' ||
+                           item.classList.contains('cq-footer-spacer');
+            
+            if (!isSpacer) {
               lastItem = item;
               console.log('[UI_CONTRACT][FOOTER_MEASURE_TARGET_PRIORITY]', {
                 strategy: 'TRANSCRIPT_FALLBACK',
                 hasActiveCard,
                 selectedTag: lastItem.tagName,
+                chosenTargetStableKey: lastItem.getAttribute('data-stablekey'),
                 reason: 'No active card found - using last transcript item'
               });
               break;
@@ -10312,7 +10318,12 @@ export default function CandidateInterview() {
         }
 
         // MEASUREMENT TARGET VALIDATION: Ensure lastItem is a real card container
-        const isRealCard = lastItem.hasAttribute('data-stablekey') &&
+        const isSpacer = lastItem.hasAttribute('data-ui-contract-spacer') ||
+                        lastItem.hasAttribute('data-cq-footer-spacer') ||
+                        lastItem.classList.contains('cq-footer-spacer');
+        
+        const isRealCard = !isSpacer &&
+                          lastItem.hasAttribute('data-stablekey') &&
                           (lastItem.querySelector('.rounded-xl') || // Card containers use rounded-xl
                            lastItem.classList.contains('rounded-xl') ||
                            lastItem.querySelector('[role]') ||
@@ -10325,11 +10336,12 @@ export default function CandidateInterview() {
 
         if (!isRealCard) {
           console.warn('[UI_CONTRACT][FOOTER_MEASURE_TARGET_SUSPECT]', {
-            reason: 'lastItem_not_card',
+            reason: isSpacer ? 'lastItem_is_spacer' : 'lastItem_not_card',
             selectorUsed: '[data-stablekey] (excluding spacer)',
             lastItemTagName: lastItem.tagName,
             lastItemClassesSample: lastItem.className?.substring(0, 60),
-            hasDataStablekey: lastItem.hasAttribute('data-stablekey')
+            hasDataStablekey: lastItem.hasAttribute('data-stablekey'),
+            lastCandidateIsSpacer: isSpacer
           });
 
           // Original measurement before correction
@@ -10338,10 +10350,16 @@ export default function CandidateInterview() {
 
           // STRICTER SELECTOR: Find last actual card element
           // Strategy 1: Last element with both data-stablekey AND card structure
-          const cardCandidates = Array.from(allItems).filter(el => 
-            el.getAttribute('data-cq-footer-spacer') !== 'true' &&
-            (el.querySelector('.rounded-xl') || el.classList.contains('rounded-xl'))
-          );
+          const cardCandidates = Array.from(allItems).filter(el => {
+            // HARDENED: Exclude spacer using all markers
+            const isSpacer = el.getAttribute('data-cq-footer-spacer') === 'true' ||
+                           el.getAttribute('data-ui-contract-spacer') === 'true' ||
+                           el.classList.contains('cq-footer-spacer');
+            
+            if (isSpacer) return false;
+            
+            return el.querySelector('.rounded-xl') || el.classList.contains('rounded-xl');
+          });
 
           if (cardCandidates.length > 0) {
             finalLastItem = cardCandidates[cardCandidates.length - 1];
@@ -14659,8 +14677,8 @@ export default function CandidateInterview() {
       </style>
 
       <main className="flex-1 overflow-y-auto cq-scroll scrollbar-thin" ref={historyRef} onScroll={handleTranscriptScroll}>
-        <div className="px-4 pt-6">
-          <div className="space-y-3 relative isolate">
+        <div className="px-4 pt-6 min-h-full flex flex-col">
+          <div className="space-y-3 relative isolate flex flex-col justify-end min-h-full">
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {finalTranscriptList.map((entry, index) => {
               // CANONICAL STREAM: Handle both transcript entries AND active cards
@@ -15678,7 +15696,10 @@ export default function CandidateInterview() {
           {/* Footer Spacer - CRITICAL: Creates scrollable clearance for fixed footer */}
           {/* MUST be last element in scroll content to guarantee footer never obscures content */}
           <div 
-            data-cq-footer-spacer="true" 
+            data-cq-footer-spacer="true"
+            data-stablekey="cq-footer-spacer"
+            data-ui-contract-spacer="true"
+            className="cq-footer-spacer"
             aria-hidden="true" 
             style={{ 
               height: `${dynamicBottomPaddingPx}px`,
