@@ -10172,8 +10172,11 @@ export default function CandidateInterview() {
           overlapPx: Math.round(lastItemBottomOverlapPx),
           spacerHeightPx: dynamicBottomPaddingPx
         };
-        
+
         console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', statusPayload);
+
+        // Store footer status for SOT log
+        window.__footerClearanceStatus = status;
         
         if (status === 'FAIL') {
           console.error('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS_FAIL]', {
@@ -13858,234 +13861,301 @@ export default function CandidateInterview() {
         return `followup-card:${packId}:opener:${instanceNumber}`;
       };
       
-      console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_START]', {
-        canonicalOpenersCount: canonicalOpenersFromDb.length,
-        activeUiItemKind: activeUiItem?.kind,
-        transcriptLenBefore: transcriptToRenderDeduped.length
-      });
+      // GATING: Skip canonical insertion during active opener state (active lane owns it)
+      const isActiveOpenerState = activeUiItem?.kind === "V3_OPENER";
       
-      // PRE-DEDUPE: Remove duplicate opener entries from transcript before insertion
-      let workingList = [...transcriptToRenderDeduped];
-      const seenOpenerKeys = new Set();
-      const beforeLen = workingList.length;
-      const removedDuplicates = [];
-      
-      workingList = workingList.filter(e => {
-        const mt = e.messageType || e.type || null;
-        const variant = e.meta?.variant || e.variant || null;
-        const isOpener = mt === 'FOLLOWUP_CARD_SHOWN' && variant === 'opener';
+      if (isActiveOpenerState) {
+        console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_SKIPPED_ACTIVE]', {
+          activeUiItemKind: 'V3_OPENER',
+          reason: 'active opener owned by active lane - skipping insertion logic',
+          canonicalOpenersCount: canonicalOpenersFromDb.length
+        });
         
-        if (!isOpener) return true; // Keep non-opener entries
+        // Still run pre-dedupe and assertion, but skip insertion
+        // This prevents duplicate openers in transcript during active state
+        let workingList = [...transcriptToRenderDeduped];
+        const seenOpenerKeys = new Set();
+        const removedDuplicates = [];
         
-        const openerKey = getOpenerKey(e);
-        if (seenOpenerKeys.has(openerKey)) {
-          removedDuplicates.push(openerKey);
-          return false; // Remove duplicate
+        workingList = workingList.filter(e => {
+          const mt = e.messageType || e.type || null;
+          const variant = e.meta?.variant || e.variant || null;
+          const isOpener = mt === 'FOLLOWUP_CARD_SHOWN' && variant === 'opener';
+          
+          if (!isOpener) return true;
+          
+          const openerKey = getOpenerKey(e);
+          if (seenOpenerKeys.has(openerKey)) {
+            removedDuplicates.push(openerKey);
+            return false;
+          }
+          
+          seenOpenerKeys.add(openerKey);
+          return true;
+        });
+        
+        transcriptToRenderDeduped = workingList;
+        
+        if (removedDuplicates.length > 0) {
+          console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_DEDUP_PRE]', {
+            beforeLen: transcriptToRenderDeduped.length + removedDuplicates.length,
+            afterLen: workingList.length,
+            removedCount: removedDuplicates.length,
+            removedKeysSample: removedDuplicates.slice(0, 3),
+            mode: 'active_opener_dedupe_only'
+          });
         }
         
-        seenOpenerKeys.add(openerKey);
-        return true; // Keep first occurrence
-      });
-      
-      if (removedDuplicates.length > 0) {
-        console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_DEDUP_PRE]', {
-          beforeLen,
-          afterLen: workingList.length,
-          removedCount: removedDuplicates.length,
-          removedKeysSample: removedDuplicates.slice(0, 3)
-        });
+        // Set merge status for SOT log
+        window.__openerMergeStatus = 'SKIP_ACTIVE';
+        
+        // Skip rest of merge logic - continue to next filter
       } else {
-        console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_DEDUP_PRE]', {
-          beforeLen,
-          afterLen: workingList.length,
-          removedCount: 0,
-          status: 'clean'
-        });
-      }
-      
-      // IDENTIFY MISSING: Find openers that need insertion
-      const missingOpeners = [];
-      const openersToInsert = [];
-      
-      for (const opener of canonicalOpenersFromDb) {
-        const openerKey = getOpenerKey(opener);
-        const openerPackId = opener.meta?.packId || opener.packId;
-        const openerInstanceNumber = opener.meta?.instanceNumber || opener.instanceNumber;
+        // NOT active opener state - run full canonical merge logic
+        const mergeMode = activeUiItem?.kind === 'V3_PROMPT' ? 'V3_PROMPT_HISTORY' : 'HISTORY_DISPLAY';
         
-        // Check if this is the currently active opener
-        const isCurrentlyActive = activeUiItem?.kind === "V3_OPENER" &&
-                                  activeCard?.stableKey === openerKey;
-        
-        if (isCurrentlyActive) {
-          console.log('[V3_UI_CONTRACT][OPENER_SKIP_CURRENTLY_ACTIVE]', {
-            stableKey: openerKey,
-            packId: openerPackId,
-            instanceNumber: openerInstanceNumber,
-            reason: 'Active opener renders in active lane - skip transcript merge'
-          });
-          continue; // Skip active opener (active lane owns it)
-        }
-        
-        // Check if already in transcript (using canonical key)
-        const foundInTranscript = seenOpenerKeys.has(openerKey);
-        
-        if (!foundInTranscript) {
-          missingOpeners.push({
-            stableKey: openerKey,
-            packId: openerPackId,
-            instanceNumber: openerInstanceNumber
-          });
-          
-          // Prepare for insertion
-          openersToInsert.push({
-            entry: opener,
-            stableKey: openerKey,
-            packId: openerPackId,
-            instanceNumber: openerInstanceNumber
-          });
-          
-          console.log('[V3_UI_CONTRACT][OPENER_MISSING_WILL_INSERT]', {
-            stableKey: openerKey,
-            packId: openerPackId,
-            instanceNumber: openerInstanceNumber,
-            reason: 'Opener in DB but missing from transcript - will force-merge'
-          });
-        }
-      }
-      
-      // INSERT MISSING: Add openers deterministically (idempotent)
-      if (openersToInsert.length > 0) {
-        // Spacer note (footer spacer is DOM-only, not in transcript list)
-        console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_INSERT_SPACER_NOTE]', {
-          note: 'spacer is DOM-only; insertion remains within transcript list'
+        console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_MODE]', {
+          mode: mergeMode,
+          willInsert: true,
+          activeUiItemKind: activeUiItem?.kind,
+          canonicalOpenersCount: canonicalOpenersFromDb.length
         });
         
-        for (const { entry, stableKey, packId, instanceNumber } of openersToInsert) {
-          // IDEMPOTENCE CHECK: Verify key not already inserted in this pass
-          const alreadyExists = workingList.some(e => {
-            const mt = e.messageType || e.type || null;
-            const variant = e.meta?.variant || e.variant || null;
-            const isOpener = mt === 'FOLLOWUP_CARD_SHOWN' && variant === 'opener';
-            return isOpener && getOpenerKey(e) === stableKey;
+        console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_START]', {
+          canonicalOpenersCount: canonicalOpenersFromDb.length,
+          activeUiItemKind: activeUiItem?.kind,
+          transcriptLenBefore: transcriptToRenderDeduped.length
+        });
+        
+        // PRE-DEDUPE: Remove duplicate opener entries from transcript before insertion
+        let workingList = [...transcriptToRenderDeduped];
+        const seenOpenerKeys = new Set();
+        const beforeLen = workingList.length;
+        const removedDuplicates = [];
+        
+        workingList = workingList.filter(e => {
+          const mt = e.messageType || e.type || null;
+          const variant = e.meta?.variant || e.variant || null;
+          const isOpener = mt === 'FOLLOWUP_CARD_SHOWN' && variant === 'opener';
+          
+          if (!isOpener) return true; // Keep non-opener entries
+          
+          const openerKey = getOpenerKey(e);
+          if (seenOpenerKeys.has(openerKey)) {
+            removedDuplicates.push(openerKey);
+            return false; // Remove duplicate
+          }
+          
+          seenOpenerKeys.add(openerKey);
+          return true; // Keep first occurrence
+        });
+        
+        if (removedDuplicates.length > 0) {
+          console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_DEDUP_PRE]', {
+            beforeLen,
+            afterLen: workingList.length,
+            removedCount: removedDuplicates.length,
+            removedKeysSample: removedDuplicates.slice(0, 3)
+          });
+        } else {
+          console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_DEDUP_PRE]', {
+            beforeLen,
+            afterLen: workingList.length,
+            removedCount: 0,
+            status: 'clean'
+          });
+        }
+        
+        // IDENTIFY MISSING: Find openers that need insertion
+        const missingOpeners = [];
+        const openersToInsert = [];
+        
+        for (const opener of canonicalOpenersFromDb) {
+          const openerKey = getOpenerKey(opener);
+          const openerPackId = opener.meta?.packId || opener.packId;
+          const openerInstanceNumber = opener.meta?.instanceNumber || opener.instanceNumber;
+          
+          // Check if this is the currently active opener
+          const isCurrentlyActive = activeUiItem?.kind === "V3_OPENER" &&
+                                    activeCard?.stableKey === openerKey;
+          
+          if (isCurrentlyActive) {
+            console.log('[V3_UI_CONTRACT][OPENER_SKIP_CURRENTLY_ACTIVE]', {
+              stableKey: openerKey,
+              packId: openerPackId,
+              instanceNumber: openerInstanceNumber,
+              reason: 'Active opener renders in active lane - skip transcript merge'
+            });
+            continue; // Skip active opener (active lane owns it)
+          }
+          
+          // Check if already in transcript (using canonical key)
+          const foundInTranscript = seenOpenerKeys.has(openerKey);
+          
+          if (!foundInTranscript) {
+            missingOpeners.push({
+              stableKey: openerKey,
+              packId: openerPackId,
+              instanceNumber: openerInstanceNumber
+            });
+            
+            // Prepare for insertion
+            openersToInsert.push({
+              entry: opener,
+              stableKey: openerKey,
+              packId: openerPackId,
+              instanceNumber: openerInstanceNumber
+            });
+            
+            console.log('[V3_UI_CONTRACT][OPENER_MISSING_WILL_INSERT]', {
+              stableKey: openerKey,
+              packId: openerPackId,
+              instanceNumber: openerInstanceNumber,
+              reason: 'Opener in DB but missing from transcript - will force-merge'
+            });
+          }
+        }
+        
+        // INSERT MISSING: Add openers deterministically (idempotent)
+        if (openersToInsert.length > 0) {
+          // Spacer note (footer spacer is DOM-only, not in transcript list)
+          console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_INSERT_SPACER_NOTE]', {
+            note: 'spacer is DOM-only; insertion remains within transcript list'
           });
           
-          if (alreadyExists) {
-            console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_INSERT_SKIPPED_EXISTS]', {
+          for (const { entry, stableKey, packId, instanceNumber } of openersToInsert) {
+            // IDEMPOTENCE CHECK: Verify key not already inserted in this pass
+            const alreadyExists = workingList.some(e => {
+              const mt = e.messageType || e.type || null;
+              const variant = e.meta?.variant || e.variant || null;
+              const isOpener = mt === 'FOLLOWUP_CARD_SHOWN' && variant === 'opener';
+              return isOpener && getOpenerKey(e) === stableKey;
+            });
+            
+            if (alreadyExists) {
+              console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_INSERT_SKIPPED_EXISTS]', {
+                stableKey,
+                packId,
+                instanceNumber,
+                reason: 'Opener already present in working list - skipping duplicate insertion'
+              });
+              continue; // Skip insertion
+            }
+            
+            // Find insertion position: BEFORE first V3 probe Q for same pack+instance
+            let insertIndex = workingList.findIndex(e => {
+              const mt = e.messageType || e.type || null;
+              const isV3ProbeQ = mt === 'V3_PROBE_QUESTION' || 
+                                (e.stableKey && e.stableKey.startsWith('v3-probe-q:'));
+              const matchesPack = (e.meta?.packId || e.packId) === packId;
+              const matchesInstance = (e.meta?.instanceNumber || e.instanceNumber) === instanceNumber;
+              return isV3ProbeQ && matchesPack && matchesInstance;
+            });
+            
+            // Fallback: Find base "Yes" answer that triggered this pack
+            if (insertIndex === -1) {
+              // Look for ANSWER entry that would trigger this pack
+              const baseAnswers = workingList.filter(e => 
+                (e.messageType === 'ANSWER' || e.type === 'ANSWER') &&
+                e.role === 'user' &&
+                (e.text === 'Yes' || e.text?.startsWith('Yes'))
+              );
+              
+              // Insert after last Yes before any pack entries
+              if (baseAnswers.length > 0) {
+                const lastYesIndex = workingList.lastIndexOf(baseAnswers[baseAnswers.length - 1]);
+                insertIndex = lastYesIndex + 1;
+              }
+            }
+            
+            // Fallback: Append at end of transcript items
+            if (insertIndex === -1) {
+              insertIndex = workingList.length;
+            }
+            
+            // Insert opener at determined position
+            workingList.splice(insertIndex, 0, entry);
+            seenOpenerKeys.add(stableKey); // Track inserted key
+            
+            console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_INSERTED]', {
               stableKey,
               packId,
               instanceNumber,
-              reason: 'Opener already present in working list - skipping duplicate insertion'
+              insertIndex,
+              insertStrategy: insertIndex < workingList.length - 1 ? 'before_probe_or_after_yes' : 'append',
+              listLenAfter: workingList.length
             });
-            continue; // Skip insertion
           }
           
-          // Find insertion position: BEFORE first V3 probe Q for same pack+instance
-          let insertIndex = workingList.findIndex(e => {
-            const mt = e.messageType || e.type || null;
-            const isV3ProbeQ = mt === 'V3_PROBE_QUESTION' || 
-                              (e.stableKey && e.stableKey.startsWith('v3-probe-q:'));
-            const matchesPack = (e.meta?.packId || e.packId) === packId;
-            const matchesInstance = (e.meta?.instanceNumber || e.instanceNumber) === instanceNumber;
-            return isV3ProbeQ && matchesPack && matchesInstance;
-          });
+          transcriptToRenderDeduped = workingList;
+        } else {
+          transcriptToRenderDeduped = workingList; // Use deduplicated list
+        }
+        
+        // ASSERTION: Verify all non-active openers present AND no duplicates
+        const finalOpenerKeys = new Set();
+        const duplicateKeys = [];
+        
+        for (const entry of transcriptToRenderDeduped) {
+          const mt = entry.messageType || entry.type || null;
+          const variant = entry.meta?.variant || entry.variant || null;
+          const isOpener = mt === 'FOLLOWUP_CARD_SHOWN' && variant === 'opener';
           
-          // Fallback: Find base "Yes" answer that triggered this pack
-          if (insertIndex === -1) {
-            // Look for ANSWER entry that would trigger this pack
-            const baseAnswers = workingList.filter(e => 
-              (e.messageType === 'ANSWER' || e.type === 'ANSWER') &&
-              e.role === 'user' &&
-              (e.text === 'Yes' || e.text?.startsWith('Yes'))
-            );
-            
-            // Insert after last Yes before any pack entries
-            if (baseAnswers.length > 0) {
-              const lastYesIndex = workingList.lastIndexOf(baseAnswers[baseAnswers.length - 1]);
-              insertIndex = lastYesIndex + 1;
+          if (isOpener) {
+            const openerKey = getOpenerKey(entry);
+            if (finalOpenerKeys.has(openerKey)) {
+              duplicateKeys.push(openerKey);
+            } else {
+              finalOpenerKeys.add(openerKey);
             }
           }
+        }
+        
+        const stillMissing = [];
+        for (const opener of canonicalOpenersFromDb) {
+          const openerKey = getOpenerKey(opener);
+          const openerPackId = opener.meta?.packId || opener.packId;
+          const openerInstanceNumber = opener.meta?.instanceNumber || opener.instanceNumber;
           
-          // Fallback: Append at end of transcript items
-          if (insertIndex === -1) {
-            insertIndex = workingList.length;
+          const isCurrentlyActive = activeUiItem?.kind === "V3_OPENER" &&
+                                    activeCard?.stableKey === openerKey;
+          if (isCurrentlyActive) continue;
+          
+          if (!finalOpenerKeys.has(openerKey)) {
+            stillMissing.push(`${openerPackId}:${openerInstanceNumber}`);
           }
-          
-          // Insert opener at determined position
-          workingList.splice(insertIndex, 0, entry);
-          seenOpenerKeys.add(stableKey); // Track inserted key
-          
-          console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_INSERTED]', {
-            stableKey,
-            packId,
-            instanceNumber,
-            insertIndex,
-            insertStrategy: insertIndex < workingList.length - 1 ? 'before_probe_or_after_yes' : 'append',
-            listLenAfter: workingList.length
+        }
+        
+        if (duplicateKeys.length > 0) {
+          console.error('[V3_UI_CONTRACT][OPENER_CANONICAL_DUPLICATE_DETECTED]', {
+            duplicateCount: duplicateKeys.length,
+            duplicateKeysSample: duplicateKeys.slice(0, 3),
+            reason: 'Duplicate opener keys found in final transcript - deduplication failed'
           });
         }
         
-        transcriptToRenderDeduped = workingList;
-      } else {
-        transcriptToRenderDeduped = workingList; // Use deduplicated list
-      }
-      
-      // ASSERTION: Verify all non-active openers present AND no duplicates
-      const finalOpenerKeys = new Set();
-      const duplicateKeys = [];
-      
-      for (const entry of transcriptToRenderDeduped) {
-        const mt = entry.messageType || entry.type || null;
-        const variant = entry.meta?.variant || entry.variant || null;
-        const isOpener = mt === 'FOLLOWUP_CARD_SHOWN' && variant === 'opener';
-        
-        if (isOpener) {
-          const openerKey = getOpenerKey(entry);
-          if (finalOpenerKeys.has(openerKey)) {
-            duplicateKeys.push(openerKey);
-          } else {
-            finalOpenerKeys.add(openerKey);
-          }
+        if (stillMissing.length > 0) {
+          console.error('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_FAIL]', {
+            missingCount: stillMissing.length,
+            missingKeysSample: stillMissing.slice(0, 3),
+            activeUiItemKind: activeUiItem?.kind,
+            reason: 'Canonical openers missing after force-merge - logic error'
+          });
+          
+          // Set merge status for SOT log
+          window.__openerMergeStatus = 'FAIL';
+        } else {
+          console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_OK]', {
+            count: canonicalOpenersFromDb.length,
+            activeUiItemKind: activeUiItem?.kind,
+            insertedCount: openersToInsert.length,
+            duplicateCount: duplicateKeys.length,
+            reason: duplicateKeys.length === 0 ? 'All non-active openers present, no duplicates' : 'Openers present but duplicates detected'
+          });
+          
+          // Set merge status for SOT log
+          window.__openerMergeStatus = duplicateKeys.length === 0 ? 'PASS' : 'PASS_WITH_DUPLICATES';
         }
-      }
-      
-      const stillMissing = [];
-      for (const opener of canonicalOpenersFromDb) {
-        const openerKey = getOpenerKey(opener);
-        const openerPackId = opener.meta?.packId || opener.packId;
-        const openerInstanceNumber = opener.meta?.instanceNumber || opener.instanceNumber;
-        
-        const isCurrentlyActive = activeUiItem?.kind === "V3_OPENER" &&
-                                  activeCard?.stableKey === openerKey;
-        if (isCurrentlyActive) continue;
-        
-        if (!finalOpenerKeys.has(openerKey)) {
-          stillMissing.push(`${openerPackId}:${openerInstanceNumber}`);
-        }
-      }
-      
-      if (duplicateKeys.length > 0) {
-        console.error('[V3_UI_CONTRACT][OPENER_CANONICAL_DUPLICATE_DETECTED]', {
-          duplicateCount: duplicateKeys.length,
-          duplicateKeysSample: duplicateKeys.slice(0, 3),
-          reason: 'Duplicate opener keys found in final transcript - deduplication failed'
-        });
-      }
-      
-      if (stillMissing.length > 0) {
-        console.error('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_FAIL]', {
-          missingCount: stillMissing.length,
-          missingKeysSample: stillMissing.slice(0, 3),
-          activeUiItemKind: activeUiItem?.kind,
-          reason: 'Canonical openers missing after force-merge - logic error'
-        });
-      } else {
-        console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_OK]', {
-          count: canonicalOpenersFromDb.length,
-          activeUiItemKind: activeUiItem?.kind,
-          insertedCount: openersToInsert.length,
-          duplicateCount: duplicateKeys.length,
-          reason: duplicateKeys.length === 0 ? 'All non-active openers present, no duplicates' : 'Openers present but duplicates detected'
-        });
       }
     }
     
