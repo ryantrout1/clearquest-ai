@@ -10137,6 +10137,18 @@ export default function CandidateInterview() {
               bottomBarMode,
               currentItemId: currentItem?.id
             });
+            
+            // RUNTIME ASSERTION: Verify exactly 1 active card in QUESTION+YES_NO mode
+            const totalActiveCards = scrollContainer.querySelectorAll('[data-cq-active-card="true"]').length;
+            if (totalActiveCards !== 1) {
+              console.warn('[UI_CONTRACT][YESNO_ACTIVE_CARD_COUNT_ANOMALY]', {
+                count: totalActiveCards,
+                screenMode,
+                bottomBarMode,
+                expected: 1,
+                reason: totalActiveCards === 0 ? 'no_active_card_markers' : 'multiple_active_card_markers'
+              });
+            }
           } else {
             console.warn('[UI_CONTRACT][ACTIVE_CARD_KEY_MISSING]', {
               screenMode,
