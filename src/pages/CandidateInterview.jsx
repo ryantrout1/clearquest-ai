@@ -13789,8 +13789,8 @@ export default function CandidateInterview() {
                 ts: Date.now()
               };
 
-              // UI CONTRACT SELF-TEST: Track main pane render
-              if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id && isActiveMiGate) {
+              // UI CONTRACT SELF-TEST: Track main pane render (unconditional - we're rendering now)
+              if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
                 const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
                 tracker.mainPaneRendered = true;
                 miGateTestTrackerRef.current.set(currentItem.id, tracker);
@@ -13801,6 +13801,14 @@ export default function CandidateInterview() {
                   tracker
                 });
               }
+              
+              // AUDIT: Confirm main pane render
+              console.log('[MI_GATE][MAIN_PANE_RENDER_OK]', {
+                stableKey: entry.stableKey || entry.id,
+                packId: entry.meta?.packId || entry.packId,
+                instanceNumber: entry.meta?.instanceNumber || entry.instanceNumber,
+                promptPreview: safeMiGateTranscript?.substring(0, 60)
+              });
 
               return (
                 <div key={entryKey} data-stablekey={entry.stableKey || entry.id}>
