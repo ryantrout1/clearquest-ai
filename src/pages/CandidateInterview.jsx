@@ -9601,7 +9601,22 @@ export default function CandidateInterview() {
   }
   // V3_OPENER active
   else if (activeUiItem.kind === "V3_OPENER") {
-    bottomBarMode = "TEXT_INPUT";
+    // FOOTER GATING: Verify main-pane card exists before allowing TEXT_INPUT
+    const hasActiveOpenerCard = activeCard && activeCard.kind === "v3_pack_opener";
+    
+    if (!hasActiveOpenerCard) {
+      console.error("[V3_UI_CONTRACT][ACTIVE_PROMPT_WITHOUT_CARD]", {
+        activeUiItemKind: activeUiItem.kind,
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+        hasActiveCard: !!activeCard,
+        activeCardKind: activeCard?.kind || null,
+        reason: "V3_OPENER is active but no main-pane card mounted - preventing orphaned footer"
+      });
+      bottomBarMode = "DISABLED";
+    } else {
+      bottomBarMode = "TEXT_INPUT";
+    }
   }
   // MI_GATE active
   else if (activeUiItem.kind === "MI_GATE") {
@@ -10974,7 +10989,18 @@ export default function CandidateInterview() {
       (e.messageType === 'FOLLOWUP_CARD_SHOWN' && e.meta?.variant === 'opener' && e.meta?.packId === currentItem.packId && e.meta?.instanceNumber === currentItem.instanceNumber)
     );
     
-    if (!alreadyInStream && openerText) {
+    // ACTIVE OPENER ENFORCEMENT: ALWAYS render active card when V3_OPENER is active, even if in transcript
+    // Active UI items MUST render - transcript presence does NOT satisfy active requirement
+    if (screenMode === "QUESTION" && openerText) {
+      if (alreadyInStream) {
+        console.log("[V3_OPENER][DEDUP_BYPASS]", { 
+          packId: currentItem.packId, 
+          instanceNumber: currentItem.instanceNumber,
+          stableKey,
+          reason: "Active V3 opener must render - bypassing transcript dedupe" 
+        });
+      }
+      
       activeCard = {
         __activeCard: true,
         isEphemeralPromptLaneCard: true,
@@ -10987,8 +11013,20 @@ export default function CandidateInterview() {
         exampleNarrative: currentItem.exampleNarrative,
         source: 'prompt_lane_temporary'
       };
-    } else if (alreadyInStream) {
-      console.log("[STREAM][ACTIVE_CARD_DEDUPED]", { kind: "V3_OPENER", reason: "already_in_transcriptRenderable" });
+      
+      console.log("[V3_OPENER][ACTIVE_CARD_FORCED]", {
+        packId: currentItem.packId,
+        instanceNumber: currentItem.instanceNumber,
+        stableKey,
+        transcriptAlreadyHas: alreadyInStream,
+        reason: "Active opener must render in main pane regardless of transcript state"
+      });
+    } else if (!openerText) {
+      console.warn("[V3_OPENER][MISSING_TEXT]", {
+        packId: currentItem.packId,
+        instanceNumber: currentItem.instanceNumber,
+        reason: "Cannot render active card without opener text"
+      });
     }
   } else if (activeUiItem.kind === "V3_WAITING" && !activeCard) {
     // MOVED UP: V3_WAITING card creation now handled in main if/else chain above
