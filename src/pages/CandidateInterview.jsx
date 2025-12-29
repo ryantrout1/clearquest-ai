@@ -13713,6 +13713,9 @@ export default function CandidateInterview() {
     // Use suppressed list for further processing
     transcriptToRenderDeduped = transcriptWithLegacyUuidSuppressed;
     
+    // TDZ GUARD: Update length counter for bottom-anchor effect (after finalList is computed)
+    bottomAnchorLenRef.current = finalList.length;
+    
     // CANONICAL ANSWER DEDUPE: Remove duplicate base-question answers (same questionId)
     // SCOPE: ONLY base-question answers - excludes V3/MI/followup answers
     
