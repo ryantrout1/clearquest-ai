@@ -12564,6 +12564,38 @@ export default function CandidateInterview() {
             return true; // ALWAYS keep V3 probe Q/A
           }
           
+          // CRITICAL: Opener cards MUST be preserved in transcript (unless actively being asked)
+          const isOpenerCard = mt === 'FOLLOWUP_CARD_SHOWN' && 
+                               (e.meta?.variant === 'opener' || e.variant === 'opener');
+          
+          if (isOpenerCard) {
+            // Check if this is the CURRENTLY ACTIVE opener (should be suppressed)
+            const isCurrentlyActiveOpener = activeUiItem?.kind === "V3_OPENER" &&
+                                           activeCard?.stableKey &&
+                                           (e.stableKey || e.id) === activeCard.stableKey;
+            
+            if (isCurrentlyActiveOpener) {
+              // Will be removed by active opener filter - allow ephemeral filter to pass
+              console.log('[CQ_TRANSCRIPT][OPENER_ACTIVE_WILL_BE_FILTERED]', {
+                stableKey: e.stableKey || e.id,
+                packId: e.meta?.packId || e.packId,
+                instanceNumber: e.meta?.instanceNumber || e.instanceNumber,
+                reason: 'Active opener - will be removed by dedicated active opener filter'
+              });
+              return true; // Let it pass ephemeral filter (will be removed later)
+            }
+            
+            // NOT currently active - preserve as canonical transcript
+            console.log('[CQ_TRANSCRIPT][EPHEMERAL_ALLOWLIST_OPENER]', {
+              stableKey: e.stableKey || e.id,
+              packId: e.meta?.packId || e.packId,
+              instanceNumber: e.meta?.instanceNumber || e.instanceNumber,
+              activeUiItemKind: activeUiItem?.kind,
+              reason: 'opener is canonical transcript history - preserving'
+            });
+            return true; // ALWAYS keep non-active opener transcript entries
+          }
+          
           // CRITICAL: MI_GATE active cards MUST render (exception to ephemeral rule)
           const isMiGateActiveCard = e.__activeCard === true && e.kind === 'multi_instance_gate';
           
@@ -13624,7 +13656,19 @@ export default function CandidateInterview() {
     // This prevents duplicate rendering (transcript + active lane)
     let transcriptWithActiveOpenerRemoved = transcriptToRenderDeduped;
     
-    if (activeUiItem?.kind === "V3_OPENER" && activeCard?.stableKey && screenMode === "QUESTION") {
+    // CONDITIONAL: Only run when V3_OPENER is actually active (not during V3_PROMPT or other states)
+    const shouldSuppressActiveOpener = activeUiItem?.kind === "V3_OPENER" && 
+                                       activeCard?.stableKey && 
+                                       screenMode === "QUESTION";
+    
+    console.log('[V3_UI_CONTRACT][ACTIVE_OPENER_DUPLICATE_FILTER_SOT]', {
+      activeUiItemKind: activeUiItem?.kind,
+      activeStableKey: activeCard?.stableKey || null,
+      didRun: shouldSuppressActiveOpener,
+      removedCount: 0 // Will be updated below
+    });
+    
+    if (shouldSuppressActiveOpener) {
       const activeOpenerStableKey = activeCard.stableKey;
       const beforeLen = transcriptWithActiveOpenerRemoved.length;
       
@@ -13646,6 +13690,14 @@ export default function CandidateInterview() {
       });
       
       const removedCount = beforeLen - transcriptWithActiveOpenerRemoved.length;
+      
+      console.log('[V3_UI_CONTRACT][ACTIVE_OPENER_DUPLICATE_FILTER_SOT]', {
+        activeUiItemKind: activeUiItem?.kind,
+        activeStableKey: activeOpenerStableKey,
+        didRun: true,
+        removedCount
+      });
+      
       if (removedCount > 0) {
         console.log('[V3_UI_CONTRACT][ACTIVE_OPENER_DUPLICATE_SUMMARY]', {
           activeStableKey: activeOpenerStableKey,
@@ -13655,10 +13707,74 @@ export default function CandidateInterview() {
           reason: 'Active opener renders in active lane only - transcript copy suppressed'
         });
       }
+    } else {
+      // Not active opener mode - all opener transcript entries should be preserved
+      console.log('[V3_UI_CONTRACT][ACTIVE_OPENER_FILTER_SKIPPED]', {
+        activeUiItemKind: activeUiItem?.kind,
+        reason: shouldSuppressActiveOpener ? 'conditions_not_met' : 'not_v3_opener_mode',
+        action: 'Preserving all opener transcript entries'
+      });
     }
     
     // Use deduplicated list for further processing
     transcriptToRenderDeduped = transcriptWithActiveOpenerRemoved;
+    
+    // OPENER PRESENCE ASSERTION: Verify completed opener instances are in transcript
+    const completedOpeners = (dbTranscript || []).filter(e => 
+      (e.messageType === 'FOLLOWUP_CARD_SHOWN' || e.type === 'FOLLOWUP_CARD_SHOWN') &&
+      (e.meta?.variant === 'opener' || e.variant === 'opener')
+    );
+    
+    if (completedOpeners.length > 0) {
+      const activePackId = currentItem?.packId;
+      const activeInstanceNumber = currentItem?.instanceNumber;
+      const missingInstanceNumbers = [];
+      
+      for (const opener of completedOpeners) {
+        const openerPackId = opener.meta?.packId || opener.packId;
+        const openerInstanceNumber = opener.meta?.instanceNumber || opener.instanceNumber;
+        const openerStableKey = opener.stableKey || opener.id;
+        
+        // Skip currently active opener instance (expected to be missing from transcript)
+        const isCurrentlyActive = activeUiItem?.kind === "V3_OPENER" &&
+                                  openerPackId === activePackId &&
+                                  openerInstanceNumber === activeInstanceNumber;
+        
+        if (isCurrentlyActive) continue;
+        
+        // Check if this completed opener is in final transcript
+        const foundInTranscript = transcriptToRenderDeduped.some(e => 
+          (e.stableKey || e.id) === openerStableKey ||
+          ((e.messageType === 'FOLLOWUP_CARD_SHOWN' || e.type === 'FOLLOWUP_CARD_SHOWN') &&
+           (e.meta?.variant === 'opener' || e.variant === 'opener') &&
+           (e.meta?.packId || e.packId) === openerPackId &&
+           (e.meta?.instanceNumber || e.instanceNumber) === openerInstanceNumber)
+        );
+        
+        if (!foundInTranscript) {
+          missingInstanceNumbers.push(`${openerPackId}:${openerInstanceNumber}`);
+          
+          console.error('[V3_UI_CONTRACT][OPENER_MISSING_FROM_TRANSCRIPT]', {
+            packId: openerPackId,
+            instanceNumber: openerInstanceNumber,
+            stableKey: openerStableKey,
+            activeUiItemKind: activeUiItem?.kind,
+            activeInstanceNumber,
+            reason: 'Completed opener not in transcript history - regression detected'
+          });
+        }
+      }
+      
+      if (missingInstanceNumbers.length > 0) {
+        console.error('[V3_UI_CONTRACT][OPENER_MISSING_SUMMARY]', {
+          missingCount: missingInstanceNumbers.length,
+          missingInstanceNumbers,
+          activeUiItemKind: activeUiItem?.kind,
+          activePackId,
+          activeInstanceNumber
+        });
+      }
+    }
     
     // ACTIVE MI_GATE DEDUPLICATION: Remove transcript copy when MI gate is currently active
     // This prevents duplicate rendering (transcript + active lane)
