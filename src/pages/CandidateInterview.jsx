@@ -14743,7 +14743,9 @@ export default function CandidateInterview() {
 
       <main className="flex-1 min-h-0 overflow-y-auto cq-scroll scrollbar-thin flex flex-col" ref={historyRef} onScroll={handleTranscriptScroll}>
         <div className="px-4 pt-6 flex flex-col flex-1 min-h-0">
-          <div className="space-y-3 relative isolate flex flex-col justify-end flex-1 min-h-0">
+          <div className="cq-gravity-rail flex flex-col flex-1 min-h-0">
+            <div className="cq-gravity-bottom mt-auto">
+              <div className="space-y-3 relative isolate">
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {finalTranscriptList.map((entry, index) => {
               // CANONICAL STREAM: Handle both transcript entries AND active cards
@@ -15764,17 +15766,20 @@ export default function CandidateInterview() {
             data-cq-footer-spacer="true"
             data-stablekey="cq-footer-spacer"
             data-ui-contract-spacer="true"
-            className="cq-footer-spacer"
+            className="cq-footer-spacer flex-none"
             aria-hidden="true" 
             style={{ 
               height: `${dynamicBottomPaddingPx}px`,
               pointerEvents: 'none',
-              flexShrink: 0
+              flexShrink: 0,
+              flex: '0 0 auto'
             }} 
           />
           
           {/* Bottom anchor - minimal-height sentinel for scroll positioning */}
           <div ref={bottomAnchorRef} aria-hidden="true" style={{ height: '1px', margin: 0, padding: 0 }} />
+              </div>
+            </div>
           </div>
         </div>
       </main>
