@@ -12190,7 +12190,7 @@ export default function CandidateInterview() {
         });
         
         // ENFORCEMENT: Remove ephemeral items ONLY (never real transcript items)
-        const filteredOut = [];
+        let filteredOut = []; // CRASH GUARD: Initialize at outer scope
         transcriptToRender = renderableTranscriptStream.filter(e => {
           // NORMALIZE: Read type field consistently
           const mt = e.messageType || e.type || e.kind || null;
@@ -12251,12 +12251,21 @@ export default function CandidateInterview() {
           return !isEphemeral;
         });
         
+        // CRASH GUARD: Safe logging with fallback for filteredOut
+        const filteredOutSafe = Array.isArray(filteredOut) ? filteredOut : [];
+        
+        console.log('[CQ_TRANSCRIPT][CRASH_GUARD_OK]', {
+          hasFilteredOut: typeof filteredOut !== 'undefined',
+          usingSafeFallback: !Array.isArray(filteredOut),
+          filteredOutLen: filteredOutSafe.length
+        });
+        
         console.log('[CQ_TRANSCRIPT][EPHEMERAL_FILTERED]', {
           beforeLen: renderableTranscriptStream.length,
           afterLen: transcriptToRender.length,
           removedCount: ephemeralSources.length,
-          stableKeysRemoved: filteredOut.map(e => e.stableKey).slice(0, 5),
-          filteredDetails: filteredOut.slice(0, 3)
+          stableKeysRemoved: filteredOutSafe.map(e => e.stableKey).slice(0, 5),
+          filteredDetails: filteredOutSafe.slice(0, 3)
         });
       }
     }
@@ -13069,7 +13078,10 @@ export default function CandidateInterview() {
         const existsInDb = dbV3ProbeAnswers.some(e => (e.stableKey || e.id) === stableKeyA);
         const existsInDeduped = transcriptWithV3ProbeQA.some(e => (e.stableKey || e.id) === stableKeyA);
         const existsInFinal = transcriptToRenderDeduped.some(e => (e.stableKey || e.id) === stableKeyA);
-        
+
+        // CRASH GUARD: Use safe fallback for filteredOut
+        const filteredOutSafe = Array.isArray(filteredOut) ? filteredOut : [];
+
         console.log('[CQ_TRANSCRIPT][V3_PROBE_A_TRUTH_TABLE]', {
           promptId,
           stableKeyA,
@@ -13079,7 +13091,7 @@ export default function CandidateInterview() {
           activeUiItemKind: activeUiItem?.kind,
           packId,
           instanceNumber,
-          filteredStableKeysRemoved: filteredOut.map(e => e.stableKey).filter(Boolean).slice(0, 5)
+          filteredStableKeysRemoved: filteredOutSafe.map(e => e.stableKey).filter(Boolean).slice(0, 5)
         });
       }
     }
