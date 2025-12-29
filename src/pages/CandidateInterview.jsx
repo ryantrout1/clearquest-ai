@@ -3004,6 +3004,10 @@ export default function CandidateInterview() {
   
   // TDZ GUARD: Safe length counter for bottom-anchor effect (avoids finalTranscriptList TDZ)
   const bottomAnchorLenRef = React.useRef(0);
+  
+  // TDZ GUARD: Hooks/memos must not reference finalList before it is initialized. Use finalListRef/finalListLenRef.
+  const finalListRef = React.useRef([]);
+  const finalListLenRef = React.useRef(0);
 
   // MESSAGE TYPE SOT: Canonical messageType normalizer (handles DB casing mismatches)
   const getMessageTypeSOT = (entry) => {
@@ -13713,9 +13717,6 @@ export default function CandidateInterview() {
     // Use suppressed list for further processing
     transcriptToRenderDeduped = transcriptWithLegacyUuidSuppressed;
     
-    // TDZ GUARD: Update length counter for bottom-anchor effect (after finalList is computed)
-    bottomAnchorLenRef.current = finalList.length;
-    
     // CANONICAL ANSWER DEDUPE: Remove duplicate base-question answers (same questionId)
     // SCOPE: ONLY base-question answers - excludes V3/MI/followup answers
     
@@ -14526,8 +14527,14 @@ export default function CandidateInterview() {
         })
       : transcriptToRenderDeduped;
     
-    // TDZ GUARD: Update length counter for bottom-anchor effect (after finalList is computed)
+    // TDZ GUARD: Update length counter + sync finalList refs (after finalList is computed)
     bottomAnchorLenRef.current = finalList.length;
+    finalListRef.current = Array.isArray(finalList) ? finalList : [];
+    finalListLenRef.current = Array.isArray(finalList) ? finalList.length : 0;
+    
+    if (CQ_DEBUG_FOOTER_ANCHOR) {
+      console.log('[TDZ_GUARD][FINAL_LIST_REF_SYNC]', { len: finalListLenRef.current });
+    }
     
     // Regression guard logging
     const candidateVisibleQuestionsInDb = transcriptToRenderDeduped.filter(e => 
