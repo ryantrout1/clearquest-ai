@@ -11310,7 +11310,10 @@ export default function CandidateInterview() {
     lastRenderedV3PromptKeyRef.current = null;
   }
   
-  if (activeUiItem.kind === "MI_GATE") {
+  // TDZ FIX: Moved duplicate MI_GATE assignment earlier (see activeCard block at line ~2100)
+  // This duplicate removed to prevent double-assignment
+  
+  if (false && activeUiItem.kind === "MI_GATE") {
     // FIX: Use currentItem directly when activeUiItem.kind is MI_GATE
     // activeUiItem resolver already handles V3 blocking precedence correctly
     let miGateItem = currentItem;
