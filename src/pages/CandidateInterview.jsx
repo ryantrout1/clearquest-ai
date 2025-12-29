@@ -13850,12 +13850,12 @@ export default function CandidateInterview() {
               }
               
               // DEFENSIVE GUARD: Log if transcript would try to render inline controls
-              if (renderContext === "TRANSCRIPT") {
+              if (miGateRenderContext === "TRANSCRIPT") {
                 console.log('[UI_CONTRACT][TRANSCRIPT_READ_ONLY]', {
                   component: 'MULTI_INSTANCE_GATE_SHOWN',
                   packId: entry.meta?.packId || entry.packId,
                   instanceNumber: entry.meta?.instanceNumber || entry.instanceNumber,
-                  renderContext,
+                  renderContext: miGateRenderContext,
                   inlineActions: false,
                   reason: 'Footer owns all controls'
                 });
@@ -13867,7 +13867,7 @@ export default function CandidateInterview() {
                 packId: entry.meta?.packId || entry.packId,
                 instanceNumber: entry.meta?.instanceNumber || entry.instanceNumber,
                 promptPreview: safeMiGateTranscript?.substring(0, 60),
-                renderContext
+                renderContext: miGateRenderContext
               });
 
               return (
