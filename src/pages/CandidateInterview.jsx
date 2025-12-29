@@ -13836,6 +13836,167 @@ export default function CandidateInterview() {
     // Use deduplicated list for further processing
     transcriptToRenderDeduped = transcriptWithActiveMiGateRemoved;
     
+    // CANONICAL OPENER MERGE: Force-merge DB openers into transcript (deterministic visibility)
+    // Rule: ALL openers from dbTranscript MUST render (except currently active opener)
+    const canonicalOpenersFromDb = (dbTranscript || []).filter(e => {
+      const mt = e.messageType || e.type || null;
+      const variant = e.meta?.variant || e.variant || null;
+      return mt === 'FOLLOWUP_CARD_SHOWN' && variant === 'opener';
+    });
+    
+    if (canonicalOpenersFromDb.length > 0) {
+      console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_START]', {
+        canonicalOpenersCount: canonicalOpenersFromDb.length,
+        activeUiItemKind: activeUiItem?.kind,
+        transcriptLenBefore: transcriptToRenderDeduped.length
+      });
+      
+      const missingOpeners = [];
+      const openersToInsert = [];
+      
+      for (const opener of canonicalOpenersFromDb) {
+        // Extract opener identity
+        const openerPackId = opener.meta?.packId || opener.packId;
+        const openerInstanceNumber = opener.meta?.instanceNumber || opener.instanceNumber;
+        const openerStableKey = opener.stableKey || opener.id || 
+                                `followup-card:${openerPackId}:opener:${openerInstanceNumber}`;
+        
+        // Check if this is the currently active opener
+        const isCurrentlyActive = activeUiItem?.kind === "V3_OPENER" &&
+                                  activeCard?.stableKey === openerStableKey;
+        
+        if (isCurrentlyActive) {
+          console.log('[V3_UI_CONTRACT][OPENER_SKIP_CURRENTLY_ACTIVE]', {
+            stableKey: openerStableKey,
+            packId: openerPackId,
+            instanceNumber: openerInstanceNumber,
+            reason: 'Active opener renders in active lane - skip transcript merge'
+          });
+          continue; // Skip active opener (active lane owns it)
+        }
+        
+        // Check if already in transcript
+        const foundInTranscript = transcriptToRenderDeduped.some(e => 
+          (e.stableKey || e.id) === openerStableKey ||
+          ((e.messageType === 'FOLLOWUP_CARD_SHOWN' || e.type === 'FOLLOWUP_CARD_SHOWN') &&
+           (e.meta?.variant === 'opener' || e.variant === 'opener') &&
+           (e.meta?.packId || e.packId) === openerPackId &&
+           (e.meta?.instanceNumber || e.instanceNumber) === openerInstanceNumber)
+        );
+        
+        if (!foundInTranscript) {
+          missingOpeners.push({
+            stableKey: openerStableKey,
+            packId: openerPackId,
+            instanceNumber: openerInstanceNumber
+          });
+          
+          // Prepare for insertion
+          openersToInsert.push({
+            entry: opener,
+            stableKey: openerStableKey,
+            packId: openerPackId,
+            instanceNumber: openerInstanceNumber
+          });
+          
+          console.log('[V3_UI_CONTRACT][OPENER_MISSING_WILL_INSERT]', {
+            stableKey: openerStableKey,
+            packId: openerPackId,
+            instanceNumber: openerInstanceNumber,
+            reason: 'Opener in DB but missing from transcript - will force-merge'
+          });
+        }
+      }
+      
+      // Insert missing openers deterministically
+      if (openersToInsert.length > 0) {
+        let workingList = [...transcriptToRenderDeduped];
+        
+        for (const { entry, stableKey, packId, instanceNumber } of openersToInsert) {
+          // Find insertion position: BEFORE first V3 probe Q for same pack+instance
+          let insertIndex = workingList.findIndex(e => {
+            const mt = e.messageType || e.type || null;
+            const isV3ProbeQ = mt === 'V3_PROBE_QUESTION' || 
+                              (e.stableKey && e.stableKey.startsWith('v3-probe-q:'));
+            const matchesPack = (e.meta?.packId || e.packId) === packId;
+            const matchesInstance = (e.meta?.instanceNumber || e.instanceNumber) === instanceNumber;
+            return isV3ProbeQ && matchesPack && matchesInstance;
+          });
+          
+          // Fallback: Find base "Yes" answer that triggered this pack
+          if (insertIndex === -1) {
+            // Look for ANSWER entry that would trigger this pack
+            const baseAnswers = workingList.filter(e => 
+              (e.messageType === 'ANSWER' || e.type === 'ANSWER') &&
+              e.role === 'user' &&
+              (e.text === 'Yes' || e.text?.startsWith('Yes'))
+            );
+            
+            // Insert after last Yes before any pack entries
+            if (baseAnswers.length > 0) {
+              const lastYesIndex = workingList.lastIndexOf(baseAnswers[baseAnswers.length - 1]);
+              insertIndex = lastYesIndex + 1;
+            }
+          }
+          
+          // Fallback: Append at end (before footer spacer if exists)
+          if (insertIndex === -1) {
+            insertIndex = workingList.length;
+          }
+          
+          // Insert opener at determined position
+          workingList.splice(insertIndex, 0, entry);
+          
+          console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_INSERTED]', {
+            stableKey,
+            packId,
+            instanceNumber,
+            insertIndex,
+            insertStrategy: insertIndex < workingList.length - 1 ? 'before_probe_or_after_yes' : 'append',
+            listLenAfter: workingList.length
+          });
+        }
+        
+        transcriptToRenderDeduped = workingList;
+      }
+      
+      // Assertion: Verify all non-active openers now present
+      const stillMissing = [];
+      for (const opener of canonicalOpenersFromDb) {
+        const openerPackId = opener.meta?.packId || opener.packId;
+        const openerInstanceNumber = opener.meta?.instanceNumber || opener.instanceNumber;
+        const openerStableKey = opener.stableKey || opener.id;
+        
+        const isCurrentlyActive = activeUiItem?.kind === "V3_OPENER" &&
+                                  activeCard?.stableKey === openerStableKey;
+        if (isCurrentlyActive) continue;
+        
+        const foundNow = transcriptToRenderDeduped.some(e => 
+          (e.stableKey || e.id) === openerStableKey
+        );
+        
+        if (!foundNow) {
+          stillMissing.push(`${openerPackId}:${openerInstanceNumber}`);
+        }
+      }
+      
+      if (stillMissing.length > 0) {
+        console.error('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_FAIL]', {
+          missingCount: stillMissing.length,
+          missingKeysSample: stillMissing.slice(0, 3),
+          activeUiItemKind: activeUiItem?.kind,
+          reason: 'Canonical openers missing after force-merge - logic error'
+        });
+      } else {
+        console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_OK]', {
+          count: canonicalOpenersFromDb.length,
+          activeUiItemKind: activeUiItem?.kind,
+          insertedCount: openersToInsert.length,
+          reason: 'All non-active openers present in transcript'
+        });
+      }
+    }
+    
     // ORDER GATING: Suppress UNANSWERED base questions during V3
     const v3UiHistoryLen = v3UiRenderable.length;
     const hasVisibleV3PromptCard = v3HasVisiblePromptCard;
