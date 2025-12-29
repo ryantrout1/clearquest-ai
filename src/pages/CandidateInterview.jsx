@@ -40,6 +40,7 @@ import { getFactModelForCategory, mapPackIdToCategory } from "../components/util
 import V3ProbingLoop from "../components/interview/V3ProbingLoop";
 import V3DebugPanel from "../components/interview/V3DebugPanel";
 import BottomBarAutoFocusGuard from "../components/interview/BottomBarAutoFocusGuard";
+import YesNoControls from "../components/interview/YesNoControls";
 import { appendQuestionEntry, appendAnswerEntry } from "../components/utils/transcriptLogger";
 import { applySectionGateIfNeeded } from "../components/interview/sectionGateHandler";
 import {
@@ -14746,135 +14747,121 @@ export default function CandidateInterview() {
            </div>
           ) : bottomBarMode === "YES_NO" && (bottomBarRenderTypeSOT === "multi_instance_gate" || isMultiInstanceGate) ? (
           <div className="space-y-3">
-            {/* UI CONTRACT: MI_GATE footer shows buttons ONLY (no prompt text) */}
-            {(() => {
-              // Confirmation log: MI_GATE footer is buttons-only
-              const isMiGateFooter = 
-                activeUiItem?.kind === "MI_GATE" &&
-                effectiveItemType === 'multi_instance_gate' &&
-                bottomBarMode === "YES_NO";
-              
-              if (isMiGateFooter) {
-                console.log('[MI_GATE][FOOTER_BUTTONS_ONLY]', {
-                  currentItemId: currentItem?.id,
-                  packId: currentItem?.packId,
-                  instanceNumber: currentItem?.instanceNumber,
-                  note: 'Footer shows Yes/No buttons only - question renders in main pane'
-                });
-                
-                // UI CONTRACT SELF-TEST: Track footer buttons event
-                if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
-                  const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
-                  tracker.footerButtonsOnly = true;
-                  miGateTestTrackerRef.current.set(currentItem.id, tracker);
-                  
-                  console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
-                    itemId: currentItem.id,
-                    event: 'FOOTER_BUTTONS_ONLY',
-                    tracker
-                  });
-                }
-              }
-              
-              return null; // No prompt box in footer - buttons only
-            })()}
-            
-            <div className="flex gap-3">
-          <Button
-           onClick={async () => {
-             try {
-               const gate = multiInstanceGate || currentItem;
+           {/* UI CONTRACT: MI_GATE footer shows buttons ONLY (no prompt text) */}
+           {(() => {
+             // Confirmation log: MI_GATE footer is buttons-only
+             const isMiGateFooter = 
+               activeUiItem?.kind === "MI_GATE" &&
+               effectiveItemType === 'multi_instance_gate' &&
+               bottomBarMode === "YES_NO";
 
-               if (!gate || !gate.packId || !gate.instanceNumber) {
-                 console.error('[MI_GATE][GUARD_BLOCKED]', {
-                   reason: 'Missing gate context',
-                   hasGate: !!gate,
-                   packId: gate?.packId,
-                   instanceNumber: gate?.instanceNumber
-                 });
-                 return;
-               }
-
-               console.log('[MI_GATE][ANSWER]', {
-                 packId: gate.packId,
-                 instanceNumber: gate.instanceNumber,
-                 answerYesNo: 'Yes',
-                 activeUiItemKind: activeUiItem?.kind,
+             if (isMiGateFooter) {
+               console.log('[MI_GATE][FOOTER_BUTTONS_ONLY]', {
                  currentItemId: currentItem?.id,
-                 stableKey: `mi-gate:${gate.packId}:${gate.instanceNumber}`
+                 packId: currentItem?.packId,
+                 instanceNumber: currentItem?.instanceNumber,
+                 note: 'Footer shows Yes/No buttons only - question renders in main pane'
                });
 
-               setIsCommitting(true);
-               await handleMiGateYesNo({ answer: 'Yes', gate, sessionId, engine });
-             } finally {
-               setIsCommitting(false);
+               // UI CONTRACT SELF-TEST: Track footer buttons event
+               if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
+                 const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
+                 tracker.footerButtonsOnly = true;
+                 miGateTestTrackerRef.current.set(currentItem.id, tracker);
+
+                 console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
+                   itemId: currentItem.id,
+                   event: 'FOOTER_BUTTONS_ONLY',
+                   tracker
+                 });
+               }
              }
-           }}
+
+             return null; // No prompt box in footer - buttons only
+           })()}
+
+           <YesNoControls
+             renderContext="FOOTER"
+             onYes={async () => {
+               try {
+                 const gate = multiInstanceGate || currentItem;
+
+                 if (!gate || !gate.packId || !gate.instanceNumber) {
+                   console.error('[MI_GATE][GUARD_BLOCKED]', {
+                     reason: 'Missing gate context',
+                     hasGate: !!gate,
+                     packId: gate?.packId,
+                     instanceNumber: gate?.instanceNumber
+                   });
+                   return;
+                 }
+
+                 console.log('[MI_GATE][ANSWER]', {
+                   packId: gate.packId,
+                   instanceNumber: gate.instanceNumber,
+                   answerYesNo: 'Yes',
+                   activeUiItemKind: activeUiItem?.kind,
+                   currentItemId: currentItem?.id,
+                   stableKey: `mi-gate:${gate.packId}:${gate.instanceNumber}`
+                 });
+
+                 setIsCommitting(true);
+                 await handleMiGateYesNo({ answer: 'Yes', gate, sessionId, engine });
+               } finally {
+                 setIsCommitting(false);
+               }
+             }}
+             onNo={async () => {
+               try {
+                 const gate = multiInstanceGate || currentItem;
+
+                 if (!gate || !gate.packId || !gate.instanceNumber) {
+                   console.error('[MI_GATE][GUARD_BLOCKED]', {
+                     reason: 'Missing gate context',
+                     hasGate: !!gate,
+                     packId: gate?.packId,
+                     instanceNumber: gate?.instanceNumber
+                   });
+                   return;
+                 }
+
+                 console.log('[MI_GATE][ANSWER]', {
+                   packId: gate.packId,
+                   instanceNumber: gate.instanceNumber,
+                   answerYesNo: 'No',
+                   activeUiItemKind: activeUiItem?.kind,
+                   currentItemId: currentItem?.id,
+                   stableKey: `mi-gate:${gate.packId}:${gate.instanceNumber}`
+                 });
+
+                 setIsCommitting(true);
+                 await handleMiGateYesNo({ answer: 'No', gate, sessionId, engine });
+               } finally {
+                 setIsCommitting(false);
+               }
+             }}
              disabled={isCommitting}
-             className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-           >
-             <Check className="w-5 h-5 mr-2" />
-             Yes
-           </Button>
-           <Button
-            onClick={async () => {
-              try {
-                const gate = multiInstanceGate || currentItem;
-
-                if (!gate || !gate.packId || !gate.instanceNumber) {
-                  console.error('[MI_GATE][GUARD_BLOCKED]', {
-                    reason: 'Missing gate context',
-                    hasGate: !!gate,
-                    packId: gate?.packId,
-                    instanceNumber: gate?.instanceNumber
-                  });
-                  return;
-                }
-
-                console.log('[MI_GATE][ANSWER]', {
-                  packId: gate.packId,
-                  instanceNumber: gate.instanceNumber,
-                  answerYesNo: 'No',
-                  activeUiItemKind: activeUiItem?.kind,
-                  currentItemId: currentItem?.id,
-                  stableKey: `mi-gate:${gate.packId}:${gate.instanceNumber}`
-                });
-
-                setIsCommitting(true);
-                await handleMiGateYesNo({ answer: 'No', gate, sessionId, engine });
-              } finally {
-                setIsCommitting(false);
-              }
-            }}
-             disabled={isCommitting}
-             className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-           >
-             <X className="w-5 h-5 mr-2" />
-             No
-           </Button>
-          </div>
+             debugMeta={{
+               component: 'MI_GATE_FOOTER',
+               packId: currentItem?.packId,
+               instanceNumber: currentItem?.instanceNumber
+             }}
+           />
           </div>
           ) : bottomBarMode === "YES_NO" && bottomBarRenderTypeSOT !== "v3_probing" ? (
-          <div className="flex gap-3">
-            <Button
-              ref={yesButtonRef}
-              onClick={() => handleYesNoClick("Yes")}
-              disabled={isCommitting}
-              className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Check className="w-5 h-5 mr-2" />
-              Yes
-            </Button>
-            <Button
-              ref={noButtonRef}
-              onClick={() => handleYesNoClick("No")}
-              disabled={isCommitting}
-              className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <X className="w-5 h-5 mr-2" />
-              No
-            </Button>
-          </div>
+          <YesNoControls
+            renderContext="FOOTER"
+            onYes={() => handleYesNoClick("Yes")}
+            onNo={() => handleYesNoClick("No")}
+            yesLabel="Yes"
+            noLabel="No"
+            disabled={isCommitting}
+            debugMeta={{
+              component: 'BASE_QUESTION_FOOTER',
+              currentItemType: currentItem?.type,
+              questionId: currentItem?.id
+            }}
+          />
           ) : bottomBarMode === "V3_WAITING" ? (
           <div className="space-y-2">
             <div className="flex gap-3">
