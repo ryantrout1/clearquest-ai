@@ -3001,6 +3001,9 @@ export default function CandidateInterview() {
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   };
+  
+  // TDZ GUARD: Safe length counter for bottom-anchor effect (avoids finalTranscriptList TDZ)
+  const bottomAnchorLenRef = React.useRef(0);
 
   // MESSAGE TYPE SOT: Canonical messageType normalizer (handles DB casing mismatches)
   const getMessageTypeSOT = (entry) => {
@@ -10955,6 +10958,7 @@ export default function CandidateInterview() {
     });
   }, [dynamicBottomPaddingPx, screenMode, isUserTyping, bottomBarMode]);
   
+  // TDZ GUARD: Do not reference finalTranscriptList in hook deps before it is initialized.
   // DETERMINISTIC BOTTOM ANCHOR ENFORCEMENT: Keep transcript pinned to bottom when expected
   React.useLayoutEffect(() => {
     const scrollContainer = historyRef.current;
@@ -10987,7 +10991,7 @@ export default function CandidateInterview() {
       });
     }
   }, [
-    finalTranscriptList?.length,
+    bottomAnchorLenRef.current,
     activeUiItem?.kind,
     activeCard?.stableKey,
     dynamicBottomPaddingPx
