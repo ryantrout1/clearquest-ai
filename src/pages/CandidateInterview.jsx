@@ -14254,6 +14254,22 @@ export default function CandidateInterview() {
     cqDiagEnabled,
     v3UiRenderable
   ]);
+  
+  // CONSOLIDATED UI CONTRACT STATUS LOG (Single Source of Truth)
+  // Emits once per mode change with all three contract aspects
+  React.useEffect(() => {
+    const footerStatus = window.__footerClearanceStatus || 'UNKNOWN';
+    const openerStatus = window.__openerMergeStatus || 'UNKNOWN';
+    const suppressProbes = (activeUiItem?.kind === "V3_PROMPT" || activeUiItem?.kind === "V3_WAITING") && v3ProbingActive;
+    
+    console.log('[UI_CONTRACT][SOT_STATUS]', {
+      footerClearance: footerStatus,
+      openerHistory: openerStatus,
+      probePolicy: suppressProbes ? 'ACTIVE_SUPPRESS' : 'HISTORY_ALLOWED',
+      activeUiItemKind: activeUiItem?.kind,
+      bottomBarMode
+    });
+  }, [bottomBarMode, activeUiItem?.kind, v3ProbingActive]);
 
   // GUARD: Show guard screens without early return (maintains hook order)
   if (showMissingSession) {
