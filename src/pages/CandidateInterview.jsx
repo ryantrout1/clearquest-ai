@@ -1782,6 +1782,10 @@ export default function CandidateInterview() {
   // V3 COMMIT ACK: Lightweight acknowledgement for post-submit verification
   const lastV3AnswerCommitAckRef = useRef(null);
   
+  // UI CONTRACT STATUS: Component-level refs (prevents cross-session leakage)
+  const openerMergeStatusRef = React.useRef('UNKNOWN');
+  const footerClearanceStatusRef = React.useRef('UNKNOWN');
+  
   // CANONICAL DETECTOR: Log once per session (reduce noise)
   const canonicalDetectorLoggedRef = useRef(false);
   
@@ -10175,8 +10179,8 @@ export default function CandidateInterview() {
 
         console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', statusPayload);
 
-        // Store footer status for SOT log
-        window.__footerClearanceStatus = status;
+        // Store footer status for SOT log (component-level ref)
+        footerClearanceStatusRef.current = status;
         
         if (status === 'FAIL') {
           console.error('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS_FAIL]', {
@@ -13906,8 +13910,8 @@ export default function CandidateInterview() {
           });
         }
         
-        // Set merge status for SOT log
-        window.__openerMergeStatus = 'SKIP_ACTIVE';
+        // Set merge status for SOT log (component-level ref)
+        openerMergeStatusRef.current = 'SKIP_ACTIVE';
         
         // Skip rest of merge logic - continue to next filter
       } else {
@@ -14142,8 +14146,8 @@ export default function CandidateInterview() {
             reason: 'Canonical openers missing after force-merge - logic error'
           });
           
-          // Set merge status for SOT log
-          window.__openerMergeStatus = 'FAIL';
+          // Set merge status for SOT log (component-level ref)
+          openerMergeStatusRef.current = 'FAIL';
         } else {
           console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_OK]', {
             count: canonicalOpenersFromDb.length,
@@ -14153,8 +14157,8 @@ export default function CandidateInterview() {
             reason: duplicateKeys.length === 0 ? 'All non-active openers present, no duplicates' : 'Openers present but duplicates detected'
           });
           
-          // Set merge status for SOT log
-          window.__openerMergeStatus = duplicateKeys.length === 0 ? 'PASS' : 'PASS_WITH_DUPLICATES';
+          // Set merge status for SOT log (component-level ref)
+          openerMergeStatusRef.current = duplicateKeys.length === 0 ? 'PASS' : 'PASS_WITH_DUPLICATES';
         }
       }
     }
@@ -14258,8 +14262,8 @@ export default function CandidateInterview() {
   // CONSOLIDATED UI CONTRACT STATUS LOG (Single Source of Truth)
   // Emits once per mode change with all three contract aspects
   React.useEffect(() => {
-    const footerStatus = window.__footerClearanceStatus || 'UNKNOWN';
-    const openerStatus = window.__openerMergeStatus || 'UNKNOWN';
+    const footerStatus = footerClearanceStatusRef.current || 'UNKNOWN';
+    const openerStatus = openerMergeStatusRef.current || 'UNKNOWN';
     const suppressProbes = (activeUiItem?.kind === "V3_PROMPT" || activeUiItem?.kind === "V3_WAITING") && v3ProbingActive;
     
     console.log('[UI_CONTRACT][SOT_STATUS]', {
@@ -14267,9 +14271,21 @@ export default function CandidateInterview() {
       openerHistory: openerStatus,
       probePolicy: suppressProbes ? 'ACTIVE_SUPPRESS' : 'HISTORY_ALLOWED',
       activeUiItemKind: activeUiItem?.kind,
-      bottomBarMode
+      bottomBarMode,
+      sessionId
     });
-  }, [bottomBarMode, activeUiItem?.kind, v3ProbingActive]);
+  }, [bottomBarMode, activeUiItem?.kind, v3ProbingActive, sessionId]);
+  
+  // UI CONTRACT STATUS RESET: Clear status refs on session change
+  React.useEffect(() => {
+    openerMergeStatusRef.current = 'UNKNOWN';
+    footerClearanceStatusRef.current = 'UNKNOWN';
+    
+    console.log('[UI_CONTRACT][SOT_STATUS_RESET]', {
+      sessionId,
+      reason: 'New session started - status refs cleared'
+    });
+  }, [sessionId]);
 
   // GUARD: Show guard screens without early return (maintains hook order)
   if (showMissingSession) {
