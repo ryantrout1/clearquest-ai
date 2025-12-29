@@ -2078,12 +2078,6 @@ export default function CandidateInterview() {
   }
 
   // ============================================================================
-  // ACTIVE CARD DECLARATION - Must be initialized BEFORE footer mode logic
-  // ============================================================================
-  // CRITICAL: Declared early to prevent TDZ errors in footer mode selection
-  let activeCard = null;
-  
-  // ============================================================================
   // BOTTOM BAR RENDER TYPE - Single source of truth (top-level component scope)
   // ============================================================================
   // CRITICAL: Declared at top-level so ALL render code can access it
@@ -9607,17 +9601,21 @@ export default function CandidateInterview() {
   }
   // V3_OPENER active
   else if (activeUiItem.kind === "V3_OPENER") {
-    // SCREEN MODE GUARD: Only allow TEXT_INPUT during QUESTION screen (prevents LOADING/WELCOME crashes)
-    if (screenMode !== "QUESTION") {
-      console.log("[V3_OPENER][FOOTER_SKIP_NOT_QUESTION]", {
-        screenMode,
+    // FOOTER GATING: Verify main-pane card exists before allowing TEXT_INPUT
+    const hasActiveOpenerCard = activeCard && activeCard.kind === "v3_pack_opener";
+    
+    if (!hasActiveOpenerCard) {
+      console.error("[V3_UI_CONTRACT][ACTIVE_PROMPT_WITHOUT_CARD]", {
         activeUiItemKind: activeUiItem.kind,
-        reason: "V3_OPENER only renders during QUESTION mode - footer hidden"
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+        hasActiveCard: !!activeCard,
+        activeCardKind: activeCard?.kind || null,
+        reason: "V3_OPENER is active but no main-pane card mounted - preventing orphaned footer"
       });
-      bottomBarMode = "HIDDEN";
+      bottomBarMode = "DISABLED";
     } else {
       bottomBarMode = "TEXT_INPUT";
-      // Note: Card existence validation happens after activeCard assignment below
     }
   }
   // MI_GATE active
@@ -10849,8 +10847,8 @@ export default function CandidateInterview() {
   // PART B: Suppress MI_GATE from render if V3 UI blocking (treat as null for rendering)
   const currentItemForRender = shouldSuppressMiGateSOT ? null : currentItem;
   
-  // Active card assignment begins here (declaration moved to line ~2083 to prevent TDZ)
-  // activeCard already declared above - now we assign it based on activeUiItem.kind
+  // Active card (exactly ONE, derived from activeUiItem.kind precedence)
+  let activeCard = null;
   
   // CHANGE 3: Track last rendered promptId to prevent duplicate active cards
   const currentPromptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
@@ -11165,25 +11163,6 @@ export default function CandidateInterview() {
         activeGateId,
         activeStableKeyBase
       });
-    }
-  }
-  
-  // FOOTER MODE VALIDATION: Verify active card exists for prompt-based modes (after activeCard assignment)
-  // This runs AFTER activeCard is assigned, preventing TDZ errors
-  if (bottomBarMode === "TEXT_INPUT" && activeUiItem.kind === "V3_OPENER") {
-    const hasActiveOpenerCard = activeCard && activeCard.kind === "v3_pack_opener";
-    
-    if (!hasActiveOpenerCard) {
-      console.error("[V3_UI_CONTRACT][ACTIVE_PROMPT_WITHOUT_CARD]", {
-        activeUiItemKind: activeUiItem.kind,
-        packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber,
-        hasActiveCard: !!activeCard,
-        activeCardKind: activeCard?.kind || null,
-        screenMode,
-        reason: "V3_OPENER is active but no main-pane card mounted - preventing orphaned footer"
-      });
-      bottomBarMode = "DISABLED";
     }
   }
   
