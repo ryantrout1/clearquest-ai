@@ -13821,6 +13821,9 @@ export default function CandidateInterview() {
               
               // History gates render normally (no skip)
 
+              // UI CONTRACT ENFORCEMENT: Transcript context = read-only (no inline actions)
+              const renderContext = "TRANSCRIPT";
+              
               // STEP 2: Sanitize MI gate prompt in transcript
               const safeMiGateTranscript = sanitizeCandidateFacingText(entry.text, 'TRANSCRIPT_MI_GATE');
 
@@ -13831,16 +13834,30 @@ export default function CandidateInterview() {
                 ts: Date.now()
               };
 
-              // UI CONTRACT SELF-TEST: Track main pane render (unconditional - we're rendering now)
-              if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
-                const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
+              // UI CONTRACT SELF-TEST: Track main pane render (use derived itemId for consistency)
+              const transcriptGateItemId = entry.id || `multi-instance-gate-${entry.meta?.packId || entry.packId}-${entry.meta?.instanceNumber || entry.instanceNumber}`;
+              if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && transcriptGateItemId) {
+                const tracker = miGateTestTrackerRef.current.get(transcriptGateItemId) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
                 tracker.mainPaneRendered = true;
-                miGateTestTrackerRef.current.set(currentItem.id, tracker);
+                miGateTestTrackerRef.current.set(transcriptGateItemId, tracker);
 
                 console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
-                  itemId: currentItem.id,
-                  event: 'MAIN_PANE_RENDERED',
-                  tracker
+                  itemId: transcriptGateItemId,
+                  event: 'TRANSCRIPT_MAIN_PANE_RENDERED',
+                  tracker,
+                  renderContext
+                });
+              }
+              
+              // DEFENSIVE GUARD: Log if transcript would try to render inline controls
+              if (renderContext === "TRANSCRIPT") {
+                console.log('[UI_CONTRACT][TRANSCRIPT_READ_ONLY]', {
+                  component: 'MULTI_INSTANCE_GATE_SHOWN',
+                  packId: entry.meta?.packId || entry.packId,
+                  instanceNumber: entry.meta?.instanceNumber || entry.instanceNumber,
+                  renderContext,
+                  inlineActions: false,
+                  reason: 'Footer owns all controls'
                 });
               }
               
@@ -13849,7 +13866,8 @@ export default function CandidateInterview() {
                 stableKey: entry.stableKey || entry.id,
                 packId: entry.meta?.packId || entry.packId,
                 instanceNumber: entry.meta?.instanceNumber || entry.instanceNumber,
-                promptPreview: safeMiGateTranscript?.substring(0, 60)
+                promptPreview: safeMiGateTranscript?.substring(0, 60),
+                renderContext
               });
 
               return (
@@ -13857,6 +13875,7 @@ export default function CandidateInterview() {
                   <ContentContainer>
                   <div className={`w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 transition-all duration-150 ${activeClass}`}>
                     <p className="text-white text-base leading-relaxed">{safeMiGateTranscript}</p>
+                    {/* UI CONTRACT: NO inline Yes/No buttons - footer owns all controls */}
                   </div>
                   </ContentContainer>
                 </div>
