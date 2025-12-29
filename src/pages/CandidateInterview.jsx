@@ -13411,6 +13411,66 @@ export default function CandidateInterview() {
     // Use deduplicated list for further processing
     transcriptToRenderDeduped = transcriptWithActiveOpenerRemoved;
     
+    // ACTIVE MI_GATE DEDUPLICATION: Remove transcript copy when MI gate is currently active
+    // This prevents duplicate rendering (transcript + active lane)
+    let transcriptWithActiveMiGateRemoved = transcriptToRenderDeduped;
+    
+    if (activeUiItem?.kind === "MI_GATE" && screenMode === "QUESTION") {
+      const activeMiGateStableKey = activeCard?.stableKey || 
+                                    (currentItem?.packId && currentItem?.instanceNumber 
+                                      ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}:q`
+                                      : null);
+      
+      if (activeMiGateStableKey) {
+        const beforeLen = transcriptWithActiveMiGateRemoved.length;
+        const removedKeys = [];
+        
+        transcriptWithActiveMiGateRemoved = transcriptWithActiveMiGateRemoved.filter(e => {
+          const entryStableKey = e.stableKey || e.id || e.__canonicalKey;
+          
+          // Match exact stableKey or same packId+instanceNumber
+          const exactMatch = entryStableKey === activeMiGateStableKey;
+          const baseKeyMatch = entryStableKey && 
+                              activeMiGateStableKey && 
+                              entryStableKey.startsWith(activeMiGateStableKey.replace(':q', ''));
+          const packInstanceMatch = e.meta?.packId === currentItem?.packId && 
+                                   e.meta?.instanceNumber === currentItem?.instanceNumber &&
+                                   (e.messageType === 'MULTI_INSTANCE_GATE_SHOWN' || e.type === 'MULTI_INSTANCE_GATE_SHOWN');
+          
+          const matches = exactMatch || baseKeyMatch || packInstanceMatch;
+          
+          if (matches) {
+            removedKeys.push(entryStableKey);
+            console.log('[MI_GATE][ACTIVE_DUPLICATE_REMOVED]', {
+              activeStableKey: activeMiGateStableKey,
+              removedStableKey: entryStableKey,
+              matchType: exactMatch ? 'exact' : baseKeyMatch ? 'baseKey' : 'packInstance',
+              messageType: e.messageType || e.type,
+              screenMode,
+              activeUiItemKind: activeUiItem.kind
+            });
+          }
+          
+          return !matches; // Remove if matches active MI gate
+        });
+        
+        const removedCount = beforeLen - transcriptWithActiveMiGateRemoved.length;
+        if (removedCount > 0) {
+          console.log('[MI_GATE][ACTIVE_DUPLICATE_REMOVED_SUMMARY]', {
+            activeStableKey: activeMiGateStableKey,
+            removedCount,
+            removedKeysSample: removedKeys.slice(0, 3),
+            packId: currentItem?.packId,
+            instanceNumber: currentItem?.instanceNumber,
+            reason: 'Active MI gate renders in active lane only - transcript copy suppressed'
+          });
+        }
+      }
+    }
+    
+    // Use deduplicated list for further processing
+    transcriptToRenderDeduped = transcriptWithActiveMiGateRemoved;
+    
     // ORDER GATING: Suppress UNANSWERED base questions during V3
     const v3UiHistoryLen = v3UiRenderable.length;
     const hasVisibleV3PromptCard = v3HasVisiblePromptCard;
