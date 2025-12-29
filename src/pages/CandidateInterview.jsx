@@ -13468,15 +13468,36 @@ export default function CandidateInterview() {
                         </div>
                       );
                     } else if (cardKind === "multi_instance_gate") {
-                      // UI CONTRACT SELF-TEST: Track main pane render
-                      if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
-                        const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
+                      // UI CONTRACT: MI gate main pane render - extract identity from activeCard entry
+                      const gatePackId = entry.packId || currentItem?.packId;
+                      const gateInstanceNumber = entry.instanceNumber || currentItem?.instanceNumber;
+                      const gateStableKey = entry.stableKey || `mi-gate:${gatePackId}:${gateInstanceNumber}`;
+                      const gateItemId = currentItem?.id || `multi-instance-gate-${gatePackId}-${gateInstanceNumber}`;
+                      
+                      // UI CONTRACT SELF-TEST: Track main pane render (use gateItemId, not currentItem.id)
+                      if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && gateItemId) {
+                        const tracker = miGateTestTrackerRef.current.get(gateItemId) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
                         tracker.mainPaneRendered = true;
-                        miGateTestTrackerRef.current.set(currentItem.id, tracker);
+                        miGateTestTrackerRef.current.set(gateItemId, tracker);
+                        
+                        console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
+                          itemId: gateItemId,
+                          event: 'ACTIVE_CARD_MAIN_PANE_RENDERED',
+                          tracker
+                        });
                       }
                       
                       // STEP 2: Sanitize MI gate prompt text
                       const safeGatePrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_MI_GATE');
+                      
+                      // AUDIT: Confirm main pane render
+                      console.log('[MI_GATE][MAIN_PANE_RENDER_OK]', {
+                        stableKey: gateStableKey,
+                        packId: gatePackId,
+                        instanceNumber: gateInstanceNumber,
+                        promptPreview: safeGatePrompt?.substring(0, 60),
+                        itemId: gateItemId
+                      });
                       
                       return (
                         <div key={entryKey}>
