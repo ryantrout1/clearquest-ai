@@ -10121,6 +10121,33 @@ export default function CandidateInterview() {
 
         if (!scrollContainer || !footerEl) return;
 
+        // YES_NO ACTIVE CARD VERIFICATION: Log active question stableKey for diagnostics
+        if (screenMode === 'QUESTION' && bottomBarMode === 'YES_NO' && effectiveItemType === 'question') {
+          const activeQuestionStableKey = currentItem?.id ? `question-shown:${currentItem.id}` : null;
+          
+          if (activeQuestionStableKey) {
+            const foundInDom = scrollContainer.querySelectorAll(
+              `[data-stablekey="${activeQuestionStableKey}"][data-cq-active-card="true"]`
+            ).length;
+            
+            console.log('[UI_CONTRACT][YESNO_ACTIVE_CARD_SOT]', {
+              activeQuestionStableKey,
+              foundInDomCount: foundInDom,
+              screenMode,
+              bottomBarMode,
+              currentItemId: currentItem?.id
+            });
+          } else {
+            console.warn('[UI_CONTRACT][ACTIVE_CARD_KEY_MISSING]', {
+              screenMode,
+              bottomBarMode,
+              effectiveItemType,
+              currentItemId: currentItem?.id,
+              action: 'NO_ACTIVE_CARD_THIS_FRAME'
+            });
+          }
+        }
+
         // WELCOME/CTA BYPASS: Skip active card validation for welcome screen
         // WELCOME mode has no active interview cards in scroll history (only welcome message)
         const isWelcomeCta = screenMode === 'WELCOME' && 
@@ -14922,7 +14949,11 @@ export default function CandidateInterview() {
                 : '';
               
               return (
-                <div key={entryKey} data-stablekey={entry.stableKey || entry.id}>
+                <div 
+                  key={entryKey} 
+                  data-stablekey={entry.stableKey || entry.id}
+                  data-cq-active-card={isActiveBaseQuestion ? "true" : undefined}
+                >
                   <ContentContainer>
                   <div className={`w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 transition-all duration-150 ${activeClass}`}>
                     <div className="flex items-center gap-2 mb-2">
