@@ -13469,6 +13469,9 @@ export default function CandidateInterview() {
                         </div>
                       );
                     } else if (cardKind === "multi_instance_gate") {
+                      // UI CONTRACT ENFORCEMENT: Transcript context = read-only (activeCard is footer-bound)
+                      const renderContext = "ACTIVE_CARD"; // Active cards have no inline actions
+                      
                       // UI CONTRACT: MI gate main pane render - extract identity from activeCard entry
                       const gatePackId = entry.packId || currentItem?.packId;
                       const gateInstanceNumber = entry.instanceNumber || currentItem?.instanceNumber;
@@ -13484,7 +13487,8 @@ export default function CandidateInterview() {
                         console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
                           itemId: gateItemId,
                           event: 'ACTIVE_CARD_MAIN_PANE_RENDERED',
-                          tracker
+                          tracker,
+                          renderContext
                         });
                       }
                       
@@ -13497,14 +13501,18 @@ export default function CandidateInterview() {
                         packId: gatePackId,
                         instanceNumber: gateInstanceNumber,
                         promptPreview: safeGatePrompt?.substring(0, 60),
-                        itemId: gateItemId
+                        itemId: gateItemId,
+                        renderContext
                       });
                       
+                      // UI CONTRACT: Active card renders prompt text ONLY (no buttons)
+                      // Footer owns all Yes/No controls
                       return (
                         <div key={entryKey}>
                           <ContentContainer>
                             <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
                               <p className="text-white text-base leading-relaxed">{safeGatePrompt}</p>
+                              {/* UI CONTRACT: NO inline Yes/No buttons - footer owns all controls */}
                             </div>
                           </ContentContainer>
                         </div>
