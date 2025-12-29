@@ -13845,29 +13845,80 @@ export default function CandidateInterview() {
     });
     
     if (canonicalOpenersFromDb.length > 0) {
+      // Canonical opener key function (single source of truth for key derivation)
+      const getOpenerKey = (entry) => {
+        const stableKey = entry.stableKey || entry.id;
+        // Use existing stableKey if it's properly formatted
+        if (stableKey && stableKey.startsWith('followup-card:') && stableKey.includes(':opener:')) {
+          return stableKey;
+        }
+        // Derive canonical key from pack identity
+        const packId = entry.meta?.packId || entry.packId;
+        const instanceNumber = entry.meta?.instanceNumber || entry.instanceNumber;
+        return `followup-card:${packId}:opener:${instanceNumber}`;
+      };
+      
       console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_START]', {
         canonicalOpenersCount: canonicalOpenersFromDb.length,
         activeUiItemKind: activeUiItem?.kind,
         transcriptLenBefore: transcriptToRenderDeduped.length
       });
       
+      // PRE-DEDUPE: Remove duplicate opener entries from transcript before insertion
+      let workingList = [...transcriptToRenderDeduped];
+      const seenOpenerKeys = new Set();
+      const beforeLen = workingList.length;
+      const removedDuplicates = [];
+      
+      workingList = workingList.filter(e => {
+        const mt = e.messageType || e.type || null;
+        const variant = e.meta?.variant || e.variant || null;
+        const isOpener = mt === 'FOLLOWUP_CARD_SHOWN' && variant === 'opener';
+        
+        if (!isOpener) return true; // Keep non-opener entries
+        
+        const openerKey = getOpenerKey(e);
+        if (seenOpenerKeys.has(openerKey)) {
+          removedDuplicates.push(openerKey);
+          return false; // Remove duplicate
+        }
+        
+        seenOpenerKeys.add(openerKey);
+        return true; // Keep first occurrence
+      });
+      
+      if (removedDuplicates.length > 0) {
+        console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_DEDUP_PRE]', {
+          beforeLen,
+          afterLen: workingList.length,
+          removedCount: removedDuplicates.length,
+          removedKeysSample: removedDuplicates.slice(0, 3)
+        });
+      } else {
+        console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_DEDUP_PRE]', {
+          beforeLen,
+          afterLen: workingList.length,
+          removedCount: 0,
+          status: 'clean'
+        });
+      }
+      
+      // IDENTIFY MISSING: Find openers that need insertion
       const missingOpeners = [];
       const openersToInsert = [];
       
       for (const opener of canonicalOpenersFromDb) {
-        // Extract opener identity
+        const openerKey = getOpenerKey(opener);
         const openerPackId = opener.meta?.packId || opener.packId;
         const openerInstanceNumber = opener.meta?.instanceNumber || opener.instanceNumber;
-        const openerStableKey = opener.stableKey || opener.id || 
-                                `followup-card:${openerPackId}:opener:${openerInstanceNumber}`;
         
         // Check if this is the currently active opener
         const isCurrentlyActive = activeUiItem?.kind === "V3_OPENER" &&
-                                  activeCard?.stableKey === openerStableKey;
+                                  activeCard?.stableKey === openerKey;
         
         if (isCurrentlyActive) {
           console.log('[V3_UI_CONTRACT][OPENER_SKIP_CURRENTLY_ACTIVE]', {
-            stableKey: openerStableKey,
+            stableKey: openerKey,
             packId: openerPackId,
             instanceNumber: openerInstanceNumber,
             reason: 'Active opener renders in active lane - skip transcript merge'
@@ -13875,18 +13926,12 @@ export default function CandidateInterview() {
           continue; // Skip active opener (active lane owns it)
         }
         
-        // Check if already in transcript
-        const foundInTranscript = transcriptToRenderDeduped.some(e => 
-          (e.stableKey || e.id) === openerStableKey ||
-          ((e.messageType === 'FOLLOWUP_CARD_SHOWN' || e.type === 'FOLLOWUP_CARD_SHOWN') &&
-           (e.meta?.variant === 'opener' || e.variant === 'opener') &&
-           (e.meta?.packId || e.packId) === openerPackId &&
-           (e.meta?.instanceNumber || e.instanceNumber) === openerInstanceNumber)
-        );
+        // Check if already in transcript (using canonical key)
+        const foundInTranscript = seenOpenerKeys.has(openerKey);
         
         if (!foundInTranscript) {
           missingOpeners.push({
-            stableKey: openerStableKey,
+            stableKey: openerKey,
             packId: openerPackId,
             instanceNumber: openerInstanceNumber
           });
@@ -13894,13 +13939,13 @@ export default function CandidateInterview() {
           // Prepare for insertion
           openersToInsert.push({
             entry: opener,
-            stableKey: openerStableKey,
+            stableKey: openerKey,
             packId: openerPackId,
             instanceNumber: openerInstanceNumber
           });
           
           console.log('[V3_UI_CONTRACT][OPENER_MISSING_WILL_INSERT]', {
-            stableKey: openerStableKey,
+            stableKey: openerKey,
             packId: openerPackId,
             instanceNumber: openerInstanceNumber,
             reason: 'Opener in DB but missing from transcript - will force-merge'
@@ -13908,11 +13953,32 @@ export default function CandidateInterview() {
         }
       }
       
-      // Insert missing openers deterministically
+      // INSERT MISSING: Add openers deterministically (idempotent)
       if (openersToInsert.length > 0) {
-        let workingList = [...transcriptToRenderDeduped];
+        // Spacer note (footer spacer is DOM-only, not in transcript list)
+        console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_INSERT_SPACER_NOTE]', {
+          note: 'spacer is DOM-only; insertion remains within transcript list'
+        });
         
         for (const { entry, stableKey, packId, instanceNumber } of openersToInsert) {
+          // IDEMPOTENCE CHECK: Verify key not already inserted in this pass
+          const alreadyExists = workingList.some(e => {
+            const mt = e.messageType || e.type || null;
+            const variant = e.meta?.variant || e.variant || null;
+            const isOpener = mt === 'FOLLOWUP_CARD_SHOWN' && variant === 'opener';
+            return isOpener && getOpenerKey(e) === stableKey;
+          });
+          
+          if (alreadyExists) {
+            console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_INSERT_SKIPPED_EXISTS]', {
+              stableKey,
+              packId,
+              instanceNumber,
+              reason: 'Opener already present in working list - skipping duplicate insertion'
+            });
+            continue; // Skip insertion
+          }
+          
           // Find insertion position: BEFORE first V3 probe Q for same pack+instance
           let insertIndex = workingList.findIndex(e => {
             const mt = e.messageType || e.type || null;
@@ -13939,13 +14005,14 @@ export default function CandidateInterview() {
             }
           }
           
-          // Fallback: Append at end (before footer spacer if exists)
+          // Fallback: Append at end of transcript items
           if (insertIndex === -1) {
             insertIndex = workingList.length;
           }
           
           // Insert opener at determined position
           workingList.splice(insertIndex, 0, entry);
+          seenOpenerKeys.add(stableKey); // Track inserted key
           
           console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_INSERTED]', {
             stableKey,
@@ -13958,26 +14025,50 @@ export default function CandidateInterview() {
         }
         
         transcriptToRenderDeduped = workingList;
+      } else {
+        transcriptToRenderDeduped = workingList; // Use deduplicated list
       }
       
-      // Assertion: Verify all non-active openers now present
+      // ASSERTION: Verify all non-active openers present AND no duplicates
+      const finalOpenerKeys = new Set();
+      const duplicateKeys = [];
+      
+      for (const entry of transcriptToRenderDeduped) {
+        const mt = entry.messageType || entry.type || null;
+        const variant = entry.meta?.variant || entry.variant || null;
+        const isOpener = mt === 'FOLLOWUP_CARD_SHOWN' && variant === 'opener';
+        
+        if (isOpener) {
+          const openerKey = getOpenerKey(entry);
+          if (finalOpenerKeys.has(openerKey)) {
+            duplicateKeys.push(openerKey);
+          } else {
+            finalOpenerKeys.add(openerKey);
+          }
+        }
+      }
+      
       const stillMissing = [];
       for (const opener of canonicalOpenersFromDb) {
+        const openerKey = getOpenerKey(opener);
         const openerPackId = opener.meta?.packId || opener.packId;
         const openerInstanceNumber = opener.meta?.instanceNumber || opener.instanceNumber;
-        const openerStableKey = opener.stableKey || opener.id;
         
         const isCurrentlyActive = activeUiItem?.kind === "V3_OPENER" &&
-                                  activeCard?.stableKey === openerStableKey;
+                                  activeCard?.stableKey === openerKey;
         if (isCurrentlyActive) continue;
         
-        const foundNow = transcriptToRenderDeduped.some(e => 
-          (e.stableKey || e.id) === openerStableKey
-        );
-        
-        if (!foundNow) {
+        if (!finalOpenerKeys.has(openerKey)) {
           stillMissing.push(`${openerPackId}:${openerInstanceNumber}`);
         }
+      }
+      
+      if (duplicateKeys.length > 0) {
+        console.error('[V3_UI_CONTRACT][OPENER_CANONICAL_DUPLICATE_DETECTED]', {
+          duplicateCount: duplicateKeys.length,
+          duplicateKeysSample: duplicateKeys.slice(0, 3),
+          reason: 'Duplicate opener keys found in final transcript - deduplication failed'
+        });
       }
       
       if (stillMissing.length > 0) {
@@ -13992,7 +14083,8 @@ export default function CandidateInterview() {
           count: canonicalOpenersFromDb.length,
           activeUiItemKind: activeUiItem?.kind,
           insertedCount: openersToInsert.length,
-          reason: 'All non-active openers present in transcript'
+          duplicateCount: duplicateKeys.length,
+          reason: duplicateKeys.length === 0 ? 'All non-active openers present, no duplicates' : 'Openers present but duplicates detected'
         });
       }
     }
