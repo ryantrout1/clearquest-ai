@@ -13262,6 +13262,46 @@ export default function CandidateInterview() {
     // CQ_FORBIDDEN: This suppresses UNANSWERED questions only (render filter, NOT transcript mutation)
     // Transcript is permanent - this only affects what renders while V3 is active
     // CQ_RULE: STREAM_SUPPRESS must never block transcript writes - this is render-time only
+    // ACTIVE OPENER DEDUPLICATION: Remove transcript copy when opener is currently active
+    // This prevents duplicate rendering (transcript + active lane)
+    let transcriptWithActiveOpenerRemoved = transcriptToRenderDeduped;
+    
+    if (activeUiItem?.kind === "V3_OPENER" && activeCard?.stableKey && screenMode === "QUESTION") {
+      const activeOpenerStableKey = activeCard.stableKey;
+      const beforeLen = transcriptWithActiveOpenerRemoved.length;
+      
+      transcriptWithActiveOpenerRemoved = transcriptWithActiveOpenerRemoved.filter(e => {
+        const entryStableKey = e.stableKey || e.id || e.__canonicalKey;
+        const matches = entryStableKey === activeOpenerStableKey;
+        
+        if (matches) {
+          console.log('[V3_UI_CONTRACT][ACTIVE_OPENER_DUPLICATE_REMOVED]', {
+            activeStableKey: activeOpenerStableKey,
+            removedStableKey: entryStableKey,
+            messageType: e.messageType || e.type,
+            screenMode,
+            activeUiItemKind: activeUiItem.kind
+          });
+        }
+        
+        return !matches; // Remove if matches active opener
+      });
+      
+      const removedCount = beforeLen - transcriptWithActiveOpenerRemoved.length;
+      if (removedCount > 0) {
+        console.log('[V3_UI_CONTRACT][ACTIVE_OPENER_DUPLICATE_SUMMARY]', {
+          activeStableKey: activeOpenerStableKey,
+          removedCount,
+          packId: activeCard.packId,
+          instanceNumber: activeCard.instanceNumber,
+          reason: 'Active opener renders in active lane only - transcript copy suppressed'
+        });
+      }
+    }
+    
+    // Use deduplicated list for further processing
+    transcriptToRenderDeduped = transcriptWithActiveOpenerRemoved;
+    
     // ORDER GATING: Suppress UNANSWERED base questions during V3
     const v3UiHistoryLen = v3UiRenderable.length;
     const hasVisibleV3PromptCard = v3HasVisiblePromptCard;
