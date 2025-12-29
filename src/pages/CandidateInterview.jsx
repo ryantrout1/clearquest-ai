@@ -280,12 +280,22 @@ const commitBaseQAIfMissing = async ({ questionId, questionText, answerText, ses
     const aStableKey = `answer:${sessionId}:${questionId}:0`;
     
     const hasQ = currentTranscript.some(e => e.stableKey === qStableKey || (e.meta?.questionDbId === questionId && e.messageType === 'QUESTION_SHOWN'));
-    const hasA = currentTranscript.some(e => e.stableKey === aStableKey || (e.meta?.questionDbId === questionId && e.messageType === 'ANSWER'));
+    
+    // IMPROVED hasA: Check for ANY answer with this questionId (not just deterministic stableKey)
+    const hasAByDeterministicKey = currentTranscript.some(e => e.stableKey === aStableKey);
+    const hasAByQuestionId = currentTranscript.some(e => {
+      const entryQuestionId = e.questionId || e.meta?.questionDbId || e.meta?.questionId;
+      const entryMessageType = e.messageType || e.type;
+      return entryQuestionId === questionId && entryMessageType === 'ANSWER';
+    });
+    const hasA = hasAByDeterministicKey || hasAByQuestionId;
     
     console.log('[CQ_TRANSCRIPT][BASE_QA_CHECK]', {
       questionId,
       hasQ,
       hasA,
+      hasAByDeterministicKey,
+      hasAByQuestionId,
       transcriptLen: currentTranscript.length,
       qKey: qStableKey,
       aKey: aStableKey
@@ -327,7 +337,7 @@ const commitBaseQAIfMissing = async ({ questionId, questionText, answerText, ses
     }
     
     if (!hasA) {
-      // Append BASE_ANSWER
+      // Append BASE_ANSWER (only if NO answer exists by questionId)
       const aEntry = {
         id: `base-a-${questionId}-barrier`,
         stableKey: aStableKey,
@@ -340,13 +350,20 @@ const commitBaseQAIfMissing = async ({ questionId, questionText, answerText, ses
         type: 'ANSWER',
         meta: {
           questionDbId: questionId,
-          source: 'base_qa_barrier'
+          questionId: questionId,
+          source: 'base_qa_barrier',
+          answerContext: 'BASE_QUESTION'
         },
+        questionId: questionId,
         visibleToCandidate: true
       };
       
       updated = [...updated, aEntry];
-      console.log('[CQ_TRANSCRIPT][BASE_A_INSERTED]', { aKey: aStableKey, questionId });
+      console.log('[CQ_TRANSCRIPT][BASE_A_INSERTED]', { 
+        aKey: aStableKey, 
+        questionId,
+        reason: 'No answer found by questionId - inserting deterministic base answer'
+      });
     }
     
     // Persist to DB synchronously
@@ -5726,7 +5743,18 @@ export default function CandidateInterview() {
         const appendUserMessage = appendUserMessageImport;
         const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
         const questionStableKey = `question-shown:${currentItem.id}`;
+        
+        // DETERMINISTIC STABLEKEY: Base question answers use canonical format
+        const baseAnswerStableKey = `answer:${sessionId}:${currentItem.id}:0`;
+        
+        console.log('[BASE_YESNO][STABLEKEY_OVERRIDE]', {
+          questionId: currentItem.id,
+          aStableKey: baseAnswerStableKey,
+          clicked: answerDisplayText
+        });
+        
         await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], answerDisplayText, {
+          stableKey: baseAnswerStableKey,
           messageType: 'ANSWER',
           questionDbId: currentItem.id,
           questionCode: question.question_id,
