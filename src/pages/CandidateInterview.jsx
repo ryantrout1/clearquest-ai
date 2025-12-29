@@ -13791,6 +13791,20 @@ export default function CandidateInterview() {
                 return null; // Suppress current gate from transcript (renders as activeCard instead)
               }
 
+              // UI CONTRACT ENFORCEMENT: Transcript context = read-only (no inline actions)
+              const renderContext = "TRANSCRIPT";
+              
+              // DEFENSIVE GUARD: Prevent any future inline button rendering
+              if (isActiveMiGate && renderContext === "TRANSCRIPT") {
+                console.warn('[UI_CONTRACT][TRANSCRIPT_INLINE_SUPPRESSED]', {
+                  component: 'MULTI_INSTANCE_GATE',
+                  packId: entryPackId,
+                  instanceNumber: entryInstanceNumber,
+                  renderContext,
+                  reason: 'Footer owns all controls - inline actions disabled'
+                });
+              }
+
               // FIX: History gates render from transcript (no separate bubble)
               // Active gate renders via activeCard with ring highlight
               const activeClass = isActiveMiGate 
