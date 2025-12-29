@@ -12267,6 +12267,19 @@ export default function CandidateInterview() {
             return true; // ALWAYS keep V3 probe Q/A
           }
           
+          // CRITICAL: MI_GATE active cards MUST render (exception to ephemeral rule)
+          const isMiGateActiveCard = e.__activeCard === true && e.kind === 'multi_instance_gate';
+          
+          if (isMiGateActiveCard) {
+            console.log('[MI_GATE][EPHEMERAL_EXCEPTION]', {
+              stableKey: e.stableKey,
+              packId: e.packId,
+              instanceNumber: e.instanceNumber,
+              reason: 'MI_GATE active card must render in main pane - bypassing ephemeral filter'
+            });
+            return true; // ALWAYS keep MI_GATE active cards
+          }
+          
           // CRITICAL: Never filter items with real DB stableKeys and real types
           const hasStableKey = !!stableKey;
           const isRealTranscriptType = ['QUESTION_SHOWN', 'ANSWER', 'MULTI_INSTANCE_GATE_SHOWN', 'MULTI_INSTANCE_GATE_ANSWER', 'V3_PROBE_QUESTION', 'V3_PROBE_ANSWER', 'FOLLOWUP_CARD_SHOWN', 'V3_OPENER_ANSWER'].includes(mt);
@@ -12275,7 +12288,7 @@ export default function CandidateInterview() {
             return true; // Always keep real transcript items
           }
           
-          // Filter out ephemeral-only items
+          // Filter out ephemeral-only items (V3 prompts, etc.)
           const isEphemeral = e.__activeCard === true || 
             e.kind === 'v3_probe_q' || 
             e.kind === 'v3_probe_a' ||
