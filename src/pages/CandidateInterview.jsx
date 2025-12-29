@@ -11475,14 +11475,15 @@ export default function CandidateInterview() {
     });
     
     // REGRESSION SUMMARY: Single log per gate activation (once per itemId)
-    const itemId = currentItem?.id;
-    if (itemId) {
-      const tracker = miGateTestTrackerRef.current.get(itemId) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
+    // FIX: Derive itemId same way as activeCard renderer (consistent with tracker setter)
+    const gateItemId = currentItem?.id || `multi-instance-gate-${currentItem?.packId}-${currentItem?.instanceNumber}`;
+    if (gateItemId) {
+      const tracker = miGateTestTrackerRef.current.get(gateItemId) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
       
       if (!tracker.testStarted) {
         // Log regression summary on first activation
         console.log('[MI_GATE][REGRESSION_SUMMARY]', {
-          itemId,
+          itemId: gateItemId,
           packId: currentItem?.packId,
           instanceNumber: currentItem?.instanceNumber,
           mainPaneListFilterEnabled: true,
@@ -11493,15 +11494,15 @@ export default function CandidateInterview() {
     }
     
     // UI CONTRACT SELF-TEST: Start test when MI_GATE becomes active (once per itemId)
-    if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && itemId) {
-      const tracker = miGateTestTrackerRef.current.get(itemId) || { footerWired: false, activeGateSuppressed: false, testStarted: false };
+    if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && gateItemId) {
+      const tracker = miGateTestTrackerRef.current.get(gateItemId) || { footerWired: false, activeGateSuppressed: false, testStarted: false };
       
       if (!tracker.testStarted) {
         tracker.testStarted = true;
-        miGateTestTrackerRef.current.set(itemId, tracker);
+        miGateTestTrackerRef.current.set(gateItemId, tracker);
         
         console.log('[MI_GATE][UI_CONTRACT_TEST_START]', {
-          itemId,
+          itemId: gateItemId,
           packId: currentItem?.packId,
           instanceNumber: currentItem?.instanceNumber
         });
@@ -11515,11 +11516,11 @@ export default function CandidateInterview() {
         miGateTestTimeoutRef.current = setTimeout(() => {
           // SAFETY: Self-test is log-only, never throws or blocks
           try {
-            const finalTracker = miGateTestTrackerRef.current.get(itemId);
+            const finalTracker = miGateTestTrackerRef.current.get(gateItemId);
             
             if (!finalTracker) {
               console.warn('[MI_GATE][UI_CONTRACT_TEST]', {
-                itemId,
+                itemId: gateItemId,
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
                 result: 'NO_TRACKER',
@@ -11531,11 +11532,11 @@ export default function CandidateInterview() {
             const { mainPaneRendered, footerButtonsOnly } = finalTracker;
             
             // UI CONTRACT: Self-test requires main pane render AND footer buttons-only
-            const passCondition = mainPaneRendered && footerButtonsOnly;
+            const passCondition = mainPaneRendered === true && footerButtonsOnly === true;
             
             if (passCondition) {
               console.log('[MI_GATE][UI_CONTRACT_PASS]', {
-                itemId,
+                itemId: gateItemId,
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
                 mainPaneRendered: true,
@@ -11546,7 +11547,7 @@ export default function CandidateInterview() {
               const finalRenderList = renderedTranscriptSnapshotRef.current || renderedTranscript;
               
               console.error('[MI_GATE][UI_CONTRACT_FAIL]', {
-                itemId,
+                itemId: gateItemId,
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
                 mainPaneRendered,
@@ -11567,7 +11568,7 @@ export default function CandidateInterview() {
           } catch (testError) {
             // SAFETY: Self-test errors must never crash the app
             console.warn('[MI_GATE][UI_CONTRACT_TEST_ERROR]', {
-              itemId,
+              itemId: gateItemId,
               error: testError.message,
               reason: 'Self-test failed safely - interview continues'
             });
