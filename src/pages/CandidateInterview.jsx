@@ -3008,6 +3008,46 @@ export default function CandidateInterview() {
   // TDZ GUARD: Hooks/memos must not reference finalList before it is initialized. Use finalListRef/finalListLenRef.
   const finalListRef = React.useRef([]);
   const finalListLenRef = React.useRef(0);
+  
+  // UI CONTRACT HELPER: Detect non-card structural elements (wrappers, spacers, anchors)
+  const isUiContractNonCard = (el) => {
+    if (!el) return true; // Null element = not a card
+    
+    // Check data attributes
+    if (el.getAttribute('data-ui-contract-spacer') === 'true') return true;
+    if (el.getAttribute('data-ui-contract-struct') === 'true') return true;
+    if (el.getAttribute('data-ui-contract-anchor') === 'true') return true;
+    if (el.getAttribute('data-cq-footer-spacer') === 'true') return true;
+    
+    // Check classes (fallback for unmarked legacy elements)
+    const classList = el.classList;
+    if (classList.contains('cq-footer-spacer')) return true;
+    if (classList.contains('cq-gravity-rail')) return true;
+    if (classList.contains('cq-gravity-bottom')) return true;
+    
+    return false; // Not a structural element
+  };
+  
+  // Throttled suspect element logger (prevents spam)
+  const lastSuspectLogTimeRef = React.useRef(0);
+  const logSuspectElement = (el, context) => {
+    const now = Date.now();
+    const elapsed = now - lastSuspectLogTimeRef.current;
+    
+    // Throttle: only log once per 2 seconds
+    if (elapsed < 2000) return;
+    
+    lastSuspectLogTimeRef.current = now;
+    
+    console.error('[UI_CONTRACT][FOOTER_MEASURE_TARGET_SUSPECT_DETAIL]', {
+      context,
+      tagName: el.tagName,
+      classNames: el.className,
+      datasetKeys: Object.keys(el.dataset),
+      hasStablekey: el.hasAttribute('data-stablekey'),
+      outerHTMLPreview: el.outerHTML?.substring(0, 120) || '(unavailable)'
+    });
+  };
 
   // MESSAGE TYPE SOT: Canonical messageType normalizer (handles DB casing mismatches)
   const getMessageTypeSOT = (entry) => {
@@ -10302,9 +10342,7 @@ export default function CandidateInterview() {
         if (hasActiveCard) {
           // Priority 1: Measure active card (most likely to be clipped)
           const activeCards = scrollContainer.querySelectorAll('[data-cq-active-card="true"]');
-          const activeCardsArray = Array.from(activeCards).filter(el => 
-            el.getAttribute('data-cq-footer-spacer') !== 'true'
-          );
+          const activeCardsArray = Array.from(activeCards).filter(el => !isUiContractNonCard(el));
           
           if (activeCardsArray.length > 0) {
             lastItem = activeCardsArray[activeCardsArray.length - 1];
@@ -10313,6 +10351,7 @@ export default function CandidateInterview() {
               hasActiveCard,
               activeCardCount: activeCardsArray.length,
               selectedTag: lastItem.tagName,
+              hasStablekey: lastItem.hasAttribute('data-stablekey'),
               reason: 'Active card prioritized for measurement'
             });
           }
@@ -10323,19 +10362,27 @@ export default function CandidateInterview() {
           const allItems = scrollContainer.querySelectorAll('[data-stablekey]');
           for (let i = allItems.length - 1; i >= 0; i--) {
             const item = allItems[i];
-            // HARDENED: Exclude spacer using all markers
-            const isSpacer = item.getAttribute('data-cq-footer-spacer') === 'true' ||
-                           item.getAttribute('data-ui-contract-spacer') === 'true' ||
-                           item.classList.contains('cq-footer-spacer');
             
-            if (!isSpacer) {
+            // HARDENED: Exclude all non-card structural elements
+            if (isUiContractNonCard(item)) {
+              continue; // Skip structural elements (spacers, anchors, wrappers)
+            }
+            
+            // REQUIRE: Must be a card-like element (has rounded-xl or card structure)
+            const hasCardStructure = item.querySelector('.rounded-xl') || 
+                                    item.classList.contains('rounded-xl') ||
+                                    item.querySelector('[role]') ||
+                                    item.querySelector('p');
+            
+            if (hasCardStructure) {
               lastItem = item;
               console.log('[UI_CONTRACT][FOOTER_MEASURE_TARGET_PRIORITY]', {
                 strategy: 'TRANSCRIPT_FALLBACK',
                 hasActiveCard,
                 selectedTag: lastItem.tagName,
                 chosenTargetStableKey: lastItem.getAttribute('data-stablekey'),
-                reason: 'No active card found - using last transcript item'
+                hasCardStructure: true,
+                reason: 'No active card found - using last real card in transcript'
               });
               break;
             }
@@ -10352,30 +10399,34 @@ export default function CandidateInterview() {
         }
 
         // MEASUREMENT TARGET VALIDATION: Ensure lastItem is a real card container
-        const isSpacer = lastItem.hasAttribute('data-ui-contract-spacer') ||
-                        lastItem.hasAttribute('data-cq-footer-spacer') ||
-                        lastItem.classList.contains('cq-footer-spacer');
+        const isStructuralElement = isUiContractNonCard(lastItem);
         
-        const isRealCard = !isSpacer &&
-                          lastItem.hasAttribute('data-stablekey') &&
-                          (lastItem.querySelector('.rounded-xl') || // Card containers use rounded-xl
-                           lastItem.classList.contains('rounded-xl') ||
-                           lastItem.querySelector('[role]') ||
-                           lastItem.querySelector('p') || // Cards have text content
-                           lastItem.querySelector('div'));
+        const hasCardStructure = !isStructuralElement &&
+                                lastItem.hasAttribute('data-stablekey') &&
+                                (lastItem.querySelector('.rounded-xl') || 
+                                 lastItem.classList.contains('rounded-xl') ||
+                                 lastItem.querySelector('[role]') ||
+                                 lastItem.querySelector('p'));
 
         let finalLastItem = lastItem;
         let measurementCorrected = false;
         let originalOverlapPx = 0;
 
-        if (!isRealCard) {
+        if (!hasCardStructure) {
+          // THROTTLED DIAGNOSTIC: Log suspect element details once per 2s
+          logSuspectElement(lastItem, {
+            hasActiveCard,
+            activeCardCount: hasActiveCard ? scrollContainer.querySelectorAll('[data-cq-active-card="true"]').length : 0,
+            selectorUsed: hasActiveCard ? 'ACTIVE_CARD_FIRST' : 'TRANSCRIPT_FALLBACK'
+          });
+          
           console.warn('[UI_CONTRACT][FOOTER_MEASURE_TARGET_SUSPECT]', {
-            reason: isSpacer ? 'lastItem_is_spacer' : 'lastItem_not_card',
-            selectorUsed: '[data-stablekey] (excluding spacer)',
+            reason: isStructuralElement ? 'lastItem_is_structural' : 'lastItem_not_card',
+            selectorUsed: hasActiveCard ? '[data-cq-active-card] (filtered)' : '[data-stablekey] (filtered)',
             lastItemTagName: lastItem.tagName,
             lastItemClassesSample: lastItem.className?.substring(0, 60),
             hasDataStablekey: lastItem.hasAttribute('data-stablekey'),
-            lastCandidateIsSpacer: isSpacer
+            isStructuralElement
           });
 
           // Original measurement before correction
@@ -10385,13 +10436,10 @@ export default function CandidateInterview() {
           // STRICTER SELECTOR: Find last actual card element
           // Strategy 1: Last element with both data-stablekey AND card structure
           const cardCandidates = Array.from(allItems).filter(el => {
-            // HARDENED: Exclude spacer using all markers
-            const isSpacer = el.getAttribute('data-cq-footer-spacer') === 'true' ||
-                           el.getAttribute('data-ui-contract-spacer') === 'true' ||
-                           el.classList.contains('cq-footer-spacer');
+            // HARDENED: Exclude all non-card structural elements
+            if (isUiContractNonCard(el)) return false;
             
-            if (isSpacer) return false;
-            
+            // REQUIRE: Must have card structure
             return el.querySelector('.rounded-xl') || el.classList.contains('rounded-xl');
           });
 
@@ -14762,8 +14810,8 @@ export default function CandidateInterview() {
         <div className="px-4 pt-6 flex flex-col flex-1 min-h-0">
           {/* UI CONTRACT: Transcript gravity is enforced via cq-gravity-rail + mt-auto.
               Do NOT add justify-end or centering logic inside transcript stack. */}
-          <div className="cq-gravity-rail flex flex-col flex-1 min-h-0">
-            <div className="cq-gravity-bottom mt-auto">
+          <div className="cq-gravity-rail flex flex-col flex-1 min-h-0" data-ui-contract-struct="true">
+            <div className="cq-gravity-bottom mt-auto" data-ui-contract-struct="true">
               <div className="space-y-3 relative isolate">
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {finalTranscriptList.map((entry, index) => {
@@ -15796,7 +15844,13 @@ export default function CandidateInterview() {
           />
           
           {/* Bottom anchor - minimal-height sentinel for scroll positioning */}
-          <div ref={bottomAnchorRef} aria-hidden="true" style={{ height: '1px', margin: 0, padding: 0 }} />
+          <div 
+            ref={bottomAnchorRef} 
+            data-ui-contract-anchor="true"
+            data-ui-contract-struct="true"
+            aria-hidden="true" 
+            style={{ height: '1px', margin: 0, padding: 0 }} 
+          />
               </div>
             </div>
           </div>
