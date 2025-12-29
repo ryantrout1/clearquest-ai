@@ -10135,7 +10135,9 @@ export default function CandidateInterview() {
         const footerRect = footerEl.getBoundingClientRect();
 
         // Get last REAL item (before footer spacer) in scroll container
-        const allItems = scrollContainer.querySelectorAll('[data-stablekey]');
+        // CARD CANDIDATE SELECTORS: Include both transcript items AND active cards
+        const cardCandidateSelector = '[data-stablekey], [data-cq-active-card="true"]';
+        const allItems = scrollContainer.querySelectorAll(cardCandidateSelector);
         let lastItem = null;
 
         // Find last item that is NOT the spacer
@@ -15440,7 +15442,7 @@ export default function CandidateInterview() {
             if (cardKind === "v3_probe_q") {
               const safeCardPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_V3_PROBE');
               return (
-                <div key={`active-${activeCard.stableKey}`}>
+                <div key={`active-${activeCard.stableKey}`} data-cq-active-card="true">
                   <ContentContainer>
                     <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
                       <div className="flex items-center gap-2 mb-1">
@@ -15462,7 +15464,7 @@ export default function CandidateInterview() {
             if (cardKind === "v3_pack_opener") {
               const safeOpenerPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_V3_OPENER');
               return (
-                <div key={`active-${activeCard.stableKey}`}>
+                <div key={`active-${activeCard.stableKey}`} data-cq-active-card="true">
                   <ContentContainer>
                     <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
                       {activeCard.categoryLabel && (
@@ -15488,7 +15490,7 @@ export default function CandidateInterview() {
             if (cardKind === "multi_instance_gate") {
               const safeMiGatePrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_MI_GATE');
               return (
-                <div key={`active-${activeCard.stableKey}`}>
+                <div key={`active-${activeCard.stableKey}`} data-cq-active-card="true">
                   <ContentContainer>
                     <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
                       <p className="text-white text-base leading-relaxed">{safeMiGatePrompt}</p>
