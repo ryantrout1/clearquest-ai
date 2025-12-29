@@ -10120,6 +10120,16 @@ export default function CandidateInterview() {
         const footerEl = footerRef.current;
 
         if (!scrollContainer || !footerEl) return;
+        
+        // DIAGNOSTIC: Verify scroll container flex setup for bottom-anchoring
+        const computed = window.getComputedStyle(scrollContainer);
+        console.log('[UI_CONTRACT][SCROLL_CONTAINER_FLEX_DIAGNOSTIC]', {
+          display: computed.display,
+          flexDirection: computed.flexDirection,
+          clientHeight: scrollContainer.clientHeight,
+          scrollHeight: scrollContainer.scrollHeight,
+          overflowY: computed.overflowY
+        });
 
         // YES_NO ACTIVE CARD VERIFICATION: Log active question stableKey for diagnostics
         if (screenMode === 'QUESTION' && bottomBarMode === 'YES_NO' && effectiveItemType === 'question') {
