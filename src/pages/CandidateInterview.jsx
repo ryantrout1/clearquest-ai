@@ -14526,6 +14526,9 @@ export default function CandidateInterview() {
         })
       : transcriptToRenderDeduped;
     
+    // TDZ GUARD: Update length counter for bottom-anchor effect (after finalList is computed)
+    bottomAnchorLenRef.current = finalList.length;
+    
     // Regression guard logging
     const candidateVisibleQuestionsInDb = transcriptToRenderDeduped.filter(e => 
       e.messageType === 'QUESTION_SHOWN' && e.visibleToCandidate === true
