@@ -10134,18 +10134,70 @@ export default function CandidateInterview() {
         const scrollRect = scrollContainer.getBoundingClientRect();
         const footerRect = footerEl.getBoundingClientRect();
 
+        // STRUCTURAL ASSERTION: Verify active card is in scroll container
+        if (hasActiveCard) {
+          const activeCardsInContainer = scrollContainer.querySelectorAll('[data-cq-active-card="true"]');
+          
+          if (activeCardsInContainer.length === 0) {
+            console.error('[UI_CONTRACT][ACTIVE_CARD_NOT_IN_SCROLL_CONTAINER]', {
+              mode: bottomBarMode,
+              activeUiItemKind: activeUiItem?.kind,
+              hasActiveCard,
+              reason: 'Active card is not a descendant of historyRef scroll container - spacer + measurement cannot protect it',
+              action: 'FAIL_CLOSED'
+            });
+            
+            footerClearanceStatusRef.current = 'FAIL';
+            
+            console.error('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', {
+              status: 'FAIL',
+              mode: bottomBarMode,
+              overlapPx: 'UNMEASURABLE',
+              reason: 'ACTIVE_CARD_NOT_IN_SCROLL_CONTAINER'
+            });
+            
+            return; // Exit early - cannot measure
+          }
+        }
+
         // Get last REAL item (before footer spacer) in scroll container
-        // CARD CANDIDATE SELECTORS: Include both transcript items AND active cards
-        const cardCandidateSelector = '[data-stablekey], [data-cq-active-card="true"]';
-        const allItems = scrollContainer.querySelectorAll(cardCandidateSelector);
+        // DETERMINISTIC PRIORITY: Prefer active cards when present (most likely to be obscured)
         let lastItem = null;
 
-        // Find last item that is NOT the spacer
-        for (let i = allItems.length - 1; i >= 0; i--) {
-          const item = allItems[i];
-          if (item.getAttribute('data-cq-footer-spacer') !== 'true') {
-            lastItem = item;
-            break;
+        if (hasActiveCard) {
+          // Priority 1: Measure active card (most likely to be clipped)
+          const activeCards = scrollContainer.querySelectorAll('[data-cq-active-card="true"]');
+          const activeCardsArray = Array.from(activeCards).filter(el => 
+            el.getAttribute('data-cq-footer-spacer') !== 'true'
+          );
+          
+          if (activeCardsArray.length > 0) {
+            lastItem = activeCardsArray[activeCardsArray.length - 1];
+            console.log('[UI_CONTRACT][FOOTER_MEASURE_TARGET_PRIORITY]', {
+              strategy: 'ACTIVE_CARD_FIRST',
+              hasActiveCard,
+              activeCardCount: activeCardsArray.length,
+              selectedTag: lastItem.tagName,
+              reason: 'Active card prioritized for measurement'
+            });
+          }
+        }
+
+        // Fallback: Measure last transcript item if no active card found
+        if (!lastItem) {
+          const allItems = scrollContainer.querySelectorAll('[data-stablekey]');
+          for (let i = allItems.length - 1; i >= 0; i--) {
+            const item = allItems[i];
+            if (item.getAttribute('data-cq-footer-spacer') !== 'true') {
+              lastItem = item;
+              console.log('[UI_CONTRACT][FOOTER_MEASURE_TARGET_PRIORITY]', {
+                strategy: 'TRANSCRIPT_FALLBACK',
+                hasActiveCard,
+                selectedTag: lastItem.tagName,
+                reason: 'No active card found - using last transcript item'
+              });
+              break;
+            }
           }
         }
 
