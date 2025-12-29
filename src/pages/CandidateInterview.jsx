@@ -10121,6 +10121,33 @@ export default function CandidateInterview() {
 
         if (!scrollContainer || !footerEl) return;
 
+        // WELCOME/CTA BYPASS: Skip active card validation for welcome screen
+        // WELCOME mode has no active interview cards in scroll history (only welcome message)
+        const isWelcomeCta = screenMode === 'WELCOME' && 
+                            bottomBarMode === 'CTA' && 
+                            activeUiItem?.kind === 'DEFAULT';
+        
+        if (isWelcomeCta) {
+          console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SKIP]', {
+            mode: bottomBarMode,
+            screenMode,
+            activeUiItemKind: activeUiItem?.kind,
+            reason: 'WELCOME_CTA_NO_SCROLL_ACTIVE_CARD - welcome screen has no active interview cards to protect',
+            action: 'SKIP'
+          });
+          
+          footerClearanceStatusRef.current = 'SKIP';
+          
+          console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', {
+            status: 'SKIP',
+            mode: bottomBarMode,
+            screenMode,
+            reason: 'WELCOME_CTA_MODE'
+          });
+          
+          return; // Exit early - no validation needed
+        }
+
         // Verify footer spacer exists
         const spacer = scrollContainer.querySelector('[data-cq-footer-spacer="true"]');
         if (!spacer) {
