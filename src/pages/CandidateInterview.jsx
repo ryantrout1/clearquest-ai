@@ -2015,6 +2015,273 @@ export default function CandidateInterview() {
   
   const activeUiItem = resolveActiveUiItem();
   
+  // ============================================================================
+  // ACTIVE CARD COMPUTATION - MUST precede footer mode (prevents TDZ)
+  // ============================================================================
+  // Compute transcriptRenderable early (needed for activeCard dedupe)
+  const transcriptRenderable = renderedTranscriptSnapshotRef.current || renderedTranscript;
+  
+  // Initialize activeCard (assigned below, read by footer mode computation)
+  let activeCard = null;
+  
+  // CHANGE 3: Track last rendered promptId to prevent duplicate active cards
+  const currentPromptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+  
+  // PART A: Enforce mutual exclusion in render stream (kind-based, unconditional)
+  if (activeUiItem.kind === "V3_PROMPT") {
+    console.log('[STREAM_SUPPRESS]', {
+      suppressed: 'MI_GATE',
+      reason: 'ACTIVE_KIND_V3_PROMPT',
+      activeKind: activeUiItem.kind,
+      currentItemType: currentItem?.type,
+      packId: currentItem?.packId,
+      instanceNumber: currentItem?.instanceNumber
+    });
+  }
+  
+  if (activeUiItem.kind === "MI_GATE") {
+    console.log('[STREAM_SUPPRESS]', {
+      suppressed: 'V3_PROMPT',
+      reason: 'ACTIVE_KIND_MI_GATE',
+      activeKind: activeUiItem.kind,
+      currentItemType: currentItem?.type,
+      packId: currentItem?.packId,
+      instanceNumber: currentItem?.instanceNumber
+    });
+  }
+  
+  if (activeUiItem.kind === "V3_PROMPT") {
+    const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
+    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+    const promptId = currentPromptId || `${loopKey}:fallback`;
+    
+    // SINGLE SOURCE: Check if transcript already has V3_PROBE_QUESTION for this promptId
+    const qStableKey = `v3-probe-q:${promptId}`;
+    const transcriptHasThisProbeQ = transcriptSOT.some(e => 
+      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+      (e.meta?.promptId === promptId || e.stableKey === qStableKey)
+    );
+    
+    const action = transcriptHasThisProbeQ ? 'use_transcript' : 'use_prompt_lane';
+    
+    if (cqDiagEnabled) {
+      console.log('[V3_PROMPT][SINGLE_SOURCE]', {
+        transcriptHasThisProbeQ,
+        action,
+        promptId,
+        stableKey: qStableKey,
+        transcriptLen: dbTranscript.length
+      });
+    }
+    
+    // UI CONTRACT: During ANSWER_NEEDED, prompt lane card MUST render (never skip)
+    if (transcriptHasThisProbeQ && v3PromptPhase !== "ANSWER_NEEDED") {
+      console.log('[V3_PROMPT][ACTIVE_CARD_SKIPPED_ALREADY_IN_TRANSCRIPT]', {
+        promptId,
+        loopKey,
+        stableKey: qStableKey,
+        v3PromptPhase,
+        reason: 'transcript_has_question (but not ANSWER_NEEDED phase)'
+      });
+      // Skip adding active card - transcript render is canonical
+    } else if (transcriptHasThisProbeQ && v3PromptPhase === "ANSWER_NEEDED") {
+      console.log('[V3_PROMPT][ACTIVE_CARD_DUPLICATE_OVERRIDE]', {
+        promptId,
+        loopKey,
+        v3PromptPhase,
+        note: 'Prompt card forced visible during ANSWER_NEEDED - transcript has question but card must show'
+      });
+      // DO NOT skip - prompt lane card must render during ANSWER_NEEDED
+    }
+    
+    if (lastRenderedV3PromptKeyRef.current === promptId && v3PromptText && hasActiveV3Prompt && v3PromptPhase !== "ANSWER_NEEDED") {
+      console.log('[V3_UI_CONTRACT][PROMPT_CARD_DEDUPED]', {
+        promptId,
+        loopKey,
+        reason: 'Already rendered active card for this promptId'
+      });
+      // Skip adding duplicate active card
+    } else if (v3PromptText && hasActiveV3Prompt) {
+      // Inline normalization to avoid TDZ error
+      const normalizedPromptText = (v3PromptText || "").toLowerCase().trim().replace(/\s+/g, " ");
+      const stableKey = loopKey ? `v3-active:${loopKey}:${promptId}:${normalizedPromptText.slice(0,32)}` : null;
+      
+      activeCard = {
+        __activeCard: true,
+        isEphemeralPromptLaneCard: true,
+        kind: "v3_probe_q",
+        stableKey,
+        text: v3PromptText,
+        packId: v3ProbingContext?.packId,
+        instanceNumber: v3ProbingContext?.instanceNumber,
+        source: 'prompt_lane_temporary'
+      };
+      
+      // Mark this promptId as rendered
+      lastRenderedV3PromptKeyRef.current = promptId;
+      
+      console.log("[V3_PROMPT][ACTIVE_CARD_ADDED]", { 
+        loopKey, 
+        promptId,
+        promptPreview: v3PromptText.slice(0, 60),
+        source: 'prompt_lane_temporary',
+        isEphemeralPromptLaneCard: true
+      });
+    }
+    
+    // Clear tracker when not actively rendering V3_PROMPT card
+    if (!activeCard && lastRenderedV3PromptKeyRef.current) {
+      lastRenderedV3PromptKeyRef.current = null;
+    }
+  } else if (activeUiItem.kind === "V3_WAITING") {
+    // V3_WAITING: Show thinking placeholder card
+    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+    activeCard = {
+      __activeCard: true,
+      isEphemeralPromptLaneCard: true,
+      kind: "v3_thinking",
+      stableKey: `v3-thinking:${loopKey}`,
+      text: "Processing your response...",
+      packId: v3ProbingContext?.packId,
+      instanceNumber: v3ProbingContext?.instanceNumber || 1,
+      source: 'prompt_lane_temporary'
+    };
+    
+    console.log("[V3_WAITING][ACTIVE_CARD_ADDED]", {
+      loopKey,
+      packId: v3ProbingContext?.packId,
+      instanceNumber: v3ProbingContext?.instanceNumber,
+      reason: "V3 deciding - showing thinking card"
+    });
+  } else if (activeUiItem.kind === "V3_OPENER") {
+    const openerText = currentItem?.openerText || "";
+    const stableKey = `followup-card:${currentItem.packId}:opener:${currentItem.instanceNumber || 1}`;
+    
+    // DEDUPE: Check if opener already in transcriptRenderable
+    const alreadyInStream = transcriptRenderable.some(e => 
+      e.__canonicalKey === stableKey || 
+      (e.messageType === 'FOLLOWUP_CARD_SHOWN' && e.meta?.variant === 'opener' && e.meta?.packId === currentItem.packId && e.meta?.instanceNumber === currentItem.instanceNumber)
+    );
+    
+    // ACTIVE OPENER ENFORCEMENT: ALWAYS render active card when V3_OPENER is active, even if in transcript
+    // Active UI items MUST render - transcript presence does NOT satisfy active requirement
+    if (screenMode === "QUESTION" && openerText) {
+      if (alreadyInStream) {
+        console.log("[V3_OPENER][DEDUP_BYPASS]", { 
+          packId: currentItem.packId, 
+          instanceNumber: currentItem.instanceNumber,
+          stableKey,
+          reason: "Active V3 opener must render - bypassing transcript dedupe" 
+        });
+      }
+      
+      activeCard = {
+        __activeCard: true,
+        isEphemeralPromptLaneCard: true,
+        kind: "v3_pack_opener",
+        stableKey,
+        text: openerText,
+        packId: currentItem.packId,
+        categoryLabel: currentItem.categoryLabel,
+        instanceNumber: currentItem.instanceNumber || 1,
+        exampleNarrative: currentItem.exampleNarrative,
+        source: 'prompt_lane_temporary'
+      };
+      
+      console.log("[V3_OPENER][ACTIVE_CARD_FORCED]", {
+        packId: currentItem.packId,
+        instanceNumber: currentItem.instanceNumber,
+        stableKey,
+        transcriptAlreadyHas: alreadyInStream,
+        reason: "Active opener must render in main pane regardless of transcript state"
+      });
+    } else if (!openerText) {
+      console.warn("[V3_OPENER][MISSING_TEXT]", {
+        packId: currentItem.packId,
+        instanceNumber: currentItem.instanceNumber,
+        reason: "Cannot render active card without opener text"
+      });
+    }
+  } else if (activeUiItem.kind === "MI_GATE") {
+    // FIX: Use currentItem directly when activeUiItem.kind is MI_GATE
+    // activeUiItem resolver already handles V3 blocking precedence correctly
+    let miGateItem = currentItem;
+    
+    // INVARIANT CHECK: Ensure currentItem is a valid gate when activeUiItem says MI_GATE
+    if (!miGateItem || miGateItem.type !== 'multi_instance_gate' || !miGateItem.packId || !miGateItem.instanceNumber) {
+      console.error('[MI_GATE][INVARIANT_FAIL][CURRENT_ITEM_NOT_GATE]', {
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+        activeUiItemKind: activeUiItem?.kind,
+        expected: 'multi_instance_gate',
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+      });
+      
+      // FALLBACK: Attempt to use activeUiItem payload if it carries gate metadata
+      if (activeUiItem.packId && activeUiItem.instanceNumber) {
+        miGateItem = {
+          type: 'multi_instance_gate',
+          packId: activeUiItem.packId,
+          instanceNumber: activeUiItem.instanceNumber,
+          promptText: activeUiItem.promptText || multiInstanceGate?.promptText
+        };
+      }
+    }
+    
+    // Resolve prompt text with cascading fallbacks
+    const miGatePrompt = miGateItem?.promptText || 
+                         multiInstanceGate?.promptText || 
+                         activeUiItem?.promptText ||
+                         `Do you have another item to report in this section?`;
+    
+    const packId = miGateItem?.packId || activeUiItem?.packId;
+    const instanceNumber = miGateItem?.instanceNumber || activeUiItem?.instanceNumber;
+    
+    if (packId && instanceNumber && miGatePrompt) {
+      // CANONICAL STABLEKEY: Use builder for consistency
+      const stableKey = buildMiGateQStableKey(packId, instanceNumber);
+      const itemId = buildMiGateItemId(packId, instanceNumber);
+      
+      // ALWAYS render active MI_GATE card when activeUiItem.kind is MI_GATE
+      // The active gate MUST be visible as the current question in main pane
+      activeCard = {
+        __activeCard: true,
+        isEphemeralPromptLaneCard: true,
+        kind: "multi_instance_gate",
+        id: itemId,
+        stableKey,
+        text: miGatePrompt,
+        packId,
+        instanceNumber,
+        source: 'prompt_lane_temporary'
+      };
+      
+      console.log("[MI_GATE][ACTIVE_CARD_ADDED]", {
+        itemId,
+        packId,
+        instanceNumber,
+        stableKey,
+        promptPreview: miGatePrompt.substring(0, 60),
+        activeUiItemKind: activeUiItem.kind,
+        usedFallback: miGateItem !== currentItem
+      });
+    } else {
+      console.error('[MI_GATE][BUG][MAIN_PANE_NOT_RENDERED]', {
+        currentItemId: currentItem?.id,
+        packId,
+        instanceNumber,
+        activeUiItemKind: activeUiItem.kind,
+        reason: 'Cannot resolve gate metadata for rendering'
+      });
+    }
+  }
+  
+  // Clear V3 prompt tracker when kind changes away from V3_PROMPT
+  if (activeUiItem.kind !== "V3_PROMPT" && lastRenderedV3PromptKeyRef.current) {
+    lastRenderedV3PromptKeyRef.current = null;
+  }
+  
   // PART 2: V3 Prompt Active SOT (single source of truth boolean)
   const v3PromptIdSOT = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId || null;
   const isV3PromptActiveSOT =
