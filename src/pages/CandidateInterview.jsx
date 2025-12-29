@@ -9963,35 +9963,57 @@ export default function CandidateInterview() {
     effectiveGap: hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX,
     gapReduction: hasActiveCard ? '~75%' : 'none',
     shouldRenderFooter,
-    appliedTo: 'scroll_container_main_element'
+    appliedTo: 'footer_spacer_end_of_scroll_content',
+    scrollPaddingBottomPx: 0
   });
   
-  // GUARDRAIL A: Structural assertion - verify padding applied to scroll container
+  // GUARDRAIL A: Structural assertion - verify footer spacer exists and has correct height
   if (historyRef.current && typeof window !== 'undefined') {
     requestAnimationFrame(() => {
       try {
         const scrollContainer = historyRef.current;
         if (!scrollContainer) return;
         
-        const computedStyle = window.getComputedStyle(scrollContainer);
-        const actualPaddingPx = parseFloat(computedStyle.paddingBottom) || 0;
-        const overflowY = computedStyle.overflowY;
-        const expectedPaddingPx = dynamicBottomPaddingPx;
-        const paddingTolerance = 1; // ±1px acceptable
+        // Check for footer spacer element
+        const spacer = scrollContainer.querySelector('[data-cq-footer-spacer="true"]');
         
-        const paddingMatches = Math.abs(actualPaddingPx - expectedPaddingPx) <= paddingTolerance;
+        if (!spacer) {
+          console.error('[UI_CONTRACT][FOOTER_SPACER_MISSING]', {
+            mode: bottomBarMode,
+            expectedHeightPx: dynamicBottomPaddingPx,
+            reason: 'Footer spacer element not found in scroll content'
+          });
+          return;
+        }
+        
+        // Verify spacer height matches expected
+        const spacerRect = spacer.getBoundingClientRect();
+        const spacerHeightPx = Math.round(spacerRect.height);
+        const expectedHeightPx = dynamicBottomPaddingPx;
+        const heightTolerance = 2; // ±2px acceptable
+        
+        const heightMatches = Math.abs(spacerHeightPx - expectedHeightPx) <= heightTolerance;
+        
+        if (!heightMatches) {
+          console.error('[UI_CONTRACT][FOOTER_SPACER_HEIGHT_INVALID]', {
+            mode: bottomBarMode,
+            expectedHeightPx,
+            actualHeightPx: spacerHeightPx,
+            heightMatches: false,
+            reason: 'Spacer height does not match computed clearance'
+          });
+        }
+        
+        // Verify scroll container has overflow
+        const computedStyle = window.getComputedStyle(scrollContainer);
+        const overflowY = computedStyle.overflowY;
         const isScrollContainer = overflowY === 'auto' || overflowY === 'scroll';
         
-        if (!paddingMatches || !isScrollContainer) {
-          console.error('[UI_CONTRACT][FOOTER_PADDING_TARGET_INVALID]', {
+        if (!isScrollContainer) {
+          console.error('[UI_CONTRACT][SCROLL_CONTAINER_INVALID]', {
             mode: bottomBarMode,
-            expectedPaddingPx,
-            actualPaddingPx: Math.round(actualPaddingPx),
             overflowY,
-            paddingMatches,
-            isScrollContainer,
-            appliedToHint: 'padding_must_be_on_scroll_container_with_overflow_auto',
-            reason: !paddingMatches ? 'padding_mismatch' : 'not_a_scroll_container'
+            reason: 'Container does not have overflow-y auto/scroll'
           });
         }
       } catch (err) {
@@ -10009,7 +10031,7 @@ export default function CandidateInterview() {
     });
   }
   
-  // GUARDRAIL C: Mode switch assertion - verify padding recalculation on mode change
+  // GUARDRAIL C: Mode switch assertion - verify spacer recalculation on mode change
   const prevBottomBarModeRef = React.useRef(bottomBarMode);
   React.useEffect(() => {
     const prevMode = prevBottomBarModeRef.current;
@@ -10023,14 +10045,33 @@ export default function CandidateInterview() {
           
           if (!scrollContainer || !footerEl) return;
           
-          const computedStyle = window.getComputedStyle(scrollContainer);
-          const actualPaddingPx = parseFloat(computedStyle.paddingBottom) || 0;
+          // Verify footer spacer exists and has correct height
+          const spacer = scrollContainer.querySelector('[data-cq-footer-spacer="true"]');
+          if (!spacer) {
+            console.error('[UI_CONTRACT][FOOTER_SPACER_MISSING_ON_MODE_SWITCH]', {
+              fromMode: prevMode,
+              toMode: currentMode,
+              expectedHeightPx: dynamicBottomPaddingPx
+            });
+            return;
+          }
           
-          // Check overlap after mode switch
-          const items = scrollContainer.querySelectorAll('[data-stablekey]');
-          const lastItem = items[items.length - 1];
+          const spacerRect = spacer.getBoundingClientRect();
+          const spacerHeightPx = Math.round(spacerRect.height);
+          
+          // Get last REAL item (before spacer)
+          const allItems = scrollContainer.querySelectorAll('[data-stablekey]');
+          let lastItem = null;
+          
+          for (let i = allItems.length - 1; i >= 0; i--) {
+            const item = allItems[i];
+            if (item.getAttribute('data-cq-footer-spacer') !== 'true') {
+              lastItem = item;
+              break;
+            }
+          }
+          
           let overlapPx = 0;
-          
           if (lastItem) {
             const lastItemRect = lastItem.getBoundingClientRect();
             const footerRect = footerEl.getBoundingClientRect();
@@ -10040,7 +10081,7 @@ export default function CandidateInterview() {
           console.log('[UI_CONTRACT][FOOTER_MODE_SWITCH_OK]', {
             fromMode: prevMode,
             toMode: currentMode,
-            appliedPaddingBottomPx: Math.round(actualPaddingPx),
+            spacerHeightPx,
             overlapPx,
             hasOverlap: overlapPx > 0,
             reason: overlapPx > 0 ? 'OVERLAP_AFTER_MODE_SWITCH' : 'clearance_maintained'
@@ -10051,8 +10092,8 @@ export default function CandidateInterview() {
               fromMode: prevMode,
               toMode: currentMode,
               overlapPx,
-              appliedPaddingBottomPx: Math.round(actualPaddingPx),
-              reason: 'Mode switch caused overlap - padding recalculation may have failed'
+              spacerHeightPx,
+              reason: 'Mode switch caused overlap - spacer recalculation may have failed'
             });
           }
         } catch (err) {
@@ -10073,57 +10114,105 @@ export default function CandidateInterview() {
         
         if (!scrollContainer || !footerEl) return;
         
+        // Verify footer spacer exists
+        const spacer = scrollContainer.querySelector('[data-cq-footer-spacer="true"]');
+        if (!spacer) {
+          console.error('[UI_CONTRACT][FOOTER_SPACER_MISSING]', {
+            mode: bottomBarMode,
+            expectedHeightPx: dynamicBottomPaddingPx,
+            reason: 'Footer spacer element not found - clearance may fail'
+          });
+        }
+        
         const scrollRect = scrollContainer.getBoundingClientRect();
         const footerRect = footerEl.getBoundingClientRect();
         
-        // Get last rendered item in scroll container
-        const items = scrollContainer.querySelectorAll('[data-stablekey]');
-        const lastItem = items[items.length - 1];
+        // Get last REAL item (before footer spacer) in scroll container
+        const allItems = scrollContainer.querySelectorAll('[data-stablekey]');
+        let lastItem = null;
         
-        if (lastItem) {
-          const lastItemRect = lastItem.getBoundingClientRect();
-          const lastItemBottomOverlapPx = Math.max(0, lastItemRect.bottom - footerRect.top);
-          
-          console.log('[UI_CONTRACT][FOOTER_CLEARANCE_ASSERT]', {
+        // Find last item that is NOT the spacer
+        for (let i = allItems.length - 1; i >= 0; i--) {
+          const item = allItems[i];
+          if (item.getAttribute('data-cq-footer-spacer') !== 'true') {
+            lastItem = item;
+            break;
+          }
+        }
+        
+        if (!lastItem) {
+          console.error('[UI_CONTRACT][FOOTER_CLEARANCE_UNMEASURABLE]', {
             mode: bottomBarMode,
+            reason: 'no_last_item_before_spacer',
+            allItemsCount: allItems.length
+          });
+          return;
+        }
+        
+        const lastItemRect = lastItem.getBoundingClientRect();
+        const lastItemBottomOverlapPx = Math.max(0, lastItemRect.bottom - footerRect.top);
+        
+        console.log('[UI_CONTRACT][FOOTER_CLEARANCE_ASSERT]', {
+          mode: bottomBarMode,
+          footerMeasuredHeightPx,
+          safeFooterClearancePx: SAFE_FOOTER_CLEARANCE_PX,
+          spacerHeightPx: dynamicBottomPaddingPx,
+          spacerExists: !!spacer,
+          clientHeight: Math.round(scrollRect.height),
+          scrollHeight: Math.round(scrollContainer.scrollHeight),
+          lastItemBottomOverlapPx: Math.round(lastItemBottomOverlapPx),
+          hasOverlap: lastItemBottomOverlapPx > 0
+        });
+        
+        // Status log: Deterministic PASS/FAIL
+        const status = lastItemBottomOverlapPx <= 2 ? 'PASS' : 'FAIL';
+        const statusPayload = {
+          status,
+          mode: bottomBarMode,
+          overlapPx: Math.round(lastItemBottomOverlapPx),
+          spacerHeightPx: dynamicBottomPaddingPx
+        };
+        
+        console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', statusPayload);
+        
+        if (status === 'FAIL') {
+          console.error('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS_FAIL]', {
+            ...statusPayload,
             footerMeasuredHeightPx,
-            safeFooterClearancePx: SAFE_FOOTER_CLEARANCE_PX,
-            appliedPaddingBottomPx: dynamicBottomPaddingPx,
-            clientHeight: Math.round(scrollRect.height),
-            scrollHeight: Math.round(scrollContainer.scrollHeight),
-            lastItemBottomOverlapPx: Math.round(lastItemBottomOverlapPx),
-            hasOverlap: lastItemBottomOverlapPx > 0
+            lastItemBottom: Math.round(lastItemRect.bottom),
+            footerTop: Math.round(footerRect.top),
+            reason: 'Content obscured by footer despite spacer'
+          });
+        }
+        
+        if (lastItemBottomOverlapPx > 0) {
+          console.error('[UI_CONTRACT][FOOTER_OVERLAP_DETECTED]', {
+            mode: bottomBarMode,
+            overlapPx: Math.round(lastItemBottomOverlapPx),
+            footerMeasuredHeightPx,
+            spacerHeightPx: dynamicBottomPaddingPx,
+            lastItemBottom: Math.round(lastItemRect.bottom),
+            footerTop: Math.round(footerRect.top),
+            reason: 'Content obscured by footer - spacer insufficient'
+          });
+        }
+        
+        // GUARDRAIL B: Track worst-case overlap for regression detection
+        const roundedOverlap = Math.round(lastItemBottomOverlapPx);
+        if (roundedOverlap > maxOverlapSeenRef.current.maxOverlapPx) {
+          console.error('[UI_CONTRACT][FOOTER_OVERLAP_REGRESSION]', {
+            mode: bottomBarMode,
+            overlapPx: roundedOverlap,
+            previousMaxOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
+            maxOverlapPx: roundedOverlap,
+            footerMeasuredHeightPx,
+            spacerHeightPx: dynamicBottomPaddingPx,
+            lastModeSeen: maxOverlapSeenRef.current.lastModeSeen,
+            reason: 'Overlap increased - potential regression'
           });
           
-          if (lastItemBottomOverlapPx > 0) {
-            console.error('[UI_CONTRACT][FOOTER_OVERLAP_DETECTED]', {
-              mode: bottomBarMode,
-              overlapPx: Math.round(lastItemBottomOverlapPx),
-              footerMeasuredHeightPx,
-              appliedPaddingBottomPx: dynamicBottomPaddingPx,
-              lastItemBottom: Math.round(lastItemRect.bottom),
-              footerTop: Math.round(footerRect.top),
-              reason: 'Content obscured by footer - padding insufficient'
-            });
-          }
-          
-          // GUARDRAIL B: Track worst-case overlap for regression detection
-          const roundedOverlap = Math.round(lastItemBottomOverlapPx);
-          if (roundedOverlap > maxOverlapSeenRef.current.maxOverlapPx) {
-            console.error('[UI_CONTRACT][FOOTER_OVERLAP_REGRESSION]', {
-              mode: bottomBarMode,
-              overlapPx: roundedOverlap,
-              previousMaxOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
-              maxOverlapPx: roundedOverlap,
-              footerMeasuredHeightPx,
-              appliedPaddingBottomPx: dynamicBottomPaddingPx,
-              lastModeSeen: maxOverlapSeenRef.current.lastModeSeen,
-              reason: 'Overlap increased - potential regression'
-            });
-            
-            maxOverlapSeenRef.current.maxOverlapPx = roundedOverlap;
-            maxOverlapSeenRef.current.lastModeSeen = bottomBarMode;
-          }
+          maxOverlapSeenRef.current.maxOverlapPx = roundedOverlap;
+          maxOverlapSeenRef.current.lastModeSeen = bottomBarMode;
         }
       } catch (err) {
         // Silent - assertion should never crash
@@ -13842,7 +13931,7 @@ export default function CandidateInterview() {
         `}
       </style>
 
-      <main className="flex-1 overflow-y-auto cq-scroll scrollbar-thin" ref={historyRef} onScroll={handleTranscriptScroll} style={{ paddingBottom: `${dynamicBottomPaddingPx}px` }}>
+      <main className="flex-1 overflow-y-auto cq-scroll scrollbar-thin" ref={historyRef} onScroll={handleTranscriptScroll}>
         <div className="px-4 pt-6">
           <div className="space-y-3 relative isolate">
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
@@ -14855,6 +14944,18 @@ export default function CandidateInterview() {
             return null;
           })()}
 
+          {/* Footer Spacer - CRITICAL: Creates scrollable clearance for fixed footer */}
+          {/* MUST be last element in scroll content to guarantee footer never obscures content */}
+          <div 
+            data-cq-footer-spacer="true" 
+            aria-hidden="true" 
+            style={{ 
+              height: `${dynamicBottomPaddingPx}px`,
+              pointerEvents: 'none',
+              flexShrink: 0
+            }} 
+          />
+          
           {/* Bottom anchor - minimal-height sentinel for scroll positioning */}
           <div ref={bottomAnchorRef} aria-hidden="true" style={{ height: '1px', margin: 0, padding: 0 }} />
           </div>
