@@ -14487,7 +14487,41 @@ export default function CandidateInterview() {
     
     const finalList = shouldSuppressBaseQuestions 
       ? transcriptToRenderDeduped.filter((entry, idx) => {
-...
+          if (entry.messageType !== 'QUESTION_SHOWN') return true;
+          if (entry.meta?.packId) return true;
+          
+          const suppressedQuestionId = entry.meta?.questionDbId || entry.questionId;
+          const suppressedQuestionCode = entry.meta?.questionCode || 'unknown';
+          
+          const hasAnswerAfter = transcriptToRenderDeduped
+            .slice(idx + 1)
+            .some(laterEntry => 
+              laterEntry.role === 'user' && 
+              laterEntry.messageType === 'ANSWER' &&
+              (laterEntry.questionDbId === suppressedQuestionId || laterEntry.meta?.questionDbId === suppressedQuestionId)
+            );
+          
+          if (hasAnswerAfter) {
+            console.log('[CQ_TRANSCRIPT][BASE_Q_PRESERVED_DURING_V3]', {
+              suppressedQuestionId,
+              suppressedQuestionCode,
+              reason: 'Question answered - keeping in transcript history',
+              v3ProbingActive,
+              loopKey: v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null
+            });
+            return true;
+          }
+          
+          console.log('[ORDER][BASE_Q_SUPPRESSED_ONLY_ACTIVE]', {
+            suppressedQuestionId,
+            suppressedQuestionCode,
+            reason: 'V3_PROBING_ACTIVE - unanswered question suppressed',
+            v3ProbingActive,
+            v3UiHistoryLen,
+            hasVisibleV3PromptCard,
+            loopKey: v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null
+          });
+          
           return false;
         })
       : transcriptToRenderDeduped;
