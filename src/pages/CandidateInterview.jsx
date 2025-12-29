@@ -11106,7 +11106,8 @@ export default function CandidateInterview() {
   // ============================================================================
   // PART A: Build unified stream from DB transcript only (no ephemeral UI history)
   // V3 UPDATE: V3 probe Q/A now in DB transcript, v3UiRenderable deprecated for display
-  const transcriptRenderable = renderedTranscriptSnapshotRef.current || renderedTranscript;
+  // NOTE: transcriptRenderable and activeCard now computed earlier (after activeUiItem, before footer mode)
+  // TDZ FIX: This assignment moved to line ~2020 to prevent "Cannot access before initialization"
   
   // V3 UPDATE: v3UiRenderable deprecated (always empty - all content from transcript)
   const v3UiRenderable = [];
