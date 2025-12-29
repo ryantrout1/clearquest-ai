@@ -14743,6 +14743,8 @@ export default function CandidateInterview() {
 
       <main className="flex-1 min-h-0 overflow-y-auto cq-scroll scrollbar-thin flex flex-col" ref={historyRef} onScroll={handleTranscriptScroll}>
         <div className="px-4 pt-6 flex flex-col flex-1 min-h-0">
+          {/* UI CONTRACT: Transcript gravity is enforced via cq-gravity-rail + mt-auto.
+              Do NOT add justify-end or centering logic inside transcript stack. */}
           <div className="cq-gravity-rail flex flex-col flex-1 min-h-0">
             <div className="cq-gravity-bottom mt-auto">
               <div className="space-y-3 relative isolate">
