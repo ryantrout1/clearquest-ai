@@ -1003,6 +1003,21 @@ const buildV3ProbeAStableKey = (sessionId, categoryId, instanceNumber, probeInde
   return `v3-probe-a:${sessionId}:${categoryId}:${instanceNumber}:${probeIndex}`;
 };
 
+// ============================================================================
+// MI GATE STABLEKEY BUILDERS - Single source of truth for MI gate identity
+// ============================================================================
+const buildMiGateQStableKey = (packId, instanceNumber) => {
+  return `mi-gate:${packId}:${instanceNumber}:q`;
+};
+
+const buildMiGateAStableKey = (packId, instanceNumber) => {
+  return `mi-gate:${packId}:${instanceNumber}:a`;
+};
+
+const buildMiGateItemId = (packId, instanceNumber) => {
+  return `multi-instance-gate-${packId}-${instanceNumber}`;
+};
+
 // Centralized V2 probe runner for both base questions and follow-ups
 // CRITICAL: For V2 packs, we ALWAYS call the backend - it controls progression
 /**
@@ -11026,7 +11041,9 @@ export default function CandidateInterview() {
     const instanceNumber = miGateItem?.instanceNumber || activeUiItem?.instanceNumber;
     
     if (packId && instanceNumber && miGatePrompt) {
-      const stableKey = `mi-gate:${packId}:${instanceNumber}`;
+      // CANONICAL STABLEKEY: Use builder for consistency
+      const stableKey = buildMiGateQStableKey(packId, instanceNumber);
+      const itemId = buildMiGateItemId(packId, instanceNumber);
       
       // ALWAYS render active MI_GATE card when activeUiItem.kind is MI_GATE
       // The active gate MUST be visible as the current question in main pane
@@ -11034,6 +11051,7 @@ export default function CandidateInterview() {
         __activeCard: true,
         isEphemeralPromptLaneCard: true,
         kind: "multi_instance_gate",
+        id: itemId,
         stableKey,
         text: miGatePrompt,
         packId,
@@ -11042,6 +11060,7 @@ export default function CandidateInterview() {
       };
       
       console.log("[MI_GATE][ACTIVE_CARD_ADDED]", {
+        itemId,
         packId,
         instanceNumber,
         stableKey,
@@ -11494,18 +11513,23 @@ export default function CandidateInterview() {
       }
     }
     
-    // UI CONTRACT SELF-TEST: Start test when MI_GATE becomes active (once per itemId)
-    if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && gateItemId) {
-      const tracker = miGateTestTrackerRef.current.get(gateItemId) || { footerWired: false, activeGateSuppressed: false, testStarted: false };
+    // UI CONTRACT SELF-TEST: Start test when MI_GATE becomes active (use canonical stableKey)
+    if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.packId && currentItem?.instanceNumber) {
+      // CANONICAL TRACKER KEY: Use stableKey for consistency with render logic
+      const trackerKey = buildMiGateQStableKey(currentItem.packId, currentItem.instanceNumber);
+      const gateItemId = buildMiGateItemId(currentItem.packId, currentItem.instanceNumber);
+      
+      const tracker = miGateTestTrackerRef.current.get(trackerKey) || { footerWired: false, activeGateSuppressed: false, testStarted: false };
       
       if (!tracker.testStarted) {
         tracker.testStarted = true;
-        miGateTestTrackerRef.current.set(gateItemId, tracker);
+        miGateTestTrackerRef.current.set(trackerKey, tracker);
         
         console.log('[MI_GATE][UI_CONTRACT_TEST_START]', {
+          trackerKey,
           itemId: gateItemId,
-          packId: currentItem?.packId,
-          instanceNumber: currentItem?.instanceNumber
+          packId: currentItem.packId,
+          instanceNumber: currentItem.instanceNumber
         });
         
         // Clear any existing timeout
@@ -11517,10 +11541,11 @@ export default function CandidateInterview() {
         miGateTestTimeoutRef.current = setTimeout(() => {
           // SAFETY: Self-test is log-only, never throws or blocks
           try {
-            const finalTracker = miGateTestTrackerRef.current.get(gateItemId);
+            const finalTracker = miGateTestTrackerRef.current.get(trackerKey);
             
             if (!finalTracker) {
               console.warn('[MI_GATE][UI_CONTRACT_TEST]', {
+                trackerKey,
                 itemId: gateItemId,
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
@@ -11537,6 +11562,7 @@ export default function CandidateInterview() {
             
             if (passCondition) {
               console.log('[MI_GATE][UI_CONTRACT_PASS]', {
+                trackerKey,
                 itemId: gateItemId,
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
@@ -11548,6 +11574,7 @@ export default function CandidateInterview() {
               const finalRenderList = renderedTranscriptSnapshotRef.current || renderedTranscript;
               
               console.error('[MI_GATE][UI_CONTRACT_FAIL]', {
+                trackerKey,
                 itemId: gateItemId,
                 packId: currentItem?.packId,
                 instanceNumber: currentItem?.instanceNumber,
@@ -11558,10 +11585,10 @@ export default function CandidateInterview() {
                         'Unknown failure',
                 diagnosticSnapshot: {
                   finalRenderListLen: finalRenderList.length,
-                  hasActiveGateInMainPane: finalRenderList.some(it => 
-                    it.messageType === 'MULTI_INSTANCE_GATE_SHOWN' &&
-                    (getItemId(it) === currentItem?.id || 
-                     getItemStableKey(it)?.startsWith(`mi-gate:${currentItem?.packId}:${currentItem?.instanceNumber}`))
+                  activeCardInStream: finalRenderList.some(it => 
+                    it.__activeCard === true && 
+                    it.kind === 'multi_instance_gate' &&
+                    it.stableKey === trackerKey
                   )
                 }
               });
@@ -11569,6 +11596,7 @@ export default function CandidateInterview() {
           } catch (testError) {
             // SAFETY: Self-test errors must never crash the app
             console.warn('[MI_GATE][UI_CONTRACT_TEST_ERROR]', {
+              trackerKey,
               itemId: gateItemId,
               error: testError.message,
               reason: 'Self-test failed safely - interview continues'
@@ -13470,54 +13498,57 @@ export default function CandidateInterview() {
                         </div>
                       );
                     } else if (cardKind === "multi_instance_gate") {
-                      // UI CONTRACT ENFORCEMENT: Transcript context = read-only (activeCard is footer-bound)
-                      const renderContext = "ACTIVE_CARD"; // Active cards have no inline actions
-                      
-                      // UI CONTRACT: MI gate main pane render - extract identity from activeCard entry
-                      const gatePackId = entry.packId || currentItem?.packId;
-                      const gateInstanceNumber = entry.instanceNumber || currentItem?.instanceNumber;
-                      const gateStableKey = entry.stableKey || `mi-gate:${gatePackId}:${gateInstanceNumber}`;
-                      const gateItemId = currentItem?.id || `multi-instance-gate-${gatePackId}-${gateInstanceNumber}`;
-                      
-                      // UI CONTRACT SELF-TEST: Track main pane render (use gateItemId, not currentItem.id)
-                      if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && gateItemId) {
-                        const tracker = miGateTestTrackerRef.current.get(gateItemId) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
-                        tracker.mainPaneRendered = true;
-                        miGateTestTrackerRef.current.set(gateItemId, tracker);
-                        
-                        console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
-                          itemId: gateItemId,
-                          event: 'ACTIVE_CARD_MAIN_PANE_RENDERED',
-                          tracker,
-                          renderContext
-                        });
-                      }
-                      
-                      // STEP 2: Sanitize MI gate prompt text
-                      const safeGatePrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_MI_GATE');
-                      
-                      // AUDIT: Confirm main pane render
-                      console.log('[MI_GATE][MAIN_PANE_RENDER_OK]', {
-                        stableKey: gateStableKey,
-                        packId: gatePackId,
-                        instanceNumber: gateInstanceNumber,
-                        promptPreview: safeGatePrompt?.substring(0, 60),
-                        itemId: gateItemId,
-                        renderContext
-                      });
-                      
-                      // UI CONTRACT: Active card renders prompt text ONLY (no buttons)
-                      // Footer owns all Yes/No controls
-                      return (
-                        <div key={entryKey}>
-                          <ContentContainer>
-                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
-                              <p className="text-white text-base leading-relaxed">{safeGatePrompt}</p>
-                              {/* UI CONTRACT: NO inline Yes/No buttons - footer owns all controls */}
-                            </div>
-                          </ContentContainer>
-                        </div>
-                      );
+                     // UI CONTRACT ENFORCEMENT: Transcript context = read-only (activeCard is footer-bound)
+                     const renderContext = "ACTIVE_CARD"; // Active cards have no inline actions
+
+                     // UI CONTRACT: MI gate main pane render - extract identity from activeCard entry
+                     const gatePackId = entry.packId || currentItem?.packId;
+                     const gateInstanceNumber = entry.instanceNumber || currentItem?.instanceNumber;
+
+                     // CANONICAL STABLEKEY: Use builder for consistency with active card creation
+                     const gateStableKey = entry.stableKey || buildMiGateQStableKey(gatePackId, gateInstanceNumber);
+                     const gateItemId = entry.id || buildMiGateItemId(gatePackId, gateInstanceNumber);
+
+                     // UI CONTRACT SELF-TEST: Track main pane render using canonical stableKey
+                     if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && gateStableKey) {
+                       const tracker = miGateTestTrackerRef.current.get(gateStableKey) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
+                       tracker.mainPaneRendered = true;
+                       miGateTestTrackerRef.current.set(gateStableKey, tracker);
+
+                       console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
+                         stableKey: gateStableKey,
+                         itemId: gateItemId,
+                         event: 'ACTIVE_CARD_MAIN_PANE_RENDERED',
+                         tracker,
+                         renderContext
+                       });
+                     }
+
+                     // STEP 2: Sanitize MI gate prompt text
+                     const safeGatePrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_MI_GATE');
+
+                     // AUDIT: Confirm main pane render with canonical keys
+                     console.log('[MI_GATE][MAIN_PANE_RENDER_OK]', {
+                       stableKey: gateStableKey,
+                       itemId: gateItemId,
+                       packId: gatePackId,
+                       instanceNumber: gateInstanceNumber,
+                       promptPreview: safeGatePrompt?.substring(0, 60),
+                       renderContext
+                     });
+
+                     // UI CONTRACT: Active card renders prompt text ONLY (no buttons)
+                     // Footer owns all Yes/No controls
+                     return (
+                       <div key={entryKey} data-stablekey={gateStableKey}>
+                         <ContentContainer>
+                           <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
+                             <p className="text-white text-base leading-relaxed">{safeGatePrompt}</p>
+                             {/* UI CONTRACT: NO inline Yes/No buttons - footer owns all controls */}
+                           </div>
+                         </ContentContainer>
+                       </div>
+                     );
                     } else if (cardKind === "v3_thinking") {
                       // TASK B: V3 thinking placeholder during initial decide
                       return (
@@ -14763,13 +14794,15 @@ export default function CandidateInterview() {
                  note: 'Footer shows Yes/No buttons only - question renders in main pane'
                });
 
-               // UI CONTRACT SELF-TEST: Track footer buttons event
-               if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.id) {
-                 const tracker = miGateTestTrackerRef.current.get(currentItem.id) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
+               // UI CONTRACT SELF-TEST: Track footer buttons event (use canonical stableKey)
+               if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.packId && currentItem?.instanceNumber) {
+                 const trackerKey = buildMiGateQStableKey(currentItem.packId, currentItem.instanceNumber);
+                 const tracker = miGateTestTrackerRef.current.get(trackerKey) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
                  tracker.footerButtonsOnly = true;
-                 miGateTestTrackerRef.current.set(currentItem.id, tracker);
+                 miGateTestTrackerRef.current.set(trackerKey, tracker);
 
                  console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
+                   trackerKey,
                    itemId: currentItem.id,
                    event: 'FOOTER_BUTTONS_ONLY',
                    tracker
