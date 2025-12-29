@@ -12175,8 +12175,8 @@ export default function CandidateInterview() {
       }
     };
     
-    // CRASH GUARD: Initialize filteredOut at outer scope (accessible to all downstream code)
-    let filteredOut = [];
+    // CRASH GUARD: Initialize removed items tracker at outer scope
+    let removedEphemeralItems = [];
     
     // CQ_TRANSCRIPT_CONTRACT: Render-time invariant check + ENFORCEMENT
     // Ephemeral items (active cards) MUST NOT appear in chat history
@@ -12205,7 +12205,7 @@ export default function CandidateInterview() {
         });
         
         // ENFORCEMENT: Remove ephemeral items ONLY (never real transcript items)
-        // filteredOut already initialized at outer useMemo scope
+        // removedEphemeralItems already initialized at outer useMemo scope
         transcriptToRender = renderableTranscriptStream.filter(e => {
           // NORMALIZE: Read type field consistently
           const mt = e.messageType || e.type || e.kind || null;
@@ -12253,7 +12253,7 @@ export default function CandidateInterview() {
             e.source === 'prompt_lane_temporary';
           
           if (isEphemeral) {
-            filteredOut.push({
+            removedEphemeralItems.push({
               stableKey,
               mt,
               kind: e.kind,
@@ -12266,21 +12266,22 @@ export default function CandidateInterview() {
           return !isEphemeral;
         });
         
-        // CRASH GUARD: Safe logging with fallback for filteredOut
+        // CRASH GUARD: Safe logging with fallback
         safeLog(() => {
-          const filteredOutSafe = Array.isArray(filteredOut) ? filteredOut : [];
+          const filteredDetailsSafe = Array.isArray(removedEphemeralItems) ? removedEphemeralItems : [];
+          const stableKeysRemovedSafe = filteredDetailsSafe.map(e => e?.stableKey).filter(Boolean);
           
           console.log('[CQ_TRANSCRIPT][CRASH_GUARD_OK]', {
-            hasFilteredOut: typeof filteredOut !== 'undefined',
-            filteredOutLen: filteredOutSafe.length
+            removedItemsCount: filteredDetailsSafe.length,
+            keysRemoved: stableKeysRemovedSafe.length
           });
           
           console.log('[CQ_TRANSCRIPT][EPHEMERAL_FILTERED]', {
             beforeLen: renderableTranscriptStream.length,
             afterLen: transcriptToRender.length,
             removedCount: ephemeralSources.length,
-            stableKeysRemoved: filteredOutSafe.map(e => e?.stableKey).filter(Boolean).slice(0, 5),
-            filteredDetails: filteredOutSafe.slice(0, 3)
+            stableKeysRemoved: stableKeysRemovedSafe.slice(0, 5),
+            filteredDetails: filteredDetailsSafe.slice(0, 3)
           });
         });
       }
@@ -13095,9 +13096,10 @@ export default function CandidateInterview() {
         const existsInDeduped = transcriptWithV3ProbeQA.some(e => (e.stableKey || e.id) === stableKeyA);
         const existsInFinal = transcriptToRenderDeduped.some(e => (e.stableKey || e.id) === stableKeyA);
 
-        // CRASH GUARD: Safe logging with fallback for filteredOut
+        // CRASH GUARD: Safe logging with fallback
         safeLog(() => {
-          const filteredOutSafe = Array.isArray(filteredOut) ? filteredOut : [];
+          const filteredDetailsSafe = Array.isArray(removedEphemeralItems) ? removedEphemeralItems : [];
+          const stableKeysRemovedSafe = filteredDetailsSafe.map(e => e?.stableKey).filter(Boolean);
 
           console.log('[CQ_TRANSCRIPT][V3_PROBE_A_TRUTH_TABLE]', {
             promptId,
@@ -13108,7 +13110,7 @@ export default function CandidateInterview() {
             activeUiItemKind: activeUiItem?.kind,
             packId,
             instanceNumber,
-            filteredStableKeysRemoved: filteredOutSafe.map(e => e?.stableKey).filter(Boolean).slice(0, 5)
+            filteredStableKeysRemoved: stableKeysRemovedSafe.slice(0, 5)
           });
         });
       }
