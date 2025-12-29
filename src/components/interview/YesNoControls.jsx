@@ -43,19 +43,21 @@ export default function YesNoControls({
   }
 
   // FOOTER CONTEXT: Render interactive buttons
+  // DESIGN: Neutral disclosure model (legal/investigative context)
+  // Both buttons use same neutral color - no semantic green/red meaning
   return (
     <div className="flex gap-3 w-full">
       <Button
         onClick={onYes}
         disabled={disabled}
-        className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-6 text-lg"
+        className="flex-1 bg-slate-700 hover:bg-slate-600 active:bg-slate-800 focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-900 text-white font-medium py-6 text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {yesLabel}
       </Button>
       <Button
         onClick={onNo}
         disabled={disabled}
-        className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-medium py-6 text-lg"
+        className="flex-1 bg-slate-700 hover:bg-slate-600 active:bg-slate-800 focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-900 text-white font-medium py-6 text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {noLabel}
       </Button>
