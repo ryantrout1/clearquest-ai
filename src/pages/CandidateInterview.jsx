@@ -1531,6 +1531,9 @@ export default function CandidateInterview() {
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
+  
+  // Footer overlap guardrail: Track max overlap seen for regression detection
+  const maxOverlapSeenRef = React.useRef({ maxOverlapPx: 0, lastModeSeen: null });
 
   // MOVED UP: screenMode and uiBlocker now declared before forensicCheck (prevents TDZ)
   const introLoggedRef = useRef(false);
