@@ -15242,10 +15242,10 @@ export default function CandidateInterview() {
     // PART B: MUTATION BOUNDARY - Freeze final list (no modifications after this point)
     const renderedItems = Object.freeze([...finalListWithGateOrdered]);
     
-    // TDZ GUARD: Update length counter + sync finalList refs (after finalList is computed)
-    bottomAnchorLenRef.current = finalListWithGateOrdered.length;
-    finalListRef.current = Array.isArray(finalListWithGateOrdered) ? finalListWithGateOrdered : [];
-    finalListLenRef.current = Array.isArray(finalListWithGateOrdered) ? finalListWithGateOrdered.length : 0;
+    // TDZ GUARD: Update length counter + sync finalList refs (use frozen renderedItems)
+    bottomAnchorLenRef.current = renderedItems.length;
+    finalListRef.current = Array.isArray(renderedItems) ? renderedItems : [];
+    finalListLenRef.current = Array.isArray(renderedItems) ? renderedItems.length : 0;
     
     if (CQ_DEBUG_FOOTER_ANCHOR) {
       console.log('[TDZ_GUARD][FINAL_LIST_REF_SYNC]', { len: finalListLenRef.current });
