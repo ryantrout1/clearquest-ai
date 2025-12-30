@@ -23,6 +23,7 @@ export default function StartInterview() {
   const navigate = useNavigate();
   const { token } = useParams(); // Optional URL token for prefilling
   
+  // LOGGING CONTRACT: Diagnostic-only. Do not add new log labels without explicit request.
   // DIAGNOSTIC: Component render entry point
   console.log("[START_INTERVIEW][RENDER]", {
     pathname: window.location.pathname,
@@ -33,12 +34,6 @@ export default function StartInterview() {
   // UI CONTRACT GUARD: Check if sessionId already exists
   const urlParams = new URLSearchParams(window.location.search);
   const existingSessionId = urlParams.get('session');
-  
-  console.log("[START_INTERVIEW][SESSION_CHECK]", {
-    existingSessionId,
-    hasSessionId: Boolean(existingSessionId),
-    timestamp: Date.now()
-  });
   
   // HOOKS MUST ALWAYS RUN (unconditional) - declare all hooks BEFORE any conditional logic
   const [formData, setFormData] = useState({
@@ -109,7 +104,7 @@ export default function StartInterview() {
         timestamp: Date.now()
       });
     };
-  }, [existingSessionId]);
+  }, []);
 
   useEffect(() => {
     loadQuestionCount();
