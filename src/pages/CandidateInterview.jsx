@@ -1789,19 +1789,19 @@ export default function CandidateInterview() {
     // PART A: Hard baseline to bottom (forced anchor before measuring)
     const scrollHeight = scroller.scrollHeight;
     const clientHeight = scroller.clientHeight;
-    const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
+    const maxScrollTopOuter = Math.max(0, scrollHeight - clientHeight);
     
-    scroller.scrollTop = maxScrollTop;
+    scroller.scrollTop = maxScrollTopOuter;
     const baselineAfter = scroller.scrollTop;
     
     // PART E: Baseline verification (detect if another effect is resetting)
-    if (Math.abs(baselineAfter - maxScrollTop) > 20) {
+    if (Math.abs(baselineAfter - maxScrollTopOuter) > 20) {
       const logKey = `baseline_not_bottom_${reason}_${activeKindSOT}`;
       logOnce(logKey, () => {
         console.error('[SCROLL][BASELINE_NOT_BOTTOM]', {
-          maxScrollTop: Math.round(maxScrollTop),
+          maxScrollTop: Math.round(maxScrollTopOuter),
           baselineAfter: Math.round(baselineAfter),
-          delta: Math.round(maxScrollTop - baselineAfter),
+          delta: Math.round(maxScrollTopOuter - baselineAfter),
           reason,
           activeKindSOT,
           scrollHeight: Math.round(scrollHeight),
@@ -1811,12 +1811,17 @@ export default function CandidateInterview() {
     }
     
     // Retry baseline once if browser didn't reach bottom
-    if (baselineAfter < maxScrollTop - 2) {
-      scroller.scrollTop = maxScrollTop;
+    if (baselineAfter < maxScrollTopOuter - 2) {
+      scroller.scrollTop = maxScrollTopOuter;
     }
     
     // PART B: Measure overlap AFTER baseline (nested RAF for fresh DOM)
     requestAnimationFrame(() => {
+      // TDZ FIX: Recompute maxScrollTop locally in RAF (don't use outer scope)
+      if (!scroller) return;
+      const scrollHeight = scroller.scrollHeight;
+      const clientHeight = scroller.clientHeight;
+      const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
       const footerRect = footerEl.getBoundingClientRect();
       
       // Multi-tier active card search
@@ -1899,6 +1904,12 @@ export default function CandidateInterview() {
         // PART D: One retry for v3_pack_opener (layout settling)
         if (isV3Opener && overlapPx > 4) {
           requestAnimationFrame(() => {
+            // TDZ FIX: Recompute maxScrollTop locally in PASS 2 RAF
+            if (!scroller) return;
+            const scrollHeight2 = scroller.scrollHeight;
+            const clientHeight2 = scroller.clientHeight;
+            const maxScrollTop2 = Math.max(0, scrollHeight2 - clientHeight2);
+
             const footerRect2 = footerEl.getBoundingClientRect();
             const activeRect2 = activeCardEl.getBoundingClientRect();
             const overlapPx2 = Math.max(0, activeRect2.bottom - footerRect2.top);
@@ -1909,10 +1920,9 @@ export default function CandidateInterview() {
               // Apply delta correction again
               scroller.scrollTop = scroller.scrollTop + overlapPx2 + bufferPx;
 
-              // Clamp to maxScrollTop
-              const currentMax2 = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-              if (scroller.scrollTop > currentMax2) {
-                scroller.scrollTop = currentMax2;
+              // Clamp to maxScrollTop2 (local)
+              if (scroller.scrollTop > maxScrollTop2) {
+                scroller.scrollTop = maxScrollTop2;
               }
 
               const scrollTopAfter2 = scroller.scrollTop;
@@ -1923,7 +1933,7 @@ export default function CandidateInterview() {
                 bufferPx,
                 scrollTopBefore2: Math.round(scrollTopBefore2),
                 scrollTopAfter2: Math.round(scrollTopAfter2),
-                maxScrollTop2: Math.round(currentMax2),
+                maxScrollTop2: Math.round(maxScrollTop2),
                 deltaCorrectionApplied: Math.round(scrollTopAfter2 - scrollTopBefore2)
               });
 
@@ -1931,7 +1941,7 @@ export default function CandidateInterview() {
                 phase: 'PASS2_DONE',
                 overlapPx: Math.round(overlapPx2),
                 scrollTop: Math.round(scrollTopAfter2),
-                maxScrollTop: Math.round(currentMax2)
+                maxScrollTop: Math.round(maxScrollTop2)
               });
 
               // PART C: Unlock after PASS 2 completes
@@ -1941,7 +1951,7 @@ export default function CandidateInterview() {
                 phase: 'PASS2_CLEAR',
                 overlapPx: Math.round(overlapPx2),
                 scrollTop: Math.round(scroller.scrollTop),
-                maxScrollTop: Math.round(currentMax2)
+                maxScrollTop: Math.round(maxScrollTop2)
               });
 
               // PART C: Unlock if no overlap in PASS 2
@@ -1963,32 +1973,37 @@ export default function CandidateInterview() {
             // Let timeout handle unlock to ensure stability
             }
             }
-        } else {
-          // PART C: Unlock if no overlap detected + PART B: Final scrollTop enforcement
-          if (isV3Opener) {
+            } else {
+            // PART C: Unlock if no overlap detected + PART B: Final scrollTop enforcement
+            if (isV3Opener) {
+            // TDZ FIX: Recompute maxScrollTop locally (don't reference outer scope in else block)
+            const scrollHeightFinal = scroller.scrollHeight;
+            const clientHeightFinal = scroller.clientHeight;
+            const maxScrollTopFinal = Math.max(0, scrollHeightFinal - clientHeightFinal);
+
             // PART B: Ensure we're truly at maxScrollTop for v3_pack_opener (no clamping)
             const finalScrollTop = scroller.scrollTop;
-            if (finalScrollTop < maxScrollTop - 2) {
-              scroller.scrollTop = maxScrollTop;
-              console.log('[SCROLL][ENSURE_ACTIVE][FINAL_ANCHOR_V3]', {
-                reason,
-                scrollTopBefore: Math.round(finalScrollTop),
-                scrollTopAfter: Math.round(maxScrollTop),
-                forcedToMax: true
-              });
+            if (finalScrollTop < maxScrollTopFinal - 2) {
+            scroller.scrollTop = maxScrollTopFinal;
+            console.log('[SCROLL][ENSURE_ACTIVE][FINAL_ANCHOR_V3]', {
+              reason,
+              scrollTopBefore: Math.round(finalScrollTop),
+              scrollTopAfter: Math.round(maxScrollTopFinal),
+              forcedToMax: true
+            });
             }
 
             console.log('[SCROLL][LOCK_PHASE]', {
-              phase: 'NO_OVERLAP',
-              overlapPx: 0,
-              scrollTop: Math.round(scroller.scrollTop),
-              maxScrollTop: Math.round(maxScrollTop),
-              reason: 'No overlap - deferring unlock to timeout'
+            phase: 'NO_OVERLAP',
+            overlapPx: 0,
+            scrollTop: Math.round(scroller.scrollTop),
+            maxScrollTop: Math.round(maxScrollTopFinal),
+            reason: 'No overlap - deferring unlock to timeout'
             });
 
             // Do NOT unlock here - let failsafe timeout handle it (ensures full settle time)
-          }
-        }
+            }
+            }
 
         // PART C: Failsafe unlock after 1000ms (belt-and-suspenders)
         if (isV3Opener) {
