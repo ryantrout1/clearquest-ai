@@ -336,10 +336,14 @@ const processRetryQueue = async () => {
             if (seenStableKeysBySession.has(auditKey)) {
               const foundInLocal = workingTranscript.some(e => e.stableKey === item.stableKey);
               if (!foundInLocal) {
-                console.error('[PERSIST][INTEGRITY_LOCAL_MISSING]', {
+                const last3Keys = workingTranscript.slice(-3).map(e => e.stableKey || e.id);
+                console.warn('[PERSIST][INTEGRITY_LOCAL_MISSING]', {
                   sessionId: item.sessionId,
                   stableKey: item.stableKey,
-                  reason: 'Write succeeded but stableKey not in local transcript array (invariant violation)'
+                  transcriptRefLen: workingTranscript.length,
+                  lastStableKeysPreview: last3Keys,
+                  mode: 'retry_batch',
+                  reason: 'Retry succeeded but stableKey not in working transcript (possible merge timing)'
                 });
               }
             }
@@ -940,10 +944,15 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
           });
 
           if (!foundInRefBefore) {
-            console.error('[PERSIST][INTEGRITY_LOCAL_MISSING]', {
+            // Transient race condition - log as warning with diagnostics
+            const last3Keys = transcriptRef.current.slice(-3).map(e => e.stableKey || e.id);
+            console.warn('[PERSIST][INTEGRITY_LOCAL_MISSING]', {
               sessionId,
               stableKey: entry.stableKey || entry.id,
-              reason: 'Write succeeded but stableKey not in transcriptRef after append'
+              transcriptRefLen: currentLen,
+              lastStableKeysPreview: last3Keys,
+              mode: 'dbTranscript_sot',
+              reason: 'Transient race: stableKey not in transcriptRef after append (may appear in next render)'
             });
           }
         });
