@@ -331,20 +331,22 @@ const processRetryQueue = async () => {
               workingTranscript = nextTranscript;
             }
             
-            // CHANGE 1: INTEGRITY AUDIT - Check local invariant only
-            const auditKey = `${item.sessionId}|${item.stableKey}`;
-            if (seenStableKeysBySession.has(auditKey)) {
-              const foundInLocal = workingTranscript.some(e => e.stableKey === item.stableKey);
-              if (!foundInLocal) {
-                const last3Keys = workingTranscript.slice(-3).map(e => e.stableKey || e.id);
-                console.warn('[PERSIST][INTEGRITY_LOCAL_MISSING]', {
-                  sessionId: item.sessionId,
-                  stableKey: item.stableKey,
-                  transcriptRefLen: workingTranscript.length,
-                  lastStableKeysPreview: last3Keys,
-                  mode: 'retry_batch',
-                  reason: 'Retry succeeded but stableKey not in working transcript (possible merge timing)'
-                });
+            // FIX F: INTEGRITY AUDIT - Skip if storage disabled
+            if (!STORAGE_DISABLED) {
+              const auditKey = `${item.sessionId}|${item.stableKey}`;
+              if (seenStableKeysBySession.has(auditKey)) {
+                const foundInLocal = workingTranscript.some(e => e.stableKey === item.stableKey);
+                if (!foundInLocal) {
+                  const last3Keys = workingTranscript.slice(-3).map(e => e.stableKey || e.id);
+                  console.warn('[PERSIST][INTEGRITY_LOCAL_MISSING]', {
+                    sessionId: item.sessionId,
+                    stableKey: item.stableKey,
+                    transcriptRefLen: workingTranscript.length,
+                    lastStableKeysPreview: last3Keys,
+                    mode: 'retry_batch',
+                    reason: 'Retry succeeded but stableKey not in working transcript (possible merge timing)'
+                  });
+                }
               }
             }
             
@@ -974,6 +976,12 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
                 reason: 'Transient race: stableKey not in transcriptRef after append (may appear in next render)'
               });
             }
+          });
+        } else {
+          // Storage blocked - skip audit (log once for diagnostics)
+          console.log('[PERSIST][INTEGRITY_CHECK_SKIPPED]', {
+            reason: 'storage_disabled',
+            stableKey: entry.stableKey || entry.id
           });
         }
 
