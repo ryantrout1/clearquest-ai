@@ -11439,6 +11439,15 @@ export default function CandidateInterview() {
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
   // TDZ-SAFE: bottomBarMode declared above (line ~7876) before this effect
   React.useLayoutEffect(() => {
+    // SCROLL LOCK GATE: Block auto-scroll during v3_pack_opener settle
+    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+      console.log('[SCROLL][GLIDE_BLOCKED_BY_LOCK]', {
+        reason: scrollWriteLockReasonRef.current,
+        untilMsRemaining: Math.max(0, scrollWriteLockUntilRef.current - Date.now())
+      });
+      return;
+    }
+    
     const scrollContainer = historyRef.current;
     if (!scrollContainer || !bottomAnchorRef.current) return;
     
