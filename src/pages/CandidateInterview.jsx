@@ -2018,7 +2018,9 @@ export default function CandidateInterview() {
         }
       }, 1000);
     }
-  }, [currentItem, lockScrollWrites, unlockScrollWrites, isYesNoModeSOT, isMiGateSOT]);
+  // TDZ GUARD: Do not reference flags declared later in file (e.g., isYesNoModeSOT).
+  // These are callback PARAMETERS, not closure deps - passed fresh on every call.
+  }, [currentItem, lockScrollWrites, unlockScrollWrites]);
   const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
   const pendingScrollRafRef = useRef(null);
