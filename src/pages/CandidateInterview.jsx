@@ -2421,6 +2421,28 @@ export default function CandidateInterview() {
       // Store on window for easy inspection
       window.__cqLastViolationSnapshot = safeSnapshot;
       
+      // ONE-TIME SELF-HEAL: Scroll to clear overlap (keyed by activeItemId)
+      const selfHealKey = `${sessionId}:${activeItemId || 'none'}`;
+      if (overlapPx > 0 && !typingLock && activeItemId) {
+        logOnce(selfHealKey, () => {
+          const scrollContainer = historyRef.current;
+          if (!scrollContainer) return;
+          
+          const scrollTopBefore = scrollContainer.scrollTop;
+          scrollContainer.scrollTop += overlapPx + 12;
+          const scrollTopAfter = scrollContainer.scrollTop;
+          
+          console.log('[UI_CONTRACT][FOOTER_OVERLAP_SELF_HEAL]', {
+            activeKind,
+            overlapPx: Math.round(overlapPx),
+            footerClearancePx,
+            scrollTopBefore: Math.round(scrollTopBefore),
+            scrollTopAfter: Math.round(scrollTopAfter),
+            reason: 'Active card behind footer - applying corrective scroll'
+          });
+        });
+      }
+      
       // Original nested log (kept for compatibility)
       console.error('[CQ_VIOLATION_SNAPSHOT]', {
         reason,
@@ -17779,15 +17801,23 @@ export default function CandidateInterview() {
 
             if (cardKind === "v3_pack_opener") {
               const safeOpenerPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_V3_OPENER');
+              const cardStableKey = activeCard.stableKey || `followup-card:${activeCard.packId}:opener:${activeCard.instanceNumber}`;
+              
               return (
-                <div key={`active-${activeCard.stableKey}`}>
+                <div 
+                  key={`active-${cardStableKey}`}
+                  ref={activeLaneCardRef}
+                  data-stablekey={cardStableKey}
+                  data-cq-active-card="true"
+                  data-cq-card-id={cardStableKey}
+                  data-cq-card-kind="v3_pack_opener"
+                  data-ui-contract-card="true"
+                  style={{
+                    scrollMarginBottom: `${activeCardScrollMarginBottomPx}px`
+                  }}
+                >
                   <ContentContainer>
-                    <div 
-                      className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150"
-                      data-cq-active-card="true"
-                      data-stablekey={activeCard.stableKey}
-                      data-ui-contract-card="true"
-                    >
+                    <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
                       {activeCard.categoryLabel && (
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-sm font-medium text-purple-400">
@@ -17902,6 +17932,20 @@ export default function CandidateInterview() {
              scrollMarginBottom: `${dynamicFooterHeightPx}px`
            }}
           />
+          
+          {/* UNIVERSAL FOOTER CLEARANCE SPACER - Real DOM element ensures scroll range */}
+          {shouldRenderFooter && screenMode === 'QUESTION' && (
+            <div
+              aria-hidden="true"
+              data-ui-contract-spacer="true"
+              data-footer-clearance-spacer="true"
+              style={{
+                height: `${footerClearancePx}px`,
+                flexShrink: 0,
+                pointerEvents: 'none'
+              }}
+            />
+          )}
         </div>
         
         {/* FOOTER SHELL - Fixed to viewport bottom (deterministic positioning) */}
