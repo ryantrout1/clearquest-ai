@@ -15346,13 +15346,14 @@ export default function CandidateInterview() {
             reason: 'Items found after gate post-reorder - applying corrective fix'
           });
           
-          // TASK 1: Print full render list when violation detected
-          logRenderListSummary(
-            finalListWithGateOrdered, 
-            currentGatePackId, 
-            currentGateInstanceNumber,
-            'TRAILING_ITEMS_DETECTED'
-          );
+          // PART A: Capture violation snapshot when trailing items detected
+          captureViolationSnapshot({
+            reason: 'TRAILING_ITEMS_DETECTED',
+            list: finalListWithGateOrdered,
+            packId: currentGatePackId,
+            instanceNumber: currentGateInstanceNumber,
+            activeItemId: currentItem?.id
+          });
         });
         
         // Corrective fix: move trailing items before gate
