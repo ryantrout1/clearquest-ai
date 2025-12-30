@@ -2546,12 +2546,6 @@ export default function CandidateInterview() {
   // CRITICAL: Declared AFTER activeUiItem is initialized, prevents TDZ in callbacks
   const activeKindSOT = activeUiItem?.kind || currentItem?.type || 'UNKNOWN';
   
-  console.log('[ACTIVE_KIND_SOT]', {
-    activeKind: activeUiItem?.kind,
-    currentItemType: currentItem?.type,
-    activeKindSOT
-  });
-  
   // ============================================================================
   // ACTIVE CARD KEY SOT - Single source of truth for active card identifier
   // ============================================================================
