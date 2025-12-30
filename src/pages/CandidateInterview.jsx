@@ -1805,6 +1805,23 @@ export default function CandidateInterview() {
     
     // Use module-scope logOnce (already declared above)
     logOnce(snapshotKey, () => {
+      // PART D: Skip active card measurement for MI gate (expected behavior)
+      const activeKind = currentItem?.type || 'none';
+      const isMiGateContext = activeKind === 'multi_instance_gate' || 
+                             activeUiItem?.kind === 'MI_GATE';
+      
+      if (isMiGateContext) {
+        console.log('[MI_GATE][SCROLL_STRATEGY]', {
+          reason,
+          packId: packId || 'none',
+          instanceNumber: instanceNumber || 'none',
+          strategy: 'BOTTOM_ANCHOR',
+          skipCardMeasurement: true,
+          note: 'MI gate uses bottom-anchor scroll - no card measurement needed'
+        });
+        return; // Exit early - no violation snapshot for MI gate
+      }
+      
       // 1) RENDER LIST TRUTH
       const gateIndex = list ? list.findIndex(item => isMiGateItem(item, packId, instanceNumber)) : -1;
       const totalItems = list?.length || 0;
@@ -11477,6 +11494,31 @@ export default function CandidateInterview() {
         requestAnimationFrame(() => {
           if (!scrollContainer || !footerRootRef.current) return;
           
+          // PART B: MI gate uses bottom anchor strategy (skip card measurement)
+          const isMiGateActive = currentItem?.type === 'multi_instance_gate' || 
+                                activeUiItem?.kind === 'MI_GATE';
+          
+          if (isMiGateActive) {
+            // Bottom-anchor strategy: ensure scroll container is at bottom
+            if (bottomAnchorRef.current && (!isUserTyping || forceAutoScrollOnceRef.current)) {
+              bottomAnchorRef.current.scrollIntoView({ block: 'end', behavior: 'auto' });
+              
+              console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
+                reason: 'FORCE_ANCHOR_ON_QUESTION_SHOWN',
+                packId: currentItem?.packId,
+                instanceNumber: currentItem?.instanceNumber,
+                strategy: 'BOTTOM_ANCHOR',
+                bypassedTypingLock: isUserTyping && forceAutoScrollOnceRef.current
+              });
+              
+              if (forceAutoScrollOnceRef.current) {
+                forceAutoScrollOnceRef.current = false;
+                console.log('[SCROLL][FORCE_ONCE_CLEARED]', { reason: 'mi_gate_bottom_anchor' });
+              }
+            }
+            return; // Skip card-based measurement for MI gate
+          }
+          
           const activeQuestionEl = scrollContainer.querySelector('[data-cq-active-card="true"]');
           if (!activeQuestionEl) return;
           
@@ -11494,13 +11536,19 @@ export default function CandidateInterview() {
               activeItemId: currentItem?.id
             });
             
-            // PART C: Apply corrective scroll
-            if (!isUserTyping) {
-              scrollContainer.scrollTop += overlapPx + 8;
+            // PART C: Apply corrective scroll (bypass typing lock)
+            if (!isUserTyping || forceAutoScrollOnceRef.current) {
+              scrollContainer.scrollTop += overlapPx + 16;
               console.log('[SCROLL][CORRECTIVE_NUDGE_QUESTION]', {
                 overlapPx: Math.round(overlapPx),
+                bypassedTypingLock: isUserTyping && forceAutoScrollOnceRef.current,
                 applied: true
               });
+              
+              if (forceAutoScrollOnceRef.current) {
+                forceAutoScrollOnceRef.current = false;
+                console.log('[SCROLL][FORCE_ONCE_CLEARED]', { reason: 'corrective_nudge_question' });
+              }
             }
           }
         });
@@ -11823,6 +11871,31 @@ export default function CandidateInterview() {
           const finalFooterRect = footerEl.getBoundingClientRect();
           const finalOverlapPx = Math.max(0, finalCardRect.bottom - (finalFooterRect.top - clearancePx));
 
+          // PART B: MI gate uses bottom anchor strategy (skip card measurement)
+          const isMiGateActiveOverlap = currentItem?.type === 'multi_instance_gate' || 
+                                       activeUiItem?.kind === 'MI_GATE';
+          
+          if (isMiGateActiveOverlap) {
+            // Bottom-anchor strategy for MI gate
+            if (bottomAnchorRef.current && (!isUserTyping || forceAutoScrollOnceRef.current)) {
+              bottomAnchorRef.current.scrollIntoView({ block: 'end', behavior: 'auto' });
+              
+              console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
+                reason: 'OVERLAP_NUDGE',
+                packId: currentItem?.packId,
+                instanceNumber: currentItem?.instanceNumber,
+                strategy: 'BOTTOM_ANCHOR',
+                bypassedTypingLock: isUserTyping && forceAutoScrollOnceRef.current
+              });
+              
+              if (forceAutoScrollOnceRef.current) {
+                forceAutoScrollOnceRef.current = false;
+                console.log('[SCROLL][FORCE_ONCE_CLEARED]', { reason: 'mi_gate_bottom_anchor_overlap' });
+              }
+            }
+            return; // Skip card-based retry for MI gate
+          }
+          
           if (finalOverlapPx > 4) {
             // PART A: Capture violation snapshot
             captureViolationSnapshot({
@@ -11835,7 +11908,7 @@ export default function CandidateInterview() {
 
             // PART C: Second corrective nudge (bypass typing lock for explicit navigation)
             if ((!isUserTyping || forceAutoScrollOnceRef.current) && scrollContainer) {
-              scrollContainer.scrollTop += finalOverlapPx + 8;
+              scrollContainer.scrollTop += finalOverlapPx + 16;
               console.log('[SCROLL][CORRECTIVE_NUDGE_RETRY]', {
                 remainingOverlapPx: Math.round(finalOverlapPx),
                 applied: true,
@@ -11844,6 +11917,7 @@ export default function CandidateInterview() {
 
               if (forceAutoScrollOnceRef.current) {
                 forceAutoScrollOnceRef.current = false;
+                console.log('[SCROLL][FORCE_ONCE_CLEARED]', { reason: 'corrective_nudge_retry' });
               }
             }
           }
@@ -13301,6 +13375,24 @@ export default function CandidateInterview() {
       packId: currentItem?.packId,
       instanceNumber: currentItem?.instanceNumber
     });
+    
+    // PART B: MI gate bottom anchor scroll (immediate, before async handler)
+    const isMiGateClick = currentItem?.type === 'multi_instance_gate' || 
+                         activeUiItem?.kind === 'MI_GATE';
+    
+    if (isMiGateClick && bottomAnchorRef.current && historyRef.current) {
+      requestAnimationFrame(() => {
+        bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+        
+        console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
+          reason: 'YESNO_CLICK',
+          answer,
+          packId: currentItem?.packId,
+          instanceNumber: currentItem?.instanceNumber,
+          strategy: 'BOTTOM_ANCHOR'
+        });
+      });
+    }
     
     // MI_GATE TRACE A: YES/NO button click entry
     console.log('[MI_GATE][TRACE][YESNO_CLICK]', {
