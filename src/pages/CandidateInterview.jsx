@@ -3263,6 +3263,24 @@ export default function CandidateInterview() {
     hasActiveV3Prompt
   });
   
+  // ============================================================================
+  // TDZ GUARD: EARLY BOTTOM BAR MODE - Safe canonical source (no late variables)
+  // ============================================================================
+  // Use bottomBarModeSOT above this point; do not reference bottomBarMode before its declaration.
+  const bottomBarModeSOT = (() => {
+    // Derive mode from early bottomBarRenderTypeSOT only (TDZ-safe)
+    if (bottomBarRenderTypeSOT === "multi_instance_gate") return "YES_NO";
+    if (bottomBarRenderTypeSOT === "v3_pack_opener") return "TEXT_INPUT";
+    if (bottomBarRenderTypeSOT === "v3_probing") return "TEXT_INPUT";
+    if (bottomBarRenderTypeSOT === "v3_waiting") return "V3_WAITING";
+    if (screenMode === 'WELCOME') return "CTA";
+    return "DEFAULT";
+  })();
+  
+  if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+    console.log('[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT, bottomBarModeSOT });
+  }
+  
   // V3 PROMPT PHASE CHANGE TRACKER (unconditional hook)
   useEffect(() => {
     if (v3PromptPhase !== lastV3PromptPhaseRef.current) {
@@ -12089,14 +12107,14 @@ export default function CandidateInterview() {
     const activeKey = activeCardKeySOT || currentItem?.id || `${currentItem?.packId}:${currentItem?.instanceNumber}`;
     if (!activeKey) return;
     
-    // TDZ-SAFE: Compute fresh flags inside RAF using available values
-    const isYesNoModeFresh = bottomBarMode === 'YES_NO';
+    // TDZ-SAFE: Use early bottomBarModeSOT (computed before bottomBarMode declaration)
+    const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
     const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender("ACTIVE_ITEM_CHANGED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT, bottomBarMode, effectiveItemType, activeUiItem]);
+  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT, bottomBarModeSOT, effectiveItemType, activeUiItem]);
   
   // PART B: RENDER LIST APPENDED - TDZ-safe using ref (no direct finalTranscriptList reference)
   React.useLayoutEffect(() => {
@@ -12111,14 +12129,14 @@ export default function CandidateInterview() {
     // Length increased - trigger scroll correction
     prevFinalListLenForScrollRef.current = currentLen;
     
-    // TDZ-SAFE: Compute fresh flags inside RAF
-    const isYesNoModeFresh = bottomBarMode === 'YES_NO';
+    // TDZ-SAFE: Use early bottomBarModeSOT (computed before bottomBarMode declaration)
+    const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
     const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender("RENDER_LIST_APPENDED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT, activeKindSOT, bottomBarMode, effectiveItemType, activeUiItem]);
+  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT, activeKindSOT, bottomBarModeSOT, effectiveItemType, activeUiItem]);
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
@@ -13645,10 +13663,10 @@ export default function CandidateInterview() {
 
   
   // PART D: Align active card when bottomBarMode becomes YES_NO
-  // TDZ-SAFE: Moved here AFTER bottomBarMode is declared (line ~10992)
+  // TDZ-SAFE: Uses early bottomBarModeSOT (computed before late bottomBarMode declaration)
   useLayoutEffect(() => {
-    // TDZ-SAFE: bottomBarMode now in scope - compute fresh flags inside effect
-    const isYesNoModeFresh = bottomBarMode === 'YES_NO';
+    // TDZ-SAFE: Use bottomBarModeSOT (early, always available)
+    const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
     const isMiGateFresh = currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
     
     if (!isYesNoModeFresh) return;
@@ -13656,7 +13674,7 @@ export default function CandidateInterview() {
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [bottomBarMode, ensureActiveVisibleAfterRender, activeKindSOT, currentItem, activeUiItem]);
+  }, [bottomBarModeSOT, ensureActiveVisibleAfterRender, activeKindSOT, currentItem, activeUiItem]);
 
   // Auto-focus control props (pure values, no hooks)
   const focusEnabled = screenMode === 'QUESTION';
