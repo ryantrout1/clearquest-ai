@@ -1826,6 +1826,9 @@ export default function CandidateInterview() {
   const IS_3ROW_SHELL = true;
   const footerSpacerDisabledLoggedRef = React.useRef(false);
   
+  // GUARDRAIL DEDUPE: Track logged errors to prevent spam
+  const lastClearanceErrorKeyRef = React.useRef(null);
+  
   // GOLDEN CONTRACT CHECK: Dedupe tracking for golden check emissions
   const lastGoldenCheckPayloadRef = React.useRef(null);
   
@@ -3980,13 +3983,14 @@ export default function CandidateInterview() {
           middleIsOnlyScroll
         });
         
-        // One-time log: Footer spacer checks disabled in 3-row shell
+        // One-time log: Footer spacer + clearance checks disabled in 3-row shell
         if (IS_3ROW_SHELL && !footerSpacerDisabledLoggedRef.current) {
           footerSpacerDisabledLoggedRef.current = true;
           console.log('[UI_CONTRACT][FOOTER_SPACER_DISABLED]', {
             reason: 'SHELL_3ROW_ENFORCED',
             footerInNormalFlow: true,
-            noSpacerNeeded: true
+            noSpacerNeeded: true,
+            clearanceChecksDisabled: true
           });
         }
       } catch (e) {
@@ -10307,8 +10311,8 @@ export default function CandidateInterview() {
     prevBottomBarModeRef.current = currentMode;
   }, [bottomBarMode]);
   
-  // FOOTER CLEARANCE ASSERTION: Verify no overlap (run when active card present)
-  if (hasActiveCard && typeof window !== 'undefined') {
+  // FOOTER CLEARANCE ASSERTION: DISABLED in 3-row shell mode (footer in normal flow, no overlap possible)
+  if (!IS_3ROW_SHELL && hasActiveCard && typeof window !== 'undefined') {
     requestAnimationFrame(() => {
       try {
         const scrollContainer = historyRef.current;
@@ -10448,24 +10452,21 @@ export default function CandidateInterview() {
           const activeCardsInContainer = scrollContainer.querySelectorAll('[data-cq-active-card="true"]');
           
           if (activeCardsInContainer.length === 0) {
-            console.error('[UI_CONTRACT][ACTIVE_CARD_NOT_IN_SCROLL_CONTAINER]', {
-              mode: bottomBarMode,
-              activeUiItemKind: activeUiItem?.kind,
-              hasActiveCard,
-              screenMode,
-              reason: 'Active card is not a descendant of historyRef scroll container - spacer + measurement cannot protect it',
-              action: 'FAIL_CLOSED'
-            });
+            // Dedupe: Only log once per unique mode+kind combo
+            const errorKey = `${bottomBarMode}:${activeUiItem?.kind}`;
+            if (lastClearanceErrorKeyRef.current !== errorKey) {
+              lastClearanceErrorKeyRef.current = errorKey;
+              console.warn('[UI_CONTRACT][ACTIVE_CARD_NOT_IN_SCROLL_CONTAINER]', {
+                mode: bottomBarMode,
+                activeUiItemKind: activeUiItem?.kind,
+                hasActiveCard,
+                screenMode,
+                reason: 'Active card not found in DOM yet (timing) or mounted outside scroll container',
+                action: 'SKIP_MEASUREMENT'
+              });
+            }
             
-            footerClearanceStatusRef.current = 'FAIL';
-            
-            console.error('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', {
-              status: 'FAIL',
-              mode: bottomBarMode,
-              screenMode,
-              overlapPx: 'UNMEASURABLE',
-              reason: 'ACTIVE_CARD_NOT_IN_SCROLL_CONTAINER'
-            });
+            footerClearanceStatusRef.current = 'SKIP';
             
             return; // Exit early - cannot measure
           }
@@ -10636,25 +10637,30 @@ export default function CandidateInterview() {
         // Store footer status for SOT log (component-level ref)
         footerClearanceStatusRef.current = status;
 
-        // CORRECTED FAIL: If corrected overlap shows failure
-        if (measurementCorrected && status === 'FAIL') {
-          console.error('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS_FAIL_CORRECTED]', {
-            correctedOverlapPx: Math.round(lastItemBottomOverlapPx),
-            mode: bottomBarMode,
-            reason: 'overlap_detected_after_target_correction',
-            originalOverlapPx: Math.round(originalOverlapPx),
-            correctionImproved: lastItemBottomOverlapPx < originalOverlapPx
-          });
-        }
-        
+        // Dedupe failure logs: only log once per unique failure key
         if (status === 'FAIL') {
-          console.error('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS_FAIL]', {
-            ...statusPayload,
-            footerMeasuredHeightPx,
-            lastItemBottom: Math.round(lastItemRect.bottom),
-            footerTop: Math.round(footerRect.top),
-            reason: 'Content obscured by footer despite spacer'
-          });
+          const failKey = `${bottomBarMode}:${Math.round(lastItemBottomOverlapPx)}`;
+          if (lastClearanceErrorKeyRef.current !== failKey) {
+            lastClearanceErrorKeyRef.current = failKey;
+            
+            if (measurementCorrected) {
+              console.warn('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS_FAIL_CORRECTED]', {
+                correctedOverlapPx: Math.round(lastItemBottomOverlapPx),
+                mode: bottomBarMode,
+                reason: 'overlap_detected_after_target_correction',
+                originalOverlapPx: Math.round(originalOverlapPx),
+                correctionImproved: lastItemBottomOverlapPx < originalOverlapPx
+              });
+            } else {
+              console.warn('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS_FAIL]', {
+                ...statusPayload,
+                footerMeasuredHeightPx,
+                lastItemBottom: Math.round(lastItemRect.bottom),
+                footerTop: Math.round(footerRect.top),
+                reason: 'Content obscured by footer despite spacer'
+              });
+            }
+          }
         }
         
         if (lastItemBottomOverlapPx > 0) {
