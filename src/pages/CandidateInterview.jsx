@@ -1910,19 +1910,6 @@ export default function CandidateInterview() {
           });
         }
       }
-
-        // PART C: Failsafe unlock after 1000ms (belt-and-suspenders)
-        if (isV3Opener) {
-          setTimeout(() => {
-            if (scrollWriteLockRef.current && scrollWriteLockReasonRef.current === 'V3_PACK_OPENER_SETTLE') {
-              unlockScrollWrites('V3_PACK_OPENER_FAILSAFE_TIMEOUT');
-              console.log('[SCROLL][LOCK_PHASE]', {
-                phase: 'UNLOCKED',
-                reason: 'FAILSAFE_TIMEOUT_1000MS'
-              });
-            }
-          }, 1000);
-        }
     });
     
     // PART C: Failsafe unlock after 1000ms (belt-and-suspenders)
