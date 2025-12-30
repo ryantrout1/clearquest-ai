@@ -10969,7 +10969,7 @@ export default function CandidateInterview() {
   }, [sessionId, getScrollOwner]);
 
   // ============================================================================
-  // FOOTER MEASUREMENT SOT - Unconditional, mode-agnostic (TDZ-safe)
+  // FOOTER MEASUREMENT SOT - Dynamic, mode-agnostic (TDZ-safe)
   // ============================================================================
   useEffect(() => {
     if (!footerShellRef.current) return;
@@ -10998,12 +10998,20 @@ export default function CandidateInterview() {
     // Initial measurement
     requestAnimationFrame(measureFooter);
     
+    // Settling measurements - 3 attempts to catch layout settling
+    const settlingTimers = [
+      setTimeout(() => measureFooter(), 50),
+      setTimeout(() => measureFooter(), 150),
+      setTimeout(() => measureFooter(), 300)
+    ];
+    
     // Window resize fallback
     const handleResize = () => requestAnimationFrame(measureFooter);
     window.addEventListener('resize', handleResize);
     
     return () => {
       resizeObserver.disconnect();
+      settlingTimers.forEach(t => clearTimeout(t));
       window.removeEventListener('resize', handleResize);
     };
   }, []); // TDZ-SAFE: No deps on mode variables
@@ -11123,6 +11131,17 @@ export default function CandidateInterview() {
       footerClearancePx, 
       bottomBarMode: bottomBarModeSOTSafe, 
       effectiveItemType 
+    });
+  }
+  
+  // REGRESSION CHECK: Suspicious footer height in YES/NO mode (once per mount)
+  const footerHeightSuspiciousLoggedRef = React.useRef(false);
+  if (bottomBarModeSOTSafe === 'YES_NO' && shouldRenderFooter && dynamicFooterHeightPx < 40 && !footerHeightSuspiciousLoggedRef.current) {
+    footerHeightSuspiciousLoggedRef.current = true;
+    console.warn('[UI_CONTRACT][FOOTER_HEIGHT_SUSPICIOUS]', { 
+      dynamicFooterHeightPx, 
+      bottomBarMode: 'YES_NO',
+      note: 'Footer height too small for YES/NO; measurement likely stale or footer not yet rendered'
     });
   }
   
