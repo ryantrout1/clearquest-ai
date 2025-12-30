@@ -1729,82 +1729,125 @@ export default function CandidateInterview() {
     const footerEl = footerRef.current;
     if (!footerEl) return;
     
-    // STEP 1: First scroll to bottom (ChatGPT pattern)
+    // STEP 1: Force baseline (always maxScrollTop first)
     scrollToBottom(reason);
     
-    // STEP 2: Overlap correction with proper clamping + settle retry
+    // STEP 2: Overlap correction from known baseline (nested RAF for fresh measurement)
     requestAnimationFrame(() => {
-      // Measure pass 1
-      const footerRect = footerEl.getBoundingClientRect();
+      // Force maxScrollTop again before measuring
+      const scrollHeight = scroller.scrollHeight;
+      const clientHeight = scroller.clientHeight;
+      const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
+      scroller.scrollTop = maxScrollTop;
       
-      // Multi-tier active card search
-      let activeCardEl = scroller.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
-      if (!activeCardEl) {
-        activeCardEl = scroller.querySelector('[data-cq-active-card="true"]');
-      }
-      if (!activeCardEl && activeLaneCardRef.current) {
-        activeCardEl = activeLaneCardRef.current;
-      }
-      
-      // No active card - already at bottom from step 1
-      if (!activeCardEl) return;
-      
-      // Compute overlap
-      const activeRect = activeCardEl.getBoundingClientRect();
-      const overlapPx = Math.max(0, activeRect.bottom - footerRect.top);
-      
-      if (overlapPx > 4) {
-        const scrollHeight = scroller.scrollHeight;
-        const clientHeight = scroller.clientHeight;
-        const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-        const targetScrollTop = Math.min(maxScrollTop, scroller.scrollTop + overlapPx + 16);
+      // PASS 1: Measure from baseline
+      requestAnimationFrame(() => {
+        const footerRect = footerEl.getBoundingClientRect();
         
-        scroller.scrollTop = targetScrollTop;
-        const actualScrollTop = scroller.scrollTop;
-        
-        // Retry if browser clamped differently
-        if (actualScrollTop < targetScrollTop - 2) {
-          scroller.scrollTop = targetScrollTop;
+        // Multi-tier active card search
+        let activeCardEl = scroller.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+        if (!activeCardEl) {
+          activeCardEl = scroller.querySelector('[data-cq-active-card="true"]');
+        }
+        if (!activeCardEl && activeLaneCardRef.current) {
+          activeCardEl = activeLaneCardRef.current;
         }
         
-        console.log('[SCROLL][ENSURE_ACTIVE][PASS1]', {
-          reason,
-          overlapPx: Math.round(overlapPx),
-          targetScrollTop: Math.round(targetScrollTop),
-          actualScrollTop: Math.round(actualScrollTop),
-          maxScrollTop: Math.round(maxScrollTop)
-        });
+        // No active card - already at baseline
+        if (!activeCardEl) return;
         
-        // PASS 2: Settle retry for v3 active kinds (composer height may still be settling)
-        const shouldRetry = (reason === 'ACTIVE_ITEM_CHANGED' || reason === 'RENDER_LIST_APPENDED') &&
-                           activeKindSOT?.startsWith?.('V3');
+        // Compute overlap from baseline
+        const activeRect = activeCardEl.getBoundingClientRect();
+        const overlapPx = Math.max(0, activeRect.bottom - footerRect.top);
         
-        if (shouldRetry) {
-          requestAnimationFrame(() => {
-            const footerRect2 = footerEl.getBoundingClientRect();
-            const activeRect2 = activeCardEl.getBoundingClientRect();
-            const overlapPx2 = Math.max(0, activeRect2.bottom - footerRect2.top);
+        if (overlapPx > 4) {
+          const scrollHeight = scroller.scrollHeight;
+          const clientHeight = scroller.clientHeight;
+          const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
+          
+          // V3_OPENER BUFFER: Use larger clearance for V3 packs (they settle late)
+          const isV3Kind = activeKindSOT === 'v3_pack_opener' || activeKindSOT?.startsWith?.('v3_');
+          const buffer = isV3Kind ? 32 : 16;
+          
+          // DEDUPED LOG: V3 opener buffer application (once per pack+instance)
+          if (isV3Kind && buffer === 32) {
+            const packId = currentItem?.packId;
+            const instanceNumber = currentItem?.instanceNumber;
+            const logKey = `v3_opener_buffer_${packId}_${instanceNumber}`;
             
-            if (overlapPx2 > 4) {
+            logOnce(logKey, () => {
+              console.log('[SCROLL][V3_OPENER_BUFFER]', {
+                bufferPx: buffer,
+                overlapPx: Math.round(overlapPx),
+                maxScrollTop: Math.round(maxScrollTop),
+                activeKind: activeKindSOT,
+                packId,
+                instanceNumber
+              });
+            });
+          }
+          
+          const targetScrollTop = Math.min(maxScrollTop, maxScrollTop + overlapPx + buffer);
+          
+          scroller.scrollTop = targetScrollTop;
+          const actualScrollTop = scroller.scrollTop;
+          
+          // Retry if browser clamped differently
+          if (actualScrollTop < targetScrollTop - 2) {
+            scroller.scrollTop = targetScrollTop;
+          }
+          
+          console.log('[SCROLL][ENSURE_ACTIVE][PASS1]', {
+            reason,
+            overlapPx: Math.round(overlapPx),
+            buffer,
+            isV3Kind,
+            targetScrollTop: Math.round(targetScrollTop),
+            actualScrollTop: Math.round(actualScrollTop),
+            maxScrollTop: Math.round(maxScrollTop)
+          });
+          
+          // PASS 2: Settle retry for v3 kinds (height may still be settling)
+          const shouldRetry = (reason === 'ACTIVE_ITEM_CHANGED' || reason === 'RENDER_LIST_APPENDED') &&
+                             isV3Kind;
+          
+          if (shouldRetry) {
+            requestAnimationFrame(() => {
+              // Re-baseline before second measurement
               const scrollHeight2 = scroller.scrollHeight;
               const clientHeight2 = scroller.clientHeight;
               const maxScrollTop2 = Math.max(0, scrollHeight2 - clientHeight2);
-              const targetScrollTop2 = Math.min(maxScrollTop2, scroller.scrollTop + overlapPx2 + 16);
+              scroller.scrollTop = maxScrollTop2;
               
-              scroller.scrollTop = targetScrollTop2;
-              
-              console.log('[SCROLL][ENSURE_ACTIVE][PASS2_RETRY]', {
-                reason,
-                overlapPx2: Math.round(overlapPx2),
-                targetScrollTop2: Math.round(targetScrollTop2),
-                maxScrollTop2: Math.round(maxScrollTop2)
+              // Measure from fresh baseline
+              requestAnimationFrame(() => {
+                const footerRect2 = footerEl.getBoundingClientRect();
+                const activeRect2 = activeCardEl.getBoundingClientRect();
+                const overlapPx2 = Math.max(0, activeRect2.bottom - footerRect2.top);
+                
+                if (overlapPx2 > 4) {
+                  const scrollHeight2 = scroller.scrollHeight;
+                  const clientHeight2 = scroller.clientHeight;
+                  const maxScrollTop2 = Math.max(0, scrollHeight2 - clientHeight2);
+                  const targetScrollTop2 = Math.min(maxScrollTop2, maxScrollTop2 + overlapPx2 + buffer);
+                  
+                  scroller.scrollTop = targetScrollTop2;
+                  
+                  console.log('[SCROLL][ENSURE_ACTIVE][PASS2_RETRY]', {
+                    reason,
+                    overlapPx2: Math.round(overlapPx2),
+                    buffer,
+                    targetScrollTop2: Math.round(targetScrollTop2),
+                    maxScrollTop2: Math.round(maxScrollTop2)
+                  });
+                }
               });
-            }
-          });
+            });
+          }
         }
-      }
+      });
     });
-  }, [scrollToBottom]);
+  }, [scrollToBottom, currentItem]);
   const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
   const pendingScrollRafRef = useRef(null);
