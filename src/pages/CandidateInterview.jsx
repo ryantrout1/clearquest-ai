@@ -16022,12 +16022,12 @@ export default function CandidateInterview() {
       </style>
 
       <main 
-        className="overflow-y-auto cq-scroll scrollbar-thin min-h-0" 
+        className="flex-1 overflow-y-auto cq-scroll scrollbar-thin min-h-0" 
         ref={historyRef} 
         onScroll={handleTranscriptScroll}
       >
-        <div className="min-h-full flex flex-col px-4 pt-6">
-          {/* PART A: TOP SPACER - Pushes content to bottom when short (ChatGPT gravity) */}
+        <div className="min-h-full flex flex-col px-4 pt-6 pb-4">
+          {/* TOP SPACER - Pushes content to bottom when short (ChatGPT gravity) */}
           <div className="flex-1" aria-hidden="true" />
           
           <div className="space-y-3">
