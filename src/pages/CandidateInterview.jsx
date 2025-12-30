@@ -15143,8 +15143,8 @@ export default function CandidateInterview() {
     const currentGatePackId = currentItem?.packId;
     const currentGateInstanceNumber = currentItem?.instanceNumber;
     
-    // TASK 3: Enforce gate when activeUiItemKind is MI_GATE (regardless of other flags)
-    const isGateActiveUiKind = activeUiItemKind === "MI_GATE" || 
+    // TASK 3: Enforce gate when activeUiItem.kind is MI_GATE (regardless of other flags)
+    const isGateActiveUiKind = activeUiItem?.kind === "MI_GATE" || 
                                 activeCard?.kind === "multi_instance_gate";
     const shouldEnforceMiGate = isGateActiveUiKind && 
                                 currentGatePackId && 
