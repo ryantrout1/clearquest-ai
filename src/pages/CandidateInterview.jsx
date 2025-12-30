@@ -1775,61 +1775,14 @@ export default function CandidateInterview() {
     // PART C: Lock scroll writes for v3_pack_opener settle (extended window)
     const isV3Opener = activeKindSOT === 'v3_pack_opener' || activeKindSOT === 'V3_OPENER';
     if (isV3Opener) {
-      lockScrollWrites('V3_PACK_OPENER_SETTLE', 1000); // Extended to 1000ms for full 2-pass correction
-      
-      // TDZ FIX: Compute maxScrollTop for log (can't use variable declared below)
-      const scrollHeightForLog = scroller.scrollHeight;
-      const clientHeightForLog = scroller.clientHeight;
-      const maxScrollTopForLog = Math.max(0, scrollHeightForLog - clientHeightForLog);
-      
-      console.log('[SCROLL][LOCK_PHASE]', {
-        phase: 'LOCKED',
-        overlapPx: 0,
-        scrollTop: Math.round(scroller.scrollTop),
-        maxScrollTop: Math.round(maxScrollTopForLog),
-        lockDurationMs: 1000
-      });
+      lockScrollWrites('V3_PACK_OPENER_SETTLE', 1000);
     }
     
-    // PART A: Hard baseline to bottom (forced anchor before measuring)
-    const scrollHeight = scroller.scrollHeight;
-    const clientHeight = scroller.clientHeight;
-    const maxScrollTopOuter = Math.max(0, scrollHeight - clientHeight);
-    
-    scroller.scrollTop = maxScrollTopOuter;
-    const baselineAfter = scroller.scrollTop;
-    
-    // PART E: Baseline verification (detect if another effect is resetting)
-    if (Math.abs(baselineAfter - maxScrollTopOuter) > 20) {
-      const logKey = `baseline_not_bottom_${reason}_${activeKindSOT}`;
-      logOnce(logKey, () => {
-        console.error('[SCROLL][BASELINE_NOT_BOTTOM]', {
-          maxScrollTop: Math.round(maxScrollTopOuter),
-          baselineAfter: Math.round(baselineAfter),
-          delta: Math.round(maxScrollTopOuter - baselineAfter),
-          reason,
-          activeKindSOT,
-          scrollHeight: Math.round(scrollHeight),
-          clientHeight: Math.round(clientHeight)
-        });
-      });
-    }
-    
-    // Retry baseline once if browser didn't reach bottom
-    if (baselineAfter < maxScrollTopOuter - 2) {
-      scroller.scrollTop = maxScrollTopOuter;
-    }
-    
-    // PART B: Measure overlap AFTER baseline (nested RAF for fresh DOM)
+    // RAF for fresh layout (post-render DOM state)
     requestAnimationFrame(() => {
-      // TDZ FIX: Recompute maxScrollTop locally in RAF (don't use outer scope)
-      if (!scroller) return;
-      const scrollHeight = scroller.scrollHeight;
-      const clientHeight = scroller.clientHeight;
-      const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-      const footerRect = footerEl.getBoundingClientRect();
+      if (!scroller || !composerEl) return;
       
-      // Multi-tier active card search
+      // Find active card element
       let activeCardEl = scroller.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
       if (!activeCardEl) {
         activeCardEl = scroller.querySelector('[data-cq-active-card="true"]');
@@ -1838,54 +1791,61 @@ export default function CandidateInterview() {
         activeCardEl = activeLaneCardRef.current;
       }
       
-      // No active card - already at baseline
+      // No active card - nothing to align
       if (!activeCardEl) {
-        // PART C: Unlock if no card found
         if (isV3Opener) {
           unlockScrollWrites('V3_PACK_OPENER_NO_CARD');
         }
         return;
       }
       
+      // PART A: Measure using composer top as occlusion boundary
       const activeRect = activeCardEl.getBoundingClientRect();
-      const overlapPx = Math.max(0, activeRect.bottom - footerRect.top);
+      const composerRect = composerEl.getBoundingClientRect();
+      const occlusionTop = composerRect.top;
+      const clearancePx = 8; // Safety buffer
+      const overlapPx = Math.max(0, activeRect.bottom - (occlusionTop - clearancePx));
       
-      // PART C: Apply delta correction (not clamped target)
+      // PART B: Apply exact delta correction (no baseline anchor)
       if (overlapPx > 4) {
-        // V3 buffer: larger clearance for V3 kinds (settle late)
-        const isV3Kind = activeKindSOT === 'v3_pack_opener' || activeKindSOT?.startsWith?.('v3_');
-        const bufferPx = isV3Kind ? 32 : 16;
-        
-        // Deduped log for V3 opener buffer
-        if (isV3Kind && bufferPx === 32) {
-          const packId = currentItem?.packId;
-          const instanceNumber = currentItem?.instanceNumber;
-          const logKey = `v3_opener_buffer_${packId}_${instanceNumber}`;
-          
-          logOnce(logKey, () => {
-            console.log('[SCROLL][V3_OPENER_BUFFER]', {
-              bufferPx,
-              overlapPx: Math.round(overlapPx),
-              maxScrollTop: Math.round(maxScrollTop),
-              activeKind: activeKindSOT,
-              packId,
-              instanceNumber
-            });
-          });
-        }
-        
+        const bufferPx = isV3Opener ? 32 : 16;
         const scrollTopBefore = scroller.scrollTop;
+        const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
         
-        // Apply delta correction (add overlap + buffer)
-        scroller.scrollTop = scroller.scrollTop + overlapPx + bufferPx;
-        
-        // Clamp to maxScrollTop (prevent overshoot)
-        const currentMax = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-        if (scroller.scrollTop > currentMax) {
-          scroller.scrollTop = currentMax;
-        }
-        
+        // Compute delta and apply
+        const desiredDelta = overlapPx + bufferPx;
+        scroller.scrollTop = Math.min(maxScrollTop, scroller.scrollTop + desiredDelta);
         const scrollTopAfter = scroller.scrollTop;
+        
+        // PART D: Log once for proof
+        const packId = currentItem?.packId;
+        const instanceNumber = currentItem?.instanceNumber;
+        const logKey = `align_to_composer_${packId}_${instanceNumber}`;
+        
+        logOnce(logKey, () => {
+          console.log('[SCROLL][ALIGN_TO_COMPOSER]', {
+            overlapPx: Math.round(overlapPx),
+            scrollTopBefore: Math.round(scrollTopBefore),
+            scrollTopAfter: Math.round(scrollTopAfter),
+            occlusionTop: Math.round(occlusionTop),
+            activeBottom: Math.round(activeRect.bottom),
+            composerTop: Math.round(composerRect.top),
+            clearancePx,
+            bufferPx,
+            maxScrollTop: Math.round(maxScrollTop),
+            packId,
+            instanceNumber
+          });
+        });
+        
+        console.log('[SCROLL][ENSURE_ACTIVE][PASS1]', {
+          reason,
+          overlapPx: Math.round(overlapPx),
+          bufferPx,
+          scrollTopBefore: Math.round(scrollTopBefore),
+          scrollTopAfter: Math.round(scrollTopAfter),
+          deltaCorrectionApplied: Math.round(scrollTopAfter - scrollTopBefore)
+        });
         
         console.log('[SCROLL][ENSURE_ACTIVE][PASS1]', {
           reason,
