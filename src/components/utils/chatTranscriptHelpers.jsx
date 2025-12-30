@@ -729,9 +729,11 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
   const updatedTranscript = [...existingTranscript, entry];
   const baseLen = existingTranscript.length;
 
-  // CHANGE 4: INTEGRITY AUDIT - Track locally-seen stableKey
-  const auditKey = `${sessionId}|${entry.stableKey || entry.id}`;
-  seenStableKeysBySession.add(auditKey);
+  // FIX F: INTEGRITY AUDIT - Only track if storage available (appendAssistantMessage)
+  if (!STORAGE_DISABLED) {
+    const auditKey = `${sessionId}|${entry.stableKey || entry.id}`;
+    seenStableKeysBySession.add(auditKey);
+  }
 
   // PERSIST: Immediate write to DB (not batched)
   console.log('[PERSIST][ANSWER_SUBMIT_START]', {
@@ -869,9 +871,11 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
   const updatedTranscript = [...existingTranscript, entry];
   const baseLen = existingTranscript.length;
 
-  // CHANGE 4: INTEGRITY AUDIT - Track locally-seen stableKey
-  const auditKey = `${sessionId}|${entry.stableKey || entry.id}`;
-  seenStableKeysBySession.add(auditKey);
+  // FIX F: INTEGRITY AUDIT - Only track if storage available (appendUserMessage)
+  if (!STORAGE_DISABLED) {
+    const auditKey = `${sessionId}|${entry.stableKey || entry.id}`;
+    seenStableKeysBySession.add(auditKey);
+  }
 
   // PERSIST: Immediate write to DB (not batched)
   console.log('[PERSIST][ANSWER_SUBMIT_START]', {
