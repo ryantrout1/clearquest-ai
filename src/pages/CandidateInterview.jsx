@@ -14908,8 +14908,11 @@ export default function CandidateInterview() {
     );
   }
 
+  // UI CONTRACT: 3-row shell enforced - do not reintroduce footer spacers/padding hacks; footer must stay in layout flow.
+  console.log('[UI_CONTRACT][SHELL_3ROW_ENFORCED]', { hasSingleScrollContainer: true, footerIsOverlay: false });
+  
   return (
-    <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
+    <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white grid grid-rows-[auto_1fr_auto] overflow-hidden">
       <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-2">
@@ -14973,17 +14976,12 @@ export default function CandidateInterview() {
       </style>
 
       <main 
-        className="flex-1 min-h-0 overflow-y-auto cq-scroll scrollbar-thin flex flex-col" 
+        className="overflow-y-auto cq-scroll scrollbar-thin" 
         ref={historyRef} 
         onScroll={handleTranscriptScroll}
-        style={{ paddingBottom: `${footerClearanceAppliedPx}px` }}
       >
-        <div className="px-4 pt-6 flex flex-col flex-1 min-h-0">
-          {/* UI CONTRACT: Transcript gravity is enforced via cq-gravity-rail + mt-auto.
-              Do NOT add justify-end or centering logic inside transcript stack. */}
-          <div className="cq-gravity-rail flex flex-col flex-1 min-h-0" data-ui-contract-struct="true">
-            <div className="cq-gravity-bottom mt-auto" data-ui-contract-struct="true">
-              <div className="space-y-3 relative isolate">
+        <div className="px-4 pt-6 pb-6">
+          <div className="space-y-3">
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {finalTranscriptList.map((entry, index) => {
               // CANONICAL STREAM: Handle both transcript entries AND active cards
@@ -16029,33 +16027,12 @@ export default function CandidateInterview() {
             return null;
           })()}
 
-          {/* Footer Spacer - CRITICAL: Creates scrollable clearance for fixed footer */}
-          {/* MUST be last element in scroll content to guarantee footer never obscures content */}
-          <div 
-            data-cq-footer-spacer="true"
-            data-stablekey="cq-footer-spacer"
-            data-ui-contract-spacer="true"
-            className="cq-footer-spacer flex-none"
-            aria-hidden="true" 
-            style={{ 
-              height: `${footerClearanceAppliedPx}px`,
-              pointerEvents: 'none',
-              flexShrink: 0,
-              flex: '0 0 auto'
-            }} 
-          />
-          
           {/* Bottom anchor - minimal-height sentinel for scroll positioning */}
           <div 
             ref={bottomAnchorRef} 
-            data-ui-contract-anchor="true"
-            data-ui-contract-struct="true"
             aria-hidden="true" 
             style={{ height: '1px', margin: 0, padding: 0 }} 
           />
-              </div>
-            </div>
-          </div>
         </div>
       </main>
 
@@ -16330,7 +16307,7 @@ export default function CandidateInterview() {
               {/* V3 UI-ONLY HISTORY: Rendered via canonical stream (lines 8942-8985) */}
             {/* Separate loop removed - renderStream includes v3UiRenderable */}
 
-      <footer ref={footerRootRef} className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
+      <footer ref={footerRootRef} className="bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
         <div ref={footerRef} className="max-w-5xl mx-auto">
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
           {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarMode guard above */}
