@@ -11193,6 +11193,24 @@ export default function CandidateInterview() {
     });
   }
   
+  // SAFE DIAGNOSTIC: Log footer shell dimensions when they change
+  const lastShellDiagKeyRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!shouldRenderFooter) return;
+    
+    const shellDiagKey = `${bottomBarModeSOTSafe}:${dynamicFooterHeightPx}`;
+    if (shellDiagKey !== lastShellDiagKeyRef.current) {
+      lastShellDiagKeyRef.current = shellDiagKey;
+      console.log('[UI_CONTRACT][FOOTER_SHELL_DIMENSIONS]', {
+        measuredFooterHeightPx: dynamicFooterHeightPx,
+        clearancePx: footerClearancePx,
+        bottomBarMode: bottomBarModeSOTSafe,
+        effectiveItemType,
+        note: 'Footer shell should remain compact; clearance applied to scroll container only'
+      });
+    }
+  }, [shouldRenderFooter, dynamicFooterHeightPx, bottomBarModeSOTSafe, footerClearancePx, effectiveItemType]);
+  
   // Step 6: Compute footer padding (TDZ-safe - unified across all modes including WELCOME)
   
   // ACTIVE CARD DETECTION: Determine if an active card is currently present
@@ -17830,30 +17848,11 @@ export default function CandidateInterview() {
           />
 
           {/* PART A: Stable footer shell wrapper (measured in all modes) */}
-          {/* FOOTER SHELL DIAGNOSTICS: Deduped shell dimension log (once per mode+height) */}
-          {(() => {
-            const shellDiagKey = `${bottomBarModeSOTSafe}:${dynamicFooterHeightPx}`;
-            const lastShellDiagKeyRef = React.useRef(null);
-            
-            if (shouldRenderFooter && shellDiagKey !== lastShellDiagKeyRef.current) {
-              lastShellDiagKeyRef.current = shellDiagKey;
-              console.log('[UI_CONTRACT][FOOTER_SHELL_DIMENSIONS]', {
-                measuredFooterHeightPx: dynamicFooterHeightPx,
-                clearancePx: footerClearancePx,
-                bottomBarMode: bottomBarModeSOTSafe,
-                effectiveItemType,
-                note: 'Footer shell should remain compact; clearance applied to scroll container only'
-              });
-            }
-            
-            return null;
-          })()}
-          
           <div 
             ref={footerShellRef}
-            className="sticky bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4 z-10"
+            className="sticky bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4 z-10 h-auto min-h-0 flex-none"
           >
-            <div className="max-w-5xl mx-auto" ref={footerRef}>
+            <div className="max-w-5xl mx-auto h-auto min-h-0 flex-none" ref={footerRef}>
 
       {/* V3 Pack Opener Card - SYNTHETIC RENDER (disabled by ENABLE_SYNTHETIC_TRANSCRIPT) */}
       {false && ENABLE_SYNTHETIC_TRANSCRIPT && (() => {
