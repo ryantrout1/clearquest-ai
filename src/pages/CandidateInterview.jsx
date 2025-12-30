@@ -1777,11 +1777,16 @@ export default function CandidateInterview() {
     if (isV3Opener) {
       lockScrollWrites('V3_PACK_OPENER_SETTLE', 1000); // Extended to 1000ms for full 2-pass correction
       
+      // TDZ FIX: Compute maxScrollTop for log (can't use variable declared below)
+      const scrollHeightForLog = scroller.scrollHeight;
+      const clientHeightForLog = scroller.clientHeight;
+      const maxScrollTopForLog = Math.max(0, scrollHeightForLog - clientHeightForLog);
+      
       console.log('[SCROLL][LOCK_PHASE]', {
         phase: 'LOCKED',
         overlapPx: 0,
         scrollTop: Math.round(scroller.scrollTop),
-        maxScrollTop: Math.round(maxScrollTop),
+        maxScrollTop: Math.round(maxScrollTopForLog),
         lockDurationMs: 1000
       });
     }
@@ -2018,6 +2023,35 @@ export default function CandidateInterview() {
           }, 1000);
         }
     });
+    
+    // PART C: Failsafe unlock after 1000ms (belt-and-suspenders)
+    if (isV3Opener) {
+      setTimeout(() => {
+        if (scrollWriteLockRef.current && scrollWriteLockReasonRef.current === 'V3_PACK_OPENER_SETTLE') {
+          const scrollerNow = scrollOwnerRef.current || historyRef.current;
+          if (scrollerNow) {
+            const scrollTopNow = scrollerNow.scrollTop;
+            const scrollHeightNow = scrollerNow.scrollHeight;
+            const clientHeightNow = scrollerNow.clientHeight;
+            const maxScrollTopNow = Math.max(0, scrollHeightNow - clientHeightNow);
+            
+            unlockScrollWrites('V3_PACK_OPENER_FAILSAFE_TIMEOUT');
+            console.log('[SCROLL][LOCK_PHASE]', {
+              phase: 'UNLOCKED',
+              reason: 'FAILSAFE_TIMEOUT_1000MS',
+              scrollTop: Math.round(scrollTopNow),
+              maxScrollTop: Math.round(maxScrollTopNow)
+            });
+          } else {
+            unlockScrollWrites('V3_PACK_OPENER_FAILSAFE_TIMEOUT');
+            console.log('[SCROLL][LOCK_PHASE]', {
+              phase: 'UNLOCKED',
+              reason: 'FAILSAFE_TIMEOUT_1000MS_NO_SCROLLER'
+            });
+          }
+        }
+      }, 1000);
+    }
   }, [currentItem, lockScrollWrites, unlockScrollWrites]);
   const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
