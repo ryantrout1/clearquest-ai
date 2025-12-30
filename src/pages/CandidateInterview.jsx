@@ -12636,63 +12636,9 @@ export default function CandidateInterview() {
   
   // Use renderableTranscriptStream for all rendering below (immutable - safe for React)
   
-  // D) MI_GATE_ALIGNMENT_ASSERT: Regression check when MI gate is active (updated after reorder)
-  // CRASH GUARD: Wrap MI gate instrumentation in try/catch (never crash interview)
-  if (activeCard?.kind === "multi_instance_gate") {
-    try {
-      const tail3 = renderableTranscriptStream.slice(-3).map(x => ({
-        kind: x.kind || x.messageType || x.type,
-        id: (x.stableKey || x.id || '').substring(0, 40),
-        isActive: x.__activeCard || false
-      }));
-      
-      const miGateIndexAfterReorder = renderableTranscriptStream.findIndex(e => e.__activeCard && e.kind === "multi_instance_gate");
-      const hasItemsAfterMiGateAfterReorder = miGateIndexAfterReorder !== -1 && miGateIndexAfterReorder < renderableTranscriptStream.length - 1;
-      
-      // C) V3 probe Q/A visibility assertion
-      const packId = currentItem?.packId;
-      const instanceNumber = currentItem?.instanceNumber || 1;
-      const v3ProbeQInRendered = renderableTranscriptStream.filter(e => 
-        (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
-        e.meta?.packId === packId &&
-        e.meta?.instanceNumber === instanceNumber
-      );
-      const v3ProbeAInRendered = renderableTranscriptStream.filter(e => 
-        (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER') &&
-        e.meta?.packId === packId &&
-        e.meta?.instanceNumber === instanceNumber
-      );
-      
-      console.log('[MI_GATE][V3_PROBE_QA_VISIBILITY_ASSERT]', {
-        packId,
-        instanceNumber,
-        hasV3ProbeQInRenderedTranscript: v3ProbeQInRendered.length > 0,
-        hasV3ProbeAInRenderedTranscript: v3ProbeAInRendered.length > 0,
-        expectedPairsCount: Math.min(v3ProbeQInRendered.length, v3ProbeAInRendered.length),
-        qCount: v3ProbeQInRendered.length,
-        aCount: v3ProbeAInRendered.length
-      });
-      
-      console.log('[MI_GATE][ALIGNMENT_ASSERT]', {
-        activeUiItemKind: activeUiItem?.kind,
-        effectiveItemType,
-        streamLen: renderableTranscriptStream.length,
-        tail3,
-        hasItemsAfterMiGate: hasItemsAfterMiGateAfterReorder,
-        miGateIsLast: !hasItemsAfterMiGateAfterReorder,
-        reorderedCount: miGateReorderCount // Now safe - defined above
-      });
-      
-      if (hasItemsAfterMiGateAfterReorder) {
-        // PART A: Capture violation snapshot
-        captureViolationSnapshot({
-          reason: 'ALIGNMENT_VIOLATION_STREAM',
-          list: renderableTranscriptStream,
-          packId: currentItem?.packId,
-          instanceNumber: currentItem?.instanceNumber,
-          activeItemId: currentItem?.id
-        });
-      }
+  // PART B: ALIGNMENT_VIOLATION_STREAM check REMOVED (redundant - finalTranscriptList guarantees gate last)
+  // This intermediate check was triggering on pre-enforcement stream state
+  // Final enforcement in finalTranscriptList useMemo (line ~15217) is canonical and deterministic
     } catch (assertError) {
       // CRASH GUARD: Never crash interview due to instrumentation errors
       // Log once per session to avoid spam
