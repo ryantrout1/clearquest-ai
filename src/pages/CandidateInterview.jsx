@@ -1807,6 +1807,36 @@ export default function CandidateInterview() {
       const clearancePx = 8; // Safety buffer
       const overlapPx = Math.max(0, activeRect.bottom - (occlusionTop - clearancePx));
       
+      // PART C: Hard align for YES/NO mode (ignores near-bottom heuristics)
+      const isYesNoModeAlign = bottomBarMode === 'YES_NO' || effectiveItemType === 'multi_instance_gate';
+      
+      if (isYesNoModeAlign && overlapPx > 0) {
+        const scrollTopBefore = scroller.scrollTop;
+        const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+        
+        // Apply exact delta with extra buffer for YES/NO
+        const desiredDelta = overlapPx + 24; // Extra clearance for YES/NO footer
+        scroller.scrollTop = Math.min(maxScrollTop, scroller.scrollTop + desiredDelta);
+        const scrollTopAfter = scroller.scrollTop;
+        
+        console.log('[SCROLL][ALIGN_YESNO_HARD]', {
+          reason,
+          mode: bottomBarMode,
+          overlapPx: Math.round(overlapPx),
+          scrollTopBefore: Math.round(scrollTopBefore),
+          scrollTopAfter: Math.round(scrollTopAfter),
+          maxScrollTop: Math.round(maxScrollTop),
+          deltaCorrectionApplied: Math.round(scrollTopAfter - scrollTopBefore)
+        });
+        
+        // Unlock after YES/NO align
+        if (isV3Opener) {
+          unlockScrollWrites('YESNO_ALIGN_DONE');
+        }
+        
+        return; // Skip regular overlap handling
+      }
+      
       // PART B: Apply exact delta correction (no baseline anchor)
       if (overlapPx > 4) {
         const bufferPx = isV3Opener ? 32 : 16;
@@ -2751,6 +2781,15 @@ export default function CandidateInterview() {
       });
     }
   }, [activeKindSOT, extraBottomSpacerPx]);
+  
+  // PART D: Align active card when bottomBarMode becomes YES_NO
+  useLayoutEffect(() => {
+    if (bottomBarMode !== 'YES_NO') return;
+    
+    requestAnimationFrame(() => {
+      ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', activeKindSOT);
+    });
+  }, [bottomBarMode, ensureActiveVisibleAfterRender, activeKindSOT]);
   
   // ============================================================================
   // ACTIVE CARD KEY SOT - Single source of truth for active card identifier
@@ -11027,12 +11066,21 @@ export default function CandidateInterview() {
   // PART A: Compute base spacer (before expansion)
   const baseSpacerPx = Math.max(footerShellHeightPx + 16, 80); // 80px minimum for safe clearance
   
-  // PART A: Apply expansion for V3 opener only (TDZ-safe - no activeKindSOT reference)
+  // PART B: Mode-aware spacer computation (YES/NO needs more clearance)
   const isV3OpenerForSpacer = (activeUiItem?.kind === 'V3_OPENER') || 
                               (currentItem?.type === 'v3_pack_opener');
-  const bottomSpacerPx = isV3OpenerForSpacer 
+  
+  // Intermediate: V3 opener expansion
+  const spacerWithV3Expansion = isV3OpenerForSpacer 
     ? baseSpacerPx + extraBottomSpacerPx 
     : baseSpacerPx;
+  
+  // PART B: YES/NO mode override (needs extra clearance for button footer)
+  const isYesNoMode = bottomBarMode === 'YES_NO';
+  const isMiGate = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+  const bottomSpacerPx = (isYesNoMode || isMiGate)
+    ? Math.max(footerShellHeightPx + 24, spacerWithV3Expansion)
+    : spacerWithV3Expansion;
   
   // DIAGNOSTIC LOG: Show bottom spacer computation (deduped)
   const spacerLogKey = `${bottomBarMode}:${footerShellHeightPx}:${bottomSpacerPx}`;
