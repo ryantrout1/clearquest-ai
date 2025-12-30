@@ -1807,8 +1807,8 @@ export default function CandidateInterview() {
       const clearancePx = 8; // Safety buffer
       const overlapPx = Math.max(0, activeRect.bottom - (occlusionTop - clearancePx));
       
-      // PART C: Hard align for YES/NO mode (ignores near-bottom heuristics)
-      const isYesNoModeAlign = bottomBarMode === 'YES_NO' || effectiveItemType === 'multi_instance_gate';
+      // PART C: Hard align for YES/NO mode (TDZ-safe - uses passed flags)
+      const isYesNoModeAlign = isYesNoModeSOT || isMiGateSOT;
       
       if (isYesNoModeAlign && overlapPx > 0) {
         const scrollTopBefore = scroller.scrollTop;
@@ -1821,7 +1821,8 @@ export default function CandidateInterview() {
         
         console.log('[SCROLL][ALIGN_YESNO_HARD]', {
           reason,
-          mode: bottomBarMode,
+          isYesNoModeSOT,
+          isMiGateSOT,
           overlapPx: Math.round(overlapPx),
           scrollTopBefore: Math.round(scrollTopBefore),
           scrollTopAfter: Math.round(scrollTopAfter),
@@ -1911,9 +1912,11 @@ export default function CandidateInterview() {
               return next;
             });
             
-            // PART B: Schedule retry after spacer expands (use local capture)
+            // PART B: Schedule retry after spacer expands (use local capture + computed flags)
+            const isYesNoForRetry = isYesNoModeSOT;
+            const isMiGateForRetry = isMiGateSOT;
             requestAnimationFrame(() => {
-              ensureActiveVisibleAfterRender('V3_OPENER_SPACER_EXPAND_RETRY', activeKindForRetry);
+              ensureActiveVisibleAfterRender('V3_OPENER_SPACER_EXPAND_RETRY', activeKindForRetry, isYesNoForRetry, isMiGateForRetry);
             });
           }
         }
@@ -2014,7 +2017,7 @@ export default function CandidateInterview() {
         }
       }, 1000);
     }
-  }, [currentItem, lockScrollWrites, unlockScrollWrites]);
+  }, [currentItem, lockScrollWrites, unlockScrollWrites, isYesNoModeSOT, isMiGateSOT]);
   const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
   const pendingScrollRafRef = useRef(null);
@@ -2782,14 +2785,18 @@ export default function CandidateInterview() {
     }
   }, [activeKindSOT, extraBottomSpacerPx]);
   
+  // PART A: Derive YES/NO mode flags (after bottomBarMode/effectiveItemType exist)
+  const isYesNoModeSOT = bottomBarMode === 'YES_NO';
+  const isMiGateSOT = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+  
   // PART D: Align active card when bottomBarMode becomes YES_NO
   useLayoutEffect(() => {
-    if (bottomBarMode !== 'YES_NO') return;
+    if (!isYesNoModeSOT) return;
     
     requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', activeKindSOT);
+      ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', activeKindSOT, isYesNoModeSOT, isMiGateSOT);
     });
-  }, [bottomBarMode, ensureActiveVisibleAfterRender, activeKindSOT]);
+  }, [bottomBarMode, ensureActiveVisibleAfterRender, activeKindSOT, isYesNoModeSOT, isMiGateSOT]);
   
   // ============================================================================
   // ACTIVE CARD KEY SOT - Single source of truth for active card identifier
@@ -11974,9 +11981,9 @@ export default function CandidateInterview() {
     if (!activeKey) return;
     
     requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender("ACTIVE_ITEM_CHANGED", activeKindSOT);
+      ensureActiveVisibleAfterRender("ACTIVE_ITEM_CHANGED", activeKindSOT, isYesNoModeSOT, isMiGateSOT);
     });
-  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT]);
+  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT, isYesNoModeSOT, isMiGateSOT]);
   
   // PART B: RENDER LIST APPENDED - TDZ-safe using ref (no direct finalTranscriptList reference)
   React.useLayoutEffect(() => {
@@ -11992,9 +11999,9 @@ export default function CandidateInterview() {
     prevFinalListLenForScrollRef.current = currentLen;
     
     requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender("RENDER_LIST_APPENDED", activeKindSOT);
+      ensureActiveVisibleAfterRender("RENDER_LIST_APPENDED", activeKindSOT, isYesNoModeSOT, isMiGateSOT);
     });
-  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT, activeKindSOT]);
+  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT, activeKindSOT, isYesNoModeSOT, isMiGateSOT]);
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
@@ -13954,7 +13961,7 @@ export default function CandidateInterview() {
     
     // PART B: Call ensureActiveVisibleAfterRender after state update
     requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender(`MI_GATE_YESNO_CLICK_${answer}`, activeKindSOT);
+      ensureActiveVisibleAfterRender(`MI_GATE_YESNO_CLICK_${answer}`, activeKindSOT, isYesNoModeSOT, isMiGateSOT);
     });
     
     // MI_GATE TRACE A: YES/NO button click entry
@@ -14097,7 +14104,7 @@ export default function CandidateInterview() {
     
     // PART B: Call ensureActiveVisibleAfterRender after submit
     requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender("BOTTOM_BAR_SUBMIT", activeKindSOT);
+      ensureActiveVisibleAfterRender("BOTTOM_BAR_SUBMIT", activeKindSOT, isYesNoModeSOT, isMiGateSOT);
     });
     
     // CQ_GUARD: submitIntent must be declared exactly once (do not duplicate)
@@ -17895,7 +17902,7 @@ export default function CandidateInterview() {
                   // PART D: Ensure question visible after welcome dismiss (ChatGPT initial scroll)
                   setTimeout(() => {
                     requestAnimationFrame(() => {
-                      ensureActiveVisibleAfterRender("WELCOME_DISMISSED", activeKindSOT);
+                      ensureActiveVisibleAfterRender("WELCOME_DISMISSED", activeKindSOT, isYesNoModeSOT, isMiGateSOT);
                     });
                   }, 150);
                 }}
