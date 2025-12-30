@@ -15194,6 +15194,14 @@ export default function CandidateInterview() {
             gateTitle,
             reason: 'Gate was active but missing from final list - reconstructed and inserted'
           });
+          
+          // TASK 1: Print render list when force insert occurs
+          logRenderListSummary(
+            listWithGate, 
+            currentGatePackId, 
+            currentGateInstanceNumber,
+            'FORCE_INSERT_TRIGGERED'
+          );
         });
       }
     }
