@@ -15130,9 +15130,14 @@ export default function CandidateInterview() {
       );
       
       if (!gateExists) {
-        // Gate is active but missing - force insert
+        // STEP 4: Gate is active but missing - force insert with required fields
         const gateItemId = `multi-instance-gate-${currentGatePackId}-${currentGateInstanceNumber}`;
         const gateStableKey = `mi-gate:${currentGatePackId}:${currentGateInstanceNumber}:q`;
+        
+        // Populate title/label from active item metadata (deterministic, no hardcoded text)
+        const gateTitle = currentItem?.questionText || 
+                         currentItem?.text || 
+                         `Instance ${currentGateInstanceNumber}`;
         
         const reconstructedGate = {
           id: gateItemId,
@@ -15141,13 +15146,16 @@ export default function CandidateInterview() {
           messageType: 'MULTI_INSTANCE_GATE_SHOWN',
           packId: currentGatePackId,
           instanceNumber: currentGateInstanceNumber,
+          text: gateTitle, // Required by renderer
+          title: gateTitle, // Required by some card variants
           __activeCard: true,
           meta: {
             packId: currentGatePackId,
             instanceNumber: currentGateInstanceNumber
           },
           timestamp: new Date().toISOString(),
-          visibleToCandidate: true
+          visibleToCandidate: true,
+          role: 'assistant' // Required by some transcript renderers
         };
         
         listWithGate = [...listWithGate, reconstructedGate];
@@ -15156,6 +15164,7 @@ export default function CandidateInterview() {
           console.warn('[MI_GATE][FORCE_INSERTED]', {
             packId: currentGatePackId,
             instanceNumber: currentGateInstanceNumber,
+            gateTitle,
             reason: 'Gate was active but missing from final list - reconstructed and inserted'
           });
         });
