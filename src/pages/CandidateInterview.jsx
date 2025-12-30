@@ -1660,6 +1660,7 @@ export default function CandidateInterview() {
   const footerRef = useRef(null);
   const footerRootRef = useRef(null); // Footer container root (for DOM height sampling)
   const activeLaneCardRef = useRef(null); // PART A: Active lane card ref (single ref for whichever active card is shown)
+  const scrollOwnerRef = useRef(null); // PART A: Runtime-identified scroll owner (true scroll container)
   const promptLaneRef = useRef(null);
   const autoScrollEnabledRef = useRef(true);
   const didInitialSnapRef = useRef(false);
@@ -10352,6 +10353,59 @@ export default function CandidateInterview() {
   useEffect(() => {
     cqDiagEnabledRef.current = cqDiagEnabled;
   }, [cqDiagEnabled]);
+  
+  // PART A: Initialize scroll owner on mount
+  useEffect(() => {
+    if (!bottomAnchorRef.current) return;
+    
+    requestAnimationFrame(() => {
+      const scrollOwner = getScrollOwner(bottomAnchorRef.current);
+      scrollOwnerRef.current = scrollOwner;
+      
+      if (scrollOwner) {
+        logOnce(`scroll_owner_init_${sessionId}`, () => {
+          console.log('[SCROLL_OWNER][INIT]', {
+            nodeName: scrollOwner.nodeName,
+            className: scrollOwner.className?.substring(0, 60),
+            scrollTop: Math.round(scrollOwner.scrollTop),
+            clientHeight: Math.round(scrollOwner.clientHeight),
+            scrollHeight: Math.round(scrollOwner.scrollHeight),
+            overflowY: window.getComputedStyle(scrollOwner).overflowY,
+            isHistoryRef: scrollOwner === historyRef.current
+          });
+        });
+      }
+    });
+  }, [sessionId, getScrollOwner]);
+
+  // PART A: Helper to identify true scroll owner at runtime
+  const getScrollOwner = useCallback((startElement) => {
+    if (!startElement || typeof window === 'undefined') return null;
+    
+    let el = startElement;
+    
+    // Walk up DOM tree to find scroll container
+    while (el && el !== document.body) {
+      const computed = window.getComputedStyle(el);
+      const overflowY = computed.overflowY;
+      const isScrollable = overflowY === 'auto' || overflowY === 'scroll';
+      
+      if (isScrollable) {
+        // Check if this element can actually scroll (or is intended to)
+        const canScroll = el.scrollHeight > el.clientHeight || 
+                         el === historyRef.current; // Recognize intended scroll owner
+        
+        if (canScroll || el === historyRef.current) {
+          return el;
+        }
+      }
+      
+      el = el.parentElement;
+    }
+    
+    // Fallback: return historyRef if walk-up failed
+    return historyRef.current;
+  }, []);
 
   // AUTO-GROWING INPUT: Measure footer height dynamically (includes growing textarea)
   useEffect(() => {
@@ -10382,6 +10436,27 @@ export default function CandidateInterview() {
           measured,
           hasBoundingClientRect: !!rect
         });
+      }
+      
+      // PART A: Refresh scroll owner on footer resize (layout may have changed)
+      if (bottomAnchorRef.current) {
+        const newScrollOwner = getScrollOwner(bottomAnchorRef.current);
+        if (newScrollOwner && newScrollOwner !== scrollOwnerRef.current) {
+          scrollOwnerRef.current = newScrollOwner;
+          
+          // PART A: Log scroll owner once per session
+          logOnce(`scroll_owner_identified_${sessionId}`, () => {
+            console.log('[SCROLL_OWNER]', {
+              nodeName: newScrollOwner?.nodeName,
+              className: newScrollOwner?.className?.substring(0, 60),
+              scrollTop: Math.round(newScrollOwner?.scrollTop || 0),
+              clientHeight: Math.round(newScrollOwner?.clientHeight || 0),
+              scrollHeight: Math.round(newScrollOwner?.scrollHeight || 0),
+              overflowY: window.getComputedStyle(newScrollOwner).overflowY,
+              isHistoryRef: newScrollOwner === historyRef.current
+            });
+          });
+        }
       }
       
       // HARDENED: Only update if delta >= 2px (prevents thrash + loops)
@@ -11498,17 +11573,27 @@ export default function CandidateInterview() {
                                 activeUiItem?.kind === 'MI_GATE';
           
           if (isMiGateActive) {
-            // Bottom-anchor strategy: ensure scroll container is at bottom (after layout settles)
-            if (bottomAnchorRef.current && (!isUserTyping || forceAutoScrollOnceRef.current)) {
+            // Bottom-anchor strategy: direct scrollTop control (deterministic)
+            if (!isUserTyping || forceAutoScrollOnceRef.current) {
               requestAnimationFrame(() => {
-                if (!bottomAnchorRef.current) return;
-                bottomAnchorRef.current.scrollIntoView({ block: 'end', behavior: 'auto' });
+                // PART C: Use runtime-identified scroll owner (fallback to historyRef)
+                const scroller = scrollOwnerRef.current || historyRef.current;
+                if (!scroller) return;
+                
+                // PART C: Direct scrollTop assignment (no scrollIntoView ambiguity)
+                const targetScrollTop = scroller.scrollHeight;
+                const scrollTopBefore = scroller.scrollTop;
+                scroller.scrollTop = targetScrollTop;
                 
                 console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
                   reason: 'FORCE_ANCHOR_ON_QUESTION_SHOWN',
                   packId: currentItem?.packId,
                   instanceNumber: currentItem?.instanceNumber,
-                  strategy: 'BOTTOM_ANCHOR',
+                  strategy: 'SCROLL_TOP_DIRECT',
+                  scrollTopBefore: Math.round(scrollTopBefore),
+                  scrollTopAfter: Math.round(scroller.scrollTop),
+                  scrollHeight: Math.round(scroller.scrollHeight),
+                  clientHeight: Math.round(scroller.clientHeight),
                   bypassedTypingLock: isUserTyping && forceAutoScrollOnceRef.current
                 });
                 
@@ -13382,16 +13467,27 @@ export default function CandidateInterview() {
     const isMiGateClick = currentItem?.type === 'multi_instance_gate' || 
                          activeUiItem?.kind === 'MI_GATE';
     
-    if (isMiGateClick && bottomAnchorRef.current && historyRef.current) {
+    if (isMiGateClick) {
       requestAnimationFrame(() => {
-        bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+        // PART C: Use runtime-identified scroll owner
+        const scroller = scrollOwnerRef.current || historyRef.current;
+        if (!scroller) return;
+        
+        // PART C: Direct scrollTop = scrollHeight (deterministic)
+        const targetScrollTop = scroller.scrollHeight;
+        const scrollTopBefore = scroller.scrollTop;
+        scroller.scrollTop = targetScrollTop;
         
         console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
           reason: 'YESNO_CLICK',
           answer,
           packId: currentItem?.packId,
           instanceNumber: currentItem?.instanceNumber,
-          strategy: 'BOTTOM_ANCHOR'
+          strategy: 'SCROLL_TOP_DIRECT',
+          scrollTopBefore: Math.round(scrollTopBefore),
+          scrollTopAfter: Math.round(scroller.scrollTop),
+          scrollHeight: Math.round(scroller.scrollHeight),
+          clientHeight: Math.round(scroller.clientHeight)
         });
       });
     }
