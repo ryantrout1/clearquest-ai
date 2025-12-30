@@ -11498,22 +11498,25 @@ export default function CandidateInterview() {
                                 activeUiItem?.kind === 'MI_GATE';
           
           if (isMiGateActive) {
-            // Bottom-anchor strategy: ensure scroll container is at bottom
+            // Bottom-anchor strategy: ensure scroll container is at bottom (after layout settles)
             if (bottomAnchorRef.current && (!isUserTyping || forceAutoScrollOnceRef.current)) {
-              bottomAnchorRef.current.scrollIntoView({ block: 'end', behavior: 'auto' });
-              
-              console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
-                reason: 'FORCE_ANCHOR_ON_QUESTION_SHOWN',
-                packId: currentItem?.packId,
-                instanceNumber: currentItem?.instanceNumber,
-                strategy: 'BOTTOM_ANCHOR',
-                bypassedTypingLock: isUserTyping && forceAutoScrollOnceRef.current
+              requestAnimationFrame(() => {
+                if (!bottomAnchorRef.current) return;
+                bottomAnchorRef.current.scrollIntoView({ block: 'end', behavior: 'auto' });
+                
+                console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
+                  reason: 'FORCE_ANCHOR_ON_QUESTION_SHOWN',
+                  packId: currentItem?.packId,
+                  instanceNumber: currentItem?.instanceNumber,
+                  strategy: 'BOTTOM_ANCHOR',
+                  bypassedTypingLock: isUserTyping && forceAutoScrollOnceRef.current
+                });
+                
+                if (forceAutoScrollOnceRef.current) {
+                  forceAutoScrollOnceRef.current = false;
+                  console.log('[SCROLL][FORCE_ONCE_CLEARED]', { reason: 'mi_gate_bottom_anchor' });
+                }
               });
-              
-              if (forceAutoScrollOnceRef.current) {
-                forceAutoScrollOnceRef.current = false;
-                console.log('[SCROLL][FORCE_ONCE_CLEARED]', { reason: 'mi_gate_bottom_anchor' });
-              }
             }
             return; // Skip card-based measurement for MI gate
           }
@@ -16971,11 +16974,11 @@ export default function CandidateInterview() {
             return null;
           })()}
 
-          {/* Bottom anchor - minimal-height sentinel for scroll positioning */}
+          {/* Bottom anchor - explicit height for MI gate bottom-anchor strategy */}
           <div 
             ref={bottomAnchorRef} 
             aria-hidden="true" 
-            style={{ height: '1px', margin: 0, padding: 0 }} 
+            style={{ height: `${Math.max(footerClearanceAppliedPx, 24)}px`, margin: 0, padding: 0 }} 
           />
           </div>
         </div>
