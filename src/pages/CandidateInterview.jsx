@@ -11193,6 +11193,21 @@ export default function CandidateInterview() {
     });
   }
   
+  // SAFE DIAGNOSTIC: Log footer layout chain on mount
+  const footerLayoutLoggedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (footerLayoutLoggedRef.current) return;
+    footerLayoutLoggedRef.current = true;
+    
+    console.log('[UI_CONTRACT][FOOTER_LAYOUT_CHAIN]', {
+      mainOverflow: 'auto',
+      footerPosition: 'sticky',
+      contentWrapperMinH: 'min-h-0',
+      clearanceTarget: 'CONTENT_WRAPPER',
+      note: 'Footer is direct child of main (not inside padded content); content wrapper uses min-h-0 to prevent stretching'
+    });
+  }, []);
+  
   // SAFE DIAGNOSTIC: Log footer clearance target when it changes
   const lastClearanceTargetLogKeyRef = React.useRef(null);
   React.useEffect(() => {
@@ -16741,7 +16756,7 @@ export default function CandidateInterview() {
         onScroll={handleTranscriptScroll}
       >
         <div 
-          className="min-h-full flex flex-col px-4 pt-6"
+          className="min-h-0 flex flex-col px-4 pt-6"
           style={{
             paddingBottom: shouldRenderFooter 
               ? `${footerClearancePx}px`
