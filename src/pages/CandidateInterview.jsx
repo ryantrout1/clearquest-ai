@@ -1664,6 +1664,11 @@ export default function CandidateInterview() {
   const promptLaneRef = useRef(null);
   const autoScrollEnabledRef = useRef(true);
   
+  // SCROLL LOCK: Prevent competing scroll writers during v3_pack_opener settle
+  const scrollWriteLockRef = useRef(false);
+  const scrollWriteLockReasonRef = useRef(null);
+  const scrollWriteLockUntilRef = useRef(0);
+  
   // TDZ FIX: Scroll helpers declared early (before any useEffects that reference them)
   // PART A: Helper to identify true scroll owner at runtime
   const getScrollOwner = useCallback((startElement) => {
