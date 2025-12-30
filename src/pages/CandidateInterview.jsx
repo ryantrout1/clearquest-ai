@@ -1806,9 +1806,8 @@ export default function CandidateInterview() {
     // Use module-scope logOnce (already declared above)
     logOnce(snapshotKey, () => {
       // PART D: Skip active card measurement for MI gate (expected behavior)
-      const activeKind = currentItem?.type || 'none';
-      const isMiGateContext = activeKind === 'multi_instance_gate' || 
-                             activeUiItem?.kind === 'MI_GATE';
+      const isMiGateContext = (currentItem?.type === 'multi_instance_gate') || 
+                             (activeUiItem?.kind === 'MI_GATE');
       
       if (isMiGateContext) {
         console.log('[MI_GATE][SCROLL_STRATEGY]', {
