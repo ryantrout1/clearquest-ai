@@ -15132,33 +15132,70 @@ export default function CandidateInterview() {
         })
       : transcriptToRenderDeduped;
     
-    // PART B: FINAL REORDER - Enforce MI gate is last (after ALL processing)
-    let finalListWithGateOrdered = finalList;
-    
-    // Check if MI gate exists in final list for current pack/instance
+    // PART A: FORCE INSERT - Ensure MI gate exists when active (before reorder)
+    let listWithGate = finalList;
     const currentGatePackId = currentItem?.packId;
     const currentGateInstanceNumber = currentItem?.instanceNumber;
-    const shouldEnforceMiGateLast = activeCard?.kind === "multi_instance_gate" && 
-                                    currentGatePackId && 
-                                    currentGateInstanceNumber;
+    const shouldEnforceMiGate = activeCard?.kind === "multi_instance_gate" && 
+                                currentGatePackId && 
+                                currentGateInstanceNumber !== undefined;
     
-    if (shouldEnforceMiGateLast) {
-      const miGateIndex = finalList.findIndex(e => 
-        (e.__activeCard && e.kind === "multi_instance_gate") ||
-        (e.messageType === 'MULTI_INSTANCE_GATE_SHOWN' && 
-         (e.meta?.packId || e.packId) === currentGatePackId && 
-         (e.meta?.instanceNumber || e.instanceNumber) === currentGateInstanceNumber)
+    if (shouldEnforceMiGate) {
+      // PART C: Use unified gate detector
+      const gateExists = listWithGate.some(item => 
+        isMiGateItem(item, currentGatePackId, currentGateInstanceNumber)
       );
       
-      if (miGateIndex !== -1 && miGateIndex < finalList.length - 1) {
+      if (!gateExists) {
+        // Gate is active but missing - force insert
+        const gateItemId = `multi-instance-gate-${currentGatePackId}-${currentGateInstanceNumber}`;
+        const gateStableKey = `mi-gate:${currentGatePackId}:${currentGateInstanceNumber}:q`;
+        
+        const reconstructedGate = {
+          id: gateItemId,
+          stableKey: gateStableKey,
+          kind: 'multi_instance_gate',
+          messageType: 'MULTI_INSTANCE_GATE_SHOWN',
+          packId: currentGatePackId,
+          instanceNumber: currentGateInstanceNumber,
+          __activeCard: true,
+          meta: {
+            packId: currentGatePackId,
+            instanceNumber: currentGateInstanceNumber
+          },
+          timestamp: new Date().toISOString(),
+          visibleToCandidate: true
+        };
+        
+        listWithGate = [...listWithGate, reconstructedGate];
+        
+        logOnce(`migate_force_inserted_${currentGatePackId}_${currentGateInstanceNumber}`, () => {
+          console.warn('[MI_GATE][FORCE_INSERTED]', {
+            packId: currentGatePackId,
+            instanceNumber: currentGateInstanceNumber,
+            reason: 'Gate was active but missing from final list - reconstructed and inserted'
+          });
+        });
+      }
+    }
+    
+    // PART B: FINAL REORDER - Enforce MI gate is last (after force insert)
+    let finalListWithGateOrdered = listWithGate;
+    
+    if (shouldEnforceMiGate) {
+      // PART C: Use unified detector for finding gate
+      const miGateIndex = listWithGate.findIndex(item => 
+        isMiGateItem(item, currentGatePackId, currentGateInstanceNumber)
+      );
+      
+      if (miGateIndex !== -1 && miGateIndex < listWithGate.length - 1) {
         // Items exist after MI gate - REORDER
-        const itemsBefore = finalList.slice(0, miGateIndex);
-        const miGateItem = finalList[miGateIndex];
-        const itemsAfter = finalList.slice(miGateIndex + 1);
+        const itemsBefore = listWithGate.slice(0, miGateIndex);
+        const miGateItem = listWithGate[miGateIndex];
+        const itemsAfter = listWithGate.slice(miGateIndex + 1);
         
         finalListWithGateOrdered = [...itemsBefore, ...itemsAfter, miGateItem];
         
-        // PART A: Log reorder once (in-memory dedupe)
         logOnce(`migate_final_reorder_${currentGatePackId}_${currentGateInstanceNumber}`, () => {
           console.warn('[MI_GATE][FINAL_REORDER_APPLIED]', {
             packId: currentGatePackId,
@@ -15172,38 +15209,38 @@ export default function CandidateInterview() {
         });
       }
       
-      // PART B: Post-reorder assertion (verify no items after gate)
-      const finalGateIndex = finalListWithGateOrdered.findIndex(e => 
-        (e.__activeCard && e.kind === "multi_instance_gate") ||
-        (e.messageType === 'MULTI_INSTANCE_GATE_SHOWN' && 
-         (e.meta?.packId || e.packId) === currentGatePackId && 
-         (e.meta?.instanceNumber || e.instanceNumber) === currentGateInstanceNumber)
+      // PART B: Post-reorder corrective enforcement (not just logging)
+      const finalGateIndex = finalListWithGateOrdered.findIndex(item => 
+        isMiGateItem(item, currentGatePackId, currentGateInstanceNumber)
       );
       
       if (finalGateIndex !== -1 && finalGateIndex < finalListWithGateOrdered.length - 1) {
-        // Still items after gate - emergency fix
-        const stillAfter = finalListWithGateOrdered.slice(finalGateIndex + 1);
+        // Still items after gate - CORRECTIVE FIX
+        const trailingItems = finalListWithGateOrdered.slice(finalGateIndex + 1);
         
-        logOnce(`migate_post_reorder_fail_${currentGatePackId}_${currentGateInstanceNumber}`, () => {
-          console.error('[MI_GATE][POST_REORDER_STILL_NOT_LAST]', {
+        logOnce(`migate_trailing_${currentGatePackId}_${currentGateInstanceNumber}`, () => {
+          console.error('[MI_GATE][TRAILING_ITEMS_AFTER_GATE]', {
             packId: currentGatePackId,
             instanceNumber: currentGateInstanceNumber,
-            itemsStillAfterCount: stillAfter.length,
-            trailingItems: stillAfter.map(e => ({
+            trailingCount: trailingItems.length,
+            trailing: trailingItems.map(e => ({
               kind: e.kind || e.messageType || e.type,
               key: (e.stableKey || e.id || '').substring(0, 40),
               isActiveCard: e.__activeCard || false
             })),
-            reason: 'Items still after gate post-reorder - forcing final correction'
+            reason: 'Items found after gate post-reorder - applying corrective fix'
           });
         });
         
-        // Emergency fix: move trailing items before gate
+        // Corrective fix: move trailing items before gate
         const beforeGate = finalListWithGateOrdered.slice(0, finalGateIndex);
         const gateItem = finalListWithGateOrdered[finalGateIndex];
-        finalListWithGateOrdered = [...beforeGate, ...stillAfter, gateItem];
+        finalListWithGateOrdered = [...beforeGate, ...trailingItems, gateItem];
       }
     }
+    
+    // PART B: MUTATION BOUNDARY - Freeze final list (no modifications after this point)
+    const renderedItems = Object.freeze([...finalListWithGateOrdered]);
     
     // TDZ GUARD: Update length counter + sync finalList refs (after finalList is computed)
     bottomAnchorLenRef.current = finalListWithGateOrdered.length;
