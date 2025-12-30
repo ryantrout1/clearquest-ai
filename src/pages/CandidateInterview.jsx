@@ -11636,9 +11636,9 @@ export default function CandidateInterview() {
     prevFinalListLenForScrollRef.current = currentLen;
     
     requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender("RENDER_LIST_APPENDED");
+      ensureActiveVisibleAfterRender("RENDER_LIST_APPENDED", activeKindSOT);
     });
-  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT]);
+  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT, activeKindSOT]);
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
