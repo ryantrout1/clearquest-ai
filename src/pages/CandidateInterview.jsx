@@ -3546,11 +3546,6 @@ export default function CandidateInterview() {
     return distanceFromBottom <= thresholdPx;
   };
   
-  const scrollToBottom = (el) => {
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  };
-  
   // TDZ GUARD: Safe length counter for bottom-anchor effect (avoids finalTranscriptList TDZ)
   const bottomAnchorLenRef = React.useRef(0);
   
@@ -10720,40 +10715,38 @@ export default function CandidateInterview() {
     minSpacerPx: 80
   });
   
-  // GUARDRAIL A: Structural assertion - DISABLED in 3-row shell mode (footer in normal flow, no spacer needed)
-  if (!IS_3ROW_SHELL && historyRef.current && typeof window !== 'undefined') {
+  // GUARDRAIL A: Bottom spacer assertion (verify real DOM element exists)
+  if (historyRef.current && typeof window !== 'undefined') {
     requestAnimationFrame(() => {
       try {
         const scrollContainer = historyRef.current;
         if (!scrollContainer) return;
         
-        // Check for footer spacer element
-        const spacer = scrollContainer.querySelector('[data-cq-footer-spacer="true"]');
+        // Verify bottom spacer exists and has correct height
+        const spacer = bottomAnchorRef.current;
         
         if (!spacer) {
-          console.error('[UI_CONTRACT][FOOTER_SPACER_MISSING]', {
+          console.error('[UI_CONTRACT][BOTTOM_SPACER_MISSING]', {
             mode: bottomBarMode,
-            expectedHeightPx: dynamicBottomPaddingPx,
-            reason: 'Footer spacer element not found in scroll content'
+            expectedHeightPx: bottomSpacerPx,
+            reason: 'Bottom spacer element ref not attached'
           });
           return;
         }
         
-        // Verify spacer height matches expected
         const spacerRect = spacer.getBoundingClientRect();
         const spacerHeightPx = Math.round(spacerRect.height);
-        const expectedHeightPx = dynamicBottomPaddingPx;
-        const heightTolerance = 2; // ±2px acceptable
+        const expectedHeightPx = bottomSpacerPx;
+        const heightTolerance = 4;
         
         const heightMatches = Math.abs(spacerHeightPx - expectedHeightPx) <= heightTolerance;
         
         if (!heightMatches) {
-          console.error('[UI_CONTRACT][FOOTER_SPACER_HEIGHT_INVALID]', {
+          console.warn('[UI_CONTRACT][BOTTOM_SPACER_HEIGHT_MISMATCH]', {
             mode: bottomBarMode,
             expectedHeightPx,
             actualHeightPx: spacerHeightPx,
-            heightMatches: false,
-            reason: 'Spacer height does not match computed clearance'
+            delta: spacerHeightPx - expectedHeightPx
           });
         }
         
@@ -10784,13 +10777,13 @@ export default function CandidateInterview() {
     });
   }
   
-  // GUARDRAIL C: Mode switch assertion - DISABLED in 3-row shell mode (footer in normal flow, no spacer)
+  // GUARDRAIL C: Mode switch assertion (verify bottom spacer on mode changes)
   const prevBottomBarModeRef = React.useRef(bottomBarMode);
   React.useEffect(() => {
     const prevMode = prevBottomBarModeRef.current;
     const currentMode = bottomBarMode;
     
-    if (!IS_3ROW_SHELL && prevMode !== currentMode && typeof window !== 'undefined') {
+    if (prevMode !== currentMode && typeof window !== 'undefined') {
       requestAnimationFrame(() => {
         try {
           const scrollContainer = historyRef.current;
@@ -10798,13 +10791,13 @@ export default function CandidateInterview() {
           
           if (!scrollContainer || !footerEl) return;
           
-          // Verify footer spacer exists and has correct height
-          const spacer = scrollContainer.querySelector('[data-cq-footer-spacer="true"]');
+          // Verify bottom spacer height
+          const spacer = bottomAnchorRef.current;
           if (!spacer) {
-            console.error('[UI_CONTRACT][FOOTER_SPACER_MISSING_ON_MODE_SWITCH]', {
+            console.error('[UI_CONTRACT][BOTTOM_SPACER_MISSING_ON_MODE_SWITCH]', {
               fromMode: prevMode,
               toMode: currentMode,
-              expectedHeightPx: dynamicBottomPaddingPx
+              expectedHeightPx: bottomSpacerPx
             });
             return;
           }
@@ -10812,43 +10805,13 @@ export default function CandidateInterview() {
           const spacerRect = spacer.getBoundingClientRect();
           const spacerHeightPx = Math.round(spacerRect.height);
           
-          // Get last REAL item (before spacer)
-          const allItems = scrollContainer.querySelectorAll('[data-stablekey]');
-          let lastItem = null;
-          
-          for (let i = allItems.length - 1; i >= 0; i--) {
-            const item = allItems[i];
-            if (item.getAttribute('data-cq-footer-spacer') !== 'true') {
-              lastItem = item;
-              break;
-            }
-          }
-          
-          let overlapPx = 0;
-          if (lastItem) {
-            const lastItemRect = lastItem.getBoundingClientRect();
-            const footerRect = footerEl.getBoundingClientRect();
-            overlapPx = Math.max(0, Math.round(lastItemRect.bottom - footerRect.top));
-          }
-          
           console.log('[UI_CONTRACT][FOOTER_MODE_SWITCH_OK]', {
             fromMode: prevMode,
             toMode: currentMode,
-            spacerHeightPx,
-            overlapPx,
-            hasOverlap: overlapPx > 0,
-            reason: overlapPx > 0 ? 'OVERLAP_AFTER_MODE_SWITCH' : 'clearance_maintained'
+            bottomSpacerPx,
+            actualSpacerHeightPx: spacerHeightPx,
+            delta: Math.abs(spacerHeightPx - bottomSpacerPx)
           });
-          
-          if (overlapPx > 0) {
-            console.error('[UI_CONTRACT][FOOTER_MODE_SWITCH_OVERLAP]', {
-              fromMode: prevMode,
-              toMode: currentMode,
-              overlapPx,
-              spacerHeightPx,
-              reason: 'Mode switch caused overlap - spacer recalculation may have failed'
-            });
-          }
         } catch (err) {
           // Silent - guardrail should never crash
         }
@@ -10856,7 +10819,7 @@ export default function CandidateInterview() {
     }
     
     prevBottomBarModeRef.current = currentMode;
-  }, [bottomBarMode]);
+  }, [bottomBarMode, bottomSpacerPx]);
   
   // FOOTER CLEARANCE ASSERTION: DISABLED in 3-row shell mode (footer in normal flow, no overlap possible)
   if (!IS_3ROW_SHELL && hasActiveCard && typeof window !== 'undefined') {
@@ -11295,10 +11258,12 @@ export default function CandidateInterview() {
   useEffect(() => {
     if (!historyRef.current) return;
     if (!autoScrollEnabledRef.current) return;
+    if (isUserTyping) return;
+    
     requestAnimationFrame(() => {
-      bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+      scrollToBottom('FOOTER_HEIGHT_CHANGED');
     });
-  }, [footerHeightPx]);
+  }, [bottomSpacerPx, isUserTyping, scrollToBottom]);
 
   // SMOOTH GLIDE AUTOSCROLL: ChatGPT-style smooth scrolling on new content
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
@@ -11811,9 +11776,9 @@ export default function CandidateInterview() {
     
     if (!shouldScrollToBottom) return;
     
-    // Execute scroll
+    // Execute scroll using unified helper
     const scrollTopBefore = scrollContainer.scrollTop;
-    scrollToBottom(scrollContainer);
+    scrollToBottom('BOTTOM_ANCHOR_ENFORCE');
     const scrollTopAfter = scrollContainer.scrollTop;
     const didScroll = Math.abs(scrollTopAfter - scrollTopBefore) > 1;
     
@@ -11832,7 +11797,7 @@ export default function CandidateInterview() {
     bottomAnchorLenRef.current,
     activeUiItem?.kind,
     activeCard?.stableKey,
-    dynamicBottomPaddingPx
+    scrollToBottom
   ]);
   
   // GRAVITY FOLLOW: Auto-scroll active card into view when it changes (ChatGPT-style)
