@@ -48,7 +48,7 @@ const hasRetryQueueForSession = (sessionId) => {
 const acquireSessionLock = (sessionId) => {
   try {
     const lockKey = `cq_retry_lock_${sessionId}`;
-    const existingLock = localStorage.getItem(lockKey);
+    const existingLock = safeStorageGet(lockKey);
     
     if (existingLock) {
       const lockTimestamp = parseInt(existingLock, 10);
@@ -72,7 +72,7 @@ const acquireSessionLock = (sessionId) => {
     }
     
     // Acquire lock
-    localStorage.setItem(lockKey, Date.now().toString());
+    safeStorageSet(lockKey, Date.now().toString());
     return true;
   } catch (e) {
     // CHANGE 3: Storage unavailable - proceed without lock (safe degradation)
@@ -88,7 +88,7 @@ const acquireSessionLock = (sessionId) => {
 const releaseSessionLock = (sessionId) => {
   try {
     const lockKey = `cq_retry_lock_${sessionId}`;
-    localStorage.removeItem(lockKey);
+    safeStorageRemove(lockKey);
   } catch (e) {
     console.warn('[PERSIST][RETRY_SESSION_UNLOCK_FAIL]', { sessionId, error: e.message });
   }
@@ -122,12 +122,7 @@ const queueFailedPersist = (sessionId, stableKey, entry) => {
   });
   
   // Save to localStorage for cross-session recovery
-  try {
-    const queueSnapshot = Array.from(retryQueue.entries());
-    localStorage.setItem('cq_persist_retry_queue', JSON.stringify(queueSnapshot));
-  } catch (e) {
-    console.warn('[PERSIST][RETRY_QUEUE_STORAGE_FAIL]', { error: e.message });
-  }
+  safeStorageSet('cq_persist_retry_queue', JSON.stringify(Array.from(retryQueue.entries())));
   
   // Schedule retry
   scheduleNextRetry();
@@ -400,15 +395,10 @@ const processRetryQueue = async () => {
     }
     
     // Update localStorage
-    try {
-      if (retryQueue.size > 0) {
-        const queueSnapshot = Array.from(retryQueue.entries());
-        localStorage.setItem('cq_persist_retry_queue', JSON.stringify(queueSnapshot));
-      } else {
-        localStorage.removeItem('cq_persist_retry_queue');
-      }
-    } catch (e) {
-      console.warn('[PERSIST][RETRY_QUEUE_STORAGE_FAIL]', { error: e.message });
+    if (retryQueue.size > 0) {
+      safeStorageSet('cq_persist_retry_queue', JSON.stringify(Array.from(retryQueue.entries())));
+    } else {
+      safeStorageRemove('cq_persist_retry_queue');
     }
     
     // Schedule next retry if queue not empty
@@ -430,18 +420,73 @@ export const flushRetryQueueOnce = () => {
   }
 };
 
-// FIX F: Detect storage blocking and set runtime flag
+// PART A: Safe storage wrappers with dedupe logging
 let STORAGE_DISABLED = false;
+const storageErrorsLogged = new Set();
 
+const safeStorageGet = (key, storageType = 'localStorage') => {
+  try {
+    const storage = storageType === 'localStorage' ? localStorage : sessionStorage;
+    return storage.getItem(key);
+  } catch (e) {
+    if (!STORAGE_DISABLED && !storageErrorsLogged.has('read')) {
+      storageErrorsLogged.add('read');
+      console.warn('[STORAGE][BLOCKED_READ]', { 
+        reason: e.name === 'SecurityError' ? 'Tracking Prevention' : e.message,
+        action: 'Continuing without storage'
+      });
+    }
+    STORAGE_DISABLED = true;
+    return null;
+  }
+};
+
+const safeStorageSet = (key, value, storageType = 'localStorage') => {
+  try {
+    const storage = storageType === 'localStorage' ? localStorage : sessionStorage;
+    storage.setItem(key, value);
+    return true;
+  } catch (e) {
+    if (!STORAGE_DISABLED && !storageErrorsLogged.has('write')) {
+      storageErrorsLogged.add('write');
+      console.warn('[STORAGE][BLOCKED_WRITE]', { 
+        reason: e.name === 'SecurityError' ? 'Tracking Prevention' : e.message,
+        action: 'Continuing without storage'
+      });
+    }
+    STORAGE_DISABLED = true;
+    return false;
+  }
+};
+
+const safeStorageRemove = (key, storageType = 'localStorage') => {
+  try {
+    const storage = storageType === 'localStorage' ? localStorage : sessionStorage;
+    storage.removeItem(key);
+    return true;
+  } catch (e) {
+    if (!STORAGE_DISABLED && !storageErrorsLogged.has('remove')) {
+      storageErrorsLogged.add('remove');
+      console.warn('[STORAGE][BLOCKED_REMOVE]', { 
+        reason: e.name === 'SecurityError' ? 'Tracking Prevention' : e.message,
+        action: 'Continuing without storage'
+      });
+    }
+    STORAGE_DISABLED = true;
+    return false;
+  }
+};
+
+// FIX F: Detect storage blocking and set runtime flag
 // Load retry queue from localStorage on module init
 if (typeof window !== 'undefined') {
   try {
     // Test storage availability
     const testKey = 'cq_storage_test';
-    localStorage.setItem(testKey, '1');
-    localStorage.removeItem(testKey);
+    safeStorageSet(testKey, '1');
+    safeStorageRemove(testKey);
     
-    const stored = localStorage.getItem('cq_persist_retry_queue');
+    const stored = safeStorageGet('cq_persist_retry_queue');
     if (stored) {
       const entries = JSON.parse(stored);
       let validCount = 0;

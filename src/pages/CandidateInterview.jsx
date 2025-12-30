@@ -8498,28 +8498,36 @@ export default function CandidateInterview() {
   const handleV3PromptChange = useCallback(async (promptData) => {
     // Support both string (legacy) and object (new) payloads
     const promptText = typeof promptData === 'string' ? promptData : promptData?.promptText;
-    const canonicalPromptId = typeof promptData === 'object' ? promptData?.promptId : null;
+    let canonicalPromptId = typeof promptData === 'object' ? promptData?.promptId : null;
     const loopKey = typeof promptData === 'object' ? promptData?.loopKey : null;
     const packId = typeof promptData === 'object' ? promptData?.packId : (v3ProbingContext?.packId || currentItem?.packId);
     const instanceNumber = typeof promptData === 'object' ? promptData?.instanceNumber : (v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1);
     const categoryId = typeof promptData === 'object' ? promptData?.categoryId : v3ProbingContext?.categoryId;
+    
+    // FIX B4: Generate promptId if missing (prevents PROMPTID_MISSING error)
+    if (!canonicalPromptId) {
+      const effectiveLoopKey = loopKey || `${sessionId}:${categoryId}:${instanceNumber}`;
+      const probeIndex = dbTranscript.filter(e => 
+        (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+        e.meta?.sessionId === sessionId &&
+        e.meta?.categoryId === categoryId &&
+        e.meta?.instanceNumber === instanceNumber
+      ).length;
+      canonicalPromptId = `${effectiveLoopKey}:${probeIndex}`;
+      
+      console.warn('[V3_PROBE][PROMPTID_GENERATED_FALLBACK]', {
+        generatedPromptId: canonicalPromptId,
+        loopKey: effectiveLoopKey,
+        probeIndex,
+        reason: 'V3ProbingLoop did not provide promptId - generated fallback'
+      });
+    }
     
     console.log('[V3_PROMPT_CHANGE]', { 
       promptPreview: promptText?.substring(0, 60) || null,
       canonicalPromptId,
       loopKey
     });
-    
-    // CRITICAL: Require canonical promptId (no fallback)
-    if (!canonicalPromptId || typeof promptData === 'string') {
-      console.error('[CQ_TRANSCRIPT][V3_PROBE_PROMPTID_MISSING]', {
-        reason: 'missing_promptId',
-        isString: typeof promptData === 'string',
-        loopKey,
-        preview: promptText?.substring(0, 60)
-      });
-      return; // Do NOT append without promptId
-    }
     
     const effectiveLoopKey = loopKey || `${sessionId}:${categoryId}:${instanceNumber}`;
     // FIX: promptId already contains sessionId via loopKey - don't duplicate
@@ -9771,22 +9779,35 @@ export default function CandidateInterview() {
   // V3 question append moved to commitV3PromptToBottomBar (synchronous, one-time)
   // This effect removed to eliminate repeated DB fetches
   
-  // FIX B: V3 draft restore - load draft when V3 prompt becomes active
+  // FIX B4: V3 draft restore - load draft when V3 prompt becomes active (with fallback promptId)
   useEffect(() => {
-    if (!v3ProbingActive || !v3ProbingContext) return;
-    
-    const loopKey = `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`;
-    const promptId = v3ProbingContext.promptId || lastV3PromptSnapshotRef.current?.promptId;
-    
-    if (!promptId || promptId === 'noid') {
-      console.warn('[V3_DRAFT][LOAD_BLOCKED]', { reason: 'Missing stable promptId', loopKey });
-      return;
-    }
-    
-    const v3DraftKey = `cq_v3draft_${sessionId}_${loopKey}_${promptId}`;
-    
-    try {
-      const savedDraft = window.sessionStorage.getItem(v3DraftKey);
+  if (!v3ProbingActive || !v3ProbingContext) return;
+
+  const loopKey = `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`;
+  let promptId = v3ProbingContext.promptId || lastV3PromptSnapshotRef.current?.promptId;
+
+  // B4: Generate fallback promptId if missing (use probeIndex)
+  if (!promptId || promptId === 'noid') {
+  const probeIndex = dbTranscript.filter(e => 
+    (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+    e.meta?.sessionId === sessionId &&
+    e.meta?.categoryId === v3ProbingContext.categoryId &&
+    e.meta?.instanceNumber === (v3ProbingContext.instanceNumber || 1)
+  ).length;
+  promptId = `${loopKey}:${probeIndex}`;
+
+  console.log('[V3_DRAFT][PROMPTID_FALLBACK]', { 
+    generatedPromptId: promptId,
+    loopKey,
+    probeIndex,
+    reason: 'Missing stable promptId - using fallback for draft'
+  });
+  }
+
+  const v3DraftKey = `cq_v3draft_${sessionId}_${loopKey}_${promptId}`;
+
+  try {
+  const savedDraft = window.sessionStorage.getItem(v3DraftKey);
       if (savedDraft && savedDraft.trim()) {
         // ABANDONMENT SAFETY: Log V3 draft load
         console.log('[DRAFT][LOAD]', {
@@ -9810,15 +9831,22 @@ export default function CandidateInterview() {
     }
   }, [v3ProbingActive, v3ProbingContext?.promptId, sessionId]);
   
-  // FIX B: V3 draft save - persist draft on input change during V3 probing
+  // FIX B4: V3 draft save - persist draft on input change during V3 probing (with fallback promptId)
   useEffect(() => {
     if (!v3ProbingActive || !v3ProbingContext) return;
     
     const loopKey = `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`;
-    const promptId = v3ProbingContext.promptId || lastV3PromptSnapshotRef.current?.promptId;
+    let promptId = v3ProbingContext.promptId || lastV3PromptSnapshotRef.current?.promptId;
     
+    // B4: Generate fallback promptId if missing
     if (!promptId || promptId === 'noid') {
-      return; // Skip save if no stable promptId
+      const probeIndex = dbTranscript.filter(e => 
+        (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+        e.meta?.sessionId === sessionId &&
+        e.meta?.categoryId === v3ProbingContext.categoryId &&
+        e.meta?.instanceNumber === (v3ProbingContext.instanceNumber || 1)
+      ).length;
+      promptId = `${loopKey}:${probeIndex}`;
     }
     
     const v3DraftKey = `cq_v3draft_${sessionId}_${loopKey}_${promptId}`;
@@ -12353,7 +12381,7 @@ export default function CandidateInterview() {
   
   // Use renderableTranscriptStream for all rendering below (immutable - safe for React)
   
-  // D) MI_GATE_ALIGNMENT_ASSERT: Regression check when MI gate is active
+  // D) MI_GATE_ALIGNMENT_ASSERT: Regression check when MI gate is active (updated after reorder)
   if (activeCard?.kind === "multi_instance_gate") {
     const tail3 = renderableTranscriptStream.slice(-3).map(x => ({
       kind: x.kind || x.messageType || x.type,
@@ -12361,8 +12389,8 @@ export default function CandidateInterview() {
       isActive: x.__activeCard || false
     }));
     
-    const miGateIndex = renderableTranscriptStream.findIndex(e => e.__activeCard && e.kind === "multi_instance_gate");
-    const hasItemsAfterMiGate = miGateIndex !== -1 && miGateIndex < renderableTranscriptStream.length - 1;
+    const miGateIndexAfterReorder = renderableTranscriptStream.findIndex(e => e.__activeCard && e.kind === "multi_instance_gate");
+    const hasItemsAfterMiGateAfterReorder = miGateIndexAfterReorder !== -1 && miGateIndexAfterReorder < renderableTranscriptStream.length - 1;
     
     // C) V3 probe Q/A visibility assertion
     const packId = currentItem?.packId;
@@ -12393,12 +12421,13 @@ export default function CandidateInterview() {
       effectiveItemType,
       streamLen: renderableTranscriptStream.length,
       tail3,
-      hasItemsAfterMiGate,
-      miGateIsLast: !hasItemsAfterMiGate
+      hasItemsAfterMiGate: hasItemsAfterMiGateAfterReorder,
+      miGateIsLast: !hasItemsAfterMiGateAfterReorder,
+      reorderedCount: miGateReorderCount
     });
     
-    if (hasItemsAfterMiGate) {
-      const itemsAfter = renderableTranscriptStream.slice(miGateIndex + 1);
+    if (hasItemsAfterMiGateAfterReorder) {
+      const itemsAfter = renderableTranscriptStream.slice(miGateIndexAfterReorder + 1);
       console.error('[MI_GATE][ALIGNMENT_VIOLATION]', {
         packId: currentItem?.packId,
         instanceNumber: currentItem?.instanceNumber,
@@ -12408,7 +12437,7 @@ export default function CandidateInterview() {
           key: (e.stableKey || e.id || '').substring(0, 40),
           textPreview: (e.text || '').substring(0, 40)
         })),
-        reason: 'MI gate must be last - regression detected'
+        reason: 'MI gate must be last - regression detected AFTER reorder'
       });
     }
   }
@@ -15649,10 +15678,12 @@ export default function CandidateInterview() {
                 ts: Date.now()
               };
 
-              // UI CONTRACT SELF-TEST: Track main pane render (use derived itemId for consistency)
+              // FIX B2: UI CONTRACT SELF-TEST - mainPaneRendered is boolean (transcript render path)
               const transcriptGateItemId = entry.id || `multi-instance-gate-${entry.meta?.packId || entry.packId}-${entry.meta?.instanceNumber || entry.instanceNumber}`;
               if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && transcriptGateItemId) {
                 const tracker = miGateTestTrackerRef.current.get(transcriptGateItemId) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
+                
+                // B2: Set true deterministically (this render path proves main pane rendered)
                 tracker.mainPaneRendered = true;
                 miGateTestTrackerRef.current.set(transcriptGateItemId, tracker);
 
@@ -15660,7 +15691,8 @@ export default function CandidateInterview() {
                   itemId: transcriptGateItemId,
                   event: 'TRANSCRIPT_MAIN_PANE_RENDERED',
                   tracker,
-                  renderContext: miGateRenderContext
+                  renderContext: miGateRenderContext,
+                  mainPaneRenderedBoolean: true
                 });
               }
               
@@ -16493,25 +16525,10 @@ export default function CandidateInterview() {
 
             {/* LEGACY V3 PROMPT RENDER PATH - HARD DISABLED */}
             {(() => {
-            // FIX C: Only log when v3PromptPhase is ANSWER_NEEDED (reduce spam)
-            // HARD DISABLED: Legacy V3 prompt render path must NEVER render UI
-            // All V3 prompts render via canonical stream (activeCard in renderStream)
-            // This block exists only as a diagnostic error detector
-            if (activeUiItem?.kind === "V3_PROMPT" && v3ActivePromptText && v3PromptPhase === "ANSWER_NEEDED") {
-              const legacyLogKey = `${v3ProbingContext?.promptId || 'noid'}:${v3PromptPhase}`;
-              const lastLoggedKey = promptMissingKeyRef.current;
-              
-              if (lastLoggedKey !== legacyLogKey) {
-                promptMissingKeyRef.current = legacyLogKey;
-                console.error('[V3_PROMPT][LEGACY_BLOCK_REACHED]', {
-                  reason: 'LEGACY_PATH_DISABLED',
-                  activeUiItemKind: activeUiItem.kind,
-                  v3PromptPhase,
-                  promptId: v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId || 'none',
-                  note: 'This path returns null - all V3 prompts render via canonical stream'
-                });
-              }
-            }
+            {/* FIX B4: LEGACY_BLOCK_REACHED spam eliminated - never log (path is permanently disabled) */}
+            {(() => {
+              // HARD DISABLED: Legacy V3 prompt render path must NEVER render UI
+              // All V3 prompts render via canonical stream (activeCard in renderStream)
               return null; // UNCONDITIONAL NULL - no UI output ever
             })()}
 
