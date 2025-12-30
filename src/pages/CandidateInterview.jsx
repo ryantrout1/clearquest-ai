@@ -9374,17 +9374,29 @@ export default function CandidateInterview() {
       // PART 3: Verify prompt snapshot exists using ref (prevents stale state)
       const snapshotExists = v3PromptSnapshotsRef.current.some(s => s.promptId === promptId);
       
-      console.log('[V3_PROMPT_WATCHDOG][SNAPSHOT_CHECK]', {
-        promptId,
-        snapshotExists,
-        snapshotsLen: v3PromptSnapshotsRef.current.length
-      });
-      
+      // STEP 3: Dedupe NO_SNAPSHOT warning (log once per promptId)
       if (!snapshotExists) {
-        console.warn('[V3_PROMPT_WATCHDOG][NO_SNAPSHOT]', { 
-          promptId, 
-          reason: 'Prompt commit did not create snapshot - expected from commitV3PromptToBottomBar' 
-        });
+        const noSnapshotKey = `no_snapshot_${promptId}`;
+        const alreadyLogged = (() => {
+          try {
+            return sessionStorage.getItem(noSnapshotKey);
+          } catch {
+            return null;
+          }
+        })();
+        
+        if (!alreadyLogged) {
+          try {
+            sessionStorage.setItem(noSnapshotKey, '1');
+          } catch {
+            // Storage blocked - skip dedupe
+          }
+          console.warn('[V3_PROMPT_WATCHDOG][NO_SNAPSHOT]', { 
+            promptId, 
+            reason: 'Prompt commit did not create snapshot - expected from commitV3PromptToBottomBar',
+            snapshotsLen: v3PromptSnapshotsRef.current.length
+          });
+        }
         return;
       }
       
@@ -12363,18 +12375,31 @@ export default function CandidateInterview() {
     );
 
     if (!probeAnswerInRender) {
-      console.error('[CQ_TRANSCRIPT][V3_PROBE_A_MISSING_IN_RENDER_AFTER_GATE]', {
-        packId,
-        instanceNumber,
-        stableKey: lastProbeAnswer.stableKey || lastProbeAnswer.id,
-        promptId: lastProbeAnswer.meta?.promptId,
-        loopKey: lastProbeAnswer.meta?.loopKey,
-        textPreview: (lastProbeAnswer.text || '').substring(0, 60),
-        reason: 'V3 probe answer missing from render - adding UI placeholder',
-        dbTranscriptLen: dbTranscript.length,
-        finalRenderStreamLen: finalRenderStream.length,
-        action: 'RECOVERY'
-      });
+      // STEP 4: Dedupe probe A missing log (once per stableKey)
+      const missingKey = `probe_a_missing_${lastProbeAnswer.stableKey || lastProbeAnswer.id}`;
+      const alreadyLogged = (() => {
+        try {
+          return sessionStorage.getItem(missingKey);
+        } catch {
+          return null;
+        }
+      })();
+      
+      if (!alreadyLogged) {
+        try {
+          sessionStorage.setItem(missingKey, '1');
+        } catch {
+          // Storage blocked - skip dedupe
+        }
+        console.warn('[CQ_TRANSCRIPT][V3_PROBE_A_WITHHELD_FOR_GATE]', {
+          packId,
+          instanceNumber,
+          stableKey: lastProbeAnswer.stableKey || lastProbeAnswer.id,
+          promptId: lastProbeAnswer.meta?.promptId,
+          reason: 'Probe answer withheld during active gate transition - will recover',
+          action: 'RECOVERY'
+        });
+      }
 
       // FIX D: Add missing answer as UI placeholder (NOT persisted to transcript)
       // This is a non-transcript render item that fills the gap during gate transition
@@ -12474,18 +12499,35 @@ export default function CandidateInterview() {
       });
       
       if (hasItemsAfterMiGateAfterReorder) {
-        const itemsAfter = renderableTranscriptStream.slice(miGateIndexAfterReorder + 1);
-        console.error('[MI_GATE][ALIGNMENT_VIOLATION]', {
-          packId: currentItem?.packId,
-          instanceNumber: currentItem?.instanceNumber,
-          itemsAfterCount: itemsAfter.length,
-          itemsAfter: itemsAfter.map(e => ({
-            kind: e.kind || e.messageType || e.type,
-            key: (e.stableKey || e.id || '').substring(0, 40),
-            textPreview: (e.text || '').substring(0, 40)
-          })),
-          reason: 'MI gate must be last - regression detected AFTER reorder'
-        });
+        // STEP 4: Dedupe alignment violation log (once per gate)
+        const violationKey = `migate_align_${currentItem?.packId}_${currentItem?.instanceNumber}`;
+        const alreadyLogged = (() => {
+          try {
+            return sessionStorage.getItem(violationKey);
+          } catch {
+            return null;
+          }
+        })();
+        
+        if (!alreadyLogged) {
+          try {
+            sessionStorage.setItem(violationKey, '1');
+          } catch {
+            // Storage blocked - skip dedupe
+          }
+          const itemsAfter = renderableTranscriptStream.slice(miGateIndexAfterReorder + 1);
+          console.error('[MI_GATE][ALIGNMENT_VIOLATION]', {
+            packId: currentItem?.packId,
+            instanceNumber: currentItem?.instanceNumber,
+            itemsAfterCount: itemsAfter.length,
+            itemsAfter: itemsAfter.map(e => ({
+              kind: e.kind || e.messageType || e.type,
+              key: (e.stableKey || e.id || '').substring(0, 40),
+              textPreview: (e.text || '').substring(0, 40)
+            })),
+            reason: 'MI gate must be last - regression detected AFTER reorder'
+          });
+        }
       }
     } catch (assertError) {
       // CRASH GUARD: Never crash interview due to instrumentation errors
@@ -12715,7 +12757,8 @@ export default function CandidateInterview() {
               return;
             }
             
-            const { mainPaneRendered, footerButtonsOnly } = finalTracker;
+            // STEP 4: Ensure mainPaneRendered is always boolean
+            const { mainPaneRendered = false, footerButtonsOnly = false } = finalTracker;
             
             // UI CONTRACT: Self-test requires main pane render AND footer buttons-only
             const passCondition = mainPaneRendered === true && footerButtonsOnly === true;
@@ -12730,28 +12773,45 @@ export default function CandidateInterview() {
                 footerButtonsOnly: true
               });
             } else {
-              // Enhanced failure diagnostics
-              const finalRenderList = renderedTranscriptSnapshotRef.current || renderedTranscript;
-              
-              console.error('[MI_GATE][UI_CONTRACT_FAIL]', {
-                trackerKey,
-                itemId: gateItemId,
-                packId: currentItem?.packId,
-                instanceNumber: currentItem?.instanceNumber,
-                mainPaneRendered,
-                footerButtonsOnly,
-                reason: !mainPaneRendered ? 'Main pane did not render active MI_GATE card' : 
-                        !footerButtonsOnly ? 'Footer showed prompt text instead of buttons-only' :
-                        'Unknown failure',
-                diagnosticSnapshot: {
-                  finalRenderListLen: finalRenderList.length,
-                  activeCardInStream: finalRenderList.some(it => 
-                    it.__activeCard === true && 
-                    it.kind === 'multi_instance_gate' &&
-                    it.stableKey === trackerKey
-                  )
+              // STEP 5: Dedupe UI contract fail (once per gate)
+              const failKey = `migate_fail_${trackerKey}`;
+              const alreadyLogged = (() => {
+                try {
+                  return sessionStorage.getItem(failKey);
+                } catch {
+                  return null;
                 }
-              });
+              })();
+              
+              if (!alreadyLogged) {
+                try {
+                  sessionStorage.setItem(failKey, '1');
+                } catch {
+                  // Storage blocked - skip dedupe
+                }
+                // Enhanced failure diagnostics
+                const finalRenderList = renderedTranscriptSnapshotRef.current || renderedTranscript;
+                
+                console.error('[MI_GATE][UI_CONTRACT_FAIL]', {
+                  trackerKey,
+                  itemId: gateItemId,
+                  packId: currentItem?.packId,
+                  instanceNumber: currentItem?.instanceNumber,
+                  mainPaneRendered,
+                  footerButtonsOnly,
+                  reason: !mainPaneRendered ? 'Main pane did not render active MI_GATE card' : 
+                          !footerButtonsOnly ? 'Footer showed prompt text instead of buttons-only' :
+                          'Unknown failure',
+                  diagnosticSnapshot: {
+                    finalRenderListLen: finalRenderList.length,
+                    activeCardInStream: finalRenderList.some(it => 
+                      it.__activeCard === true && 
+                      it.kind === 'multi_instance_gate' &&
+                      it.stableKey === trackerKey
+                    )
+                  }
+                });
+              }
             }
           } catch (testError) {
             // SAFETY: Self-test errors must never crash the app
@@ -15407,7 +15467,7 @@ export default function CandidateInterview() {
                      // UI CONTRACT SELF-TEST: Track main pane render using canonical stableKey
                      if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && gateStableKey) {
                        const tracker = miGateTestTrackerRef.current.get(gateStableKey) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
-                       tracker.mainPaneRendered = true;
+                       tracker.mainPaneRendered = true; // ALWAYS boolean
                        miGateTestTrackerRef.current.set(gateStableKey, tracker);
 
                        console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
@@ -15758,7 +15818,7 @@ export default function CandidateInterview() {
                 const tracker = miGateTestTrackerRef.current.get(transcriptGateItemId) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
                 
                 // B2: Set true deterministically (this render path proves main pane rendered)
-                tracker.mainPaneRendered = true;
+                tracker.mainPaneRendered = true; // ALWAYS boolean
                 miGateTestTrackerRef.current.set(transcriptGateItemId, tracker);
 
                 console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
