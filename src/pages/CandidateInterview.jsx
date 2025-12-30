@@ -1806,62 +1806,133 @@ export default function CandidateInterview() {
     logOnce(snapshotKey, () => {
       // 1) RENDER LIST TRUTH
       const gateIndex = list ? list.findIndex(item => isMiGateItem(item, packId, instanceNumber)) : -1;
-      const trailingItems = (gateIndex !== -1 && gateIndex < list.length - 1) 
-        ? list.slice(gateIndex + 1).map(e => ({
+      const totalItems = list?.length || 0;
+      const lastIndex = totalItems > 0 ? totalItems - 1 : -1;
+      const trailingCount = (gateIndex !== -1 && gateIndex < lastIndex) ? (lastIndex - gateIndex) : 0;
+      
+      const trailingItems = (gateIndex !== -1 && gateIndex < lastIndex) 
+        ? list.slice(gateIndex + 1).map((e, idx) => ({
+            i: gateIndex + 1 + idx,
             kind: e.kind || e.messageType || e.type || 'unknown',
-            stableKey: e.stableKey || e.id || null,
-            isActiveCard: e.__activeCard || false,
+            type: e.type || null,
+            messageType: e.messageType || null,
+            stableKeySuffix: (e.stableKey || e.id || '').slice(-18),
+            itemIdSuffix: (e.id || '').slice(-18),
             isV3Related: (e.meta?.v3PromptSource || e.meta?.packId || e.kind?.includes('v3')) ? true : false
           }))
         : [];
       
       // 2) DOM TRUTH
-      let domSnapshot = null;
+      let scrollTop = 0;
+      let clientHeight = 0;
+      let scrollHeight = 0;
+      let footerTop = 0;
+      let activeCardBottom = null;
+      let overlapPx = 0;
+      
       if (typeof window !== 'undefined' && historyRef.current && footerRootRef.current) {
         const scrollContainer = historyRef.current;
         const footerEl = footerRootRef.current;
         const activeCardEl = scrollContainer.querySelector('[data-cq-active-card="true"]');
         
-        const scrollTop = scrollContainer.scrollTop;
-        const clientHeight = scrollContainer.clientHeight;
-        const scrollHeight = scrollContainer.scrollHeight;
-        const footerRect = footerEl.getBoundingClientRect();
+        scrollTop = Math.round(scrollContainer.scrollTop);
+        clientHeight = Math.round(scrollContainer.clientHeight);
+        scrollHeight = Math.round(scrollContainer.scrollHeight);
+        footerTop = Math.round(footerEl.getBoundingClientRect().top);
         
-        let activeCardOverlapPx = 0;
         if (activeCardEl) {
           const activeRect = activeCardEl.getBoundingClientRect();
-          activeCardOverlapPx = Math.max(0, activeRect.bottom - footerRect.top);
+          activeCardBottom = Math.round(activeRect.bottom);
+          overlapPx = Math.max(0, activeRect.bottom - footerEl.getBoundingClientRect().top);
         }
         
-        domSnapshot = {
-          scrollTop: Math.round(scrollTop),
-          clientHeight: Math.round(clientHeight),
-          scrollHeight: Math.round(scrollHeight),
-          footerTop: Math.round(footerRect.top),
-          activeCardBottom: activeCardEl ? Math.round(activeCardEl.getBoundingClientRect().bottom) : null,
-          overlapPx: Math.round(activeCardOverlapPx)
-        };
+        overlapPx = Math.round(overlapPx);
       }
       
       // 3) STATE TRUTH (minimal)
-      const stateSnapshot = {
+      const activeKind = currentItem?.type || 'none';
+      const typingLock = isUserTyping || false;
+      
+      // HEADLINE LOG: All key fields as primitives (no nested objects)
+      console.error('[CQ_VIOLATION_HEADLINE]', 
+        `reason=${reason} ` +
+        `packId=${packId || 'none'} ` +
+        `inst=${instanceNumber || 'none'} ` +
+        `activeKind=${activeKind} ` +
+        `totalItems=${totalItems} ` +
+        `gateIndex=${gateIndex} ` +
+        `lastIndex=${lastIndex} ` +
+        `trailingCount=${trailingCount} ` +
+        `overlapPx=${overlapPx} ` +
+        `footerTop=${footerTop} ` +
+        `activeBottom=${activeCardBottom || 'none'} ` +
+        `scrollTop=${scrollTop} ` +
+        `clientH=${clientHeight} ` +
+        `scrollH=${scrollHeight} ` +
+        `typingLock=${typingLock}`
+      );
+      
+      // TRAILING ITEMS LOG: Compact summary with all primitives
+      if (trailingItems.length > 0) {
+        const trailingSummary = trailingItems.map(t => 
+          `{i:${t.i}, kind:${t.kind}, type:${t.type || 'null'}, mt:${t.messageType || 'null'}, ` +
+          `stableKeySuffix:${t.stableKeySuffix}, itemIdSuffix:${t.itemIdSuffix}, isV3:${t.isV3Related}}`
+        ).join(', ');
+        
+        console.error('[CQ_VIOLATION_TRAILING]', 
+          `count=${trailingCount} items=[${trailingSummary}]`
+        );
+      }
+      
+      // COPY-FRIENDLY JSON DUMP: Single-line JSON string
+      const safeSnapshot = {
+        reason,
         packId: packId || null,
         instanceNumber: instanceNumber || null,
+        activeKind,
+        gateIndex,
+        lastIndex,
+        trailingItems,
+        overlapPx,
+        footerTop,
+        activeBottom: activeCardBottom || null,
+        scrollTop,
+        clientHeight,
+        scrollHeight,
+        isUserTyping: typingLock,
         activeItemId: activeItemId || null,
-        typingLock: isUserTyping || false
+        promptId: currentItem?.promptId || null
       };
       
+      console.log('[CQ_VIOLATION_JSON]', JSON.stringify(safeSnapshot));
+      
+      // Store on window for easy inspection
+      window.__cqLastViolationSnapshot = safeSnapshot;
+      
+      // Original nested log (kept for compatibility)
       console.error('[CQ_VIOLATION_SNAPSHOT]', {
         reason,
         renderListTruth: {
-          totalItems: list?.length || 0,
+          totalItems,
           gateIndex,
-          lastIndex: list ? list.length - 1 : -1,
-          trailingCount: trailingItems.length,
+          lastIndex,
+          trailingCount,
           trailingItems
         },
-        domTruth: domSnapshot,
-        stateTruth: stateSnapshot
+        domTruth: {
+          scrollTop,
+          clientHeight,
+          scrollHeight,
+          footerTop,
+          activeCardBottom,
+          overlapPx
+        },
+        stateTruth: {
+          packId: packId || null,
+          instanceNumber: instanceNumber || null,
+          activeItemId: activeItemId || null,
+          typingLock
+        }
       });
     });
   }, [isUserTyping, currentItem]);
