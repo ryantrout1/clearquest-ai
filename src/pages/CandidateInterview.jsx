@@ -15192,8 +15192,8 @@ export default function CandidateInterview() {
         });
       }
       
-      // PART B: Post-reorder corrective enforcement (not just logging)
-      const finalGateIndex = finalListWithGateOrdered.findIndex(item => 
+      // STEP 2: Post-reorder corrective enforcement (not just logging)
+      let finalGateIndex = finalListWithGateOrdered.findIndex(item => 
         isMiGateItem(item, currentGatePackId, currentGateInstanceNumber)
       );
       
@@ -15201,15 +15201,26 @@ export default function CandidateInterview() {
         // Still items after gate - CORRECTIVE FIX
         const trailingItems = finalListWithGateOrdered.slice(finalGateIndex + 1);
         
+        // STEP 3: Forensic detail (deduped, once per pack+instance)
         logOnce(`migate_trailing_${currentGatePackId}_${currentGateInstanceNumber}`, () => {
+          const isV3Item = (item) => {
+            const k = item.kind || item.messageType || '';
+            const t = item.type || '';
+            return k.includes('v3_probe') || k.includes('V3_PROBE') || 
+                   t.includes('v3_probe') || t.includes('V3_PROBE') ||
+                   item.meta?.v3PromptSource;
+          };
+          
           console.error('[MI_GATE][TRAILING_ITEMS_AFTER_GATE]', {
             packId: currentGatePackId,
             instanceNumber: currentGateInstanceNumber,
             trailingCount: trailingItems.length,
             trailing: trailingItems.map(e => ({
-              kind: e.kind || e.messageType || e.type,
-              key: (e.stableKey || e.id || '').substring(0, 40),
-              isActiveCard: e.__activeCard || false
+              kind: e.kind || e.messageType || e.type || 'unknown',
+              stableKey: e.stableKey || null,
+              itemId: e.id || null,
+              isActiveCard: e.__activeCard || false,
+              isV3Related: isV3Item(e)
             })),
             reason: 'Items found after gate post-reorder - applying corrective fix'
           });
@@ -15219,11 +15230,24 @@ export default function CandidateInterview() {
         const beforeGate = finalListWithGateOrdered.slice(0, finalGateIndex);
         const gateItem = finalListWithGateOrdered[finalGateIndex];
         finalListWithGateOrdered = [...beforeGate, ...trailingItems, gateItem];
+        
+        // STEP 2: Belt-and-suspenders - verify correction worked
+        finalGateIndex = finalListWithGateOrdered.findIndex(item => 
+          isMiGateItem(item, currentGatePackId, currentGateInstanceNumber)
+        );
+        
+        if (finalGateIndex !== -1 && finalGateIndex < finalListWithGateOrdered.length - 1) {
+          // Still not last after correction - forced final reorder
+          const stillAfter = finalListWithGateOrdered.slice(finalGateIndex + 1);
+          const stillBefore = finalListWithGateOrdered.slice(0, finalGateIndex);
+          const stillGateItem = finalListWithGateOrdered[finalGateIndex];
+          finalListWithGateOrdered = [...stillBefore, ...stillAfter, stillGateItem];
+        }
       }
     }
     
-    // PART B: MUTATION BOUNDARY - Freeze final list (no modifications after this point)
-    const renderedItems = Object.freeze([...finalListWithGateOrdered]);
+    // STEP 1: Defensive copy (no freeze - safe for downstream mutations)
+    const renderedItems = [...finalListWithGateOrdered];
     
     // TDZ GUARD: Update length counter + sync finalList refs (use frozen renderedItems)
     bottomAnchorLenRef.current = renderedItems.length;
