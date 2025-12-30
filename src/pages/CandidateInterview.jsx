@@ -11122,6 +11122,29 @@ export default function CandidateInterview() {
           scrollHeight: Math.round(scrollHeight),
           clientHeight: Math.round(clientHeight)
         });
+        
+        // GUARDRAIL: Detect if question still below footer after scroll
+        requestAnimationFrame(() => {
+          if (!scrollContainer || !footerRootRef.current) return;
+          
+          const activeQuestionEl = scrollContainer.querySelector('[data-cq-active-card="true"]');
+          if (!activeQuestionEl) return;
+          
+          const questionRect = activeQuestionEl.getBoundingClientRect();
+          const footerRect = footerRootRef.current.getBoundingClientRect();
+          const overlapPx = Math.max(0, questionRect.bottom - footerRect.top);
+          
+          if (overlapPx > 4) {
+            console.error('[UI_CONTRACT][FOOTER_OVERLAP_DETECTED]', {
+              questionId: currentItem.id,
+              overlapPx: Math.round(overlapPx),
+              questionBottom: Math.round(questionRect.bottom),
+              footerTop: Math.round(footerRect.top),
+              paddingApplied: dynamicBottomPaddingPx,
+              reason: 'Active question obscured by footer after auto-scroll'
+            });
+          }
+        });
       });
     });
   }, [effectiveItemType, shouldRenderFooter, currentItem?.id, currentItem?.type, footerMeasuredHeightPx, dynamicBottomPaddingPx]);
@@ -11314,6 +11337,30 @@ export default function CandidateInterview() {
             scrollTopAfter: Math.round(scrollTopAfter),
             delta: Math.round(scrollTopAfter - scrollTopBefore)
           });
+          
+          // GUARDRAIL: Detect if active card still below footer after scroll
+          requestAnimationFrame(() => {
+            if (!scrollContainer || !footerRootRef.current || !activeCardEl) return;
+            
+            const questionRect = activeCardEl.getBoundingClientRect();
+            const footerRect = footerRootRef.current.getBoundingClientRect();
+            const overlapPx = Math.max(0, questionRect.bottom - footerRect.top);
+            
+            if (overlapPx > 4) {
+              const overlapLogKey = `${activeCardKeySOT}:${Math.round(overlapPx)}`;
+              if (lastClearanceErrorKeyRef.current !== overlapLogKey) {
+                lastClearanceErrorKeyRef.current = overlapLogKey;
+                console.error('[UI_CONTRACT][FOOTER_OVERLAP_DETECTED]', {
+                  activeCardKeySOT,
+                  overlapPx: Math.round(overlapPx),
+                  questionBottom: Math.round(questionRect.bottom),
+                  footerTop: Math.round(footerRect.top),
+                  paddingApplied: dynamicBottomPaddingPx,
+                  reason: 'Active card obscured by footer after gravity scroll'
+                });
+              }
+            }
+          });
         }
       });
     });
@@ -11323,7 +11370,8 @@ export default function CandidateInterview() {
     bottomBarMode,
     screenMode,
     isUserTyping,
-    hasActiveCardSOT
+    hasActiveCardSOT,
+    dynamicBottomPaddingPx
   ]);
   
   // ACTIVE CARD OVERLAP NUDGE: Ensure active card never hides behind footer when footer changes
@@ -11378,18 +11426,36 @@ export default function CandidateInterview() {
         scrollContainer.scrollTop += overlapPx;
         const scrollTopAfter = scrollContainer.scrollTop;
         
-        if (CQ_DEBUG_FOOTER_ANCHOR) {
-          console.log('[UI_CONTRACT][FOOTER_OVERLAP_NUDGE]', {
-            overlapPx: Math.round(overlapPx),
-            footerMeasuredHeightPx,
-            footerDomHeightPx: Math.round(footerRect.height),
-            bottomBarMode,
-            stableKey: activeCardEl.getAttribute('data-stablekey'),
-            scrollTopBefore: Math.round(scrollTopBefore),
-            scrollTopAfter: Math.round(scrollTopAfter),
-            nudged: Math.abs(scrollTopAfter - scrollTopBefore) > 1
-          });
-        }
+        console.log('[UI_CONTRACT][FOOTER_OVERLAP_NUDGE]', {
+          overlapPx: Math.round(overlapPx),
+          footerMeasuredHeightPx,
+          footerDomHeightPx: Math.round(footerRect.height),
+          bottomBarMode,
+          stableKey: activeCardEl.getAttribute('data-stablekey'),
+          scrollTopBefore: Math.round(scrollTopBefore),
+          scrollTopAfter: Math.round(scrollTopAfter),
+          nudged: Math.abs(scrollTopAfter - scrollTopBefore) > 1
+        });
+        
+        // GUARDRAIL: Detect if card still below footer after nudge
+        requestAnimationFrame(() => {
+          if (!scrollContainer || !footerEl || !activeCardEl) return;
+          
+          const finalCardRect = activeCardEl.getBoundingClientRect();
+          const finalFooterRect = footerEl.getBoundingClientRect();
+          const finalOverlapPx = Math.max(0, finalCardRect.bottom - (finalFooterRect.top - clearancePx));
+          
+          if (finalOverlapPx > 4) {
+            console.error('[UI_CONTRACT][FOOTER_OVERLAP_DETECTED]', {
+              activeCardKeySOT,
+              overlapPx: Math.round(finalOverlapPx),
+              cardBottom: Math.round(finalCardRect.bottom),
+              footerTop: Math.round(finalFooterRect.top),
+              paddingApplied: dynamicBottomPaddingPx,
+              reason: 'Active card still obscured after nudge'
+            });
+          }
+        });
       } else if (CQ_DEBUG_FOOTER_ANCHOR) {
         console.log('[UI_CONTRACT][FOOTER_OVERLAP_NUDGE_SKIP]', {
           reason: 'no_overlap',
@@ -11403,7 +11469,9 @@ export default function CandidateInterview() {
     hasActiveCard,
     footerMeasuredHeightPx,
     activeCard?.stableKey,
-    bottomBarMode
+    bottomBarMode,
+    activeCardKeySOT,
+    dynamicBottomPaddingPx
   ]);
 
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
@@ -15136,8 +15204,11 @@ export default function CandidateInterview() {
         className="overflow-y-auto cq-scroll scrollbar-thin" 
         ref={historyRef} 
         onScroll={handleTranscriptScroll}
+        style={{
+          paddingBottom: `max(${footerClearanceAppliedPx}px, env(safe-area-inset-bottom))`
+        }}
       >
-        <div className="px-4 pt-6 pb-6">
+        <div className="px-4 pt-6">
           <div className="space-y-3">
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {finalTranscriptList.map((entry, index) => {
