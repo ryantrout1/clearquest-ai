@@ -10394,14 +10394,17 @@ export default function CandidateInterview() {
           return; // Exit early - no validation needed
         }
 
-        // Verify footer spacer exists
-        const spacer = scrollContainer.querySelector('[data-cq-footer-spacer="true"]');
-        if (!spacer) {
-          console.error('[UI_CONTRACT][FOOTER_SPACER_MISSING]', {
-            mode: bottomBarMode,
-            expectedHeightPx: dynamicBottomPaddingPx,
-            reason: 'Footer spacer element not found - clearance may fail'
-          });
+        // 3-ROW SHELL: Skip spacer check (footer in normal flow, no spacer needed)
+        if (!IS_3ROW_SHELL) {
+          const spacer = scrollContainer.querySelector('[data-cq-footer-spacer="true"]');
+          if (!spacer) {
+            console.error('[UI_CONTRACT][FOOTER_SPACER_MISSING]', {
+              mode: bottomBarMode,
+              expectedHeightPx: dynamicBottomPaddingPx,
+              reason: 'Footer spacer element not found - clearance may fail'
+            });
+            return;
+          }
         }
 
         const scrollRect = scrollContainer.getBoundingClientRect();
@@ -13099,16 +13102,21 @@ export default function CandidateInterview() {
       );
       
       if (ephemeralSources.length > 0) {
-        console.error('[CQ_TRANSCRIPT][RENDER_VIOLATION]', {
-          source: 'non_dbTranscript',
-          ephemeralCount: ephemeralSources.length,
-          ephemeralItems: ephemeralSources.map(e => ({
-            kind: e.kind || e.messageType,
-            stableKey: e.stableKey,
-            isActiveCard: e.__activeCard
-          })),
-          reason: 'Ephemeral items detected in chat history — filtering out',
-          action: 'FILTER_EPHEMERAL'
+        // Expected behavior: ephemeral items filtered from history
+        // Only log once per session to avoid spam
+        safeLog(() => {
+          const ephemeralKey = ephemeralSources.map(e => e.kind || e.messageType).join(',');
+          const lastLoggedEphemeralKey = sessionStorage.getItem('cq_last_ephemeral_log');
+          
+          if (lastLoggedEphemeralKey !== ephemeralKey) {
+            sessionStorage.setItem('cq_last_ephemeral_log', ephemeralKey);
+            console.info('[CQ_TRANSCRIPT][EPHEMERAL_FILTER_APPLIED]', {
+              source: 'expected_behavior',
+              ephemeralCount: ephemeralSources.length,
+              ephemeralKinds: ephemeralSources.map(e => e.kind || e.messageType).slice(0, 3),
+              action: 'FILTER_EPHEMERAL'
+            });
+          }
         });
         
         // ENFORCEMENT: Remove ephemeral items ONLY (never real transcript items)
