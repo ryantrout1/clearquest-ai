@@ -23,9 +23,22 @@ export default function StartInterview() {
   const navigate = useNavigate();
   const { token } = useParams(); // Optional URL token for prefilling
   
+  // DIAGNOSTIC: Component render entry point
+  console.log("[START_INTERVIEW][RENDER]", {
+    pathname: window.location.pathname,
+    search: window.location.search,
+    timestamp: Date.now()
+  });
+  
   // UI CONTRACT GUARD: Check if sessionId already exists
   const urlParams = new URLSearchParams(window.location.search);
   const existingSessionId = urlParams.get('session');
+  
+  console.log("[START_INTERVIEW][SESSION_CHECK]", {
+    existingSessionId,
+    hasSessionId: Boolean(existingSessionId),
+    timestamp: Date.now()
+  });
   
   // HOOKS MUST ALWAYS RUN (unconditional) - declare all hooks BEFORE any conditional logic
   const [formData, setFormData] = useState({
@@ -41,11 +54,30 @@ export default function StartInterview() {
   // Terminal redirect flag (computed after hooks)
   const shouldTerminalRedirect = Boolean(existingSessionId);
   
+  // DIAGNOSTIC: Post-hooks snapshot (after all useState/useEffect declarations)
+  console.log("[START_INTERVIEW][POST_HOOKS_SNAPSHOT]", {
+    existingSessionId,
+    hasSessionId: Boolean(existingSessionId),
+    shouldTerminalRedirect,
+    formDataDeptCode: formData.departmentCode,
+    formDataFileNum: formData.fileNumber,
+    isValidatingCode,
+    isCodeValid,
+    timestamp: Date.now()
+  });
+  
   // EARLY EXIT: Terminal navigation guard (effect-based, NOT early return)
   const didNavigateRef = React.useRef(false);
   
   React.useEffect(() => {
     if (shouldTerminalRedirect && !didNavigateRef.current) {
+      console.log("[START_INTERVIEW][TERMINAL_REDIRECT_INTENT]", {
+        reason: "SESSION_ID_PRESENT",
+        sessionId: existingSessionId,
+        destination: `CandidateInterview?session=${existingSessionId}`,
+        timestamp: Date.now()
+      });
+      
       console.log('[UI_CONTRACT][START_INTERVIEW_RENDER_BLOCKED]', {
         sessionId: existingSessionId,
         reason: 'SessionId exists - StartInterview terminal redirect'
@@ -57,10 +89,27 @@ export default function StartInterview() {
         action: 'TERMINAL_REDIRECT'
       });
       
+      console.log("[START_INTERVIEW][NAVIGATE_CALL]", {
+        to: `CandidateInterview?session=${existingSessionId}`,
+        sessionId: existingSessionId,
+        replace: true,
+        timestamp: Date.now()
+      });
+      
       didNavigateRef.current = true;
       navigate(createPageUrl(`CandidateInterview?session=${existingSessionId}`), { replace: true });
     }
   }, [shouldTerminalRedirect, existingSessionId, navigate]);
+  
+  // DIAGNOSTIC: Component unmount tracker
+  React.useEffect(() => {
+    return () => {
+      console.log("[START_INTERVIEW][UNMOUNT]", {
+        sessionId: existingSessionId,
+        timestamp: Date.now()
+      });
+    };
+  }, [existingSessionId]);
 
   useEffect(() => {
     loadQuestionCount();
@@ -330,6 +379,20 @@ export default function StartInterview() {
         sessionId: newSession.id,
         reason: 'NEW_SESSION_CREATED',
         action: 'TERMINAL_REDIRECT'
+      });
+      
+      console.log("[START_INTERVIEW][TERMINAL_REDIRECT_INTENT]", {
+        reason: "NEW_SESSION_CREATED",
+        sessionId: newSession.id,
+        destination: `CandidateInterview?session=${newSession.id}`,
+        timestamp: Date.now()
+      });
+      
+      console.log("[START_INTERVIEW][NAVIGATE_CALL]", {
+        to: `CandidateInterview?session=${newSession.id}`,
+        sessionId: newSession.id,
+        replace: true,
+        timestamp: Date.now()
       });
 
       // Mark request complete BEFORE navigate (prevents timeout race)

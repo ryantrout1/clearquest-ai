@@ -1163,6 +1163,13 @@ export default function CandidateInterview() {
   const urlParams = new URLSearchParams(window.location.search);
   const sessionId = urlParams.get('session');
   
+  // DIAGNOSTIC: Component mount entry point
+  console.log("[CANDIDATE_INTERVIEW][MOUNT]", {
+    sessionId,
+    pathname: window.location.pathname,
+    timestamp: Date.now()
+  });
+  
   // UI CONTRACT GUARD: Block render if no sessionId (defensive)
   if (!sessionId) {
     console.error('[UI_CONTRACT][CANDIDATE_INTERVIEW_NO_SESSION]', {
