@@ -23,35 +23,11 @@ export default function StartInterview() {
   const navigate = useNavigate();
   const { token } = useParams(); // Optional URL token for prefilling
   
-  // UI CONTRACT GUARD: Hard-block StartInterview if sessionId already exists
+  // UI CONTRACT GUARD: Check if sessionId already exists
   const urlParams = new URLSearchParams(window.location.search);
   const existingSessionId = urlParams.get('session');
   
-  // EARLY EXIT: Terminal navigation guard
-  const didNavigateRef = React.useRef(false);
-  
-  React.useEffect(() => {
-    if (existingSessionId && !didNavigateRef.current) {
-      console.log('[UI_CONTRACT][START_INTERVIEW_BLOCKED_EXISTING_SESSION]', {
-        sessionId: existingSessionId,
-        reason: 'SessionId exists - redirecting to CandidateInterview',
-        action: 'TERMINAL_REDIRECT'
-      });
-      
-      didNavigateRef.current = true;
-      navigate(createPageUrl(`CandidateInterview?session=${existingSessionId}`), { replace: true });
-    }
-  }, [existingSessionId, navigate]);
-  
-  // GUARD: Block render if sessionId exists
-  if (existingSessionId) {
-    console.log('[UI_CONTRACT][START_INTERVIEW_RENDER_BLOCKED]', {
-      sessionId: existingSessionId,
-      reason: 'SessionId exists - StartInterview must not render'
-    });
-    return null; // No render
-  }
-  
+  // HOOKS MUST ALWAYS RUN (unconditional) - declare all hooks BEFORE any conditional logic
   const [formData, setFormData] = useState({
     departmentCode: "",
     fileNumber: ""
@@ -61,6 +37,30 @@ export default function StartInterview() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [questionCount, setQuestionCount] = useState(0);
+  
+  // Terminal redirect flag (computed after hooks)
+  const shouldTerminalRedirect = Boolean(existingSessionId);
+  
+  // EARLY EXIT: Terminal navigation guard (effect-based, NOT early return)
+  const didNavigateRef = React.useRef(false);
+  
+  React.useEffect(() => {
+    if (shouldTerminalRedirect && !didNavigateRef.current) {
+      console.log('[UI_CONTRACT][START_INTERVIEW_RENDER_BLOCKED]', {
+        sessionId: existingSessionId,
+        reason: 'SessionId exists - StartInterview terminal redirect'
+      });
+      
+      console.log('[UI_CONTRACT][START_INTERVIEW_TERMINAL_NAV]', {
+        sessionId: existingSessionId,
+        reason: 'EXISTING_SESSION_REDIRECT',
+        action: 'TERMINAL_REDIRECT'
+      });
+      
+      didNavigateRef.current = true;
+      navigate(createPageUrl(`CandidateInterview?session=${existingSessionId}`), { replace: true });
+    }
+  }, [shouldTerminalRedirect, existingSessionId, navigate]);
 
   useEffect(() => {
     loadQuestionCount();
@@ -354,6 +354,21 @@ export default function StartInterview() {
     }
   };
 
+  // CONDITIONAL RENDER: Show placeholder during terminal redirect (preserves hook order)
+  if (shouldTerminalRedirect) {
+    return (
+      <PublicAppShell>
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto mb-4" />
+            <p className="text-slate-300">Redirecting to interview...</p>
+          </div>
+        </div>
+      </PublicAppShell>
+    );
+  }
+  
+  // NORMAL RENDER: Show StartInterview form
   return (
     <PublicAppShell>
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8 pt-12 md:pt-16">
