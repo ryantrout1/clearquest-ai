@@ -1709,6 +1709,40 @@ export default function CandidateInterview() {
     return true;
   }, [unlockScrollWrites]);
   
+  // FOOTER OVERLAP SELF-HEAL: Post-alignment verification for YES/NO mode
+  const footerOverlapSelfHealRef = useRef(new Set());
+  
+  const selfHealFooterOverlap = useCallback((reason) => {
+    const scroller = scrollOwnerRef.current || historyRef.current;
+    if (!scroller) return;
+    
+    const activeCardEl = scroller.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+    if (!activeCardEl) return;
+    
+    const composerEl = footerShellRef.current;
+    if (!composerEl) return;
+    
+    const activeRect = activeCardEl.getBoundingClientRect();
+    const composerRect = composerEl.getBoundingClientRect();
+    const footerTop = composerRect.top;
+    const overlapPx = Math.max(0, activeRect.bottom - footerTop);
+    
+    if (overlapPx > 0) {
+      const scrollTopBefore = scroller.scrollTop;
+      scroller.scrollTop += overlapPx + 8;
+      const scrollTopAfter = scroller.scrollTop;
+      
+      console.log('[UI_CONTRACT][FOOTER_OVERLAP_HEAL]', {
+        overlapPx: Math.round(overlapPx),
+        footerHeightPx: Math.round(dynamicFooterHeightPx),
+        appliedPaddingBottomPx: Math.round(dynamicFooterHeightPx),
+        scrollTopBefore: Math.round(scrollTopBefore),
+        scrollTopAfter: Math.round(scrollTopAfter),
+        reason
+      });
+    }
+  }, [dynamicFooterHeightPx]);
+  
   // PART A: Helper to identify true scroll owner at runtime
   const getScrollOwner = useCallback((startElement) => {
     if (!startElement || typeof window === 'undefined') return null;
