@@ -8253,8 +8253,16 @@ export default function CandidateInterview() {
 
   // V3 ATOMIC PROMPT COMMIT: All state changes for activating V3 prompt in bottom bar
   const commitV3PromptToBottomBar = useCallback(async ({ packId, instanceNumber, loopKey, promptText, promptId: providedPromptId, categoryId }) => {
-    // Use provided canonical promptId (from V3ProbingLoop) or fallback
+    // FIX A: Generate deterministic promptId ALWAYS (never null)
     const promptId = providedPromptId || `${loopKey}:${promptIdCounterRef.current++}`;
+    
+    if (!providedPromptId) {
+      console.log('[V3_PROMPT][PROMPTID_GENERATED]', {
+        loopKey,
+        promptId,
+        reason: 'missing_providedPromptId'
+      });
+    }
     
     console.log('[V3_PROMPT_COMMIT]', {
       packId,
@@ -8275,7 +8283,7 @@ export default function CandidateInterview() {
       promptPreview: promptText?.substring(0, 60) || ''
     });
 
-    // SNAPSHOT: Capture expected state BEFORE atomic update (include categoryId)
+    // FIX B: SNAPSHOT - Create and store BEFORE any guards/blocks
     const snapshot = {
     promptId,
     loopKey,
@@ -8287,6 +8295,19 @@ export default function CandidateInterview() {
     committedAt: Date.now()
     };
     lastV3PromptSnapshotRef.current = snapshot;
+    
+    // FIX B: Add to snapshots array immediately (prevents NO_SNAPSHOT watchdog error)
+    setV3PromptSnapshots(prev => {
+      const exists = prev.some(s => s.promptId === promptId);
+      if (exists) {
+        console.log('[V3_PROMPT_SNAPSHOT][EXISTS]', { promptId, loopKey });
+        return prev;
+      }
+      
+      const newSnapshot = { promptId, loopKey, promptText, createdAt: Date.now() };
+      console.log('[V3_PROMPT][SNAPSHOT_RECOVERED]', { promptId, loopKey, reason: 'commit_immediate' });
+      return [...prev, newSnapshot];
+    });
     
     // CHANGE 1: HARD BLOCK - V3 probe prompts MUST NOT write to transcript (UI contract)
     // They render ONLY in prompt lane card, never as chat history
@@ -8436,23 +8457,13 @@ export default function CandidateInterview() {
       currentPromptText: promptText
     }));
     
-    // Update snapshot ref for answer submit (include categoryId)
+    // Update snapshot ref for answer submit (include categoryId) - REDUNDANT but kept for compatibility
     lastV3PromptSnapshotRef.current = {
       ...snapshot,
       promptId,
       categoryId,
       promptText
     };
-    
-    // PART B: Record prompt snapshot (deterministic UI source)
-    setV3PromptSnapshots(prev => {
-      const exists = prev.some(s => s.promptId === promptId);
-      if (exists) return prev;
-      
-      const newSnapshot = { promptId, loopKey, promptText, createdAt: Date.now() };
-      console.log('[V3_PROMPT_SNAPSHOT][CREATED]', { promptId, loopKey });
-      return [...prev, newSnapshot];
-    });
 
     // Clear typing lock (allow user input)
     setIsUserTyping(false);
@@ -12189,49 +12200,64 @@ export default function CandidateInterview() {
     }
   }
   
-  // LAST-RESORT SAFETY NET: Log if V3_PROBE_ANSWER still missing (should not happen with deterministic inclusion)
+  // FIX D: SAFETY NET - Add missing V3 probe answer to render if not present
   if (currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === "MI_GATE") {
-    const packId = currentItem?.packId;
-    const instanceNumber = currentItem?.instanceNumber || 1;
-    
-    // Find most recent V3 probe answer in dbTranscript for this pack/instance
-    const v3ProbeAnswersInDb = transcriptSOT.filter(e => 
+  const packId = currentItem?.packId;
+  const instanceNumber = currentItem?.instanceNumber || 1;
+
+  // Find most recent V3 probe answer in dbTranscript for this pack/instance
+  const v3ProbeAnswersInDb = transcriptSOT.filter(e => 
+    (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER' || e.stableKey?.startsWith('v3-probe-a:')) &&
+    e.meta?.packId === packId &&
+    e.meta?.instanceNumber === instanceNumber
+  );
+
+  if (v3ProbeAnswersInDb.length > 0) {
+    const lastProbeAnswer = v3ProbeAnswersInDb[v3ProbeAnswersInDb.length - 1];
+
+    // Check if answer exists in finalRenderStream
+    const probeAnswerInRender = finalRenderStream.find(e => 
       (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER' || e.stableKey?.startsWith('v3-probe-a:')) &&
-      e.meta?.packId === packId &&
-      e.meta?.instanceNumber === instanceNumber
+      (e.stableKey === lastProbeAnswer.stableKey || e.id === lastProbeAnswer.id)
     );
-    
-    if (v3ProbeAnswersInDb.length > 0) {
-      const lastProbeAnswer = v3ProbeAnswersInDb[v3ProbeAnswersInDb.length - 1];
-      
-      // Check if answer exists in finalRenderStream
-      const probeAnswerInRender = finalRenderStream.find(e => 
-        (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER' || e.stableKey?.startsWith('v3-probe-a:')) &&
-        (e.stableKey === lastProbeAnswer.stableKey || e.id === lastProbeAnswer.id)
-      );
-      
-      if (!probeAnswerInRender) {
-        console.error('[CQ_TRANSCRIPT][V3_PROBE_A_MISSING_IN_RENDER_AFTER_GATE]', {
-          packId,
-          instanceNumber,
-          stableKey: lastProbeAnswer.stableKey || lastProbeAnswer.id,
-          promptId: lastProbeAnswer.meta?.promptId,
-          loopKey: lastProbeAnswer.meta?.loopKey,
-          textPreview: (lastProbeAnswer.text || '').substring(0, 60),
-          reason: 'REGRESSION: V3 probe answer missing despite deterministic inclusion',
-          dbTranscriptLen: dbTranscript.length,
-          finalRenderStreamLen: finalRenderStream.length,
-          note: 'This should not happen - check deterministic inclusion logic'
-        });
-      } else {
-        console.log('[CQ_TRANSCRIPT][V3_PROBE_QA_OK]', {
-          packId,
-          instanceNumber,
-          v3ProbeCount: v3ProbeAnswersInDb.length,
-          allPresent: true
-        });
-      }
+
+    if (!probeAnswerInRender) {
+      console.error('[CQ_TRANSCRIPT][V3_PROBE_A_MISSING_IN_RENDER_AFTER_GATE]', {
+        packId,
+        instanceNumber,
+        stableKey: lastProbeAnswer.stableKey || lastProbeAnswer.id,
+        promptId: lastProbeAnswer.meta?.promptId,
+        loopKey: lastProbeAnswer.meta?.loopKey,
+        textPreview: (lastProbeAnswer.text || '').substring(0, 60),
+        reason: 'V3 probe answer missing from render - adding UI placeholder',
+        dbTranscriptLen: dbTranscript.length,
+        finalRenderStreamLen: finalRenderStream.length,
+        action: 'RECOVERY'
+      });
+
+      // FIX D: Add missing answer as UI placeholder (NOT persisted to transcript)
+      // This is a non-transcript render item that fills the gap during gate transition
+      finalRenderStream.push({
+        ...lastProbeAnswer,
+        __recoveredPlaceholder: true,
+        __canonicalKey: `recovered:${lastProbeAnswer.stableKey || lastProbeAnswer.id}`
+      });
+
+      console.log('[CQ_TRANSCRIPT][V3_PROBE_A_RECOVERED]', {
+        stableKey: lastProbeAnswer.stableKey || lastProbeAnswer.id,
+        promptId: lastProbeAnswer.meta?.promptId,
+        finalRenderStreamLen: finalRenderStream.length,
+        reason: 'Added UI placeholder to render stream (not transcript)'
+      });
+    } else {
+      console.log('[CQ_TRANSCRIPT][V3_PROBE_QA_OK]', {
+        packId,
+        instanceNumber,
+        v3ProbeCount: v3ProbeAnswersInDb.length,
+        allPresent: true
+      });
     }
+  }
   }
   
   // FREEZE TRANSCRIPT DURING TYPING: Prevent flash on every keystroke
@@ -16396,16 +16422,24 @@ export default function CandidateInterview() {
 
             {/* LEGACY V3 PROMPT RENDER PATH - HARD DISABLED */}
             {(() => {
+            // FIX C: Only log when v3PromptPhase is ANSWER_NEEDED (reduce spam)
             // HARD DISABLED: Legacy V3 prompt render path must NEVER render UI
             // All V3 prompts render via canonical stream (activeCard in renderStream)
             // This block exists only as a diagnostic error detector
-            if (activeUiItem?.kind === "V3_PROMPT" && v3ActivePromptText) {
-              console.error('[V3_PROMPT][LEGACY_BLOCK_REACHED]', {
-                reason: 'LEGACY_PATH_DISABLED',
-                activeUiItemKind: activeUiItem.kind,
-                v3PromptPhase,
-                note: 'This path returns null - all V3 prompts render via canonical stream'
-              });
+            if (activeUiItem?.kind === "V3_PROMPT" && v3ActivePromptText && v3PromptPhase === "ANSWER_NEEDED") {
+              const legacyLogKey = `${v3ProbingContext?.promptId || 'noid'}:${v3PromptPhase}`;
+              const lastLoggedKey = promptMissingKeyRef.current;
+              
+              if (lastLoggedKey !== legacyLogKey) {
+                promptMissingKeyRef.current = legacyLogKey;
+                console.error('[V3_PROMPT][LEGACY_BLOCK_REACHED]', {
+                  reason: 'LEGACY_PATH_DISABLED',
+                  activeUiItemKind: activeUiItem.kind,
+                  v3PromptPhase,
+                  promptId: v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId || 'none',
+                  note: 'This path returns null - all V3 prompts render via canonical stream'
+                });
+              }
             }
               return null; // UNCONDITIONAL NULL - no UI output ever
             })()}

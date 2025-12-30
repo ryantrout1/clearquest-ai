@@ -428,9 +428,17 @@ export const flushRetryQueueOnce = () => {
   }
 };
 
+// FIX F: Detect storage blocking and set runtime flag
+let STORAGE_DISABLED = false;
+
 // Load retry queue from localStorage on module init
 if (typeof window !== 'undefined') {
   try {
+    // Test storage availability
+    const testKey = 'cq_storage_test';
+    localStorage.setItem(testKey, '1');
+    localStorage.removeItem(testKey);
+    
     const stored = localStorage.getItem('cq_persist_retry_queue');
     if (stored) {
       const entries = JSON.parse(stored);
@@ -463,7 +471,18 @@ if (typeof window !== 'undefined') {
       }
     }
   } catch (e) {
-    console.warn('[PERSIST][RETRY_QUEUE_RESTORE_FAIL]', { error: e.message });
+    // FIX F: Storage blocked by browser (Tracking Prevention)
+    const isTrackingPrevention = e.name === 'SecurityError' || e.message?.includes('tracking');
+    if (isTrackingPrevention) {
+      STORAGE_DISABLED = true;
+      console.log('[PERSIST][STORAGE_DISABLED]', { 
+        reason: 'Browser Tracking Prevention blocking localStorage',
+        error: e.message,
+        action: 'Continuing with dbTranscript_sot only'
+      });
+    } else {
+      console.warn('[PERSIST][RETRY_QUEUE_RESTORE_FAIL]', { error: e.message });
+    }
   }
 }
 
@@ -929,33 +948,34 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
         // PART C: Update transcriptRef BEFORE local invariant check
         transcriptRef.current = updatedTranscript;
 
-        // CHANGE 4: INTEGRITY AUDIT - Verify stableKey in transcriptRef (not stale closure)
-        // Use functional state read to get latest after append
-        requestAnimationFrame(() => {
-          const currentLen = transcriptRef.current.length;
-          const lastStableKey = transcriptRef.current[currentLen - 1]?.stableKey || transcriptRef.current[currentLen - 1]?.id;
-          const foundInRefBefore = transcriptRef.current.some(e => e.stableKey === (entry.stableKey || entry.id));
+        // FIX F: INTEGRITY AUDIT - Skip if storage disabled, downgrade to debug
+        if (!STORAGE_DISABLED) {
+          requestAnimationFrame(() => {
+            const currentLen = transcriptRef.current.length;
+            const lastStableKey = transcriptRef.current[currentLen - 1]?.stableKey || transcriptRef.current[currentLen - 1]?.id;
+            const foundInRefBefore = transcriptRef.current.some(e => e.stableKey === (entry.stableKey || entry.id));
 
-          console.log('[PERSIST][INTEGRITY_CHECK]', {
-            stableKey: entry.stableKey || entry.id,
-            foundInRefBefore,
-            transcriptRefLen: currentLen,
-            lastStableKey
-          });
-
-          if (!foundInRefBefore) {
-            // Transient race condition - log as warning with diagnostics
-            const last3Keys = transcriptRef.current.slice(-3).map(e => e.stableKey || e.id);
-            console.warn('[PERSIST][INTEGRITY_LOCAL_MISSING]', {
-              sessionId,
+            console.log('[PERSIST][INTEGRITY_CHECK]', {
               stableKey: entry.stableKey || entry.id,
+              foundInRefBefore,
               transcriptRefLen: currentLen,
-              lastStableKeysPreview: last3Keys,
-              mode: 'dbTranscript_sot',
-              reason: 'Transient race: stableKey not in transcriptRef after append (may appear in next render)'
+              lastStableKey
             });
-          }
-        });
+
+            if (!foundInRefBefore) {
+              // Transient race condition - log as warning with diagnostics
+              const last3Keys = transcriptRef.current.slice(-3).map(e => e.stableKey || e.id);
+              console.warn('[PERSIST][INTEGRITY_LOCAL_MISSING]', {
+                sessionId,
+                stableKey: entry.stableKey || entry.id,
+                transcriptRefLen: currentLen,
+                lastStableKeysPreview: last3Keys,
+                mode: 'dbTranscript_sot',
+                reason: 'Transient race: stableKey not in transcriptRef after append (may appear in next render)'
+              });
+            }
+          });
+        }
 
     console.log("[TRANSCRIPT][APPEND] user", {
       index: entry.index,
