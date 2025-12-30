@@ -1766,7 +1766,8 @@ export default function CandidateInterview() {
   
   // PART D: CANONICAL POST-RENDER VISIBILITY CORRECTION
   // ChatGPT-style: Ensures active item is ALWAYS fully visible above composer
-  const ensureActiveVisibleAfterRender = useCallback((reason, activeKindSOT) => {
+  // PART A: Updated signature with YES/NO mode flags (TDZ-safe)
+  const ensureActiveVisibleAfterRender = useCallback((reason, activeKindSOT, isYesNoModeSOT = false, isMiGateSOT = false) => {
     const scroller = scrollOwnerRef.current || historyRef.current;
     if (!scroller) return;
     
