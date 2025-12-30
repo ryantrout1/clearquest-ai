@@ -1854,6 +1854,9 @@ export default function CandidateInterview() {
           const instanceNumber = currentItem?.instanceNumber;
           const expansionKey = `${packId}:${instanceNumber}`;
           
+          // TDZ-SAFE: Capture activeKindSOT in local variable for RAF closure
+          const activeKindForRetry = activeKindSOT;
+          
           // PART B: Only expand once per instance
           if (packId && instanceNumber && !expandedInstancesRef.current.has(expansionKey)) {
             expandedInstancesRef.current.add(expansionKey);
@@ -1878,9 +1881,9 @@ export default function CandidateInterview() {
               return next;
             });
             
-            // PART B: Schedule retry after spacer expands
+            // PART B: Schedule retry after spacer expands (use local capture)
             requestAnimationFrame(() => {
-              ensureActiveVisibleAfterRender('V3_OPENER_SPACER_EXPAND_RETRY', activeKindSOT);
+              ensureActiveVisibleAfterRender('V3_OPENER_SPACER_EXPAND_RETRY', activeKindForRetry);
             });
           }
         }
@@ -2521,24 +2524,6 @@ export default function CandidateInterview() {
   // ACTIVE KIND CHANGE DETECTION: Track last logged kind to prevent spam
   const lastLoggedActiveKindRef = useRef(null);
   
-  // PART C: Reset spacer when leaving V3 opener
-  useEffect(() => {
-    const wasV3Opener = lastLoggedActiveKindRef.current === 'V3_OPENER' || 
-                        lastLoggedActiveKindRef.current === 'v3_pack_opener';
-    const isV3OpenerNow = activeKindSOT === 'V3_OPENER' || activeKindSOT === 'v3_pack_opener';
-    
-    // Reset spacer when transitioning AWAY from V3 opener
-    if (wasV3Opener && !isV3OpenerNow && extraBottomSpacerPx > 0) {
-      setExtraBottomSpacerPx(0);
-      console.log('[SPACER][V3_RESET]', {
-        fromKind: lastLoggedActiveKindRef.current,
-        toKind: activeKindSOT,
-        extraBottomSpacerPxBefore: extraBottomSpacerPx,
-        reason: 'Left V3 opener - resetting spacer'
-      });
-    }
-  }, [activeKindSOT, extraBottomSpacerPx]);
-  
   // RENDER STREAM SNAPSHOT: Track last stream length for change detection (PART E)
   const lastRenderStreamLenRef = useRef(0);
   
@@ -2748,6 +2733,24 @@ export default function CandidateInterview() {
   // ============================================================================
   // CRITICAL: Declared AFTER activeUiItem is initialized, prevents TDZ in callbacks
   const activeKindSOT = activeUiItem?.kind || currentItem?.type || 'UNKNOWN';
+  
+  // PART C: Reset spacer when leaving V3 opener (moved here - after activeKindSOT exists)
+  useEffect(() => {
+    const wasV3Opener = lastLoggedActiveKindRef.current === 'V3_OPENER' || 
+                        lastLoggedActiveKindRef.current === 'v3_pack_opener';
+    const isV3OpenerNow = activeKindSOT === 'V3_OPENER' || activeKindSOT === 'v3_pack_opener';
+    
+    // Reset spacer when transitioning AWAY from V3 opener
+    if (wasV3Opener && !isV3OpenerNow && extraBottomSpacerPx > 0) {
+      setExtraBottomSpacerPx(0);
+      console.log('[SPACER][V3_RESET]', {
+        fromKind: lastLoggedActiveKindRef.current,
+        toKind: activeKindSOT,
+        extraBottomSpacerPxBefore: extraBottomSpacerPx,
+        reason: 'Left V3 opener - resetting spacer'
+      });
+    }
+  }, [activeKindSOT, extraBottomSpacerPx]);
   
   // ============================================================================
   // ACTIVE CARD KEY SOT - Single source of truth for active card identifier
@@ -11024,11 +11027,10 @@ export default function CandidateInterview() {
   // PART A: Compute base spacer (before expansion)
   const baseSpacerPx = Math.max(footerShellHeightPx + 16, 80); // 80px minimum for safe clearance
   
-  // PART A: Apply expansion for V3 opener only
-  const isV3Opener = (activeUiItem?.kind === 'V3_OPENER') || 
-                     (currentItem?.type === 'v3_pack_opener') || 
-                     (activeKindSOT === 'V3_OPENER' || activeKindSOT === 'v3_pack_opener');
-  const bottomSpacerPx = isV3Opener 
+  // PART A: Apply expansion for V3 opener only (TDZ-safe - no activeKindSOT reference)
+  const isV3OpenerForSpacer = (activeUiItem?.kind === 'V3_OPENER') || 
+                              (currentItem?.type === 'v3_pack_opener');
+  const bottomSpacerPx = isV3OpenerForSpacer 
     ? baseSpacerPx + extraBottomSpacerPx 
     : baseSpacerPx;
   
