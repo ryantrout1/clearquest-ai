@@ -15072,7 +15072,7 @@ export default function CandidateInterview() {
                       });
                       
                       return (
-                        <div key={entryKey}>
+                        <div key={entryKey} data-stablekey={entry.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
                           <ContentContainer>
                             <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
                               <div className="flex items-center gap-2 mb-1">
@@ -15094,7 +15094,7 @@ export default function CandidateInterview() {
                       const safeOpenerPrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_V3_OPENER');
                       
                       return (
-                        <div key={entryKey}>
+                        <div key={entryKey} data-stablekey={entry.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
                           <ContentContainer>
                             <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
                               {entry.categoryLabel && (
@@ -15158,7 +15158,7 @@ export default function CandidateInterview() {
                      // UI CONTRACT: Active card renders prompt text ONLY (no buttons)
                      // Footer owns all Yes/No controls
                      return (
-                       <div key={entryKey} data-stablekey={gateStableKey}>
+                       <div key={entryKey} data-stablekey={gateStableKey} data-cq-active-card="true" data-ui-contract-card="true">
                          <ContentContainer>
                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
                              <p className="text-white text-base leading-relaxed">{safeGatePrompt}</p>
@@ -15168,19 +15168,19 @@ export default function CandidateInterview() {
                        </div>
                      );
                     } else if (cardKind === "v3_thinking") {
-                      // TASK B: V3 thinking placeholder during initial decide
-                      return (
-                        <div key={entryKey}>
-                          <ContentContainer>
-                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                              <div className="flex items-center gap-2">
-                                <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-                                <span className="text-sm text-purple-300">{entry.text}</span>
-                              </div>
-                            </div>
-                          </ContentContainer>
-                        </div>
-                      );
+                     // TASK B: V3 thinking placeholder during initial decide
+                     return (
+                       <div key={entryKey} data-stablekey={entry.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
+                         <ContentContainer>
+                           <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                             <div className="flex items-center gap-2">
+                               <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                               <span className="text-sm text-purple-300">{entry.text}</span>
+                             </div>
+                           </div>
+                         </ContentContainer>
+                       </div>
+                     );
                     }
                     return null;
                   }
@@ -16036,7 +16036,7 @@ export default function CandidateInterview() {
 
             if (cardKind === "v3_thinking") {
               return (
-                <div key={`active-${activeCard.stableKey}`}>
+                <div key={`active-${activeCard.stableKey}`} data-stablekey={activeCard.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
                   <ContentContainer>
                     <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                       <div className="flex items-center gap-2">
