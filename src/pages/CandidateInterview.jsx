@@ -1207,17 +1207,26 @@ export default function CandidateInterview() {
   if (!sessionId) {
     console.error('[UI_CONTRACT][CANDIDATE_INTERVIEW_NO_SESSION]', {
       reason: 'SessionId missing from URL - interview cannot render',
-      action: 'BLOCK_RENDER',
+      action: 'TERMINAL_UI_SHOWN',
       url: window.location.href
     });
     
-    // Return minimal error state (do NOT auto-navigate back to StartInterview)
+    // TERMINAL UI: Stable error state with navigation option
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
-          <p className="text-slate-300">Interview session not found</p>
-          <p className="text-slate-500 text-sm">Please start a new interview from the beginning</p>
+        <div className="text-center space-y-6 max-w-md">
+          <AlertCircle className="w-16 h-16 text-red-400 mx-auto" />
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold text-white">This interview link is invalid or has expired.</h2>
+            <p className="text-slate-400 text-sm">The session ID is missing from the URL.</p>
+          </div>
+          <Button
+            onClick={() => navigate(createPageUrl("StartInterview"))}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
+            size="lg"
+          >
+            Return to Start
+          </Button>
         </div>
       </div>
     );
@@ -4881,16 +4890,35 @@ export default function CandidateInterview() {
 
       // SERVER-TRUTH GUARD: Always fetch session from DB (never create duplicate)
       console.log('[CANDIDATE_BOOT][FETCH_SESSION]', { sessionId });
-      const loadedSession = await base44.entities.InterviewSession.get(sessionId);
-
-      if (!loadedSession) {
-        console.error('[CANDIDATE_INTERVIEW][NO_CURRENT_ITEM]', { sessionId, screenMode: 'LOADING' });
-        throw new Error(`Session not found: ${sessionId}. It may have been deleted or never created.`);
+      
+      let loadedSession;
+      try {
+        loadedSession = await base44.entities.InterviewSession.get(sessionId);
+      } catch (fetchErr) {
+        console.error('[CANDIDATE_BOOT][SESSION_FETCH_ERROR]', { 
+          sessionId, 
+          error: fetchErr.message 
+        });
+        // Session fetch failed - set stable error state
+        setError(`Session not found. This interview link may be invalid or expired.`);
+        setIsLoading(false);
+        bootCompletedRef.value = true;
+        clearTimeout(bootTimeout);
+        return;
       }
 
-      if (!loadedSession.id) {
-        console.error('[CANDIDATE_INTERVIEW][NO_CURRENT_ITEM]', { sessionId, screenMode: 'LOADING', reason: 'invalid session object' });
-        throw new Error('Invalid session object returned from database');
+      if (!loadedSession || !loadedSession.id) {
+        console.error('[CANDIDATE_BOOT][SESSION_NOT_FOUND]', { 
+          sessionId, 
+          hasSession: !!loadedSession,
+          hasId: !!loadedSession?.id
+        });
+        // Session not found or invalid - set stable error state
+        setError(`Session not found. This interview link may be invalid or expired.`);
+        setIsLoading(false);
+        bootCompletedRef.value = true;
+        clearTimeout(bootTimeout);
+        return;
       }
       
       console.log('[CANDIDATE_BOOT][SESSION_LOADED]', { 
