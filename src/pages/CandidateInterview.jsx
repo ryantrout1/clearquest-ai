@@ -17830,6 +17830,25 @@ export default function CandidateInterview() {
           />
 
           {/* PART A: Stable footer shell wrapper (measured in all modes) */}
+          {/* FOOTER SHELL DIAGNOSTICS: Deduped shell dimension log (once per mode+height) */}
+          {(() => {
+            const shellDiagKey = `${bottomBarModeSOTSafe}:${dynamicFooterHeightPx}`;
+            const lastShellDiagKeyRef = React.useRef(null);
+            
+            if (shouldRenderFooter && shellDiagKey !== lastShellDiagKeyRef.current) {
+              lastShellDiagKeyRef.current = shellDiagKey;
+              console.log('[UI_CONTRACT][FOOTER_SHELL_DIMENSIONS]', {
+                measuredFooterHeightPx: dynamicFooterHeightPx,
+                clearancePx: footerClearancePx,
+                bottomBarMode: bottomBarModeSOTSafe,
+                effectiveItemType,
+                note: 'Footer shell should remain compact; clearance applied to scroll container only'
+              });
+            }
+            
+            return null;
+          })()}
+          
           <div 
             ref={footerShellRef}
             className="sticky bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4 z-10"
