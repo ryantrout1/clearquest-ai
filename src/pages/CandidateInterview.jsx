@@ -15994,11 +15994,14 @@ export default function CandidateInterview() {
         ref={historyRef} 
         onScroll={handleTranscriptScroll}
         style={{
-          paddingBottom: `max(${footerClearanceAppliedPx}px, env(safe-area-inset-bottom))`
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)'
         }}
       >
-        <div className="px-4 pt-6">
-          <div className="space-y-3">
+        <div className="min-h-full flex flex-col px-4">
+          {/* PART B: Flex spacer - pushes transcript to bottom when content is short (ChatGPT gravity) */}
+          <div className="flex-1" aria-hidden="true" />
+          
+          <div className="space-y-3 pt-6">
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {finalTranscriptList.map((entry, index) => {
               // CANONICAL STREAM: Handle both transcript entries AND active cards
@@ -17073,7 +17076,7 @@ export default function CandidateInterview() {
             return null;
           })()}
 
-          {/* Bottom anchor - explicit height for MI gate bottom-anchor strategy */}
+          {/* PART C: Bottom sentinel - ONLY clearance mechanism (footer space reserved here, not container padding) */}
           <div 
             ref={bottomAnchorRef} 
             aria-hidden="true" 
