@@ -11958,6 +11958,11 @@ export default function CandidateInterview() {
   // TDZ GUARD: Do not reference finalTranscriptList in hook deps before it is initialized.
   // DETERMINISTIC BOTTOM ANCHOR ENFORCEMENT: Keep transcript pinned to bottom when expected
   React.useLayoutEffect(() => {
+    // SCROLL LOCK GATE: Block bottom anchor during v3_pack_opener settle
+    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+      return;
+    }
+    
     const scrollContainer = historyRef.current;
     if (!scrollContainer) return;
     
