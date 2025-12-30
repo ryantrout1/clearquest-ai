@@ -10743,16 +10743,7 @@ export default function CandidateInterview() {
       return;
     }
     
-    // GUARD B: Only glide in TEXT_INPUT mode (prevent jumps during MI_GATE/YES_NO transitions)
-    if (bottomBarMode !== 'TEXT_INPUT') {
-      console.log('[SCROLL][GLIDE_SKIPPED]', {
-        reason: 'not_text_input_mode',
-        bottomBarMode
-      });
-      return;
-    }
-    
-    // GUARD C: Only auto-scroll if user is near bottom (ChatGPT behavior)
+    // GUARD B: Only auto-scroll if user is near bottom (ChatGPT behavior)
     const scrollHeight = scrollContainer.scrollHeight;
     const clientHeight = scrollContainer.clientHeight;
     const scrollTop = scrollContainer.scrollTop;
@@ -10819,11 +10810,12 @@ export default function CandidateInterview() {
         block: 'end' 
       });
       
-      console.log('[SCROLL][GLIDE]', {
-        reason: 'append',
-        lenDelta,
-        nearBottom: true,
+      console.log('[SCROLL][GRAVITY_APPLIED]', {
         bottomBarMode,
+        effectiveItemType,
+        distanceFromBottom: Math.round(distanceFromBottom),
+        thresholdPx: NEAR_BOTTOM_THRESHOLD_PX,
+        lenDelta,
         scrollHeight,
         clientHeight,
         overflowPx
