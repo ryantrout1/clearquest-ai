@@ -2768,6 +2768,35 @@ export default function CandidateInterview() {
   // CRITICAL: Declared AFTER activeUiItem is initialized, prevents TDZ in callbacks
   const activeKindSOT = activeUiItem?.kind || currentItem?.type || 'UNKNOWN';
   
+  // TDZ FIX: Declare mode flags EARLY using available primitives (BEFORE callback deps)
+  // Use safe defaults with Boolean() to prevent crashes if inputs undefined
+  const bottomBarModeComputed = bottomBarRenderTypeSOT === "multi_instance_gate" ? "YES_NO" : 
+                                 bottomBarRenderTypeSOT === "v3_pack_opener" ? "TEXT_INPUT" :
+                                 bottomBarRenderTypeSOT === "v3_probing" ? "TEXT_INPUT" :
+                                 "UNKNOWN";
+  
+  const isYesNoModeSOT = Boolean(bottomBarModeComputed === 'YES_NO' || 
+                                 bottomBarRenderTypeSOT === 'multi_instance_gate');
+  const isMiGateSOT = Boolean(bottomBarRenderTypeSOT === 'multi_instance_gate' || 
+                               activeUiItem?.kind === 'MI_GATE');
+  
+  // SOT LOG: Diagnostic guard output (minimal, once per mode change)
+  React.useEffect(() => {
+    const isDev = typeof window !== 'undefined' && 
+                  (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'));
+    
+    if (isDev) {
+      console.log('[SOT][YES_NO_MODE]', {
+        isYesNoModeSOT,
+        isMiGateSOT,
+        bottomBarModeComputed,
+        bottomBarRenderTypeSOT,
+        effectiveItemType: bottomBarRenderTypeSOT,
+        activeUiItemKind: activeUiItem?.kind
+      });
+    }
+  }, [isYesNoModeSOT, isMiGateSOT, bottomBarModeComputed, bottomBarRenderTypeSOT, activeUiItem]);
+  
   // PART C: Reset spacer when leaving V3 opener (moved here - after activeKindSOT exists)
   useEffect(() => {
     const wasV3Opener = lastLoggedActiveKindRef.current === 'V3_OPENER' || 
@@ -2785,10 +2814,6 @@ export default function CandidateInterview() {
       });
     }
   }, [activeKindSOT, extraBottomSpacerPx]);
-  
-  // PART A: Derive YES/NO mode flags (after bottomBarMode/effectiveItemType exist)
-  const isYesNoModeSOT = bottomBarMode === 'YES_NO';
-  const isMiGateSOT = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
   
   // PART D: Align active card when bottomBarMode becomes YES_NO
   useLayoutEffect(() => {
@@ -11084,9 +11109,8 @@ export default function CandidateInterview() {
     : baseSpacerPx;
   
   // PART B: YES/NO mode override (needs extra clearance for button footer)
-  const isYesNoMode = bottomBarMode === 'YES_NO';
-  const isMiGate = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
-  const bottomSpacerPx = (isYesNoMode || isMiGate)
+  // TDZ-SAFE: Use pre-computed flags (declared early at line ~2775)
+  const bottomSpacerPx = (isYesNoModeSOT || isMiGateSOT)
     ? Math.max(footerShellHeightPx + 24, spacerWithV3Expansion)
     : spacerWithV3Expansion;
   
