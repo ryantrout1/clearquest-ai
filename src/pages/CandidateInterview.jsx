@@ -3278,18 +3278,6 @@ export default function CandidateInterview() {
     currentItemResponseType: currentItem?.type === "question" ? engine?.QById?.[currentItem.id]?.response_type : null
   });
   
-  // FIX #1: Diagnostic log for base yes/no routing
-  if (bottomBarRenderTypeSOT === "yes_no") {
-    console.log('[UI_CONTRACT][BASE_YESNO_BOTTOM_BAR_ROUTE]', {
-      activeCardKind: activeCard?.kind,
-      bottomBarRenderTypeSOT,
-      bottomBarModeSOTSafe,
-      effectiveItemType,
-      currentItemId: currentItem?.id,
-      questionResponseType: engine?.QById?.[currentItem?.id]?.response_type
-    });
-  }
-  
   // ============================================================================
   // TDZ GUARD: EARLY BOTTOM BAR MODE - Safe canonical source (no late variables)
   // ============================================================================
@@ -3305,15 +3293,27 @@ export default function CandidateInterview() {
     return "DEFAULT";
   })();
   
-  if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-    console.log('[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT, bottomBarModeSOT });
-  }
-  
   // ============================================================================
   // REGRESSION-PROOF SAFE WRAPPER - Validates mode before critical UI logic
   // ============================================================================
   const VALID_MODES = ['YES_NO', 'TEXT_INPUT', 'DEFAULT', 'V3_WAITING', 'CTA', 'SELECT', 'HIDDEN', 'DISABLED'];
   const bottomBarModeSOTSafe = VALID_MODES.includes(bottomBarModeSOT) ? bottomBarModeSOT : 'DEFAULT';
+  
+  if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+    console.log('[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT, bottomBarModeSOT, bottomBarModeSOTSafe });
+  }
+  
+  // FIX #1: Diagnostic log for base yes/no routing (AFTER bottomBarModeSOTSafe exists)
+  if (bottomBarRenderTypeSOT === "yes_no") {
+    console.log('[UI_CONTRACT][BASE_YESNO_BOTTOM_BAR_ROUTE]', {
+      activeCardKind: activeCard?.kind,
+      bottomBarRenderTypeSOT,
+      bottomBarModeSOTSafe,
+      effectiveItemType,
+      currentItemId: currentItem?.id,
+      questionResponseType: engine?.QById?.[currentItem?.id]?.response_type
+    });
+  }
   
   // One-time warning if fallback triggered (dev-only, once per mount)
   const fallbackWarningLoggedRef = React.useRef(false);
