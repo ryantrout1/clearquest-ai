@@ -10968,7 +10968,9 @@ export default function CandidateInterview() {
     });
   }, [sessionId, getScrollOwner]);
 
-  // DYNAMIC FOOTER MEASUREMENT: Measure footer height using ResizeObserver (all modes)
+  // ============================================================================
+  // FOOTER MEASUREMENT SOT - Unconditional, mode-agnostic (TDZ-safe)
+  // ============================================================================
   useEffect(() => {
     if (!footerShellRef.current) return;
     
@@ -10976,22 +10978,17 @@ export default function CandidateInterview() {
       if (!footerShellRef.current) return;
       const rect = footerShellRef.current.getBoundingClientRect();
       const measured = Math.round(rect.height || footerShellRef.current.offsetHeight || 0);
-      const safeInset = 16; // Safety buffer for clearance
-      const totalClearance = measured + safeInset;
       
       setDynamicFooterHeightPx(prev => {
-        const delta = Math.abs(totalClearance - prev);
+        const delta = Math.abs(measured - prev);
         if (delta < 2) return prev;
         
-        console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SOT]', {
-          bottomBarModeSOT,
-          effectiveItemType,
-          footerHeightPx: totalClearance,
-          paddingBottomPx: totalClearance,
+        console.log('[FOOTER][HEIGHT_MEASURED]', {
+          height: measured,
           delta
         });
         
-        return totalClearance;
+        return measured;
       });
     };
     
@@ -11009,7 +11006,7 @@ export default function CandidateInterview() {
       resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
     };
-  }, [bottomBarModeSOT, effectiveItemType]);
+  }, []); // TDZ-SAFE: No deps on mode variables
 
   // PART B: Measure footer shell height from stable wrapper (all modes)
   useEffect(() => {
@@ -11105,10 +11102,29 @@ export default function CandidateInterview() {
   
   // TDZ ELIMINATED: Late bottomBarMode declaration removed - bottomBarModeSOT is canonical source
   
+  // ============================================================================
+  // FOOTER CLEARANCE COMPUTATION - Stable, unconditional (prevents overlap)
+  // ============================================================================
+  const footerClearancePx = Math.max(dynamicFooterHeightPx + 32, 96);
+  const activeCardScrollMarginBottomPx = footerClearancePx;
+  
   // Step 5: Compute footer rendering flag (include V3_WAITING and CTA)
   const shouldRenderFooter = (screenMode === 'QUESTION' && 
                               (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO' || bottomBarModeSOT === 'SELECT' || bottomBarModeSOT === 'V3_WAITING')) ||
                               bottomBarModeSOT === 'CTA';
+  
+  // REGRESSION LOGGING: Clearance SOT (once per active item, deduped)
+  const clearanceLogKeyRef = React.useRef(null);
+  const clearanceLogKey = `${currentItem?.id || 'none'}:${bottomBarModeSOTSafe}`;
+  if (shouldRenderFooter && clearanceLogKey !== clearanceLogKeyRef.current) {
+    clearanceLogKeyRef.current = clearanceLogKey;
+    console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SOT]', { 
+      footerHeightPx: dynamicFooterHeightPx,
+      footerClearancePx, 
+      bottomBarMode: bottomBarModeSOTSafe, 
+      effectiveItemType 
+    });
+  }
   
   // Step 6: Compute footer padding (TDZ-safe - unified across all modes including WELCOME)
   
@@ -16640,7 +16656,7 @@ export default function CandidateInterview() {
         onScroll={handleTranscriptScroll}
         style={{
           paddingBottom: shouldRenderFooter 
-            ? `${Math.max(dynamicFooterHeightPx, bottomSpacerPx)}px`
+            ? `${footerClearancePx}px`
             : '0px'
         }}
       >
@@ -17665,7 +17681,7 @@ export default function CandidateInterview() {
                   data-cq-card-kind="mi_gate"
                   data-ui-contract-card="true"
                   style={{
-                    scrollMarginBottom: `${dynamicFooterHeightPx}px`
+                    scrollMarginBottom: `${activeCardScrollMarginBottomPx}px`
                   }}
                 >
                   <ContentContainer>
@@ -17697,15 +17713,18 @@ export default function CandidateInterview() {
               const cardStableKey = activeCard.stableKey || `question-shown:${activeCard.questionId}`;
               
               return (
-                <div 
-                  key={`active-${cardStableKey}`}
-                  ref={activeLaneCardRef}
-                  data-stablekey={cardStableKey}
-                  data-cq-active-card="true"
-                  data-cq-card-id={cardStableKey}
-                  data-cq-card-kind="question"
-                  data-ui-contract-card="true"
-                >
+                 <div 
+                   key={`active-${cardStableKey}`}
+                   ref={activeLaneCardRef}
+                   data-stablekey={cardStableKey}
+                   data-cq-active-card="true"
+                   data-cq-card-id={cardStableKey}
+                   data-cq-card-kind="question"
+                   data-ui-contract-card="true"
+                   style={{
+                     scrollMarginBottom: `${activeCardScrollMarginBottomPx}px`
+                   }}
+                 >
                   <ContentContainer>
                     <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 ring-2 ring-blue-400/40 shadow-lg shadow-blue-500/20 transition-all duration-150">
                       <div className="flex items-center gap-2 mb-2">
