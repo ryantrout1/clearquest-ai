@@ -14182,7 +14182,8 @@ export default function CandidateInterview() {
       }
     }
     
-    // Rebuild list with V3 probe answers inserted after their questions
+    // PART A FIX: Rebuild list with V3 probe answers inserted BEFORE MI gate if present
+    // This prevents V3_PROBE_ANSWER from trailing the gate (root cause of ALIGNMENT_VIOLATION_STREAM)
     for (let i = 0; i < transcriptToRenderDeduped.length; i++) {
       const entry = transcriptToRenderDeduped[i];
       transcriptWithV3Integrity.push(entry);
@@ -14194,8 +14195,37 @@ export default function CandidateInterview() {
         const answerEntry = promptIdToV3ProbeA.get(promptId);
         
         if (answerEntry && answerEntry.__reinserted) {
-          // Insert answer after question
-          transcriptWithV3Integrity.push(answerEntry);
+          // PART A: Check if MI gate exists for same pack/instance (prevents trailing after gate)
+          const answerPackId = answerEntry.meta?.packId || answerEntry.packId;
+          const answerInstanceNumber = answerEntry.meta?.instanceNumber || answerEntry.instanceNumber;
+          
+          // Find MI gate in current working list (transcriptWithV3Integrity)
+          const miGateIndex = transcriptWithV3Integrity.findIndex(item => 
+            isMiGateItem(item, answerPackId, answerInstanceNumber)
+          );
+          
+          if (miGateIndex !== -1) {
+            // MI gate exists - insert answer BEFORE gate (not after question)
+            transcriptWithV3Integrity.splice(miGateIndex, 0, answerEntry);
+            
+            console.log('[V3_PROBE_ANSWER][INSERTED_BEFORE_GATE]', {
+              packId: answerPackId,
+              instanceNumber: answerInstanceNumber,
+              answerStableKey: answerEntry.stableKey || answerEntry.id,
+              gateIndex: miGateIndex,
+              reason: 'MI gate present - preventing trailing answer'
+            });
+          } else {
+            // No MI gate - insert answer after question (normal flow)
+            transcriptWithV3Integrity.push(answerEntry);
+            
+            console.log('[V3_PROBE_ANSWER][INSERTED_AFTER_QUESTION]', {
+              packId: answerPackId,
+              instanceNumber: answerInstanceNumber,
+              answerStableKey: answerEntry.stableKey || answerEntry.id,
+              reason: 'No MI gate - normal Q+A pairing'
+            });
+          }
         }
       }
     }
