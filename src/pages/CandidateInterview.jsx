@@ -13704,10 +13704,10 @@ export default function CandidateInterview() {
 
   
   // PART D: Align active card when bottomBarModeSOT becomes YES_NO
-  // TDZ-SAFE: Uses early bottomBarModeSOTSOT (computed before late bottomBarModeSOT declaration)
+  // TDZ-SAFE: Uses early bottomBarModeSOTSafe (computed before late bottomBarModeSOT declaration)
   useLayoutEffect(() => {
-    // TDZ-SAFE: Use bottomBarModeSOTSOT (early, always available)
-    const isYesNoModeFresh = bottomBarModeSOTSOT === 'YES_NO';
+    // TDZ-SAFE: Use bottomBarModeSOTSafe (early, always available)
+    const isYesNoModeFresh = bottomBarModeSOTSafe === 'YES_NO';
     const isMiGateFresh = currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
     
     if (!isYesNoModeFresh) return;
@@ -13715,7 +13715,7 @@ export default function CandidateInterview() {
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [bottomBarModeSOTSOT, ensureActiveVisibleAfterRender, activeKindSOT, currentItem, activeUiItem]);
+  }, [bottomBarModeSOTSafe, ensureActiveVisibleAfterRender, activeKindSOT, currentItem, activeUiItem]);
 
   // Auto-focus control props (pure values, no hooks)
   const focusEnabled = screenMode === 'QUESTION';
