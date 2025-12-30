@@ -15253,6 +15253,7 @@ export default function CandidateInterview() {
                   key={entryKey} 
                   data-stablekey={entry.stableKey || entry.id}
                   data-cq-active-card={isActiveBaseQuestion ? "true" : undefined}
+                  data-ui-contract-card={isActiveBaseQuestion ? "true" : undefined}
                 >
                   <ContentContainer>
                   <div className={`w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 transition-all duration-150 ${activeClass}`}>
