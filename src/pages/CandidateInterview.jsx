@@ -11309,14 +11309,23 @@ export default function CandidateInterview() {
           const overlapPx = Math.max(0, questionRect.bottom - footerRect.top);
           
           if (overlapPx > 4) {
-            console.error('[UI_CONTRACT][FOOTER_OVERLAP_DETECTED]', {
-              questionId: currentItem.id,
-              overlapPx: Math.round(overlapPx),
-              questionBottom: Math.round(questionRect.bottom),
-              footerTop: Math.round(footerRect.top),
-              paddingApplied: dynamicBottomPaddingPx,
-              reason: 'Active question obscured by footer after auto-scroll'
+            // PART A: Capture violation snapshot
+            captureViolationSnapshot({
+              reason: 'QUESTION_BEHIND_FOOTER',
+              list: finalListRef.current,
+              packId: null,
+              instanceNumber: null,
+              activeItemId: currentItem?.id
             });
+            
+            // PART C: Apply corrective scroll
+            if (!isUserTyping) {
+              scrollContainer.scrollTop += overlapPx + 8;
+              console.log('[SCROLL][CORRECTIVE_NUDGE_QUESTION]', {
+                overlapPx: Math.round(overlapPx),
+                applied: true
+              });
+            }
           }
         });
       });
