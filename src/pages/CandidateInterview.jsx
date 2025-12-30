@@ -11193,23 +11193,23 @@ export default function CandidateInterview() {
     });
   }
   
-  // SAFE DIAGNOSTIC: Log footer shell dimensions when they change
-  const lastShellDiagKeyRef = React.useRef(null);
+  // SAFE DIAGNOSTIC: Log footer clearance target when it changes
+  const lastClearanceTargetLogKeyRef = React.useRef(null);
   React.useEffect(() => {
     if (!shouldRenderFooter) return;
     
-    const shellDiagKey = `${bottomBarModeSOTSafe}:${dynamicFooterHeightPx}`;
-    if (shellDiagKey !== lastShellDiagKeyRef.current) {
-      lastShellDiagKeyRef.current = shellDiagKey;
-      console.log('[UI_CONTRACT][FOOTER_SHELL_DIMENSIONS]', {
-        measuredFooterHeightPx: dynamicFooterHeightPx,
-        clearancePx: footerClearancePx,
+    const logKey = `${bottomBarModeSOTSafe}:${footerClearancePx}`;
+    if (logKey !== lastClearanceTargetLogKeyRef.current) {
+      lastClearanceTargetLogKeyRef.current = logKey;
+      console.log('[UI_CONTRACT][FOOTER_CLEARANCE_TARGET]', {
+        appliedTo: 'CONTENT_WRAPPER_ONLY',
+        footerClearancePx,
         bottomBarMode: bottomBarModeSOTSafe,
         effectiveItemType,
-        note: 'Footer shell should remain compact; clearance applied to scroll container only'
+        note: 'No padding on outer scroll container to avoid blank space under footer'
       });
     }
-  }, [shouldRenderFooter, dynamicFooterHeightPx, bottomBarModeSOTSafe, footerClearancePx, effectiveItemType]);
+  }, [shouldRenderFooter, footerClearancePx, bottomBarModeSOTSafe, effectiveItemType]);
   
   // Step 6: Compute footer padding (TDZ-safe - unified across all modes including WELCOME)
   
@@ -16739,13 +16739,15 @@ export default function CandidateInterview() {
         className="flex-1 overflow-y-auto cq-scroll scrollbar-thin min-h-0" 
         ref={historyRef} 
         onScroll={handleTranscriptScroll}
-        style={{
-          paddingBottom: shouldRenderFooter 
-            ? `${footerClearancePx}px`
-            : '0px'
-        }}
       >
-        <div className="min-h-full flex flex-col px-4 pt-6">
+        <div 
+          className="min-h-full flex flex-col px-4 pt-6"
+          style={{
+            paddingBottom: shouldRenderFooter 
+              ? `${footerClearancePx}px`
+              : '0px'
+          }}
+        >
           {/* TOP SPACER - Pushes content to bottom when short (ChatGPT gravity) */}
           <div className="flex-1" aria-hidden="true" />
           
@@ -17846,12 +17848,13 @@ export default function CandidateInterview() {
              scrollMarginBottom: `${dynamicFooterHeightPx}px`
            }}
           />
-
-          {/* PART A: Stable footer shell wrapper (measured in all modes) */}
-          <div 
-            ref={footerShellRef}
-            className="sticky bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4 z-10 h-auto min-h-0 flex-none"
-          >
+        </div>
+        
+        {/* FOOTER SHELL - Direct child of main (not inside content wrapper to prevent gap) */}
+        <div 
+          ref={footerShellRef}
+          className="sticky bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4 z-10 h-auto min-h-0 flex-none"
+        >
             <div className="max-w-5xl mx-auto h-auto min-h-0 flex-none" ref={footerRef}>
 
       {/* V3 Pack Opener Card - SYNTHETIC RENDER (disabled by ENABLE_SYNTHETIC_TRANSCRIPT) */}
@@ -18695,7 +18698,6 @@ export default function CandidateInterview() {
               </p>
             ) : null;
           })()}
-            </div>
           </div>
         </div>
       </main>
