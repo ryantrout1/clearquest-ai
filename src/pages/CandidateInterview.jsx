@@ -17112,6 +17112,7 @@ export default function CandidateInterview() {
             ref={footerRef}
             className="sticky bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4 mt-auto z-10"
           >
+            <div className="max-w-5xl mx-auto">
 
       {/* V3 Pack Opener Card - SYNTHETIC RENDER (disabled by ENABLE_SYNTHETIC_TRANSCRIPT) */}
       {false && ENABLE_SYNTHETIC_TRANSCRIPT && (() => {
