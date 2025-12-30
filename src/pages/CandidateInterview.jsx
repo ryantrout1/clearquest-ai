@@ -10341,7 +10341,7 @@ export default function CandidateInterview() {
 
         if (hasActiveCard) {
           // Priority 1: Measure active card (most likely to be clipped)
-          const activeCards = scrollContainer.querySelectorAll('[data-cq-active-card="true"]');
+          const activeCards = scrollContainer.querySelectorAll('[data-cq-active-card="true"][data-ui-contract-card="true"]');
           const activeCardsArray = Array.from(activeCards).filter(el => !isUiContractNonCard(el));
           
           if (activeCardsArray.length > 0) {
@@ -10352,6 +10352,8 @@ export default function CandidateInterview() {
               activeCardCount: activeCardsArray.length,
               selectedTag: lastItem.tagName,
               hasStablekey: lastItem.hasAttribute('data-stablekey'),
+              hasCardMarker: lastItem.hasAttribute('data-ui-contract-card'),
+              className: lastItem.className?.substring(0, 60),
               reason: 'Active card prioritized for measurement'
             });
           }
@@ -14806,7 +14808,12 @@ export default function CandidateInterview() {
         `}
       </style>
 
-      <main className="flex-1 min-h-0 overflow-y-auto cq-scroll scrollbar-thin flex flex-col" ref={historyRef} onScroll={handleTranscriptScroll}>
+      <main 
+        className="flex-1 min-h-0 overflow-y-auto cq-scroll scrollbar-thin flex flex-col" 
+        ref={historyRef} 
+        onScroll={handleTranscriptScroll}
+        style={{ paddingBottom: `${Math.max(dynamicBottomPaddingPx || 0, 8)}px` }}
+      >
         <div className="px-4 pt-6 flex flex-col flex-1 min-h-0">
           {/* UI CONTRACT: Transcript gravity is enforced via cq-gravity-rail + mt-auto.
               Do NOT add justify-end or centering logic inside transcript stack. */}
@@ -15751,9 +15758,14 @@ export default function CandidateInterview() {
             if (cardKind === "v3_probe_q") {
               const safeCardPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_V3_PROBE');
               return (
-                <div key={`active-${activeCard.stableKey}`} data-cq-active-card="true">
+                <div key={`active-${activeCard.stableKey}`}>
                   <ContentContainer>
-                    <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
+                    <div 
+                      className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150"
+                      data-cq-active-card="true"
+                      data-stablekey={activeCard.stableKey}
+                      data-ui-contract-card="true"
+                    >
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
                         {activeCard.instanceNumber > 1 && (
@@ -15773,9 +15785,14 @@ export default function CandidateInterview() {
             if (cardKind === "v3_pack_opener") {
               const safeOpenerPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_V3_OPENER');
               return (
-                <div key={`active-${activeCard.stableKey}`} data-cq-active-card="true">
+                <div key={`active-${activeCard.stableKey}`}>
                   <ContentContainer>
-                    <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
+                    <div 
+                      className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150"
+                      data-cq-active-card="true"
+                      data-stablekey={activeCard.stableKey}
+                      data-ui-contract-card="true"
+                    >
                       {activeCard.categoryLabel && (
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-sm font-medium text-purple-400">
@@ -15799,9 +15816,14 @@ export default function CandidateInterview() {
             if (cardKind === "multi_instance_gate") {
               const safeMiGatePrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_MI_GATE');
               return (
-                <div key={`active-${activeCard.stableKey}`} data-cq-active-card="true">
+                <div key={`active-${activeCard.stableKey}`}>
                   <ContentContainer>
-                    <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
+                    <div 
+                      className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150"
+                      data-cq-active-card="true"
+                      data-stablekey={activeCard.stableKey}
+                      data-ui-contract-card="true"
+                    >
                       <p className="text-white text-base leading-relaxed">{safeMiGatePrompt}</p>
                     </div>
                   </ContentContainer>
