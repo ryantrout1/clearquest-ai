@@ -1724,6 +1724,77 @@ export default function CandidateInterview() {
       clientHeight: Math.round(clientHeight)
     });
   }, []);
+  
+  // PART A: CANONICAL POST-RENDER VISIBILITY CORRECTION
+  // ChatGPT-style: Ensures active item is ALWAYS fully visible above footer
+  const ensureActiveVisibleAfterRender = useCallback((reason) => {
+    const scroller = scrollOwnerRef.current || historyRef.current;
+    if (!scroller) return;
+    
+    const footerEl = footerRef.current;
+    if (!footerEl) return;
+    
+    const footerRect = footerEl.getBoundingClientRect();
+    
+    // PART A: Multi-tier active card search
+    // Location 1: Try scroll container first (strict)
+    let activeCardEl = scroller.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+    
+    // Location 2: Fallback to loose marker
+    if (!activeCardEl) {
+      activeCardEl = scroller.querySelector('[data-cq-active-card="true"]');
+    }
+    
+    // Location 3: Fallback to activeLaneCardRef
+    if (!activeCardEl && activeLaneCardRef.current) {
+      activeCardEl = activeLaneCardRef.current;
+    }
+    
+    // NO ACTIVE CARD: Fallback to bottom strategy
+    if (!activeCardEl) {
+      const scrollHeight = scroller.scrollHeight;
+      const clientHeight = scroller.clientHeight;
+      const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
+      
+      scroller.scrollTop = maxScrollTop;
+      
+      console.log('[SCROLL][ENSURE_ACTIVE][FALLBACK_BOTTOM]', {
+        reason,
+        scrollTopAfter: Math.round(scroller.scrollTop),
+        maxScrollTop: Math.round(maxScrollTop)
+      });
+      return;
+    }
+    
+    // ACTIVE CARD FOUND: First scroll to bottom (ChatGPT style)
+    const scrollHeight = scroller.scrollHeight;
+    const clientHeight = scroller.clientHeight;
+    const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
+    scroller.scrollTop = maxScrollTop;
+    
+    // Then compute overlap in same RAF tick
+    requestAnimationFrame(() => {
+      const activeRect = activeCardEl.getBoundingClientRect();
+      const overlapPx = Math.max(0, activeRect.bottom - footerRect.top);
+      
+      if (overlapPx > 4) {
+        const nudgeScrollTop = Math.min(maxScrollTop, scroller.scrollTop + overlapPx + 16);
+        scroller.scrollTop = nudgeScrollTop;
+        
+        console.log('[SCROLL][ENSURE_ACTIVE][OVERLAP_CORRECTED]', {
+          reason,
+          overlapPx: Math.round(overlapPx),
+          scrollTopAfter: Math.round(scroller.scrollTop)
+        });
+      } else {
+        console.log('[SCROLL][ENSURE_ACTIVE][NO_OVERLAP]', {
+          reason,
+          overlapPx: Math.round(overlapPx),
+          scrollTopAfter: Math.round(scroller.scrollTop)
+        });
+      }
+    });
+  }, []);
   const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
   const pendingScrollRafRef = useRef(null);
@@ -11559,6 +11630,29 @@ export default function CandidateInterview() {
     });
   }, [transcriptSOT.length, bottomBarMode, dynamicBottomPaddingPx, cqDiagEnabled]);
   
+  // PART B: ACTIVE ITEM CHANGED - Call ensureActiveVisibleAfterRender when active item changes
+  React.useLayoutEffect(() => {
+    if (!shouldRenderFooter) return;
+    
+    // Build active key from currentItem or V3 context
+    const activeKey = activeCardKeySOT || currentItem?.id || `${currentItem?.packId}:${currentItem?.instanceNumber}`;
+    if (!activeKey) return;
+    
+    requestAnimationFrame(() => {
+      ensureActiveVisibleAfterRender("ACTIVE_ITEM_CHANGED");
+    });
+  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender]);
+  
+  // PART B: RENDER LIST APPENDED - Call when transcript grows
+  React.useLayoutEffect(() => {
+    if (!shouldRenderFooter) return;
+    if (finalTranscriptList.length === 0) return;
+    
+    requestAnimationFrame(() => {
+      ensureActiveVisibleAfterRender("RENDER_LIST_APPENDED");
+    });
+  }, [finalTranscriptList.length, shouldRenderFooter, ensureActiveVisibleAfterRender]);
+  
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
     // Only run for base questions with footer visible
@@ -13485,15 +13579,10 @@ export default function CandidateInterview() {
       instanceNumber: currentItem?.instanceNumber
     });
     
-    // PART B: MI gate bottom anchor scroll (immediate, before async handler)
-    const isMiGateClick = currentItem?.type === 'multi_instance_gate' || 
-                         activeUiItem?.kind === 'MI_GATE';
-    
-    if (isMiGateClick) {
-      requestAnimationFrame(() => {
-        scrollToBottomForMiGate(`YESNO_CLICK_${answer}`);
-      });
-    }
+    // PART B: Call ensureActiveVisibleAfterRender after state update
+    requestAnimationFrame(() => {
+      ensureActiveVisibleAfterRender(`MI_GATE_YESNO_CLICK_${answer}`);
+    });
     
     // MI_GATE TRACE A: YES/NO button click entry
     console.log('[MI_GATE][TRACE][YESNO_CLICK]', {
@@ -13631,6 +13720,11 @@ export default function CandidateInterview() {
       trigger: 'BOTTOM_BAR_SUBMIT',
       currentItemType: currentItem?.type,
       effectiveItemType
+    });
+    
+    // PART B: Call ensureActiveVisibleAfterRender after submit
+    requestAnimationFrame(() => {
+      ensureActiveVisibleAfterRender("BOTTOM_BAR_SUBMIT");
     });
     
     // CQ_GUARD: submitIntent must be declared exactly once (do not duplicate)
