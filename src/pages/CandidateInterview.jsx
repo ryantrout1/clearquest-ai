@@ -3266,8 +3266,8 @@ export default function CandidateInterview() {
   // ============================================================================
   // TDZ GUARD: EARLY BOTTOM BAR MODE - Safe canonical source (no late variables)
   // ============================================================================
-  // Use bottomBarModeSOTSOT above this point; do not reference bottomBarModeSOT before its declaration.
-  const bottomBarModeSOTSOT = (() => {
+  // Use bottomBarModeSOT above this point; do not reference bottomBarMode before its declaration.
+  const bottomBarModeSOT = (() => {
     // Derive mode from early bottomBarRenderTypeSOT only (TDZ-safe)
     if (bottomBarRenderTypeSOT === "multi_instance_gate") return "YES_NO";
     if (bottomBarRenderTypeSOT === "v3_pack_opener") return "TEXT_INPUT";
@@ -3278,7 +3278,7 @@ export default function CandidateInterview() {
   })();
   
   if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-    console.log('[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT, bottomBarModeSOTSOT });
+    console.log('[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT, bottomBarModeSOT });
   }
   
   // V3 PROMPT PHASE CHANGE TRACKER (unconditional hook)
@@ -12045,14 +12045,14 @@ export default function CandidateInterview() {
     const activeKey = activeCardKeySOT || currentItem?.id || `${currentItem?.packId}:${currentItem?.instanceNumber}`;
     if (!activeKey) return;
     
-    // TDZ-SAFE: Use early bottomBarModeSOTSOT (computed before bottomBarModeSOT declaration)
-    const isYesNoModeFresh = bottomBarModeSOTSOT === 'YES_NO';
+    // TDZ-SAFE: Use early bottomBarModeSOT (computed before late references)
+    const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
     const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender("ACTIVE_ITEM_CHANGED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT, bottomBarModeSOTSOT, effectiveItemType, activeUiItem]);
+  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT, bottomBarModeSOT, effectiveItemType, activeUiItem]);
   
   // PART B: RENDER LIST APPENDED - TDZ-safe using ref (no direct finalTranscriptList reference)
   React.useLayoutEffect(() => {
@@ -12067,14 +12067,14 @@ export default function CandidateInterview() {
     // Length increased - trigger scroll correction
     prevFinalListLenForScrollRef.current = currentLen;
     
-    // TDZ-SAFE: Use early bottomBarModeSOTSOT (computed before bottomBarModeSOT declaration)
-    const isYesNoModeFresh = bottomBarModeSOTSOT === 'YES_NO';
+    // TDZ-SAFE: Use early bottomBarModeSOT (computed before late references)
+    const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
     const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender("RENDER_LIST_APPENDED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT, activeKindSOT, bottomBarModeSOTSOT, effectiveItemType, activeUiItem]);
+  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT, activeKindSOT, bottomBarModeSOT, effectiveItemType, activeUiItem]);
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
