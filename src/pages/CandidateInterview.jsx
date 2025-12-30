@@ -1822,6 +1822,10 @@ export default function CandidateInterview() {
   const openerMergeStatusRef = React.useRef('UNKNOWN');
   const footerClearanceStatusRef = React.useRef('UNKNOWN');
   
+  // 3-ROW SHELL FLAG: Disable legacy footer spacer checks
+  const IS_3ROW_SHELL = true;
+  const footerSpacerDisabledLoggedRef = React.useRef(false);
+  
   // GOLDEN CONTRACT CHECK: Dedupe tracking for golden check emissions
   const lastGoldenCheckPayloadRef = React.useRef(null);
   
@@ -3975,6 +3979,16 @@ export default function CandidateInterview() {
           hasFooterSpacer,
           middleIsOnlyScroll
         });
+        
+        // One-time log: Footer spacer checks disabled in 3-row shell
+        if (IS_3ROW_SHELL && !footerSpacerDisabledLoggedRef.current) {
+          footerSpacerDisabledLoggedRef.current = true;
+          console.log('[UI_CONTRACT][FOOTER_SPACER_DISABLED]', {
+            reason: 'SHELL_3ROW_ENFORCED',
+            footerInNormalFlow: true,
+            noSpacerNeeded: true
+          });
+        }
       } catch (e) {
         // Silent - audit should never crash
       }
@@ -10155,8 +10169,8 @@ export default function CandidateInterview() {
     scrollPaddingBottomPx: footerClearanceAppliedPx
   });
   
-  // GUARDRAIL A: Structural assertion - verify footer spacer exists and has correct height
-  if (historyRef.current && typeof window !== 'undefined') {
+  // GUARDRAIL A: Structural assertion - DISABLED in 3-row shell mode (footer in normal flow, no spacer needed)
+  if (!IS_3ROW_SHELL && historyRef.current && typeof window !== 'undefined') {
     requestAnimationFrame(() => {
       try {
         const scrollContainer = historyRef.current;
@@ -10219,13 +10233,13 @@ export default function CandidateInterview() {
     });
   }
   
-  // GUARDRAIL C: Mode switch assertion - verify spacer recalculation on mode change
+  // GUARDRAIL C: Mode switch assertion - DISABLED in 3-row shell mode (footer in normal flow, no spacer)
   const prevBottomBarModeRef = React.useRef(bottomBarMode);
   React.useEffect(() => {
     const prevMode = prevBottomBarModeRef.current;
     const currentMode = bottomBarMode;
     
-    if (prevMode !== currentMode && typeof window !== 'undefined') {
+    if (!IS_3ROW_SHELL && prevMode !== currentMode && typeof window !== 'undefined') {
       requestAnimationFrame(() => {
         try {
           const scrollContainer = historyRef.current;
