@@ -1764,13 +1764,13 @@ export default function CandidateInterview() {
   }, []);
   
   // PART D: CANONICAL POST-RENDER VISIBILITY CORRECTION
-  // ChatGPT-style: Ensures active item is ALWAYS fully visible above footer
+  // ChatGPT-style: Ensures active item is ALWAYS fully visible above composer
   const ensureActiveVisibleAfterRender = useCallback((reason, activeKindSOT) => {
     const scroller = scrollOwnerRef.current || historyRef.current;
     if (!scroller) return;
     
-    const footerEl = footerRef.current;
-    if (!footerEl) return;
+    const composerEl = footerRef.current; // Sticky composer inside scroller
+    if (!composerEl) return;
     
     // PART C: Lock scroll writes for v3_pack_opener settle (extended window)
     const isV3Opener = activeKindSOT === 'v3_pack_opener' || activeKindSOT === 'V3_OPENER';
