@@ -16033,6 +16033,7 @@ export default function CandidateInterview() {
             aria-hidden="true" 
             style={{ height: '1px', margin: 0, padding: 0 }} 
           />
+          </div>
         </div>
       </main>
 
