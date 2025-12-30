@@ -1153,10 +1153,35 @@ const runV2FieldProbeIfNeeded = async ({
   }
 };
 
+// CLEARQUEST UI CONTRACT:
+// - StartInterview renders ONLY when no sessionId exists
+// - CandidateInterview owns UI once session starts
+// - Welcome / start screens must NEVER reappear mid-session
+
 export default function CandidateInterview() {
   const navigate = useNavigate();
   const urlParams = new URLSearchParams(window.location.search);
   const sessionId = urlParams.get('session');
+  
+  // UI CONTRACT GUARD: Block render if no sessionId (defensive)
+  if (!sessionId) {
+    console.error('[UI_CONTRACT][CANDIDATE_INTERVIEW_NO_SESSION]', {
+      reason: 'SessionId missing from URL - interview cannot render',
+      action: 'BLOCK_RENDER',
+      url: window.location.href
+    });
+    
+    // Return minimal error state (do NOT auto-navigate back to StartInterview)
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
+          <p className="text-slate-300">Interview session not found</p>
+          <p className="text-slate-500 text-sm">Please start a new interview from the beginning</p>
+        </div>
+      </div>
+    );
+  }
   
   // TODO: REMOVE CQDIAG after PASS validation
   const cqDiagEnabled = urlParams.get('cqdiag') === '1';

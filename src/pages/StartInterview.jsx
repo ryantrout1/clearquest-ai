@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
@@ -14,9 +14,43 @@ import { Link } from "react-router-dom";
 // cn is removed as it's no longer used for conditional styling of input border.
 // Switch is removed as debugMode is removed.
 
+// CLEARQUEST UI CONTRACT:
+// - StartInterview renders ONLY when no sessionId exists
+// - CandidateInterview owns UI once session starts
+// - Welcome / start screens must NEVER reappear mid-session
+
 export default function StartInterview() {
   const navigate = useNavigate();
   const { token } = useParams(); // Optional URL token for prefilling
+  
+  // UI CONTRACT GUARD: Hard-block StartInterview if sessionId already exists
+  const urlParams = new URLSearchParams(window.location.search);
+  const existingSessionId = urlParams.get('session');
+  
+  // EARLY EXIT: Terminal navigation guard
+  const didNavigateRef = React.useRef(false);
+  
+  React.useEffect(() => {
+    if (existingSessionId && !didNavigateRef.current) {
+      console.log('[UI_CONTRACT][START_INTERVIEW_BLOCKED_EXISTING_SESSION]', {
+        sessionId: existingSessionId,
+        reason: 'SessionId exists - redirecting to CandidateInterview',
+        action: 'TERMINAL_REDIRECT'
+      });
+      
+      didNavigateRef.current = true;
+      navigate(createPageUrl(`CandidateInterview?session=${existingSessionId}`), { replace: true });
+    }
+  }, [existingSessionId, navigate]);
+  
+  // GUARD: Block render if sessionId exists
+  if (existingSessionId) {
+    console.log('[UI_CONTRACT][START_INTERVIEW_RENDER_BLOCKED]', {
+      sessionId: existingSessionId,
+      reason: 'SessionId exists - StartInterview must not render'
+    });
+    return null; // No render
+  }
   
   const [formData, setFormData] = useState({
     departmentCode: "",
@@ -139,8 +173,20 @@ export default function StartInterview() {
     }
   };
 
+  // Terminal navigation guard (prevents re-render after navigate)
+  const didNavigateToInterviewRef = React.useRef(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // TERMINAL NAVIGATION GUARD: Prevent duplicate navigation
+    if (didNavigateToInterviewRef.current) {
+      console.log('[UI_CONTRACT][START_INTERVIEW_SUBMIT_BLOCKED]', {
+        reason: 'Already navigated to interview',
+        action: 'SKIP_DUPLICATE_SUBMIT'
+      });
+      return;
+    }
     
     setError(null);
     setIsSubmitting(true);
@@ -217,7 +263,15 @@ export default function StartInterview() {
             status: activeSession.status,
             tokenPresent: Boolean(token) 
           });
-          navigate(createPageUrl(`CandidateInterview?session=${activeSession.id}`));
+          
+          console.log('[UI_CONTRACT][START_INTERVIEW_TERMINAL_NAV]', {
+            sessionId: activeSession.id,
+            reason: 'RESUME_EXISTING_SESSION',
+            action: 'TERMINAL_REDIRECT'
+          });
+          
+          didNavigateToInterviewRef.current = true;
+          navigate(createPageUrl(`CandidateInterview?session=${activeSession.id}`), { replace: true });
           return;
         }
 
@@ -272,11 +326,20 @@ export default function StartInterview() {
         tokenPresent: Boolean(token) 
       });
 
+      console.log('[UI_CONTRACT][START_INTERVIEW_TERMINAL_NAV]', {
+        sessionId: newSession.id,
+        reason: 'NEW_SESSION_CREATED',
+        action: 'TERMINAL_REDIRECT'
+      });
+
       // Mark request complete BEFORE navigate (prevents timeout race)
       requestCompletedRef.value = true;
       clearTimeout(sessionTimeout);
+      
+      // TERMINAL NAVIGATION: Mark as navigated before redirect
+      didNavigateToInterviewRef.current = true;
 
-      navigate(createPageUrl(`CandidateInterview?session=${newSession.id}`));
+      navigate(createPageUrl(`CandidateInterview?session=${newSession.id}`), { replace: true });
 
     } catch (err) {
       requestCompletedRef.value = true;
