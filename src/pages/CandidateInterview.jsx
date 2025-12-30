@@ -10022,18 +10022,29 @@ export default function CandidateInterview() {
     ? Math.max(dynamicBottomPaddingPxRaw, CTA_MIN_PADDING_PX)
     : dynamicBottomPaddingPxRaw;
   
+  // FOOTER CLEARANCE SOT: Single source of truth for footer clearance (spacer + padding)
+  // Uses real footer height + safety gap for guaranteed clearance
+  const footerClearanceSOTPx = shouldRenderFooter
+    ? Math.max(0, (footerMeasuredHeightPx || 0) + (hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX))
+    : 0;
+  
+  // APPLIED CLEARANCE: Hard minimum (never below 8px when footer visible)
+  const footerClearanceAppliedPx = Math.max(footerClearanceSOTPx, shouldRenderFooter ? 8 : 0);
+  
   // DIAGNOSTIC LOG: Show padding computation (always on)
   console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
     mode: bottomBarMode,
     footerMeasuredHeightPx,
     computedPaddingPx: dynamicBottomPaddingPx,
+    footerClearanceSOTPx,
+    footerClearanceAppliedPx,
     safeFooterClearancePx: SAFE_FOOTER_CLEARANCE_PX,
     hasActiveCard,
     effectiveGap: hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX,
     gapReduction: hasActiveCard ? '~75%' : 'none',
     shouldRenderFooter,
-    appliedTo: 'footer_spacer_end_of_scroll_content',
-    scrollPaddingBottomPx: 0
+    appliedTo: 'spacer_and_scroll_padding_unified',
+    scrollPaddingBottomPx: footerClearanceAppliedPx
   });
   
   // GUARDRAIL A: Structural assertion - verify footer spacer exists and has correct height
@@ -11102,6 +11113,85 @@ export default function CandidateInterview() {
     dynamicBottomPaddingPx,
     shouldRenderFooter,
     isUserTyping
+  ]);
+  
+  // ACTIVE CARD OVERLAP NUDGE: Ensure active card never hides behind footer when footer changes
+  React.useLayoutEffect(() => {
+    if (!shouldRenderFooter) return; // No footer, no nudge needed
+    if (!hasActiveCard) return; // No active card, nothing to nudge
+    
+    const scrollContainer = historyRef.current;
+    const footerEl = footerRef.current;
+    if (!scrollContainer || !footerEl) return;
+    
+    requestAnimationFrame(() => {
+      // Find active card element
+      const activeCardEl = scrollContainer.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+      if (!activeCardEl) {
+        if (CQ_DEBUG_FOOTER_ANCHOR) {
+          console.log('[UI_CONTRACT][FOOTER_OVERLAP_NUDGE_SKIP]', {
+            reason: 'active_card_not_found',
+            hasActiveCard,
+            bottomBarMode
+          });
+        }
+        return;
+      }
+      
+      // Check if user is near bottom (only nudge when user expects auto-scroll)
+      const nearBottom = isNearBottomStrict(scrollContainer, 24);
+      const overflows = scrollContainer.scrollHeight > scrollContainer.clientHeight + 1;
+      
+      // Only nudge if near bottom OR no overflow (short transcript)
+      if (!nearBottom && overflows) {
+        if (CQ_DEBUG_FOOTER_ANCHOR) {
+          console.log('[UI_CONTRACT][FOOTER_OVERLAP_NUDGE_SKIP]', {
+            reason: 'user_scrolled_up',
+            nearBottom,
+            overflows
+          });
+        }
+        return;
+      }
+      
+      // Measure overlap
+      const activeCardRect = activeCardEl.getBoundingClientRect();
+      const footerRect = footerEl.getBoundingClientRect();
+      const clearancePx = SAFE_FOOTER_CLEARANCE_PX || 8;
+      const targetFooterTop = footerRect.top - clearancePx;
+      const overlapPx = Math.max(0, activeCardRect.bottom - targetFooterTop);
+      
+      if (overlapPx > 2) {
+        // Overlap detected - nudge scroll to reveal card
+        const scrollTopBefore = scrollContainer.scrollTop;
+        scrollContainer.scrollTop += overlapPx;
+        const scrollTopAfter = scrollContainer.scrollTop;
+        
+        if (CQ_DEBUG_FOOTER_ANCHOR) {
+          console.log('[UI_CONTRACT][FOOTER_OVERLAP_NUDGE]', {
+            overlapPx: Math.round(overlapPx),
+            footerMeasuredHeightPx,
+            bottomBarMode,
+            stableKey: activeCardEl.getAttribute('data-stablekey'),
+            scrollTopBefore: Math.round(scrollTopBefore),
+            scrollTopAfter: Math.round(scrollTopAfter),
+            nudged: Math.abs(scrollTopAfter - scrollTopBefore) > 1
+          });
+        }
+      } else if (CQ_DEBUG_FOOTER_ANCHOR) {
+        console.log('[UI_CONTRACT][FOOTER_OVERLAP_NUDGE_SKIP]', {
+          reason: 'no_overlap',
+          overlapPx: Math.round(overlapPx),
+          bottomBarMode
+        });
+      }
+    });
+  }, [
+    shouldRenderFooter,
+    hasActiveCard,
+    footerMeasuredHeightPx,
+    activeCard?.stableKey,
+    bottomBarMode
   ]);
 
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
@@ -14812,7 +14902,7 @@ export default function CandidateInterview() {
         className="flex-1 min-h-0 overflow-y-auto cq-scroll scrollbar-thin flex flex-col" 
         ref={historyRef} 
         onScroll={handleTranscriptScroll}
-        style={{ paddingBottom: `${Math.max(dynamicBottomPaddingPx || 0, 8)}px` }}
+        style={{ paddingBottom: `${footerClearanceAppliedPx}px` }}
       >
         <div className="px-4 pt-6 flex flex-col flex-1 min-h-0">
           {/* UI CONTRACT: Transcript gravity is enforced via cq-gravity-rail + mt-auto.
@@ -15858,7 +15948,7 @@ export default function CandidateInterview() {
             className="cq-footer-spacer flex-none"
             aria-hidden="true" 
             style={{ 
-              height: `${dynamicBottomPaddingPx}px`,
+              height: `${footerClearanceAppliedPx}px`,
               pointerEvents: 'none',
               flexShrink: 0,
               flex: '0 0 auto'
