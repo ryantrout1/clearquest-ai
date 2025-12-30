@@ -1729,123 +1729,136 @@ export default function CandidateInterview() {
     const footerEl = footerRef.current;
     if (!footerEl) return;
     
-    // STEP 1: Force baseline (always maxScrollTop first)
-    scrollToBottom(reason);
+    // PART A: Hard baseline to bottom (forced anchor before measuring)
+    const scrollHeight = scroller.scrollHeight;
+    const clientHeight = scroller.clientHeight;
+    const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
     
-    // STEP 2: Overlap correction from known baseline (nested RAF for fresh measurement)
-    requestAnimationFrame(() => {
-      // Force maxScrollTop again before measuring
-      const scrollHeight = scroller.scrollHeight;
-      const clientHeight = scroller.clientHeight;
-      const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-      scroller.scrollTop = maxScrollTop;
-      
-      // PASS 1: Measure from baseline
-      requestAnimationFrame(() => {
-        const footerRect = footerEl.getBoundingClientRect();
-        
-        // Multi-tier active card search
-        let activeCardEl = scroller.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
-        if (!activeCardEl) {
-          activeCardEl = scroller.querySelector('[data-cq-active-card="true"]');
-        }
-        if (!activeCardEl && activeLaneCardRef.current) {
-          activeCardEl = activeLaneCardRef.current;
-        }
-        
-        // No active card - already at baseline
-        if (!activeCardEl) return;
-        
-        // Compute overlap from baseline
-        const activeRect = activeCardEl.getBoundingClientRect();
-        const overlapPx = Math.max(0, activeRect.bottom - footerRect.top);
-        
-        if (overlapPx > 4) {
-          const scrollHeight = scroller.scrollHeight;
-          const clientHeight = scroller.clientHeight;
-          const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-          
-          // V3_OPENER BUFFER: Use larger clearance for V3 packs (they settle late)
-          const isV3Kind = activeKindSOT === 'v3_pack_opener' || activeKindSOT?.startsWith?.('v3_');
-          const buffer = isV3Kind ? 32 : 16;
-          
-          // DEDUPED LOG: V3 opener buffer application (once per pack+instance)
-          if (isV3Kind && buffer === 32) {
-            const packId = currentItem?.packId;
-            const instanceNumber = currentItem?.instanceNumber;
-            const logKey = `v3_opener_buffer_${packId}_${instanceNumber}`;
-            
-            logOnce(logKey, () => {
-              console.log('[SCROLL][V3_OPENER_BUFFER]', {
-                bufferPx: buffer,
-                overlapPx: Math.round(overlapPx),
-                maxScrollTop: Math.round(maxScrollTop),
-                activeKind: activeKindSOT,
-                packId,
-                instanceNumber
-              });
-            });
-          }
-          
-          const targetScrollTop = Math.min(maxScrollTop, maxScrollTop + overlapPx + buffer);
-          
-          scroller.scrollTop = targetScrollTop;
-          const actualScrollTop = scroller.scrollTop;
-          
-          // Retry if browser clamped differently
-          if (actualScrollTop < targetScrollTop - 2) {
-            scroller.scrollTop = targetScrollTop;
-          }
-          
-          console.log('[SCROLL][ENSURE_ACTIVE][PASS1]', {
-            reason,
-            overlapPx: Math.round(overlapPx),
-            buffer,
-            isV3Kind,
-            targetScrollTop: Math.round(targetScrollTop),
-            actualScrollTop: Math.round(actualScrollTop),
-            maxScrollTop: Math.round(maxScrollTop)
-          });
-          
-          // PASS 2: Settle retry for v3 kinds (height may still be settling)
-          const shouldRetry = (reason === 'ACTIVE_ITEM_CHANGED' || reason === 'RENDER_LIST_APPENDED') &&
-                             isV3Kind;
-          
-          if (shouldRetry) {
-            requestAnimationFrame(() => {
-              // Re-baseline before second measurement
-              const scrollHeight2 = scroller.scrollHeight;
-              const clientHeight2 = scroller.clientHeight;
-              const maxScrollTop2 = Math.max(0, scrollHeight2 - clientHeight2);
-              scroller.scrollTop = maxScrollTop2;
-              
-              // Measure from fresh baseline
-              requestAnimationFrame(() => {
-                const footerRect2 = footerEl.getBoundingClientRect();
-                const activeRect2 = activeCardEl.getBoundingClientRect();
-                const overlapPx2 = Math.max(0, activeRect2.bottom - footerRect2.top);
-                
-                if (overlapPx2 > 4) {
-                  const scrollHeight2 = scroller.scrollHeight;
-                  const clientHeight2 = scroller.clientHeight;
-                  const maxScrollTop2 = Math.max(0, scrollHeight2 - clientHeight2);
-                  const targetScrollTop2 = Math.min(maxScrollTop2, maxScrollTop2 + overlapPx2 + buffer);
-                  
-                  scroller.scrollTop = targetScrollTop2;
-                  
-                  console.log('[SCROLL][ENSURE_ACTIVE][PASS2_RETRY]', {
-                    reason,
-                    overlapPx2: Math.round(overlapPx2),
-                    buffer,
-                    targetScrollTop2: Math.round(targetScrollTop2),
-                    maxScrollTop2: Math.round(maxScrollTop2)
-                  });
-                }
-              });
-            });
-          }
-        }
+    scroller.scrollTop = maxScrollTop;
+    const baselineAfter = scroller.scrollTop;
+    
+    // PART E: Baseline verification (detect if another effect is resetting)
+    if (Math.abs(baselineAfter - maxScrollTop) > 20) {
+      const logKey = `baseline_not_bottom_${reason}_${activeKindSOT}`;
+      logOnce(logKey, () => {
+        console.error('[SCROLL][BASELINE_NOT_BOTTOM]', {
+          maxScrollTop: Math.round(maxScrollTop),
+          baselineAfter: Math.round(baselineAfter),
+          delta: Math.round(maxScrollTop - baselineAfter),
+          reason,
+          activeKindSOT,
+          scrollHeight: Math.round(scrollHeight),
+          clientHeight: Math.round(clientHeight)
+        });
       });
+    }
+    
+    // Retry baseline once if browser didn't reach bottom
+    if (baselineAfter < maxScrollTop - 2) {
+      scroller.scrollTop = maxScrollTop;
+    }
+    
+    // PART B: Measure overlap AFTER baseline (nested RAF for fresh DOM)
+    requestAnimationFrame(() => {
+      const footerRect = footerEl.getBoundingClientRect();
+      
+      // Multi-tier active card search
+      let activeCardEl = scroller.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+      if (!activeCardEl) {
+        activeCardEl = scroller.querySelector('[data-cq-active-card="true"]');
+      }
+      if (!activeCardEl && activeLaneCardRef.current) {
+        activeCardEl = activeLaneCardRef.current;
+      }
+      
+      // No active card - already at baseline
+      if (!activeCardEl) return;
+      
+      const activeRect = activeCardEl.getBoundingClientRect();
+      const overlapPx = Math.max(0, activeRect.bottom - footerRect.top);
+      
+      // PART C: Apply delta correction (not clamped target)
+      if (overlapPx > 4) {
+        // V3 buffer: larger clearance for V3 kinds (settle late)
+        const isV3Kind = activeKindSOT === 'v3_pack_opener' || activeKindSOT?.startsWith?.('v3_');
+        const bufferPx = isV3Kind ? 32 : 16;
+        
+        // Deduped log for V3 opener buffer
+        if (isV3Kind && bufferPx === 32) {
+          const packId = currentItem?.packId;
+          const instanceNumber = currentItem?.instanceNumber;
+          const logKey = `v3_opener_buffer_${packId}_${instanceNumber}`;
+          
+          logOnce(logKey, () => {
+            console.log('[SCROLL][V3_OPENER_BUFFER]', {
+              bufferPx,
+              overlapPx: Math.round(overlapPx),
+              maxScrollTop: Math.round(maxScrollTop),
+              activeKind: activeKindSOT,
+              packId,
+              instanceNumber
+            });
+          });
+        }
+        
+        const scrollTopBefore = scroller.scrollTop;
+        
+        // Apply delta correction (add overlap + buffer)
+        scroller.scrollTop = scroller.scrollTop + overlapPx + bufferPx;
+        
+        // Clamp to maxScrollTop (prevent overshoot)
+        const currentMax = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+        if (scroller.scrollTop > currentMax) {
+          scroller.scrollTop = currentMax;
+        }
+        
+        const scrollTopAfter = scroller.scrollTop;
+        
+        console.log('[SCROLL][ENSURE_ACTIVE][PASS1]', {
+          reason,
+          overlapPx: Math.round(overlapPx),
+          bufferPx,
+          isV3Kind,
+          scrollTopBefore: Math.round(scrollTopBefore),
+          scrollTopAfter: Math.round(scrollTopAfter),
+          maxScrollTop: Math.round(maxScrollTop),
+          deltaCorrectionApplied: Math.round(scrollTopAfter - scrollTopBefore)
+        });
+        
+        // PART D: One retry for v3_pack_opener (layout settling)
+        if (activeKindSOT === 'v3_pack_opener' && overlapPx > 4) {
+          requestAnimationFrame(() => {
+            const footerRect2 = footerEl.getBoundingClientRect();
+            const activeRect2 = activeCardEl.getBoundingClientRect();
+            const overlapPx2 = Math.max(0, activeRect2.bottom - footerRect2.top);
+            
+            if (overlapPx2 > 4) {
+              const scrollTopBefore2 = scroller.scrollTop;
+              
+              // Apply delta correction again
+              scroller.scrollTop = scroller.scrollTop + overlapPx2 + bufferPx;
+              
+              // Clamp to maxScrollTop
+              const currentMax2 = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+              if (scroller.scrollTop > currentMax2) {
+                scroller.scrollTop = currentMax2;
+              }
+              
+              const scrollTopAfter2 = scroller.scrollTop;
+              
+              console.log('[SCROLL][ENSURE_ACTIVE][PASS2_V3_OPENER]', {
+                reason,
+                overlapPx2: Math.round(overlapPx2),
+                bufferPx,
+                scrollTopBefore2: Math.round(scrollTopBefore2),
+                scrollTopAfter2: Math.round(scrollTopAfter2),
+                maxScrollTop2: Math.round(currentMax2),
+                deltaCorrectionApplied: Math.round(scrollTopAfter2 - scrollTopBefore2)
+              });
+            }
+          });
+        }
+      }
     });
   }, [scrollToBottom, currentItem]);
   const didInitialSnapRef = useRef(false);
