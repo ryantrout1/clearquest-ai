@@ -2792,19 +2792,6 @@ export default function CandidateInterview() {
     }
   }, [activeKindSOT, extraBottomSpacerPx]);
   
-  // PART D: Align active card when bottomBarMode becomes YES_NO
-  useLayoutEffect(() => {
-    // TDZ-SAFE: Compute fresh flags inside effect using available values
-    const isYesNoModeFresh = bottomBarMode === 'YES_NO';
-    const isMiGateFresh = currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
-    
-    if (!isYesNoModeFresh) return;
-    
-    requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', activeKindSOT, isYesNoModeFresh, isMiGateFresh);
-    });
-  }, [bottomBarMode, ensureActiveVisibleAfterRender, activeKindSOT, currentItem, activeUiItem]);
-  
   // ============================================================================
   // ACTIVE CARD KEY SOT - Single source of truth for active card identifier
   // ============================================================================
@@ -13562,6 +13549,20 @@ export default function CandidateInterview() {
   
 
   
+  // PART D: Align active card when bottomBarMode becomes YES_NO
+  // TDZ-SAFE: Moved here AFTER bottomBarMode is declared (line ~10992)
+  useLayoutEffect(() => {
+    // TDZ-SAFE: bottomBarMode now in scope - compute fresh flags inside effect
+    const isYesNoModeFresh = bottomBarMode === 'YES_NO';
+    const isMiGateFresh = currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+    
+    if (!isYesNoModeFresh) return;
+    
+    requestAnimationFrame(() => {
+      ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', activeKindSOT, isYesNoModeFresh, isMiGateFresh);
+    });
+  }, [bottomBarMode, ensureActiveVisibleAfterRender, activeKindSOT, currentItem, activeUiItem]);
+
   // Auto-focus control props (pure values, no hooks)
   const focusEnabled = screenMode === 'QUESTION';
   const focusShouldTrigger = focusEnabled && bottomBarMode === 'TEXT_INPUT' && (hasPrompt || v3ProbingActive || currentItem?.type === 'v3_pack_opener');
