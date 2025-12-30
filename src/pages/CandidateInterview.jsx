@@ -13568,7 +13568,7 @@ export default function CandidateInterview() {
     
     // PART B: Call ensureActiveVisibleAfterRender after state update
     requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender(`MI_GATE_YESNO_CLICK_${answer}`);
+      ensureActiveVisibleAfterRender(`MI_GATE_YESNO_CLICK_${answer}`, activeKindSOT);
     });
     
     // MI_GATE TRACE A: YES/NO button click entry
