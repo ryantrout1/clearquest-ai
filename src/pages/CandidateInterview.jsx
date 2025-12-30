@@ -134,13 +134,8 @@ const isMiGateItem = (item, packId, instanceNumber) => {
   return false;
 };
 
-// PART A: Violation snapshot helper - MUST be inside component (needs access to refs/state)
-// Moved to component scope (will be declared inside CandidateInterview function)
-
-// Legacy compact diagnostic (kept for compatibility)
-const logRenderListSummary = (list, gatePackId, gateInstanceNumber, reason) => {
-  captureViolationSnapshot({ reason, list, packId: gatePackId, instanceNumber: gateInstanceNumber });
-};
+// PART A: Violation snapshot helper - declared inside component (needs refs/state access)
+// Legacy wrapper removed - captureViolationSnapshot called directly
 
 // ============================================================================
 // TRANSCRIPT CONTRACT (v1) - Single Source of Truth
