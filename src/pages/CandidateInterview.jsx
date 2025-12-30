@@ -1800,6 +1800,77 @@ export default function CandidateInterview() {
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
   
+  // PART A: Violation snapshot helper (component-scoped - needs refs/state access)
+  const captureViolationSnapshot = useCallback((context) => {
+    const { reason, list, packId, instanceNumber, activeItemId } = context;
+    
+    // Dedupe key: only log once per unique violation context
+    const snapshotKey = `${packId || 'na'}:${instanceNumber || 'na'}:${activeItemId || 'na'}:${reason}`;
+    
+    // Use module-scope logOnce (already declared above)
+    logOnce(snapshotKey, () => {
+      // 1) RENDER LIST TRUTH
+      const gateIndex = list ? list.findIndex(item => isMiGateItem(item, packId, instanceNumber)) : -1;
+      const trailingItems = (gateIndex !== -1 && gateIndex < list.length - 1) 
+        ? list.slice(gateIndex + 1).map(e => ({
+            kind: e.kind || e.messageType || e.type || 'unknown',
+            stableKey: e.stableKey || e.id || null,
+            isActiveCard: e.__activeCard || false,
+            isV3Related: (e.meta?.v3PromptSource || e.meta?.packId || e.kind?.includes('v3')) ? true : false
+          }))
+        : [];
+      
+      // 2) DOM TRUTH
+      let domSnapshot = null;
+      if (typeof window !== 'undefined' && historyRef.current && footerRootRef.current) {
+        const scrollContainer = historyRef.current;
+        const footerEl = footerRootRef.current;
+        const activeCardEl = scrollContainer.querySelector('[data-cq-active-card="true"]');
+        
+        const scrollTop = scrollContainer.scrollTop;
+        const clientHeight = scrollContainer.clientHeight;
+        const scrollHeight = scrollContainer.scrollHeight;
+        const footerRect = footerEl.getBoundingClientRect();
+        
+        let activeCardOverlapPx = 0;
+        if (activeCardEl) {
+          const activeRect = activeCardEl.getBoundingClientRect();
+          activeCardOverlapPx = Math.max(0, activeRect.bottom - footerRect.top);
+        }
+        
+        domSnapshot = {
+          scrollTop: Math.round(scrollTop),
+          clientHeight: Math.round(clientHeight),
+          scrollHeight: Math.round(scrollHeight),
+          footerTop: Math.round(footerRect.top),
+          activeCardBottom: activeCardEl ? Math.round(activeCardEl.getBoundingClientRect().bottom) : null,
+          overlapPx: Math.round(activeCardOverlapPx)
+        };
+      }
+      
+      // 3) STATE TRUTH (minimal)
+      const stateSnapshot = {
+        packId: packId || null,
+        instanceNumber: instanceNumber || null,
+        activeItemId: activeItemId || null,
+        typingLock: isUserTyping || false
+      };
+      
+      console.error('[CQ_VIOLATION_SNAPSHOT]', {
+        reason,
+        renderListTruth: {
+          totalItems: list?.length || 0,
+          gateIndex,
+          lastIndex: list ? list.length - 1 : -1,
+          trailingCount: trailingItems.length,
+          trailingItems
+        },
+        domTruth: domSnapshot,
+        stateTruth: stateSnapshot
+      });
+    });
+  }, [isUserTyping, currentItem]);
+  
   const lastQuestionShownIdRef = useRef(null); // Track last question shown for force-scroll dedupe
   
   // DEV DEBUG: Enable evidence bundle capture (v3debug=1 or localStorage flag)
