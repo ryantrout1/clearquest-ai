@@ -3303,17 +3303,19 @@ export default function CandidateInterview() {
     console.log('[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT, bottomBarModeSOT, bottomBarModeSOTSafe });
   }
   
-  // FIX #1: Diagnostic log for base yes/no routing (AFTER bottomBarModeSOTSafe exists)
+  // FIX #1: Diagnostic log for base yes/no routing (TDZ-SAFE: uses only early variables)
   if (bottomBarRenderTypeSOT === "yes_no") {
     console.log('[UI_CONTRACT][BASE_YESNO_BOTTOM_BAR_ROUTE]', {
       activeCardKind: activeCard?.kind,
       bottomBarRenderTypeSOT,
       bottomBarModeSOTSafe,
-      effectiveItemType,
       currentItemId: currentItem?.id,
+      currentItemType: currentItem?.type,
       questionResponseType: engine?.QById?.[currentItem?.id]?.response_type
     });
   }
+  
+  // TDZ GUARD: Do not reference late-derived vars (effectiveItemType, etc.) above this line.
   
   // One-time warning if fallback triggered (dev-only, once per mount)
   const fallbackWarningLoggedRef = React.useRef(false);
