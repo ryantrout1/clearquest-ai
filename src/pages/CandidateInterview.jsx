@@ -1663,6 +1663,67 @@ export default function CandidateInterview() {
   const scrollOwnerRef = useRef(null); // PART A: Runtime-identified scroll owner (true scroll container)
   const promptLaneRef = useRef(null);
   const autoScrollEnabledRef = useRef(true);
+  
+  // TDZ FIX: Scroll helpers declared early (before any useEffects that reference them)
+  // PART A: Helper to identify true scroll owner at runtime
+  const getScrollOwner = useCallback((startElement) => {
+    if (!startElement || typeof window === 'undefined') return null;
+    
+    let el = startElement;
+    
+    // Walk up DOM tree to find scroll container
+    while (el && el !== document.body) {
+      const computed = window.getComputedStyle(el);
+      const overflowY = computed.overflowY;
+      const isScrollable = overflowY === 'auto' || overflowY === 'scroll';
+      
+      if (isScrollable) {
+        // Check if this element can actually scroll (or is intended to)
+        const canScroll = el.scrollHeight > el.clientHeight || 
+                         el === historyRef.current; // Recognize intended scroll owner
+        
+        if (canScroll || el === historyRef.current) {
+          return el;
+        }
+      }
+      
+      el = el.parentElement;
+    }
+    
+    // Fallback: return historyRef if walk-up failed
+    return historyRef.current;
+  }, []);
+  
+  // PART A: Shared MI gate scroll helper - SINGLE source of truth for all MI gate scrolling
+  const scrollToBottomForMiGate = useCallback((reason) => {
+    // Use runtime-identified scroll owner (fallback to historyRef)
+    const scroller = scrollOwnerRef.current || historyRef.current;
+    if (!scroller) {
+      console.warn('[SCROLL][MI_GATE_NO_SCROLLER]', { reason });
+      return;
+    }
+    
+    // Correct scrollTop math (maxScrollTop = scrollHeight - clientHeight)
+    const scrollHeight = scroller.scrollHeight;
+    const clientHeight = scroller.clientHeight;
+    const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
+    const requestedScrollTop = maxScrollTop + 8; // Small buffer (browser will clamp)
+    
+    const scrollTopBefore = scroller.scrollTop;
+    scroller.scrollTop = requestedScrollTop;
+    const actualScrollTopAfter = scroller.scrollTop; // Read back actual value
+    
+    console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
+      reason,
+      strategy: 'SCROLL_TOP_DIRECT',
+      scrollTopBefore: Math.round(scrollTopBefore),
+      maxScrollTop: Math.round(maxScrollTop),
+      requestedScrollTop: Math.round(requestedScrollTop),
+      actualScrollTopAfter: Math.round(actualScrollTopAfter),
+      scrollHeight: Math.round(scrollHeight),
+      clientHeight: Math.round(clientHeight)
+    });
+  }, []);
   const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
   const pendingScrollRafRef = useRef(null);
@@ -10353,68 +10414,6 @@ export default function CandidateInterview() {
   useEffect(() => {
     cqDiagEnabledRef.current = cqDiagEnabled;
   }, [cqDiagEnabled]);
-  
-  // PART A: Helper to identify true scroll owner at runtime (MUST BE BEFORE useEffect that uses it)
-  const getScrollOwner = useCallback((startElement) => {
-    if (!startElement || typeof window === 'undefined') return null;
-    
-    let el = startElement;
-    
-    // Walk up DOM tree to find scroll container
-    while (el && el !== document.body) {
-      const computed = window.getComputedStyle(el);
-      const overflowY = computed.overflowY;
-      const isScrollable = overflowY === 'auto' || overflowY === 'scroll';
-      
-      if (isScrollable) {
-        // Check if this element can actually scroll (or is intended to)
-        const canScroll = el.scrollHeight > el.clientHeight || 
-                         el === historyRef.current; // Recognize intended scroll owner
-        
-        if (canScroll || el === historyRef.current) {
-          return el;
-        }
-      }
-      
-      el = el.parentElement;
-    }
-    
-    // Fallback: return historyRef if walk-up failed
-    return historyRef.current;
-  }, []);
-  
-  // PART A: Shared MI gate scroll helper - SINGLE source of truth for all MI gate scrolling
-  const scrollToBottomForMiGate = useCallback((reason) => {
-    // PART C: Use runtime-identified scroll owner (fallback to historyRef)
-    const scroller = scrollOwnerRef.current || historyRef.current;
-    if (!scroller) {
-      console.warn('[SCROLL][MI_GATE_NO_SCROLLER]', { reason });
-      return;
-    }
-    
-    // PART A: Correct scrollTop math (maxScrollTop = scrollHeight - clientHeight)
-    const scrollHeight = scroller.scrollHeight;
-    const clientHeight = scroller.clientHeight;
-    const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-    const requestedScrollTop = maxScrollTop + 8; // Small buffer (browser will clamp)
-    
-    const scrollTopBefore = scroller.scrollTop;
-    scroller.scrollTop = requestedScrollTop;
-    const actualScrollTopAfter = scroller.scrollTop; // Read back actual value
-    
-    console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
-      reason,
-      packId: currentItem?.packId,
-      instanceNumber: currentItem?.instanceNumber,
-      strategy: 'SCROLL_TOP_DIRECT',
-      scrollTopBefore: Math.round(scrollTopBefore),
-      maxScrollTop: Math.round(maxScrollTop),
-      requestedScrollTop: Math.round(requestedScrollTop),
-      actualScrollTopAfter: Math.round(actualScrollTopAfter),
-      scrollHeight: Math.round(scrollHeight),
-      clientHeight: Math.round(clientHeight)
-    });
-  }, [currentItem]);
   
   // PART A: Initialize scroll owner on mount
   useEffect(() => {
