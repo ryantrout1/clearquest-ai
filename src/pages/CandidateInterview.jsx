@@ -10870,7 +10870,12 @@ export default function CandidateInterview() {
   // PART B: BOTTOM SPACER HEIGHT - Real element clearance (NOT padding)
   // Replaces paddingBottom with actual DOM spacer (ChatGPT pattern)
   // ALWAYS use composer height (sticky composer always present in this layout)
-  const bottomSpacerPx = Math.max(footerHeightSOTPx + 16, 80); // 80px minimum for safe clearance
+  
+  // PART A: V3_PACK_OPENER extra clearance (surgical fix for overlapPx=109 violation)
+  const isV3Opener = activeKindSOT === 'v3_pack_opener';
+  const v3ExtraClearancePx = isV3Opener ? 140 : 0; // 140 covers observed 109px overlap + buffer
+  
+  const bottomSpacerPx = Math.max(footerHeightSOTPx + 16 + v3ExtraClearancePx, 80); // 80px minimum for safe clearance
   
   // DIAGNOSTIC LOG: Show bottom spacer computation (always on)
   console.log('[LAYOUT][BOTTOM_SPACER_APPLIED]', {
