@@ -12639,34 +12639,6 @@ export default function CandidateInterview() {
   // PART B: ALIGNMENT_VIOLATION_STREAM check REMOVED (redundant - finalTranscriptList guarantees gate last)
   // This intermediate check was triggering on pre-enforcement stream state
   // Final enforcement in finalTranscriptList useMemo (line ~15217) is canonical and deterministic
-    } catch (assertError) {
-      // CRASH GUARD: Never crash interview due to instrumentation errors
-      // Log once per session to avoid spam
-      const errorKey = `migate_assert_${sessionId}`;
-      const alreadyLogged = (() => {
-        try {
-          return sessionStorage.getItem(errorKey);
-        } catch {
-          return null;
-        }
-      })();
-      
-      if (!alreadyLogged) {
-        try {
-          sessionStorage.setItem(errorKey, '1');
-        } catch {
-          // Storage unavailable - skip dedupe
-        }
-        console.error('[MI_GATE][REORDER_GUARD_ERROR]', {
-          packId: currentItem?.packId,
-          instanceNumber: currentItem?.instanceNumber,
-          error: assertError.message,
-          stack: assertError.stack?.substring(0, 200),
-          reason: 'MI gate assertion crashed - interview continues safely'
-        });
-      }
-    }
-  }
   
   // PART E: Stream snapshot log (only on length changes, with array guard)
   const renderStreamLen = Array.isArray(renderableTranscriptStream) ? renderableTranscriptStream.length : 0;
