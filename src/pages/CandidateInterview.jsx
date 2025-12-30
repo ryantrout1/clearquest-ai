@@ -12752,30 +12752,13 @@ export default function CandidateInterview() {
             }
             
             // STEP 4: Ensure mainPaneRendered is always boolean
-            // PART C: mainPaneRendered computed from FINAL render list (after all processing)
-            const miGateInFinalList = finalTranscriptList.some(it => 
-              (it.__activeCard === true && it.kind === 'multi_instance_gate' && it.stableKey === trackerKey) ||
-              (it.messageType === 'MULTI_INSTANCE_GATE_SHOWN' && 
-               (it.meta?.packId || it.packId) === currentItem?.packId && 
-               (it.meta?.instanceNumber || it.instanceNumber) === currentItem?.instanceNumber)
+            // PART C: mainPaneRendered - use unified detector on final list
+            const miGateInFinalList = finalTranscriptList.some(item => 
+              isMiGateItem(item, currentItem?.packId, currentItem?.instanceNumber)
             );
             
-            const mainPaneRendered = miGateInFinalList; // ALWAYS boolean (from final list)
+            const mainPaneRendered = miGateInFinalList; // ALWAYS boolean (from unified detector)
             const { footerButtonsOnly = false } = finalTracker;
-            
-            // PART C: Diagnostic - if gate should be present but isn't, log why
-            if (!mainPaneRendered && activeUiItem?.kind === "MI_GATE") {
-              logOnce(`migate_missing_${trackerKey}`, () => {
-                console.error('[MI_GATE][GATE_MISSING_FROM_FINAL_LIST]', {
-                  trackerKey,
-                  packId: currentItem?.packId,
-                  instanceNumber: currentItem?.instanceNumber,
-                  finalListLen: finalTranscriptList.length,
-                  activeUiItemKind: activeUiItem?.kind,
-                  reason: 'MI gate is active but not in final render list - possible filter bug'
-                });
-              });
-            }
             
             // UI CONTRACT: Self-test requires main pane render AND footer buttons-only
             const passCondition = mainPaneRendered === true && footerButtonsOnly === true;
