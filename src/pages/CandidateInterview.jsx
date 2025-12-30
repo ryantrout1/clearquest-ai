@@ -12615,20 +12615,13 @@ export default function CandidateInterview() {
       });
       
       if (hasItemsAfterMiGateAfterReorder) {
-        // PART A+B: Dedupe alignment violation (in-memory, once per gate)
-        const itemsAfter = renderableTranscriptStream.slice(miGateIndexAfterReorder + 1);
-        logOnce(`migate_align_${currentItem?.packId}_${currentItem?.instanceNumber}`, () => {
-          console.error('[MI_GATE][ALIGNMENT_VIOLATION]', {
-            packId: currentItem?.packId,
-            instanceNumber: currentItem?.instanceNumber,
-            itemsAfterCount: itemsAfter.length,
-            itemsAfter: itemsAfter.map(e => ({
-              kind: e.kind || e.messageType || e.type,
-              key: (e.stableKey || e.id || '').substring(0, 40),
-              textPreview: (e.text || '').substring(0, 40)
-            })),
-            reason: 'MI gate must be last - regression detected AFTER reorder'
-          });
+        // PART A: Capture violation snapshot
+        captureViolationSnapshot({
+          reason: 'ALIGNMENT_VIOLATION_STREAM',
+          list: renderableTranscriptStream,
+          packId: currentItem?.packId,
+          instanceNumber: currentItem?.instanceNumber,
+          activeItemId: currentItem?.id
         });
       }
     } catch (assertError) {
