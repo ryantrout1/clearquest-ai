@@ -11586,6 +11586,11 @@ export default function CandidateInterview() {
 
   // ANCHOR LAST V3 ANSWER: Keep recently submitted answer visible during transitions
   React.useLayoutEffect(() => {
+    // SCROLL LOCK GATE: Block anchor during v3_pack_opener settle
+    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+      return;
+    }
+    
     if (recentAnchorRef.current.kind !== 'V3_PROBE_ANSWER') return;
     
     const recentAge = Date.now() - recentAnchorRef.current.ts;
