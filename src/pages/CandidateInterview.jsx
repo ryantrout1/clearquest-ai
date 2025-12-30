@@ -16042,11 +16042,16 @@ export default function CandidateInterview() {
                 return null; // Skip transcript render - activeCard owns it
               }
               
+              // PART B: Deterministic stableKey for all question cards
+              const cardStableKey = entry.stableKey || entry.id || `question-shown:${questionDbId}`;
+              
               // HISTORY MODE: Render answered questions from transcript (read-only)
               return (
                 <div 
                   key={entryKey} 
-                  data-stablekey={entry.stableKey || entry.id}
+                  data-stablekey={cardStableKey}
+                  data-cq-card-id={cardStableKey}
+                  data-cq-card-kind="question"
                 >
                   <ContentContainer>
                   <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
@@ -16222,17 +16227,28 @@ export default function CandidateInterview() {
                 });
               }
               
+              // PART B: Deterministic stableKey
+              const cardStableKey = entry.stableKey || entry.id || `mi-gate:${entryPackId}:${entryInstanceNumber}:q`;
+              
               // AUDIT: Confirm main pane render
               console.log('[MI_GATE][MAIN_PANE_RENDER_OK]', {
-                stableKey: entry.stableKey || entry.id,
+                stableKey: cardStableKey,
                 packId: entry.meta?.packId || entry.packId,
                 instanceNumber: entry.meta?.instanceNumber || entry.instanceNumber,
                 promptPreview: safeMiGateTranscript?.substring(0, 60),
                 renderContext: miGateRenderContext
               });
 
+              // PART A: DOM markers on root element
               return (
-                <div key={entryKey} data-stablekey={entry.stableKey || entry.id}>
+                <div 
+                  key={entryKey} 
+                  data-stablekey={cardStableKey}
+                  data-cq-active-card={isActiveMiGate ? "true" : "false"}
+                  data-cq-card-id={cardStableKey}
+                  data-cq-card-kind="mi_gate"
+                  data-ui-contract-card="true"
+                >
                   <ContentContainer>
                   <div className={`w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 transition-all duration-150 ${activeClass}`}>
                     <p className="text-white text-base leading-relaxed">{safeMiGateTranscript}</p>
@@ -16738,15 +16754,19 @@ export default function CandidateInterview() {
 
             if (cardKind === "multi_instance_gate") {
               const safeMiGatePrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_MI_GATE');
+              const cardStableKey = activeCard.stableKey || `mi-gate:${activeCard.packId}:${activeCard.instanceNumber}:q`;
+              
               return (
-                <div key={`active-${activeCard.stableKey}`}>
+                <div 
+                  key={`active-${cardStableKey}`}
+                  data-stablekey={cardStableKey}
+                  data-cq-active-card="true"
+                  data-cq-card-id={cardStableKey}
+                  data-cq-card-kind="mi_gate"
+                  data-ui-contract-card="true"
+                >
                   <ContentContainer>
-                    <div 
-                      className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150"
-                      data-cq-active-card="true"
-                      data-stablekey={activeCard.stableKey}
-                      data-ui-contract-card="true"
-                    >
+                    <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
                       <p className="text-white text-base leading-relaxed">{safeMiGatePrompt}</p>
                     </div>
                   </ContentContainer>
@@ -16771,15 +16791,19 @@ export default function CandidateInterview() {
 
             if (cardKind === "base_question_yesno") {
               const safeQuestionText = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_BASE_QUESTION');
+              const cardStableKey = activeCard.stableKey || `question-shown:${activeCard.questionId}`;
+              
               return (
-                <div key={`active-${activeCard.stableKey}`}>
+                <div 
+                  key={`active-${cardStableKey}`}
+                  data-stablekey={cardStableKey}
+                  data-cq-active-card="true"
+                  data-cq-card-id={cardStableKey}
+                  data-cq-card-kind="question"
+                  data-ui-contract-card="true"
+                >
                   <ContentContainer>
-                    <div 
-                      className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 ring-2 ring-blue-400/40 shadow-lg shadow-blue-500/20 transition-all duration-150"
-                      data-cq-active-card="true"
-                      data-stablekey={activeCard.stableKey}
-                      data-ui-contract-card="true"
-                    >
+                    <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 ring-2 ring-blue-400/40 shadow-lg shadow-blue-500/20 transition-all duration-150">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-base font-semibold text-blue-400">
                           Question {activeCard.questionNumber || ''}
