@@ -17374,8 +17374,7 @@ export default function CandidateInterview() {
               {/* V3 UI-ONLY HISTORY: Rendered via canonical stream (lines 8942-8985) */}
             {/* Separate loop removed - renderStream includes v3UiRenderable */}
 
-      <footer ref={footerRootRef} className="bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
-        <div ref={footerRef} className="max-w-5xl mx-auto">
+
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
           {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarMode guard above */}
           {bottomBarMode === "CTA" && screenMode === 'WELCOME' ? (
