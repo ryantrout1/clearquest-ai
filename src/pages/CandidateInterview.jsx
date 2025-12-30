@@ -13711,7 +13711,7 @@ export default function CandidateInterview() {
     
     // PART B: Call ensureActiveVisibleAfterRender after submit
     requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender("BOTTOM_BAR_SUBMIT");
+      ensureActiveVisibleAfterRender("BOTTOM_BAR_SUBMIT", activeKindSOT);
     });
     
     // CQ_GUARD: submitIntent must be declared exactly once (do not duplicate)
