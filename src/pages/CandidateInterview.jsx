@@ -12001,6 +12001,11 @@ export default function CandidateInterview() {
   
   // GRAVITY FOLLOW: Auto-scroll active card into view when it changes (ChatGPT-style)
   React.useLayoutEffect(() => {
+    // SCROLL LOCK GATE: Block gravity follow during v3_pack_opener settle
+    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+      return;
+    }
+    
     // GUARD: Skip if user scrolled up manually
     const scrollContainer = historyRef.current;
     if (!scrollContainer) return;
