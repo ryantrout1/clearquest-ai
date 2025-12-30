@@ -11618,9 +11618,9 @@ export default function CandidateInterview() {
     if (!activeKey) return;
     
     requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender("ACTIVE_ITEM_CHANGED");
+      ensureActiveVisibleAfterRender("ACTIVE_ITEM_CHANGED", activeKindSOT);
     });
-  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender]);
+  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT]);
   
   // PART B: RENDER LIST APPENDED - TDZ-safe using ref (no direct finalTranscriptList reference)
   React.useLayoutEffect(() => {
