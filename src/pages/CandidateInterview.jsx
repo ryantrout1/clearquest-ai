@@ -1829,24 +1829,60 @@ export default function CandidateInterview() {
       let footerTop = 0;
       let activeCardBottom = null;
       let overlapPx = 0;
+      let measurementMethod = 'none';
       
-      if (typeof window !== 'undefined' && historyRef.current && footerRootRef.current) {
+      if (typeof window !== 'undefined' && historyRef.current) {
         const scrollContainer = historyRef.current;
-        const footerEl = footerRootRef.current;
-        const activeCardEl = scrollContainer.querySelector('[data-cq-active-card="true"]');
         
         scrollTop = Math.round(scrollContainer.scrollTop);
         clientHeight = Math.round(scrollContainer.clientHeight);
         scrollHeight = Math.round(scrollContainer.scrollHeight);
-        footerTop = Math.round(footerEl.getBoundingClientRect().top);
         
-        if (activeCardEl) {
-          const activeRect = activeCardEl.getBoundingClientRect();
-          activeCardBottom = Math.round(activeRect.bottom);
-          overlapPx = Math.max(0, activeRect.bottom - footerEl.getBoundingClientRect().top);
+        // PART A: Correct footer element - use footerRef (inner div) for accurate positioning
+        const footerEl = footerRef.current;
+        if (footerEl) {
+          footerTop = Math.round(footerEl.getBoundingClientRect().top);
+        } else {
+          console.warn('[CQ_VIOLATION][FOOTER_REF_NULL]', { reason: 'footerRef not attached' });
+          footerTop = -1; // Sentinel value
         }
         
-        overlapPx = Math.round(overlapPx);
+        // PART B: Multi-tier active card detection
+        let activeCardEl = scrollContainer.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+        measurementMethod = 'attr_cq_active';
+        
+        if (!activeCardEl) {
+          // Fallback 1: Try without data-ui-contract-card requirement
+          activeCardEl = scrollContainer.querySelector('[data-cq-active-card="true"]');
+          measurementMethod = 'attr_cq_active_loose';
+        }
+        
+        if (!activeCardEl && currentItem?.id) {
+          // Fallback 2: Find by stableKey for current item
+          const stableKey = currentItem.type === 'question' ? `question-shown:${currentItem.id}` :
+                           currentItem.type === 'multi_instance_gate' ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}:q` :
+                           null;
+          
+          if (stableKey) {
+            activeCardEl = scrollContainer.querySelector(`[data-stablekey="${stableKey}"]`);
+            measurementMethod = 'stablekey_fallback';
+          }
+        }
+        
+        if (activeCardEl && footerEl) {
+          const activeRect = activeCardEl.getBoundingClientRect();
+          const footerRect = footerEl.getBoundingClientRect();
+          activeCardBottom = Math.round(activeRect.bottom);
+          overlapPx = Math.max(0, activeRect.bottom - footerRect.top);
+        } else {
+          // PART D: Do not pretend overlapPx=0 when measurement fails
+          activeCardBottom = null;
+          overlapPx = -1; // Sentinel value (measurement failed)
+        }
+        
+        if (overlapPx >= 0) {
+          overlapPx = Math.round(overlapPx);
+        }
       }
       
       // 3) STATE TRUTH (minimal)
@@ -1865,11 +1901,12 @@ export default function CandidateInterview() {
         `trailingCount=${trailingCount} ` +
         `overlapPx=${overlapPx} ` +
         `footerTop=${footerTop} ` +
-        `activeBottom=${activeCardBottom || 'none'} ` +
+        `activeBottom=${activeCardBottom === null ? 'none' : activeCardBottom} ` +
         `scrollTop=${scrollTop} ` +
         `clientH=${clientHeight} ` +
         `scrollH=${scrollHeight} ` +
-        `typingLock=${typingLock}`
+        `typingLock=${typingLock} ` +
+        `measureMethod=${measurementMethod}`
       );
       
       // TRAILING ITEMS LOG: Compact summary with all primitives
@@ -2080,6 +2117,9 @@ export default function CandidateInterview() {
   
   // STICKY AUTOSCROLL: Single source of truth for auto-scroll behavior
   const shouldAutoScrollRef = useRef(true);
+  
+  // TYPING LOCK BYPASS: Force one-time scroll on explicit user navigation (Yes/No, Submit)
+  const forceAutoScrollOnceRef = useRef(false);
   
   // ACTIVE KIND CHANGE DETECTION: Track last logged kind to prevent spam
   const lastLoggedActiveKindRef = useRef(null);
@@ -3587,20 +3627,22 @@ export default function CandidateInterview() {
     const distanceFromBottom = el.scrollHeight - (el.scrollTop + el.clientHeight);
     const nearBottom = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD_PX;
     
-    // GUARD: Don't flip auto-scroll state during system transitions
+    // GUARD: Don't flip auto-scroll state during system transitions OR force-once window
     const recentAnchorAge = Date.now() - recentAnchorRef.current.ts;
     const hasRecentAnchor = recentAnchorRef.current.kind === 'V3_PROBE_ANSWER' && recentAnchorAge < 1500;
+    const hasForceScrollPending = forceAutoScrollOnceRef.current;
     
-    if (hasRecentAnchor) {
+    if (hasRecentAnchor || hasForceScrollPending) {
       if (cqDiagEnabled) {
         console.log('[SCROLL][AUTO_SCROLL_STATE][GUARD]', {
-          reason: 'recent_v3_answer_anchor',
+          reason: hasRecentAnchor ? 'recent_v3_answer_anchor' : 'force_scroll_pending',
           ignored: true,
           recentAnchorAge,
+          hasForceScrollPending,
           stableKey: recentAnchorRef.current.stableKey
         });
       }
-      return; // Ignore scroll events during anchor window
+      return; // Ignore scroll events during anchor window or force-once
     }
     
     // Update sticky autoscroll state based on user scroll position
@@ -11075,8 +11117,14 @@ export default function CandidateInterview() {
       return; // Skip standard auto-scroll logic
     }
     
-    // GUARD A: Never auto-scroll while user is typing
-    if (isUserTyping) return;
+    // GUARD A: Never auto-scroll while user is typing (UNLESS force-once override)
+    if (isUserTyping && !forceAutoScrollOnceRef.current) return;
+    
+    // PART C: Clear force-once flag after allowing scroll
+    if (forceAutoScrollOnceRef.current) {
+      forceAutoScrollOnceRef.current = false;
+      console.log('[SCROLL][FORCE_ONCE_CLEARED]', { reason: 'glide_autoscroll' });
+    }
     
     // GUARD C: Skip if other scroll controller already handled this frame
     if (scrollIntentRef.current) {
@@ -11196,6 +11244,9 @@ export default function CandidateInterview() {
     const scrollContainer = historyRef.current;
     if (!scrollContainer) return;
     
+    // PART C: Bypass typing lock for recent anchor scroll
+    if (isUserTyping && !forceAutoScrollOnceRef.current) return;
+    
     const targetStableKey = recentAnchorRef.current.stableKey;
     const targetEl = scrollContainer.querySelector(`[data-stablekey="${targetStableKey}"]`);
     
@@ -11275,6 +11326,9 @@ export default function CandidateInterview() {
     
     const scrollContainer = historyRef.current;
     if (!scrollContainer) return;
+    
+    // PART C: Bypass typing lock for V3 probe question anchor
+    if (isUserTyping && !forceAutoScrollOnceRef.current) return;
     
     const targetStableKey = v3ScrollAnchorRef.current.stableKey;
     const targetEl = scrollContainer.querySelector(`[data-stablekey="${targetStableKey}"]`);
@@ -11592,10 +11646,10 @@ export default function CandidateInterview() {
           
           // GUARDRAIL: Detect if active card still below footer after scroll
           requestAnimationFrame(() => {
-            if (!scrollContainer || !footerRootRef.current || !activeCardEl) return;
+            if (!scrollContainer || !footerRef.current || !activeCardEl) return;
             
             const questionRect = activeCardEl.getBoundingClientRect();
-            const footerRect = footerRootRef.current.getBoundingClientRect();
+            const footerRect = footerRef.current.getBoundingClientRect();
             const overlapPx = Math.max(0, questionRect.bottom - footerRect.top);
             
             if (overlapPx > 4) {
@@ -11612,8 +11666,8 @@ export default function CandidateInterview() {
                   activeItemId: currentItem?.id
                 });
                 
-                // PART C: Apply corrective scroll if user not typing
-                if (!isUserTyping && scrollContainer) {
+                // PART C: Apply corrective scroll (bypass typing lock for explicit navigation)
+                if ((!isUserTyping || forceAutoScrollOnceRef.current) && scrollContainer) {
                   const targetScrollTop = scrollContainer.scrollTop + overlapPx + 8;
                   scrollContainer.scrollTop = targetScrollTop;
                   
@@ -11621,8 +11675,13 @@ export default function CandidateInterview() {
                     overlapPx: Math.round(overlapPx),
                     scrollTopBefore: Math.round(scrollContainer.scrollTop - overlapPx - 8),
                     scrollTopAfter: Math.round(targetScrollTop),
+                    bypassedTypingLock: isUserTyping && forceAutoScrollOnceRef.current,
                     reason: 'Active card behind footer - corrected'
                   });
+                  
+                  if (forceAutoScrollOnceRef.current) {
+                    forceAutoScrollOnceRef.current = false;
+                  }
                 }
               }
             }
@@ -11706,11 +11765,11 @@ export default function CandidateInterview() {
         // GUARDRAIL: Detect if card still below footer after nudge
         requestAnimationFrame(() => {
           if (!scrollContainer || !footerEl || !activeCardEl) return;
-          
+
           const finalCardRect = activeCardEl.getBoundingClientRect();
           const finalFooterRect = footerEl.getBoundingClientRect();
           const finalOverlapPx = Math.max(0, finalCardRect.bottom - (finalFooterRect.top - clearancePx));
-          
+
           if (finalOverlapPx > 4) {
             // PART A: Capture violation snapshot
             captureViolationSnapshot({
@@ -11720,14 +11779,19 @@ export default function CandidateInterview() {
               instanceNumber: currentItem?.instanceNumber,
               activeItemId: currentItem?.id
             });
-            
-            // PART C: Second corrective nudge if still overlapping
-            if (!isUserTyping && scrollContainer) {
+
+            // PART C: Second corrective nudge (bypass typing lock for explicit navigation)
+            if ((!isUserTyping || forceAutoScrollOnceRef.current) && scrollContainer) {
               scrollContainer.scrollTop += finalOverlapPx + 8;
               console.log('[SCROLL][CORRECTIVE_NUDGE_RETRY]', {
                 remainingOverlapPx: Math.round(finalOverlapPx),
-                applied: true
+                applied: true,
+                bypassedTypingLock: isUserTyping && forceAutoScrollOnceRef.current
               });
+
+              if (forceAutoScrollOnceRef.current) {
+                forceAutoScrollOnceRef.current = false;
+              }
             }
           }
         });
@@ -11759,7 +11823,9 @@ export default function CandidateInterview() {
     
     // Respect user scroll position: only auto-scroll if user has not scrolled up
     if (!autoScrollEnabledRef.current) return;
-    if (isUserTyping) {
+    
+    // PART C: Bypass typing lock for V3 prompt visibility
+    if (isUserTyping && !forceAutoScrollOnceRef.current) {
       console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { reason: 'typing' });
       return;
     }
@@ -13173,6 +13239,16 @@ export default function CandidateInterview() {
       return; // Hard block - do not append stray "Yes"/"No"
     }
     
+    // PART C: Force one-time scroll bypass on explicit navigation
+    forceAutoScrollOnceRef.current = true;
+    setIsUserTyping(false); // Clear typing lock immediately
+    console.log('[SCROLL][FORCE_ONCE_ARMED]', { 
+      trigger: 'YESNO_CLICK', 
+      answer,
+      packId: currentItem?.packId,
+      instanceNumber: currentItem?.instanceNumber
+    });
+    
     // MI_GATE TRACE A: YES/NO button click entry
     console.log('[MI_GATE][TRACE][YESNO_CLICK]', {
       clicked: answer,
@@ -13302,6 +13378,15 @@ export default function CandidateInterview() {
   
   // Unified bottom bar submit handler for question, v2_pack_field, followup, and V3 probing
   const handleBottomBarSubmit = async () => {
+    // PART C: Force one-time scroll bypass on explicit submit
+    forceAutoScrollOnceRef.current = true;
+    setIsUserTyping(false); // Clear typing lock immediately
+    console.log('[SCROLL][FORCE_ONCE_ARMED]', { 
+      trigger: 'BOTTOM_BAR_SUBMIT',
+      currentItemType: currentItem?.type,
+      effectiveItemType
+    });
+    
     // CQ_GUARD: submitIntent must be declared exactly once (do not duplicate)
     // V3 SUBMIT INTENT: Capture routing decision BEFORE state updates (prevents mis-route)
     const submitIntent = {
@@ -17193,6 +17278,11 @@ export default function CandidateInterview() {
              renderContext="FOOTER"
              onYes={async () => {
                try {
+                 // PART C: Force one-time scroll bypass on gate YES
+                 forceAutoScrollOnceRef.current = true;
+                 setIsUserTyping(false);
+                 console.log('[SCROLL][FORCE_ONCE_ARMED]', { trigger: 'MI_GATE_YES' });
+
                  const gate = multiInstanceGate || currentItem;
 
                  if (!gate || !gate.packId || !gate.instanceNumber) {
@@ -17222,6 +17312,11 @@ export default function CandidateInterview() {
              }}
              onNo={async () => {
                try {
+                 // PART C: Force one-time scroll bypass on gate NO
+                 forceAutoScrollOnceRef.current = true;
+                 setIsUserTyping(false);
+                 console.log('[SCROLL][FORCE_ONCE_ARMED]', { trigger: 'MI_GATE_NO' });
+
                  const gate = multiInstanceGate || currentItem;
 
                  if (!gate || !gate.packId || !gate.instanceNumber) {
@@ -17260,8 +17355,18 @@ export default function CandidateInterview() {
           ) : bottomBarMode === "YES_NO" && bottomBarRenderTypeSOT !== "v3_probing" ? (
           <YesNoControls
             renderContext="FOOTER"
-            onYes={() => handleYesNoClick("Yes")}
-            onNo={() => handleYesNoClick("No")}
+            onYes={() => {
+              // PART C: Arm force-once before handler
+              forceAutoScrollOnceRef.current = true;
+              setIsUserTyping(false);
+              handleYesNoClick("Yes");
+            }}
+            onNo={() => {
+              // PART C: Arm force-once before handler
+              forceAutoScrollOnceRef.current = true;
+              setIsUserTyping(false);
+              handleYesNoClick("No");
+            }}
             yesLabel="Yes"
             noLabel="No"
             disabled={isCommitting}
