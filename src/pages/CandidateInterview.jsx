@@ -1659,6 +1659,7 @@ export default function CandidateInterview() {
   const bottomAnchorRef = useRef(null);
   const footerRef = useRef(null);
   const footerRootRef = useRef(null); // Footer container root (for DOM height sampling)
+  const activeLaneCardRef = useRef(null); // PART A: Active lane card ref (single ref for whichever active card is shown)
   const promptLaneRef = useRef(null);
   const autoScrollEnabledRef = useRef(true);
   const didInitialSnapRef = useRef(false);
@@ -1847,26 +1848,37 @@ export default function CandidateInterview() {
           footerTop = -1; // Sentinel value
         }
         
-        // PART B: Multi-tier active card detection
-        let activeCardEl = scrollContainer.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
-        measurementMethod = 'attr_cq_active';
+        // PART B: Multi-location active card detection (scroll container OR active lane)
+        let activeCardEl = null;
+        
+        // Location 1: Try scroll container first (tier 1: strict, tier 2: loose, tier 3: stableKey)
+        activeCardEl = scrollContainer.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+        measurementMethod = 'scroll_attr_cq_active';
         
         if (!activeCardEl) {
-          // Fallback 1: Try without data-ui-contract-card requirement
           activeCardEl = scrollContainer.querySelector('[data-cq-active-card="true"]');
-          measurementMethod = 'attr_cq_active_loose';
+          measurementMethod = 'scroll_attr_cq_active_loose';
         }
         
         if (!activeCardEl && currentItem?.id) {
-          // Fallback 2: Find by stableKey for current item
           const stableKey = currentItem.type === 'question' ? `question-shown:${currentItem.id}` :
                            currentItem.type === 'multi_instance_gate' ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}:q` :
                            null;
           
           if (stableKey) {
             activeCardEl = scrollContainer.querySelector(`[data-stablekey="${stableKey}"]`);
-            measurementMethod = 'stablekey_fallback';
+            measurementMethod = 'scroll_stablekey_fallback';
           }
+        }
+        
+        // PART B: Location 2: Try active lane ref if scroll container search failed
+        if (!activeCardEl && activeLaneCardRef.current) {
+          activeCardEl = activeLaneCardRef.current;
+          measurementMethod = 'active_lane_ref';
+          console.log('[CQ_VIOLATION][ACTIVE_LANE_REF_USED]', {
+            reason: 'Active card not in scroll container - using active lane ref',
+            hasRef: !!activeLaneCardRef.current
+          });
         }
         
         if (activeCardEl && footerEl) {
@@ -1874,10 +1886,51 @@ export default function CandidateInterview() {
           const footerRect = footerEl.getBoundingClientRect();
           activeCardBottom = Math.round(activeRect.bottom);
           overlapPx = Math.max(0, activeRect.bottom - footerRect.top);
+          
+          // PART C: Log exact stableKey we searched for when using fallback
+          if (measurementMethod === 'scroll_stablekey_fallback' || measurementMethod === 'active_lane_ref') {
+            const searchedStableKey = currentItem?.type === 'question' ? `question-shown:${currentItem.id}` :
+                                     currentItem?.type === 'multi_instance_gate' ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}:q` :
+                                     null;
+            
+            console.log('[CQ_VIOLATION][STABLEKEY_SEARCH_DETAIL]', {
+              measurementMethod,
+              searchedStableKey,
+              foundElement: !!activeCardEl,
+              elementTag: activeCardEl?.tagName,
+              elementHasStablekey: activeCardEl?.hasAttribute?.('data-stablekey'),
+              elementStablekey: activeCardEl?.getAttribute?.('data-stablekey')
+            });
+          }
         } else {
           // PART D: Do not pretend overlapPx=0 when measurement fails
           activeCardBottom = null;
           overlapPx = -1; // Sentinel value (measurement failed)
+          
+          // PART B: Log missing active card (deduped)
+          logOnce(`active_card_missing_${currentItem?.type}_${currentItem?.id}`, () => {
+            const searchedStableKey = currentItem?.type === 'question' ? `question-shown:${currentItem.id}` :
+                                     currentItem?.type === 'multi_instance_gate' ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}:q` :
+                                     null;
+            
+            // PART C: Check if ANY element with this stableKey exists in DOM
+            let foundAnywhere = false;
+            if (searchedStableKey && typeof document !== 'undefined') {
+              foundAnywhere = !!document.querySelector(`[data-stablekey="${searchedStableKey}"]`);
+            }
+            
+            console.error('[CQ_ACTIVE_CARD_NOT_FOUND_ANYWHERE]', {
+              activeKind: currentItem?.type,
+              currentItemId: currentItem?.id,
+              packId: currentItem?.packId,
+              instanceNumber: currentItem?.instanceNumber,
+              searchedStableKey,
+              foundAnywhere,
+              triedScrollContainer: true,
+              triedActiveLane: !!activeLaneCardRef.current,
+              reason: foundAnywhere ? 'Element exists but selectors did not match' : 'Element not rendered yet or missing data-stablekey'
+            });
+          });
         }
         
         if (overlapPx >= 0) {
@@ -16759,6 +16812,7 @@ export default function CandidateInterview() {
               return (
                 <div 
                   key={`active-${cardStableKey}`}
+                  ref={activeLaneCardRef}
                   data-stablekey={cardStableKey}
                   data-cq-active-card="true"
                   data-cq-card-id={cardStableKey}
@@ -16796,6 +16850,7 @@ export default function CandidateInterview() {
               return (
                 <div 
                   key={`active-${cardStableKey}`}
+                  ref={activeLaneCardRef}
                   data-stablekey={cardStableKey}
                   data-cq-active-card="true"
                   data-cq-card-id={cardStableKey}
