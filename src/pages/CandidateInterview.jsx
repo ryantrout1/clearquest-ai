@@ -1659,6 +1659,7 @@ export default function CandidateInterview() {
   const bottomAnchorRef = useRef(null);
   const footerRef = useRef(null);
   const footerRootRef = useRef(null); // Footer container root (for DOM height sampling)
+  const footerShellRef = useRef(null); // PART A: Stable footer wrapper (measured in all modes)
   const activeLaneCardRef = useRef(null); // PART A: Active lane card ref (single ref for whichever active card is shown)
   const scrollOwnerRef = useRef(null); // PART A: Runtime-identified scroll owner (true scroll container)
   const promptLaneRef = useRef(null);
@@ -1769,7 +1770,7 @@ export default function CandidateInterview() {
     const scroller = scrollOwnerRef.current || historyRef.current;
     if (!scroller) return;
     
-    const composerEl = footerRef.current; // Sticky composer inside scroller
+    const composerEl = footerShellRef.current; // PART D: Stable footer shell (all modes)
     if (!composerEl) return;
     
     // PART C: Lock scroll writes for v3_pack_opener settle (extended window)
@@ -1964,6 +1965,7 @@ export default function CandidateInterview() {
   const typingTimeoutRef = useRef(null);
   const aiResponseTimeoutRef = useRef(null);
   const [footerHeightPx, setFooterHeightPx] = useState(120); // Dynamic footer height measurement
+  const [footerShellHeightPx, setFooterShellHeightPx] = useState(0); // PART B: Stable footer shell height (all modes)
   const [contentOverflows, setContentOverflows] = useState(false); // Track if scroll container overflows
   
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
@@ -10657,36 +10659,17 @@ export default function CandidateInterview() {
     });
   }, [sessionId, getScrollOwner]);
 
-  // AUTO-GROWING INPUT: Measure footer height dynamically (includes growing textarea)
+  // PART B: Measure footer shell height from stable wrapper (all modes)
   useEffect(() => {
-    if (!footerRef.current) return;
-    
-    // DIAGNOSTIC: Verify footer container ref (cqdiag only, once per mount)
-    if (cqDiagEnabledRef.current) {
-      console.log('[FOOTER][CONTAINER_REF_CHECK]', {
-        hasFooterRef: !!footerRef.current,
-        nodeTag: footerRef.current?.tagName
-      });
-    }
+    if (!footerShellRef.current) return;
     
     let rafId = null;
     let pendingMeasurement = false;
     
-    const measureFooter = () => {
-      if (!footerRef.current) return;
-      const rect = footerRef.current.getBoundingClientRect();
-      const measured = Math.round(rect.height || footerRef.current.offsetHeight || 0);
-      
-      // DIAGNOSTIC: Verify observer + measurement target (cqdiag only)
-      // Uses cqDiagEnabledRef for runtime toggle support (stable observer lifecycle)
-      if (cqDiagEnabledRef.current) {
-        console.log('[FOOTER][OBSERVE_CHECK]', {
-          observing: true,
-          nodeTag: footerRef.current?.tagName,
-          measured,
-          hasBoundingClientRect: !!rect
-        });
-      }
+    const measureFooterShell = () => {
+      if (!footerShellRef.current) return;
+      const rect = footerShellRef.current.getBoundingClientRect();
+      const measured = Math.round(rect.height || footerShellRef.current.offsetHeight || 0);
       
       // PART A: Refresh scroll owner on footer resize (layout may have changed)
       if (bottomAnchorRef.current) {
@@ -10694,7 +10677,6 @@ export default function CandidateInterview() {
         if (newScrollOwner && newScrollOwner !== scrollOwnerRef.current) {
           scrollOwnerRef.current = newScrollOwner;
           
-          // PART A: Log scroll owner once per session
           logOnce(`scroll_owner_identified_${sessionId}`, () => {
             console.log('[SCROLL_OWNER]', {
               nodeName: newScrollOwner?.nodeName,
@@ -10709,14 +10691,14 @@ export default function CandidateInterview() {
         }
       }
       
-      // HARDENED: Only update if delta >= 2px (prevents thrash + loops)
-      setFooterMeasuredHeightPx(prev => {
+      // HARDENED: Only update if delta >= 2px (prevents thrash)
+      setFooterShellHeightPx(prev => {
         const delta = Math.abs(measured - prev);
-        if (delta < 2) return prev; // Ignore sub-pixel jitter
+        if (delta < 2) return prev;
         
-        console.log('[FOOTER][HEIGHT_MEASURED]', {
-          footerMeasuredHeightPx: measured,
-          appliedPaddingPx: measured + 8,
+        console.log('[FOOTER_SHELL][MEASURE]', {
+          mode: bottomBarMode,
+          height: measured,
           delta
         });
         
@@ -10729,11 +10711,11 @@ export default function CandidateInterview() {
     const scheduleUpdate = () => {
       if (pendingMeasurement) return;
       pendingMeasurement = true;
-      rafId = requestAnimationFrame(measureFooter);
+      rafId = requestAnimationFrame(measureFooterShell);
     };
     
     const resizeObserver = new ResizeObserver(scheduleUpdate);
-    resizeObserver.observe(footerRef.current);
+    resizeObserver.observe(footerShellRef.current);
     
     // Initial measurement
     scheduleUpdate();
@@ -10742,7 +10724,7 @@ export default function CandidateInterview() {
       resizeObserver.disconnect();
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, []); // STABLE: Observer created once per mount (cqDiagEnabledRef supports runtime toggle)
+  }, [bottomBarMode, sessionId]); // PART E: Trigger on mode switch
 
   // ============================================================================
   // UNIFIED BOTTOM BAR MODE + FOOTER PADDING COMPUTATION (Single Source of Truth)
@@ -10876,50 +10858,18 @@ export default function CandidateInterview() {
   // FOOTER HEIGHT SOT: Use max of measured (observer) and DOM (real-time)
   const footerHeightSOTPx = Math.max(footerMeasuredHeightPx || 0, footerDomHeightPx || 0);
   
-  // PART B: BOTTOM SPACER HEIGHT - Real element clearance (NOT padding)
-  // Replaces paddingBottom with actual DOM spacer (ChatGPT pattern)
-  // ALWAYS use composer height (sticky composer always present in this layout)
-  
-  // PART A: V3_PACK_OPENER extra clearance (surgical fix for overlapPx=109 violation)
-  // FIX: Safe detection using in-scope variables (activeUiItem.kind is "V3_OPENER", not "v3_pack_opener")
-  const isV3OpenerForSpacer = 
-    currentItem?.type === 'v3_pack_opener' ||
-    activeUiItem?.kind === 'V3_OPENER';
-  const v3ExtraClearancePx = isV3OpenerForSpacer ? 140 : 0; // 140 covers observed 109px overlap + buffer
-  
-  const bottomSpacerPx = Math.max(footerHeightSOTPx + 16 + v3ExtraClearancePx, 80); // 80px minimum for safe clearance
-  
-  // PART C: Log extra clearance when v3_opener active (deduped)
-  if (isV3OpenerForSpacer && v3ExtraClearancePx > 0) {
-    const packId = currentItem?.packId;
-    const instanceNumber = currentItem?.instanceNumber;
-    const logKey = `v3_extra_clearance_${packId}_${instanceNumber}`;
-    
-    logOnce(logKey, () => {
-      console.log('[SPACER][V3_OPENER_EXTRA_CLEARANCE_APPLIED]', {
-        v3ExtraClearancePx,
-        bottomSpacerPx,
-        footerHeightSOTPx,
-        currentItemType: currentItem?.type,
-        activeUiKind: activeUiItem?.kind,
-        packId,
-        instanceNumber
-      });
-    });
-  }
+  // PART C: BOTTOM SPACER HEIGHT - Measured from stable footer shell
+  // Uses footerShellHeightPx (source of truth for all modes)
+  const bottomSpacerPx = Math.max(footerShellHeightPx + 16, 80); // 80px minimum for safe clearance
   
   // DIAGNOSTIC LOG: Show bottom spacer computation (always on)
   console.log('[LAYOUT][BOTTOM_SPACER_APPLIED]', {
     mode: bottomBarMode,
-    footerMeasuredHeightPx,
-    footerDomHeightPx,
-    footerHeightSOTPx,
+    footerShellHeightPx,
     bottomSpacerPx,
-    isV3OpenerForSpacer,
-    v3ExtraClearancePx,
     shouldRenderFooter,
     appliedTo: 'real_dom_spacer_element',
-    strategy: 'chatgpt_gravity_model',
+    strategy: 'stable_shell_measurement',
     minSpacerPx: 80
   });
   
@@ -17377,12 +17327,12 @@ export default function CandidateInterview() {
             style={{ height: `${bottomSpacerPx}px`, flexShrink: 0 }}
           />
 
-          {/* Sticky composer inside scroll owner (ChatGPT pattern) */}
+          {/* PART A: Stable footer shell wrapper (measured in all modes) */}
           <div 
-            ref={footerRef}
+            ref={footerShellRef}
             className="sticky bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4 z-10"
           >
-            <div className="max-w-5xl mx-auto">
+            <div className="max-w-5xl mx-auto" ref={footerRef}>
 
       {/* V3 Pack Opener Card - SYNTHETIC RENDER (disabled by ENABLE_SYNTHETIC_TRANSCRIPT) */}
       {false && ENABLE_SYNTHETIC_TRANSCRIPT && (() => {
