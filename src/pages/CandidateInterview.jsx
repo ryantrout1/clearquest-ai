@@ -15271,13 +15271,14 @@ export default function CandidateInterview() {
             reason: 'Gate was active but missing from final list - reconstructed and inserted'
           });
           
-          // TASK 1: Print render list when force insert occurs
-          logRenderListSummary(
-            listWithGate, 
-            currentGatePackId, 
-            currentGateInstanceNumber,
-            'FORCE_INSERT_TRIGGERED'
-          );
+          // PART A: Capture violation snapshot when force insert occurs
+          captureViolationSnapshot({
+            reason: 'FORCE_INSERT_TRIGGERED',
+            list: listWithGate,
+            packId: currentGatePackId,
+            instanceNumber: currentGateInstanceNumber,
+            activeItemId: currentItem?.id
+          });
         });
       }
     }
