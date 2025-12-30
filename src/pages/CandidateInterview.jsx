@@ -1772,6 +1772,12 @@ export default function CandidateInterview() {
     const footerEl = footerRef.current;
     if (!footerEl) return;
     
+    // PART C: Lock scroll writes for v3_pack_opener settle
+    const isV3Opener = activeKindSOT === 'v3_pack_opener';
+    if (isV3Opener) {
+      lockScrollWrites('V3_PACK_OPENER_SETTLE', 400);
+    }
+    
     // PART A: Hard baseline to bottom (forced anchor before measuring)
     const scrollHeight = scroller.scrollHeight;
     const clientHeight = scroller.clientHeight;
@@ -1815,7 +1821,13 @@ export default function CandidateInterview() {
       }
       
       // No active card - already at baseline
-      if (!activeCardEl) return;
+      if (!activeCardEl) {
+        // PART C: Unlock if no card found
+        if (isV3Opener) {
+          unlockScrollWrites('V3_PACK_OPENER_NO_CARD');
+        }
+        return;
+      }
       
       const activeRect = activeCardEl.getBoundingClientRect();
       const overlapPx = Math.max(0, activeRect.bottom - footerRect.top);
@@ -1898,12 +1910,28 @@ export default function CandidateInterview() {
                 maxScrollTop2: Math.round(currentMax2),
                 deltaCorrectionApplied: Math.round(scrollTopAfter2 - scrollTopBefore2)
               });
+              
+              // PART C: Unlock after PASS 2 completes
+              unlockScrollWrites('V3_PACK_OPENER_SETTLE_PASS2_DONE');
+            } else {
+              // PART C: Unlock if no overlap in PASS 2
+              unlockScrollWrites('V3_PACK_OPENER_SETTLE_PASS2_CLEAR');
             }
           });
+        } else {
+          // PART C: Unlock after PASS 1 if no retry needed
+          if (isV3Opener) {
+            unlockScrollWrites('V3_PACK_OPENER_SETTLE_PASS1_DONE');
+          }
+        }
+      } else {
+        // PART C: Unlock if no overlap detected
+        if (isV3Opener) {
+          unlockScrollWrites('V3_PACK_OPENER_SETTLE_NO_OVERLAP');
         }
       }
     });
-  }, [scrollToBottom, currentItem]);
+  }, [currentItem, lockScrollWrites, unlockScrollWrites]);
   const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
   const pendingScrollRafRef = useRef(null);
