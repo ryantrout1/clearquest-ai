@@ -2780,23 +2780,6 @@ export default function CandidateInterview() {
   const isMiGateSOT = Boolean(bottomBarRenderTypeSOT === 'multi_instance_gate' || 
                                activeUiItem?.kind === 'MI_GATE');
   
-  // SOT LOG: Diagnostic guard output (minimal, once per mode change)
-  React.useEffect(() => {
-    const isDev = typeof window !== 'undefined' && 
-                  (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'));
-    
-    if (isDev) {
-      console.log('[SOT][YES_NO_MODE]', {
-        isYesNoModeSOT,
-        isMiGateSOT,
-        bottomBarModeComputed,
-        bottomBarRenderTypeSOT,
-        effectiveItemType: bottomBarRenderTypeSOT,
-        activeUiItemKind: activeUiItem?.kind
-      });
-    }
-  }, [isYesNoModeSOT, isMiGateSOT, bottomBarModeComputed, bottomBarRenderTypeSOT, activeUiItem]);
-  
   // PART C: Reset spacer when leaving V3 opener (moved here - after activeKindSOT exists)
   useEffect(() => {
     const wasV3Opener = lastLoggedActiveKindRef.current === 'V3_OPENER' || 
