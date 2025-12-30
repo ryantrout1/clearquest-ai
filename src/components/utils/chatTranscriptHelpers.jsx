@@ -420,7 +420,7 @@ export const flushRetryQueueOnce = () => {
   }
 };
 
-// PART A: Safe storage wrappers with dedupe logging
+// PART 1: Safe storage wrappers with dedupe logging + degraded mode flag
 let STORAGE_DISABLED = false;
 const storageErrorsLogged = new Set();
 
@@ -429,11 +429,11 @@ const safeStorageGet = (key, storageType = 'localStorage') => {
     const storage = storageType === 'localStorage' ? localStorage : sessionStorage;
     return storage.getItem(key);
   } catch (e) {
-    if (!STORAGE_DISABLED && !storageErrorsLogged.has('read')) {
-      storageErrorsLogged.add('read');
-      console.warn('[STORAGE][BLOCKED_READ]', { 
+    if (!STORAGE_DISABLED && !storageErrorsLogged.has('degraded_mode')) {
+      storageErrorsLogged.add('degraded_mode');
+      console.warn('[PERSIST][STORAGE_BLOCKED_DEGRADED_MODE]', { 
         reason: e.name === 'SecurityError' ? 'Tracking Prevention' : e.message,
-        action: 'Continuing without storage'
+        action: 'In-memory transcript is source of truth for this session'
       });
     }
     STORAGE_DISABLED = true;
@@ -447,11 +447,11 @@ const safeStorageSet = (key, value, storageType = 'localStorage') => {
     storage.setItem(key, value);
     return true;
   } catch (e) {
-    if (!STORAGE_DISABLED && !storageErrorsLogged.has('write')) {
-      storageErrorsLogged.add('write');
-      console.warn('[STORAGE][BLOCKED_WRITE]', { 
+    if (!STORAGE_DISABLED && !storageErrorsLogged.has('degraded_mode')) {
+      storageErrorsLogged.add('degraded_mode');
+      console.warn('[PERSIST][STORAGE_BLOCKED_DEGRADED_MODE]', { 
         reason: e.name === 'SecurityError' ? 'Tracking Prevention' : e.message,
-        action: 'Continuing without storage'
+        action: 'In-memory transcript is source of truth for this session'
       });
     }
     STORAGE_DISABLED = true;
@@ -465,11 +465,11 @@ const safeStorageRemove = (key, storageType = 'localStorage') => {
     storage.removeItem(key);
     return true;
   } catch (e) {
-    if (!STORAGE_DISABLED && !storageErrorsLogged.has('remove')) {
-      storageErrorsLogged.add('remove');
-      console.warn('[STORAGE][BLOCKED_REMOVE]', { 
+    if (!STORAGE_DISABLED && !storageErrorsLogged.has('degraded_mode')) {
+      storageErrorsLogged.add('degraded_mode');
+      console.warn('[PERSIST][STORAGE_BLOCKED_DEGRADED_MODE]', { 
         reason: e.name === 'SecurityError' ? 'Tracking Prevention' : e.message,
-        action: 'Continuing without storage'
+        action: 'In-memory transcript is source of truth for this session'
       });
     }
     STORAGE_DISABLED = true;
@@ -774,13 +774,16 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
   const updatedTranscript = [...existingTranscript, entry];
   const baseLen = existingTranscript.length;
 
+  // PART 1: ATOMIC UPDATE - Update transcriptRef FIRST (in-memory is source of truth)
+  transcriptRef.current = updatedTranscript;
+
   // FIX F: INTEGRITY AUDIT - Only track if storage available (appendAssistantMessage)
   if (!STORAGE_DISABLED) {
     const auditKey = `${sessionId}|${entry.stableKey || entry.id}`;
     seenStableKeysBySession.add(auditKey);
   }
 
-  // PERSIST: Immediate write to DB (not batched)
+  // PERSIST: Immediate write to DB (not batched) - BEST EFFORT
   console.log('[PERSIST][ANSWER_SUBMIT_START]', {
     sessionId,
     stableKey: entry.stableKey || entry.id,
@@ -852,9 +855,6 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
       stableKey: entry.stableKey || entry.id
     });
 
-    // PART C: Update transcriptRef after successful append
-    transcriptRef.current = updatedTranscript;
-
     console.log("[TRANSCRIPT][APPEND] assistant", {
       index: entry.index,
       messageType: metadata.messageType || 'message',
@@ -871,8 +871,11 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
 
     // RETRY: Queue for background persistence (entry only, not full transcript)
     queueFailedPersist(sessionId, entry.stableKey || entry.id, entry);
+    
+    // PART 1: CRITICAL - in-memory transcript already updated above, return it even on DB error
   }
 
+  // PART 1: ALWAYS return updatedTranscript (in-memory update succeeded)
   return updatedTranscript;
 }
 
@@ -916,13 +919,16 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
   const updatedTranscript = [...existingTranscript, entry];
   const baseLen = existingTranscript.length;
 
+  // PART 1: ATOMIC UPDATE - Update transcriptRef FIRST (in-memory is source of truth)
+  transcriptRef.current = updatedTranscript;
+
   // FIX F: INTEGRITY AUDIT - Only track if storage available (appendUserMessage)
   if (!STORAGE_DISABLED) {
     const auditKey = `${sessionId}|${entry.stableKey || entry.id}`;
     seenStableKeysBySession.add(auditKey);
   }
 
-  // PERSIST: Immediate write to DB (not batched)
+  // PERSIST: Immediate write to DB (not batched) - BEST EFFORT
   console.log('[PERSIST][ANSWER_SUBMIT_START]', {
     sessionId,
     stableKey: entry.stableKey || entry.id,
@@ -996,10 +1002,7 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
         stableKey: entry.stableKey || entry.id
         });
 
-        // PART C: Update transcriptRef BEFORE local invariant check
-        transcriptRef.current = updatedTranscript;
-
-        // FIX F: INTEGRITY AUDIT - Skip if storage disabled, downgrade to debug
+        // PART 1: INTEGRITY AUDIT - Skip entirely if storage disabled
         if (!STORAGE_DISABLED) {
           requestAnimationFrame(() => {
             const currentLen = transcriptRef.current.length;
@@ -1026,12 +1029,6 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
               });
             }
           });
-        } else {
-          // Storage blocked - skip audit (log once for diagnostics)
-          console.log('[PERSIST][INTEGRITY_CHECK_SKIPPED]', {
-            reason: 'storage_disabled',
-            stableKey: entry.stableKey || entry.id
-          });
         }
 
     console.log("[TRANSCRIPT][APPEND] user", {
@@ -1049,8 +1046,11 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
 
     // RETRY: Queue for background persistence (entry only, not full transcript)
     queueFailedPersist(sessionId, entry.stableKey || entry.id, entry);
+    
+    // PART 1: CRITICAL - in-memory transcript already updated above, return it even on DB error
   }
 
+  // PART 1: ALWAYS return updatedTranscript (in-memory update succeeded)
   return updatedTranscript;
 }
 

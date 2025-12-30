@@ -1371,6 +1371,19 @@ export default function CandidateInterview() {
       const freshSession = await base44.entities.InterviewSession.get(sessionId);
       const freshTranscript = freshSession.transcript_snapshot || [];
       
+      // PART 2: GUARD - Never refresh with shorter transcript (storage may be stale)
+      const currentLen = canonicalTranscriptRef.current.length;
+      if (freshTranscript.length < currentLen) {
+        console.warn('[TRANSCRIPT_REFRESH][SKIP_SHORTER]', {
+          reason,
+          freshLen: freshTranscript.length,
+          currentLen,
+          delta: currentLen - freshTranscript.length,
+          action: 'KEEPING_CURRENT'
+        });
+        return canonicalTranscriptRef.current; // Return current, do NOT update
+      }
+      
       // STEP 2: Upsert into canonical ref (monotonic merge)
       const merged = upsertTranscriptMonotonic(canonicalTranscriptRef.current, freshTranscript, `refresh_${reason}`);
       
@@ -1452,6 +1465,19 @@ export default function CandidateInterview() {
       return;
     }
     
+    // PART 2: NEVER SHRINK - Guard against shorter arrays from stale persistence
+    const currentLen = canonicalTranscriptRef.current.length;
+    if (nextArray.length < currentLen) {
+      console.warn('[TRANSCRIPT_SYNC][SHRINK_BLOCKED]', {
+        reason,
+        currentLen,
+        nextLen: nextArray.length,
+        delta: currentLen - nextArray.length,
+        action: 'KEEPING_CURRENT'
+      });
+      return; // Do NOT update - keep current
+    }
+    
     // ATOMIC UPDATE: Sync ref + state in one operation
     canonicalTranscriptRef.current = nextArray;
     setDbTranscriptSafe(nextArray);
@@ -1483,27 +1509,43 @@ export default function CandidateInterview() {
       return currentTranscript || [];
     }
     
-    // STEP 2: OPTIMISTIC UPDATE - Use unified sync helper
-    const optimistic = upsertTranscriptMonotonic(canonicalTranscriptRef.current, updatedTranscript, `append_${kind}_${reasonLabel}`);
-    upsertTranscriptState(optimistic, `append_${kind}_${reasonLabel}`);
+    // PART 1: ATOMIC - appendUserMessage/appendAssistantMessage already updated transcriptRef
+    // Just sync to React state immediately (no merge needed - helpers are source of truth)
+    canonicalTranscriptRef.current = updatedTranscript;
+    setDbTranscriptSafe(updatedTranscript);
     
-    // Background refresh (upsert only, never replace)
+    console.log('[TRANSCRIPT_SYNC]', {
+      reason: `append_${kind}_${reasonLabel}`,
+      len: updatedTranscript.length,
+      lastKey: updatedTranscript[updatedTranscript.length - 1]?.stableKey || updatedTranscript[updatedTranscript.length - 1]?.id
+    });
+    
+    // Background refresh (upsert only, never replace) - BEST EFFORT
     setTimeout(async () => {
       try {
         const freshAfterAppend = await base44.entities.InterviewSession.get(sessionId);
         const freshTranscript = freshAfterAppend.transcript_snapshot || [];
         
-        const refreshed = upsertTranscriptMonotonic(canonicalTranscriptRef.current, freshTranscript, `refresh_after_${reasonLabel}`);
-        upsertTranscriptState(refreshed, `refresh_after_${reasonLabel}`);
-        setSession(freshAfterAppend);
+        // PART 2: Only refresh if fresh is longer (never shrink)
+        if (freshTranscript.length >= canonicalTranscriptRef.current.length) {
+          const refreshed = upsertTranscriptMonotonic(canonicalTranscriptRef.current, freshTranscript, `refresh_after_${reasonLabel}`);
+          upsertTranscriptState(refreshed, `refresh_after_${reasonLabel}`);
+          setSession(freshAfterAppend);
+        } else {
+          console.log('[APPEND_REFRESH_BG][SKIP_SHORTER]', {
+            freshLen: freshTranscript.length,
+            currentLen: canonicalTranscriptRef.current.length,
+            reason: 'Fresh from DB is shorter - keeping current'
+          });
+        }
       } catch (err) {
         console.error('[APPEND_REFRESH_BG][ERROR]', { error: err.message });
       }
     }, 50);
     
-    // RETURN CONTRACT: Return optimistic transcript (immediate visibility)
-    return optimistic;
-  }, [sessionId, upsertTranscriptState]);
+    // RETURN CONTRACT: Return updated transcript (immediate visibility)
+    return updatedTranscript;
+  }, [sessionId, upsertTranscriptState, setDbTranscriptSafe]);
 
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
   

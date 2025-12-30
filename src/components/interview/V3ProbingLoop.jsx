@@ -363,13 +363,14 @@ export default function V3ProbingLoop({
     const answer = initialAnswer || input.trim();
     if (!answer || isLoading || isComplete) return;
 
-    // FIX B4: Ensure stable promptId exists BEFORE engine call (prevents LOAD_BLOCKED)
+    // PART 3: Ensure stable promptId exists BEFORE any callbacks (prevents NO_SNAPSHOT)
     const probeIndex = messages.filter(m => m.role === 'ai').length;
-    const stablePromptId = `${sessionId}:${categoryId}:${instanceNumber || 1}:${probeIndex}`;
+    const loopKey = `${sessionId}:${categoryId}:${instanceNumber || 1}`;
+    const stablePromptId = `${loopKey}:${probeIndex}`;
 
     console.log('[V3_PROBE][PROMPTID_ENSURED]', {
       stablePromptId,
-      loopKey: `${sessionId}:${categoryId}:${instanceNumber || 1}`,
+      loopKey,
       probeIndex,
       reason: 'Pre-engine-call generation'
     });
@@ -668,6 +669,16 @@ export default function V3ProbingLoop({
         // Update hash reference only for genuinely new prompts
         lastPromptHashRef.current = promptHash;
 
+        // PART 3: Compute canonical promptId for this probe BEFORE callback
+        const canonicalPromptIdForCallback = `${loopKey}:${newProbeCount}`;
+
+        console.log('[V3_PROBE][PROMPTID_FOR_CALLBACK]', {
+          promptId: canonicalPromptIdForCallback,
+          loopKey,
+          probeCount: newProbeCount,
+          reason: 'Pre-callback generation for snapshot'
+        });
+
         // OUTPUT BOUNDARY: Normalize probe question to enforce Date Rule
         // This is the ONLY normalization layer - runs before setting state
         let normalizedPrompt = await (async () => {
@@ -724,12 +735,11 @@ export default function V3ProbingLoop({
         setActivePromptId(`v3-prompt-${currentIncidentId}-${newProbeCount}`);
         setIsDeciding(false);
 
-        // HEADLESS MODE: Notify parent of new prompt with canonical promptId
-        const canonicalPromptId = `${loopKey}:${newProbeCount}`;
+        // PART 3: Use pre-computed promptId for callback (ensures snapshot can be created)
         if (onPromptChange) {
           onPromptChange({
             promptText: normalizedPrompt,
-            promptId: canonicalPromptId,
+            promptId: canonicalPromptIdForCallback,
             loopKey,
             packId: packData?.followup_pack_id,
             instanceNumber: instanceNumber || 1,
