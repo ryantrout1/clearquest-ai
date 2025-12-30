@@ -11524,14 +11524,28 @@ export default function CandidateInterview() {
               const overlapLogKey = `${activeCardKeySOT}:${Math.round(overlapPx)}`;
               if (lastClearanceErrorKeyRef.current !== overlapLogKey) {
                 lastClearanceErrorKeyRef.current = overlapLogKey;
-                console.error('[UI_CONTRACT][FOOTER_OVERLAP_DETECTED]', {
-                  activeCardKeySOT,
-                  overlapPx: Math.round(overlapPx),
-                  questionBottom: Math.round(questionRect.bottom),
-                  footerTop: Math.round(footerRect.top),
-                  paddingApplied: dynamicBottomPaddingPx,
-                  reason: 'Active card obscured by footer after gravity scroll'
+                
+                // PART A: Capture violation snapshot
+                captureViolationSnapshot({
+                  reason: 'ACTIVE_BEHIND_FOOTER',
+                  list: finalListRef.current,
+                  packId: currentItem?.packId,
+                  instanceNumber: currentItem?.instanceNumber,
+                  activeItemId: currentItem?.id
                 });
+                
+                // PART C: Apply corrective scroll if user not typing
+                if (!isUserTyping && scrollContainer) {
+                  const targetScrollTop = scrollContainer.scrollTop + overlapPx + 8;
+                  scrollContainer.scrollTop = targetScrollTop;
+                  
+                  console.log('[SCROLL][CORRECTIVE_NUDGE]', {
+                    overlapPx: Math.round(overlapPx),
+                    scrollTopBefore: Math.round(scrollContainer.scrollTop - overlapPx - 8),
+                    scrollTopAfter: Math.round(targetScrollTop),
+                    reason: 'Active card behind footer - corrected'
+                  });
+                }
               }
             }
           });
