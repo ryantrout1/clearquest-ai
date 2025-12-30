@@ -14133,6 +14133,22 @@ export default function CandidateInterview() {
   
   // Unified bottom bar submit handler for question, v2_pack_field, followup, and V3 probing
   const handleBottomBarSubmit = async () => {
+    // DIAGNOSTIC: Entry log with full state snapshot
+    console.log('[BOTTOM_BAR][SEND_CLICK]', {
+      bottomBarMode,
+      effectiveItemType,
+      activeKind: activeUiItem?.kind,
+      packId: currentItem?.packId || v3ProbingContext?.packId,
+      instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
+      inputLen: input?.length || 0,
+      openerDraftLen: openerDraft?.length || 0,
+      currentItemType: currentItem?.type,
+      currentItemId: currentItem?.id,
+      v3ProbingActive,
+      isCommitting,
+      hasPrompt
+    });
+    
     // PART C: Force one-time scroll bypass on explicit submit
     forceAutoScrollOnceRef.current = true;
     setIsUserTyping(false); // Clear typing lock immediately
@@ -14230,10 +14246,18 @@ export default function CandidateInterview() {
       const trimmed = (input ?? "").trim();
       if (!trimmed) {
         console.log("[BOTTOM_BAR_SUBMIT][V3] blocked: empty input");
+        console.log('[BOTTOM_BAR][SEND_BLOCKED]', { blockedReason: 'V3_EMPTY_INPUT' });
         return;
       }
       
       console.log("[BOTTOM_BAR_SUBMIT][V3] Routing to V3ProbingLoop via pendingAnswer");
+      console.log('[BOTTOM_BAR][SUBMIT_DISPATCH]', {
+        effectiveItemType: 'v3_probing',
+        packId: submitIntent.packId,
+        instanceNumber: submitIntent.instanceNumber,
+        inputLen: trimmed.length,
+        route: 'V3_PROBING'
+      });
       
       // Route answer to V3ProbingLoop via state
       await handleV3AnswerSubmit(trimmed);
@@ -14248,11 +14272,13 @@ export default function CandidateInterview() {
     
     if (!currentItem) {
       console.warn("[BOTTOM_BAR_SUBMIT] No currentItem – aborting submit");
+      console.log('[BOTTOM_BAR][SEND_BLOCKED]', { blockedReason: 'NO_CURRENT_ITEM' });
       return;
     }
 
     if (isCommitting) {
       console.log("[BOTTOM_BAR_SUBMIT] blocked: isCommitting");
+      console.log('[BOTTOM_BAR][SEND_BLOCKED]', { blockedReason: 'IS_COMMITTING' });
       return;
     }
 
@@ -14271,6 +14297,7 @@ export default function CandidateInterview() {
           instanceNumber: currentItem.instanceNumber,
           reason: 'Cannot submit prompt text as answer - clearing value'
         });
+        console.log('[BOTTOM_BAR][SEND_BLOCKED]', { blockedReason: 'PROMPT_AS_VALUE' });
         setOpenerDraft(""); // Clear prompt from value
         return;
       }
@@ -14278,6 +14305,12 @@ export default function CandidateInterview() {
     
     if (!trimmed) {
       console.log("[BOTTOM_BAR_SUBMIT] blocked: empty input", { effectiveItemType, currentItemType: currentItem?.type, openerDraftLen: openerDraft?.length, inputLen: input?.length });
+      console.log('[BOTTOM_BAR][SEND_BLOCKED]', { 
+        blockedReason: 'EMPTY_INPUT',
+        openerDraftLen: openerDraft?.length || 0,
+        inputLen: input?.length || 0,
+        usedOpenerDraft: currentItem?.type === 'v3_pack_opener'
+      });
       return;
     }
 
@@ -14291,6 +14324,14 @@ export default function CandidateInterview() {
       answer: trimmed.substring(0, 60),
       isV2PackField: currentItem.type === 'v2_pack_field',
       usingOpenerDraft: effectiveItemType === 'v3_pack_opener'
+    });
+    
+    // DIAGNOSTIC: Dispatch confirmation
+    console.log('[BOTTOM_BAR][SUBMIT_DISPATCH]', {
+      effectiveItemType,
+      packId: currentItem?.packId,
+      instanceNumber: currentItem?.instanceNumber,
+      inputLen: trimmed.length
     });
 
     // Call handleAnswer with the answer text - handleAnswer reads currentItem from state
@@ -14328,7 +14369,22 @@ export default function CandidateInterview() {
 
   // Submit disabled logic - allows question, v2_pack_field, followup
   // IMPORTANT: Do NOT gate by currentItemType === 'question' - we want v2_pack_field to work too
+  // DIAGNOSTIC: Log button disabled state for v3_pack_opener
   const isBottomBarSubmitDisabled = !currentItem || isCommitting || !(input ?? "").trim();
+  
+  if (effectiveItemType === 'v3_pack_opener' && currentItem) {
+    const openerInputTrimmed = (openerDraft || "").trim();
+    console.log('[V3_OPENER][BUTTON_STATE]', {
+      packId: currentItem?.packId,
+      instanceNumber: currentItem?.instanceNumber,
+      openerDraftLen: openerDraft?.length || 0,
+      openerTrimmedLen: openerInputTrimmed.length,
+      v3OpenerSubmitDisabled,
+      buttonDisabled: v3OpenerSubmitDisabled,
+      isCommitting,
+      v3ProbingActive
+    });
+  }
 
   // ============================================================================
   // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
