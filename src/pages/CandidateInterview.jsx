@@ -15426,6 +15426,34 @@ export default function CandidateInterview() {
     // STEP 1: Defensive copy (no freeze - safe for downstream mutations)
     const renderedItems = [...finalListWithGateOrdered];
     
+    // PART C: REGRESSION ASSERT - Verify no V3_PROBE_ANSWER trails MI gate (deduped, once per gate)
+    if (shouldEnforceMiGate) {
+      const finalGateIndex = renderedItems.findIndex(item => 
+        isMiGateItem(item, currentGatePackId, currentGateInstanceNumber)
+      );
+      
+      if (finalGateIndex !== -1 && finalGateIndex < renderedItems.length - 1) {
+        const itemsAfter = renderedItems.slice(finalGateIndex + 1);
+        const v3ProbeAnswersAfter = itemsAfter.filter(e => 
+          (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER' || e.kind === 'v3_probe_a')
+        );
+        
+        if (v3ProbeAnswersAfter.length > 0) {
+          logOnce(`v3_probe_a_after_gate_${currentGatePackId}_${currentGateInstanceNumber}`, () => {
+            console.error('[MI_GATE][REGRESSION_V3_PROBE_ANSWER_AFTER_GATE]', {
+              packId: currentGatePackId,
+              instanceNumber: currentGateInstanceNumber,
+              gateIndex: finalGateIndex,
+              lastIndex: renderedItems.length - 1,
+              v3ProbeAnswersAfterCount: v3ProbeAnswersAfter.length,
+              stableKeySuffixes: v3ProbeAnswersAfter.map(e => (e.stableKey || e.id || '').slice(-18)),
+              reason: 'V3_PROBE_ANSWER found after MI gate - insertion logic failed'
+            });
+          });
+        }
+      }
+    }
+    
     // TDZ GUARD: Update length counter + sync finalList refs (use frozen renderedItems)
     bottomAnchorLenRef.current = renderedItems.length;
     finalListRef.current = Array.isArray(renderedItems) ? renderedItems : [];
