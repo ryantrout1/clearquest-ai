@@ -10354,31 +10354,7 @@ export default function CandidateInterview() {
     cqDiagEnabledRef.current = cqDiagEnabled;
   }, [cqDiagEnabled]);
   
-  // PART A: Initialize scroll owner on mount
-  useEffect(() => {
-    if (!bottomAnchorRef.current) return;
-    
-    requestAnimationFrame(() => {
-      const scrollOwner = getScrollOwner(bottomAnchorRef.current);
-      scrollOwnerRef.current = scrollOwner;
-      
-      if (scrollOwner) {
-        logOnce(`scroll_owner_init_${sessionId}`, () => {
-          console.log('[SCROLL_OWNER][INIT]', {
-            nodeName: scrollOwner.nodeName,
-            className: scrollOwner.className?.substring(0, 60),
-            scrollTop: Math.round(scrollOwner.scrollTop),
-            clientHeight: Math.round(scrollOwner.clientHeight),
-            scrollHeight: Math.round(scrollOwner.scrollHeight),
-            overflowY: window.getComputedStyle(scrollOwner).overflowY,
-            isHistoryRef: scrollOwner === historyRef.current
-          });
-        });
-      }
-    });
-  }, [sessionId, getScrollOwner]);
-
-  // PART A: Helper to identify true scroll owner at runtime
+  // PART A: Helper to identify true scroll owner at runtime (MUST BE BEFORE useEffect that uses it)
   const getScrollOwner = useCallback((startElement) => {
     if (!startElement || typeof window === 'undefined') return null;
     
@@ -10439,6 +10415,30 @@ export default function CandidateInterview() {
       clientHeight: Math.round(clientHeight)
     });
   }, [currentItem]);
+  
+  // PART A: Initialize scroll owner on mount
+  useEffect(() => {
+    if (!bottomAnchorRef.current) return;
+    
+    requestAnimationFrame(() => {
+      const scrollOwner = getScrollOwner(bottomAnchorRef.current);
+      scrollOwnerRef.current = scrollOwner;
+      
+      if (scrollOwner) {
+        logOnce(`scroll_owner_init_${sessionId}`, () => {
+          console.log('[SCROLL_OWNER][INIT]', {
+            nodeName: scrollOwner.nodeName,
+            className: scrollOwner.className?.substring(0, 60),
+            scrollTop: Math.round(scrollOwner.scrollTop),
+            clientHeight: Math.round(scrollOwner.clientHeight),
+            scrollHeight: Math.round(scrollOwner.scrollHeight),
+            overflowY: window.getComputedStyle(scrollOwner).overflowY,
+            isHistoryRef: scrollOwner === historyRef.current
+          });
+        });
+      }
+    });
+  }, [sessionId, getScrollOwner]);
 
   // AUTO-GROWING INPUT: Measure footer height dynamically (includes growing textarea)
   useEffect(() => {
