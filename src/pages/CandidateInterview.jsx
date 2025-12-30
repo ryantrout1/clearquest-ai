@@ -1661,6 +1661,7 @@ export default function CandidateInterview() {
   const footerShellRef = useRef(null); // PART A: Stable footer wrapper (measured in all modes)
   const activeLaneCardRef = useRef(null); // PART A: Active lane card ref (single ref for whichever active card is shown)
   const scrollOwnerRef = useRef(null); // PART A: Runtime-identified scroll owner (true scroll container)
+  const [dynamicFooterHeightPx, setDynamicFooterHeightPx] = useState(80); // Dynamic footer height measurement
   const promptLaneRef = useRef(null);
   const autoScrollEnabledRef = useRef(true);
   
@@ -1829,6 +1830,18 @@ export default function CandidateInterview() {
           maxScrollTop: Math.round(maxScrollTop),
           deltaCorrectionApplied: Math.round(scrollTopAfter - scrollTopBefore)
         });
+        
+        // SELF-HEAL: Verify overlap resolved after alignment
+        const itemId = currentItem?.id;
+        const healKey = `${itemId}:${reason}`;
+        
+        if (!footerOverlapSelfHealRef.current.has(healKey)) {
+          footerOverlapSelfHealRef.current.add(healKey);
+          
+          requestAnimationFrame(() => {
+            selfHealFooterOverlap(reason);
+          });
+        }
         
         // Unlock after YES/NO align
         if (isV3Opener) {
@@ -2019,7 +2032,7 @@ export default function CandidateInterview() {
     }
   // TDZ GUARD: Do not reference flags declared later in file (e.g., isYesNoModeSOT).
   // These are callback PARAMETERS, not closure deps - passed fresh on every call.
-  }, [currentItem, lockScrollWrites, unlockScrollWrites]);
+  }, [currentItem, lockScrollWrites, unlockScrollWrites, selfHealFooterOverlap]);
   const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
   const pendingScrollRafRef = useRef(null);
@@ -10883,6 +10896,49 @@ export default function CandidateInterview() {
     });
   }, [sessionId, getScrollOwner]);
 
+  // DYNAMIC FOOTER MEASUREMENT: Measure footer height using ResizeObserver (all modes)
+  useEffect(() => {
+    if (!footerShellRef.current) return;
+    
+    const measureFooter = () => {
+      if (!footerShellRef.current) return;
+      const rect = footerShellRef.current.getBoundingClientRect();
+      const measured = Math.round(rect.height || footerShellRef.current.offsetHeight || 0);
+      const safeInset = 16; // Safety buffer for clearance
+      const totalClearance = measured + safeInset;
+      
+      setDynamicFooterHeightPx(prev => {
+        const delta = Math.abs(totalClearance - prev);
+        if (delta < 2) return prev;
+        
+        console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SOT]', {
+          bottomBarMode,
+          effectiveItemType,
+          footerHeightPx: totalClearance,
+          paddingBottomPx: totalClearance,
+          delta
+        });
+        
+        return totalClearance;
+      });
+    };
+    
+    const resizeObserver = new ResizeObserver(measureFooter);
+    resizeObserver.observe(footerShellRef.current);
+    
+    // Initial measurement
+    requestAnimationFrame(measureFooter);
+    
+    // Window resize fallback
+    const handleResize = () => requestAnimationFrame(measureFooter);
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [bottomBarMode, effectiveItemType]);
+
   // PART B: Measure footer shell height from stable wrapper (all modes)
   useEffect(() => {
     if (!footerShellRef.current) return;
@@ -11099,9 +11155,14 @@ export default function CandidateInterview() {
   // TDZ-SAFE: Compute locally from available late variables (bottomBarMode exists here)
   const isYesNoModeDerived = bottomBarMode === 'YES_NO';
   const isMiGateDerived = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+  
+  // DYNAMIC CLEARANCE: Use measured footer height + extra margin for YES/NO
+  const yesNoModeClearance = dynamicFooterHeightPx + 32;
+  const normalModeClearance = spacerWithV3Expansion;
+  
   const bottomSpacerPx = (isYesNoModeDerived || isMiGateDerived)
-    ? Math.max(footerShellHeightPx + 24, spacerWithV3Expansion)
-    : spacerWithV3Expansion;
+    ? Math.max(yesNoModeClearance, normalModeClearance)
+    : normalModeClearance;
   
   // DIAGNOSTIC LOG: Show bottom spacer computation (deduped)
   const spacerLogKey = `${bottomBarMode}:${footerShellHeightPx}:${bottomSpacerPx}`;
@@ -16567,8 +16628,13 @@ export default function CandidateInterview() {
         className="flex-1 overflow-y-auto cq-scroll scrollbar-thin min-h-0" 
         ref={historyRef} 
         onScroll={handleTranscriptScroll}
+        style={{
+          paddingBottom: shouldRenderFooter 
+            ? `${Math.max(dynamicFooterHeightPx, bottomSpacerPx)}px`
+            : '0px'
+        }}
       >
-        <div className="min-h-full flex flex-col px-4 pt-6 pb-4">
+        <div className="min-h-full flex flex-col px-4 pt-6">
           {/* TOP SPACER - Pushes content to bottom when short (ChatGPT gravity) */}
           <div className="flex-1" aria-hidden="true" />
           
@@ -17062,19 +17128,22 @@ export default function CandidateInterview() {
               // PART A: DOM markers on root element
               return (
                 <div 
-                  key={entryKey} 
-                  data-stablekey={cardStableKey}
-                  data-cq-active-card={isActiveMiGate ? "true" : "false"}
-                  data-cq-card-id={cardStableKey}
-                  data-cq-card-kind="mi_gate"
-                  data-ui-contract-card="true"
+                 key={entryKey} 
+                 data-stablekey={cardStableKey}
+                 data-cq-active-card={isActiveMiGate ? "true" : "false"}
+                 data-cq-card-id={cardStableKey}
+                 data-cq-card-kind="mi_gate"
+                 data-ui-contract-card="true"
+                 style={{
+                   scrollMarginBottom: isActiveMiGate ? `${dynamicFooterHeightPx}px` : undefined
+                 }}
                 >
-                  <ContentContainer>
-                  <div className={`w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 transition-all duration-150 ${activeClass}`}>
-                    <p className="text-white text-base leading-relaxed">{safeMiGateTranscript}</p>
-                    {/* UI CONTRACT: NO inline Yes/No buttons - footer owns all controls */}
-                  </div>
-                  </ContentContainer>
+                 <ContentContainer>
+                 <div className={`w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 transition-all duration-150 ${activeClass}`}>
+                   <p className="text-white text-base leading-relaxed">{safeMiGateTranscript}</p>
+                   {/* UI CONTRACT: NO inline Yes/No buttons - footer owns all controls */}
+                 </div>
+                 </ContentContainer>
                 </div>
               );
             }
@@ -17585,6 +17654,9 @@ export default function CandidateInterview() {
                   data-cq-card-id={cardStableKey}
                   data-cq-card-kind="mi_gate"
                   data-ui-contract-card="true"
+                  style={{
+                    scrollMarginBottom: `${dynamicFooterHeightPx}px`
+                  }}
                 >
                   <ContentContainer>
                     <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
@@ -17651,10 +17723,14 @@ export default function CandidateInterview() {
 
           {/* BOTTOM SPACER - Reserves space for sticky composer (ChatGPT pattern) */}
           <div
-            ref={bottomAnchorRef}
-            aria-hidden="true"
-            data-ui-contract-anchor="true"
-            style={{ height: `${bottomSpacerPx}px`, flexShrink: 0 }}
+           ref={bottomAnchorRef}
+           aria-hidden="true"
+           data-ui-contract-anchor="true"
+           style={{ 
+             height: `${bottomSpacerPx}px`, 
+             flexShrink: 0,
+             scrollMarginBottom: `${dynamicFooterHeightPx}px`
+           }}
           />
 
           {/* PART A: Stable footer shell wrapper (measured in all modes) */}
