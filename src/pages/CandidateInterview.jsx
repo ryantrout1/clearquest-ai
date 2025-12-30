@@ -11889,6 +11889,11 @@ export default function CandidateInterview() {
   
   // FOOTER PADDING COMPENSATION: Prevent jump when footer height changes
   React.useLayoutEffect(() => {
+    // SCROLL LOCK GATE: Block padding compensation during v3_pack_opener settle
+    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+      return;
+    }
+    
     const prev = prevPaddingRef.current;
     let next = dynamicBottomPaddingPx;
     
