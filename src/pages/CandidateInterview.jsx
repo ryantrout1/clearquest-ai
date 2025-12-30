@@ -11630,6 +11630,9 @@ export default function CandidateInterview() {
     });
   }, [transcriptSOT.length, bottomBarMode, dynamicBottomPaddingPx, cqDiagEnabled]);
   
+  // TDZ GUARD: Track previous render list length for append detection (using ref, not direct variable)
+  const prevFinalListLenForScrollRef = useRef(0);
+  
   // PART B: ACTIVE ITEM CHANGED - Call ensureActiveVisibleAfterRender when active item changes
   React.useLayoutEffect(() => {
     if (!shouldRenderFooter) return;
@@ -11643,15 +11646,23 @@ export default function CandidateInterview() {
     });
   }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender]);
   
-  // PART B: RENDER LIST APPENDED - Call when transcript grows
+  // PART B: RENDER LIST APPENDED - TDZ-safe using ref (no direct finalTranscriptList reference)
   React.useLayoutEffect(() => {
     if (!shouldRenderFooter) return;
-    if (finalTranscriptList.length === 0) return;
+    
+    // TDZ-SAFE: Use ref that's synced AFTER finalTranscriptList is computed
+    const currentLen = finalListLenRef.current;
+    const prevLen = prevFinalListLenForScrollRef.current;
+    
+    if (currentLen === 0 || currentLen <= prevLen) return;
+    
+    // Length increased - trigger scroll correction
+    prevFinalListLenForScrollRef.current = currentLen;
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender("RENDER_LIST_APPENDED");
     });
-  }, [finalTranscriptList.length, shouldRenderFooter, ensureActiveVisibleAfterRender]);
+  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT]);
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
