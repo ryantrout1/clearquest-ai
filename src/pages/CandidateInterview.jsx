@@ -1772,10 +1772,18 @@ export default function CandidateInterview() {
     const footerEl = footerRef.current;
     if (!footerEl) return;
     
-    // PART C: Lock scroll writes for v3_pack_opener settle
-    const isV3Opener = activeKindSOT === 'v3_pack_opener';
+    // PART C: Lock scroll writes for v3_pack_opener settle (extended window)
+    const isV3Opener = activeKindSOT === 'v3_pack_opener' || activeKindSOT === 'V3_OPENER';
     if (isV3Opener) {
-      lockScrollWrites('V3_PACK_OPENER_SETTLE', 400);
+      lockScrollWrites('V3_PACK_OPENER_SETTLE', 1000); // Extended to 1000ms for full 2-pass correction
+      
+      console.log('[SCROLL][LOCK_PHASE]', {
+        phase: 'LOCKED',
+        overlapPx: 0,
+        scrollTop: Math.round(scroller.scrollTop),
+        maxScrollTop: Math.round(maxScrollTop),
+        lockDurationMs: 1000
+      });
     }
     
     // PART A: Hard baseline to bottom (forced anchor before measuring)
@@ -1879,9 +1887,17 @@ export default function CandidateInterview() {
           maxScrollTop: Math.round(maxScrollTop),
           deltaCorrectionApplied: Math.round(scrollTopAfter - scrollTopBefore)
         });
-        
+
+        console.log('[SCROLL][LOCK_PHASE]', {
+          phase: 'PASS1_DONE',
+          overlapPx: Math.round(overlapPx),
+          scrollTop: Math.round(scrollTopAfter),
+          maxScrollTop: Math.round(maxScrollTop),
+          willRetry: isV3Opener && overlapPx > 4
+        });
+
         // PART D: One retry for v3_pack_opener (layout settling)
-        if (activeKindSOT === 'v3_pack_opener' && overlapPx > 4) {
+        if (isV3Opener && overlapPx > 4) {
           requestAnimationFrame(() => {
             const footerRect2 = footerEl.getBoundingClientRect();
             const activeRect2 = activeCardEl.getBoundingClientRect();
@@ -1911,36 +1927,80 @@ export default function CandidateInterview() {
                 deltaCorrectionApplied: Math.round(scrollTopAfter2 - scrollTopBefore2)
               });
 
+              console.log('[SCROLL][LOCK_PHASE]', {
+                phase: 'PASS2_DONE',
+                overlapPx: Math.round(overlapPx2),
+                scrollTop: Math.round(scrollTopAfter2),
+                maxScrollTop: Math.round(currentMax2)
+              });
+
               // PART C: Unlock after PASS 2 completes
               unlockScrollWrites('V3_PACK_OPENER_SETTLE_PASS2_DONE');
             } else {
+              console.log('[SCROLL][LOCK_PHASE]', {
+                phase: 'PASS2_CLEAR',
+                overlapPx: Math.round(overlapPx2),
+                scrollTop: Math.round(scroller.scrollTop),
+                maxScrollTop: Math.round(currentMax2)
+              });
+
               // PART C: Unlock if no overlap in PASS 2
               unlockScrollWrites('V3_PACK_OPENER_SETTLE_PASS2_CLEAR');
             }
-          });
-        } else {
-          // PART C: Unlock after PASS 1 if no retry needed
-          if (isV3Opener) {
-            unlockScrollWrites('V3_PACK_OPENER_SETTLE_PASS1_DONE');
-          }
-        }
-        } else {
-        // PART C: Unlock if no overlap detected + PART B: Final scrollTop enforcement
-        if (isV3Opener) {
-          // PART B: Ensure we're truly at maxScrollTop for v3_pack_opener (no clamping)
-          const finalScrollTop = scroller.scrollTop;
-          if (finalScrollTop < maxScrollTop - 2) {
-            scroller.scrollTop = maxScrollTop;
-            console.log('[SCROLL][ENSURE_ACTIVE][FINAL_ANCHOR_V3]', {
-              reason,
-              scrollTopBefore: Math.round(finalScrollTop),
-              scrollTopAfter: Math.round(maxScrollTop),
-              forcedToMax: true
             });
-          }
+            } else {
+            // PART C: Only unlock if overlap is truly resolved (no PASS 2 needed)
+            if (isV3Opener) {
+            console.log('[SCROLL][LOCK_PHASE]', {
+              phase: 'PASS1_NO_RETRY',
+              overlapPx: Math.round(overlapPx),
+              scrollTop: Math.round(scroller.scrollTop),
+              maxScrollTop: Math.round(maxScrollTop),
+              reason: 'overlap <= 4px, no PASS 2 scheduled'
+            });
 
-          unlockScrollWrites('V3_PACK_OPENER_SETTLE_NO_OVERLAP');
+            // Do NOT unlock yet - PASS 2 check hasn't run
+            // Let timeout handle unlock to ensure stability
+            }
+            }
+        } else {
+          // PART C: Unlock if no overlap detected + PART B: Final scrollTop enforcement
+          if (isV3Opener) {
+            // PART B: Ensure we're truly at maxScrollTop for v3_pack_opener (no clamping)
+            const finalScrollTop = scroller.scrollTop;
+            if (finalScrollTop < maxScrollTop - 2) {
+              scroller.scrollTop = maxScrollTop;
+              console.log('[SCROLL][ENSURE_ACTIVE][FINAL_ANCHOR_V3]', {
+                reason,
+                scrollTopBefore: Math.round(finalScrollTop),
+                scrollTopAfter: Math.round(maxScrollTop),
+                forcedToMax: true
+              });
+            }
+
+            console.log('[SCROLL][LOCK_PHASE]', {
+              phase: 'NO_OVERLAP',
+              overlapPx: 0,
+              scrollTop: Math.round(scroller.scrollTop),
+              maxScrollTop: Math.round(maxScrollTop),
+              reason: 'No overlap - deferring unlock to timeout'
+            });
+
+            // Do NOT unlock here - let failsafe timeout handle it (ensures full settle time)
+          }
         }
+
+        // PART C: Failsafe unlock after 1000ms (belt-and-suspenders)
+        if (isV3Opener) {
+          setTimeout(() => {
+            if (scrollWriteLockRef.current && scrollWriteLockReasonRef.current === 'V3_PACK_OPENER_SETTLE') {
+              unlockScrollWrites('V3_PACK_OPENER_FAILSAFE_TIMEOUT');
+              console.log('[SCROLL][LOCK_PHASE]', {
+                phase: 'UNLOCKED',
+                reason: 'FAILSAFE_TIMEOUT_1000MS'
+              });
+            }
+          }, 1000);
         }
     });
   }, [currentItem, lockScrollWrites, unlockScrollWrites]);
@@ -10884,26 +10944,29 @@ export default function CandidateInterview() {
   // ALWAYS use composer height (sticky composer always present in this layout)
   
   // PART A: V3_PACK_OPENER extra clearance (surgical fix for overlapPx=109 violation)
-  const isV3Opener = activeKindSOT === 'v3_pack_opener';
-  const v3ExtraClearancePx = isV3Opener ? 140 : 0; // 140 covers observed 109px overlap + buffer
+  // FIX: Safe detection using in-scope variables (activeUiItem.kind is "V3_OPENER", not "v3_pack_opener")
+  const isV3OpenerForSpacer = 
+    currentItem?.type === 'v3_pack_opener' ||
+    activeUiItem?.kind === 'V3_OPENER';
+  const v3ExtraClearancePx = isV3OpenerForSpacer ? 140 : 0; // 140 covers observed 109px overlap + buffer
   
   const bottomSpacerPx = Math.max(footerHeightSOTPx + 16 + v3ExtraClearancePx, 80); // 80px minimum for safe clearance
   
   // PART C: Log extra clearance when v3_opener active (deduped)
-  if (isV3Opener && v3ExtraClearancePx > 0) {
+  if (isV3OpenerForSpacer && v3ExtraClearancePx > 0) {
     const packId = currentItem?.packId;
     const instanceNumber = currentItem?.instanceNumber;
     const logKey = `v3_extra_clearance_${packId}_${instanceNumber}`;
     
     logOnce(logKey, () => {
-      console.log('[SPACER][V3_OPENER_EXTRA_CLEARANCE]', {
+      console.log('[SPACER][V3_OPENER_EXTRA_CLEARANCE_APPLIED]', {
         v3ExtraClearancePx,
         bottomSpacerPx,
         footerHeightSOTPx,
-        mode: bottomBarMode,
+        currentItemType: currentItem?.type,
+        activeUiKind: activeUiItem?.kind,
         packId,
-        instanceNumber,
-        activeKindSOT
+        instanceNumber
       });
     });
   }
@@ -10915,7 +10978,7 @@ export default function CandidateInterview() {
     footerDomHeightPx,
     footerHeightSOTPx,
     bottomSpacerPx,
-    isV3Opener,
+    isV3OpenerForSpacer,
     v3ExtraClearancePx,
     shouldRenderFooter,
     appliedTo: 'real_dom_spacer_element',
@@ -11464,8 +11527,8 @@ export default function CandidateInterview() {
   // Re-anchor bottom on footer height changes when auto-scroll is enabled
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
   useEffect(() => {
-    // SCROLL LOCK GATE: Block footer height re-anchor during v3_pack_opener settle
-    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+    // SCROLL LOCK GATE: Block footer height re-anchor during any scroll lock
+    if (isScrollWriteLocked()) {
       return;
     }
     
@@ -11482,8 +11545,8 @@ export default function CandidateInterview() {
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
   // TDZ-SAFE: bottomBarMode declared above (line ~7876) before this effect
   React.useLayoutEffect(() => {
-    // SCROLL LOCK GATE: Block auto-scroll during v3_pack_opener settle
-    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+    // SCROLL LOCK GATE: Block auto-scroll during any scroll lock
+    if (isScrollWriteLocked()) {
       console.log('[SCROLL][GLIDE_BLOCKED_BY_LOCK]', {
         reason: scrollWriteLockReasonRef.current,
         untilMsRemaining: Math.max(0, scrollWriteLockUntilRef.current - Date.now())
@@ -11629,8 +11692,8 @@ export default function CandidateInterview() {
 
   // ANCHOR LAST V3 ANSWER: Keep recently submitted answer visible during transitions
   React.useLayoutEffect(() => {
-    // SCROLL LOCK GATE: Block anchor during v3_pack_opener settle
-    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+    // SCROLL LOCK GATE: Block anchor during any scroll lock
+    if (isScrollWriteLocked()) {
       return;
     }
     
@@ -11717,8 +11780,8 @@ export default function CandidateInterview() {
   
   // ANCHOR V3 PROBE QUESTION: Keep just-appended question visible (ChatGPT-style)
   React.useLayoutEffect(() => {
-    // SCROLL LOCK GATE: Block anchor during v3_pack_opener settle
-    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+    // SCROLL LOCK GATE: Block anchor during any scroll lock
+    if (isScrollWriteLocked()) {
       return;
     }
     
@@ -11825,8 +11888,8 @@ export default function CandidateInterview() {
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
-    // SCROLL LOCK GATE: Block force-scroll during v3_pack_opener settle
-    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+    // SCROLL LOCK GATE: Block force-scroll during any scroll lock
+    if (isScrollWriteLocked()) {
       return;
     }
     
@@ -11927,8 +11990,8 @@ export default function CandidateInterview() {
   
   // FOOTER PADDING COMPENSATION: Prevent jump when footer height changes
   React.useLayoutEffect(() => {
-    // SCROLL LOCK GATE: Block padding compensation during v3_pack_opener settle
-    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+    // SCROLL LOCK GATE: Block padding compensation during any scroll lock
+    if (isScrollWriteLocked()) {
       return;
     }
     
@@ -12006,8 +12069,8 @@ export default function CandidateInterview() {
   // TDZ GUARD: Do not reference finalTranscriptList in hook deps before it is initialized.
   // DETERMINISTIC BOTTOM ANCHOR ENFORCEMENT: Keep transcript pinned to bottom when expected
   React.useLayoutEffect(() => {
-    // SCROLL LOCK GATE: Block bottom anchor during v3_pack_opener settle
-    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+    // SCROLL LOCK GATE: Block bottom anchor during any scroll lock
+    if (isScrollWriteLocked()) {
       return;
     }
     
@@ -12049,8 +12112,8 @@ export default function CandidateInterview() {
   
   // GRAVITY FOLLOW: Auto-scroll active card into view when it changes (ChatGPT-style)
   React.useLayoutEffect(() => {
-    // SCROLL LOCK GATE: Block gravity follow during v3_pack_opener settle
-    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+    // SCROLL LOCK GATE: Block gravity follow during any scroll lock
+    if (isScrollWriteLocked()) {
       return;
     }
     
@@ -12186,8 +12249,8 @@ export default function CandidateInterview() {
   
   // ACTIVE CARD OVERLAP NUDGE: Ensure active card never hides behind footer when footer changes
   React.useLayoutEffect(() => {
-    // SCROLL LOCK GATE: Block overlap nudge during v3_pack_opener settle
-    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+    // SCROLL LOCK GATE: Block overlap nudge during any scroll lock
+    if (isScrollWriteLocked()) {
       return;
     }
     
@@ -12340,8 +12403,8 @@ export default function CandidateInterview() {
 
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
   useEffect(() => {
-    // SCROLL LOCK GATE: Block prompt visibility during v3_pack_opener settle
-    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+    // SCROLL LOCK GATE: Block prompt visibility during any scroll lock
+    if (isScrollWriteLocked()) {
       return;
     }
     
