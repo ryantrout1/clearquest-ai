@@ -10969,10 +10969,16 @@ export default function CandidateInterview() {
   }, [sessionId, getScrollOwner]);
 
   // ============================================================================
-  // FOOTER MEASUREMENT SOT - Dynamic, mode-agnostic (TDZ-safe)
+  // FOOTER MEASUREMENT SOT - Dynamic, mode-agnostic, ref-latch (TDZ-safe)
   // ============================================================================
+  const footerObservedRef = React.useRef(false);
+  const footerObserverAttachLoggedRef = React.useRef(false);
+  
   useEffect(() => {
-    if (!footerShellRef.current) return;
+    let resizeObserver = null;
+    let settlingTimers = [];
+    let pollingTimers = [];
+    let windowResizeHandler = null;
     
     const measureFooter = () => {
       if (!footerShellRef.current) return;
@@ -10992,27 +10998,69 @@ export default function CandidateInterview() {
       });
     };
     
-    const resizeObserver = new ResizeObserver(measureFooter);
-    resizeObserver.observe(footerShellRef.current);
+    const attachObserver = () => {
+      if (!footerShellRef.current) return false;
+      if (footerObservedRef.current) return true;
+      
+      // Attach ResizeObserver
+      resizeObserver = new ResizeObserver(measureFooter);
+      resizeObserver.observe(footerShellRef.current);
+      
+      // Initial measurement
+      requestAnimationFrame(measureFooter);
+      
+      // Settling measurements
+      settlingTimers = [
+        setTimeout(() => measureFooter(), 50),
+        setTimeout(() => measureFooter(), 150),
+        setTimeout(() => measureFooter(), 300)
+      ];
+      
+      // Window resize fallback
+      windowResizeHandler = () => requestAnimationFrame(measureFooter);
+      window.addEventListener('resize', windowResizeHandler);
+      
+      footerObservedRef.current = true;
+      
+      // Log once on successful attachment
+      if (!footerObserverAttachLoggedRef.current) {
+        footerObserverAttachLoggedRef.current = true;
+        const rect = footerShellRef.current.getBoundingClientRect();
+        const measured = Math.round(rect.height || footerShellRef.current.offsetHeight || 0);
+        console.log('[UI_CONTRACT][FOOTER_OBSERVER_ATTACHED]', { 
+          footerHeightPx: measured 
+        });
+      }
+      
+      return true;
+    };
     
-    // Initial measurement
-    requestAnimationFrame(measureFooter);
-    
-    // Settling measurements - 3 attempts to catch layout settling
-    const settlingTimers = [
-      setTimeout(() => measureFooter(), 50),
-      setTimeout(() => measureFooter(), 150),
-      setTimeout(() => measureFooter(), 300)
-    ];
-    
-    // Window resize fallback
-    const handleResize = () => requestAnimationFrame(measureFooter);
-    window.addEventListener('resize', handleResize);
+    // Try to attach immediately
+    if (!attachObserver()) {
+      // Ref not ready - start polling loop
+      let attempts = 0;
+      const maxAttempts = 10; // 500ms max
+      
+      const poll = () => {
+        attempts++;
+        if (attachObserver() || attempts >= maxAttempts) {
+          return;
+        }
+        pollingTimers.push(setTimeout(poll, 50));
+      };
+      
+      pollingTimers.push(setTimeout(poll, 50));
+    }
     
     return () => {
-      resizeObserver.disconnect();
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       settlingTimers.forEach(t => clearTimeout(t));
-      window.removeEventListener('resize', handleResize);
+      pollingTimers.forEach(t => clearTimeout(t));
+      if (windowResizeHandler) {
+        window.removeEventListener('resize', windowResizeHandler);
+      }
     };
   }, []); // TDZ-SAFE: No deps on mode variables
 
