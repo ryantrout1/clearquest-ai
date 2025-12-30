@@ -15958,8 +15958,8 @@ export default function CandidateInterview() {
   // UI CONTRACT: 3-row shell enforced - do not reintroduce footer spacers/padding hacks; footer must stay in layout flow.
   
   return (
-    <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white grid grid-rows-[auto_1fr_auto] overflow-hidden">
-      <header className="bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
+    <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
+      <header className="bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3 flex-shrink-0">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
