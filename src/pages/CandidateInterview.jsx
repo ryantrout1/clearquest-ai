@@ -2425,6 +2425,9 @@ export default function CandidateInterview() {
   // V3 COMMIT ACK: Lightweight acknowledgement for post-submit verification
   const lastV3AnswerCommitAckRef = useRef(null);
   
+  // PART A: Optimistic persist markers (prevent UI stall on slow DB writes)
+  const v3OptimisticPersistRef = useRef({}); // Map<promptId, {stableKeyA, answerText, ts}>
+  
   // UI CONTRACT STATUS: Component-level refs (prevents cross-session leakage)
   const openerMergeStatusRef = React.useRef('UNKNOWN');
   const footerClearanceStatusRef = React.useRef('UNKNOWN');
@@ -6665,8 +6668,20 @@ export default function CandidateInterview() {
           sessionId
         });
         
-        // Track opener submission
+        // PART B: Track opener submission (optimistic - immediate UI feedback)
         v3OpenerSubmittedRef.current.set(loopKey, true);
+        
+        // PART A: Add optimistic marker for opener answer
+        const openerPromptId = `${loopKey}:opener`;
+        v3OptimisticPersistRef.current[openerPromptId] = {
+          stableKeyA: openerAnswerStableKey,
+          answerText: value,
+          ts: Date.now(),
+          loopKey,
+          categoryId,
+          instanceNumber,
+          isOpener: true
+        };
         
         console.log('[V3_PROBING][START_AFTER_OPENER]', {
           packId,
@@ -6674,7 +6689,8 @@ export default function CandidateInterview() {
           instanceNumber,
           loopKey,
           submitToken,
-          v3ProbingActive: true
+          v3ProbingActive: true,
+          optimisticOpenerMarkerSet: true
         });
         
         // Track probing start
@@ -6770,7 +6786,11 @@ export default function CandidateInterview() {
             return;
           }
           
-          // GUARD: Check if prompt already arrived
+          // PART B: Check optimistic markers before recovery
+          const openerPromptId = `${capturedLoopKey}:opener`;
+          const hasOptimisticOpener = v3OptimisticPersistRef.current[openerPromptId];
+
+          // GUARD: Check if prompt already arrived OR optimistic marker exists
           if (v3ActivePromptTextRef.current && v3ActivePromptTextRef.current.trim().length > 0) {
             console.log('[V3_FAILSAFE][CANCELLED_OR_STALE]', {
               submitToken: capturedSubmitToken,
@@ -6779,13 +6799,30 @@ export default function CandidateInterview() {
             });
             return;
           }
+
+          if (hasOptimisticOpener) {
+            const optimisticAge = Date.now() - hasOptimisticOpener.ts;
+            if (optimisticAge < 5000) {
+              console.log('[V3_FAILSAFE][OPTIMISTIC_PENDING]', {
+                submitToken: capturedSubmitToken,
+                loopKey: capturedLoopKey,
+                optimisticAge,
+                reason: 'Optimistic marker active - allowing more time for probing to start'
+              });
+              return; // Give more time
+            }
+          }
           
           // All guards passed - execute recovery
           const stillOnOpener = currentItem?.type === 'v3_pack_opener' && currentItem?.packId === capturedPackId;
           const probingActiveNow = v3ProbingActiveRef.current;
           const hasPromptNow = !!v3ActivePromptTextRef.current;
-          
-          if (stillOnOpener || (probingActiveNow && !hasPromptNow)) {
+
+          // PART B: Check optimistic markers before declaring stall
+          const openerLoopKey = `${sessionId}:${capturedPackId}:${capturedInstanceNumber}`;
+          const hasOptimisticSubmit = v3OpenerSubmittedRef.current.get(openerLoopKey) === true;
+
+          if ((stillOnOpener || (probingActiveNow && !hasPromptNow)) && !hasOptimisticSubmit) {
             console.error('[V3_UI_CONTRACT][PROMPT_MISSING_AFTER_OPENER]', {
               submitToken: capturedSubmitToken,
               packId: capturedPackId,
@@ -6794,6 +6831,7 @@ export default function CandidateInterview() {
               stillOnOpener,
               probingActiveNow,
               hasPromptNow,
+              hasOptimisticSubmit,
               reason: stillOnOpener ? 'Still on opener - probing did not start' : 'Probing started but no prompt received'
             });
             
@@ -9533,13 +9571,24 @@ export default function CandidateInterview() {
           // METRICS: Increment ack set counter
           v3AckSetCountRef.current++;
           
+          // PART A: Mark optimistic persist (immediate UI feedback)
+          v3OptimisticPersistRef.current[promptId] = {
+            stableKeyA: aStableKey,
+            answerText,
+            ts: Date.now(),
+            loopKey,
+            categoryId,
+            instanceNumber
+          };
+          
           console.log('[V3_PROBE_AUDIT][PERSIST_OK]', {
             expectedAKey: aStableKey,
             expectedQKey: qStableKey,
             promptId,
             textPreview: answerText?.substring(0, 40),
             committedAt: lastV3AnswerCommitAckRef.current.committedAt,
-            ackSetCount: v3AckSetCountRef.current
+            ackSetCount: v3AckSetCountRef.current,
+            optimisticMarkerSet: true
           });
           
           // REQUEST REFRESH: Set request instead of calling refresh directly
@@ -9574,7 +9623,15 @@ export default function CandidateInterview() {
               e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER'
             ).length;
             
-            // PART 3B: Log persist success (RISK 3: use v3PromptIdSOT from outer scope)
+            // PART A: Clear optimistic marker on DB confirm
+            if (v3OptimisticPersistRef.current[promptId]) {
+              delete v3OptimisticPersistRef.current[promptId];
+              console.log('[V3_OPTIMISTIC][CLEARED]', {
+                promptId,
+                reason: 'DB_CONFIRM'
+              });
+            }
+            
             console.log('[V3_SEND][PERSIST_OK]', {
               stableKeyA: aStableKey,
               promptId: v3PromptIdSOT,
@@ -9668,14 +9725,15 @@ export default function CandidateInterview() {
       });
     }
     
-    // CRITICAL: Set PROCESSING state ONLY after DB write completes
+    // PART B: Force immediate transition (optimistic - don't wait for DB)
+    // This prevents PROMPT_MISSING_AFTER_OPENER stall
     setV3PromptPhase("PROCESSING");
-    console.log('[V3_PROMPT_PHASE][SET_PROCESSING_AFTER_DB]', {
+    console.log('[V3_PROMPT_PHASE][SET_PROCESSING_OPTIMISTIC]', {
       submitId,
       loopKey,
       categoryId,
       wroteTranscript,
-      reason: 'DB write complete - now ready for engine call'
+      reason: 'Optimistic transition - UI advances immediately'
     });
     
     setV3PendingAnswer(payload);
@@ -9756,23 +9814,63 @@ export default function CandidateInterview() {
       probeIndex: ack.probeIndex
     });
     
-    if (foundA) {
-      // Success - answer found in transcript
+    // PART C: Check optimistic markers before repair
+    const hasOptimistic = v3OptimisticPersistRef.current[ack.promptId];
+    const optimisticAge = hasOptimistic ? Date.now() - hasOptimistic.ts : null;
+    
+    // PART D: Dedupe check - use optimistic markers
+    const foundInDbOrOptimistic = foundA || (hasOptimistic && optimisticAge < 10000);
+    
+    if (foundInDbOrOptimistic) {
+      // Success - answer found in transcript or optimistic marker active
       v3AckClearCountRef.current++;
+      
+      // Clear optimistic marker on DB confirm
+      if (foundA && hasOptimistic) {
+        delete v3OptimisticPersistRef.current[ack.promptId];
+        console.log('[V3_OPTIMISTIC][CLEARED]', {
+          promptId: ack.promptId,
+          reason: 'DB_CONFIRM_IN_ACK'
+        });
+      }
       
       console.log('[V3_PROBE][ACK_CLEAR]', {
         expectedAKey: ack.expectedAKey,
-        reason: 'found_in_transcript',
+        reason: foundA ? 'found_in_transcript' : 'optimistic_pending',
         ageMs,
+        optimisticAge,
         ackClearCount: v3AckClearCountRef.current
       });
       lastV3AnswerCommitAckRef.current = null;
       return;
     }
     
+    // PART C: Grace period - accept optimistic state for up to 10s
+    if (hasOptimistic && optimisticAge < 10000) {
+      console.log('[V3_PROBE][ACK_OPTIMISTIC_PENDING]', {
+        expectedAKey: ack.expectedAKey,
+        promptId: ack.promptId,
+        optimisticAge,
+        reason: 'Optimistic persist active - DB write pending'
+      });
+      return; // Wait for DB confirmation
+    }
+    
     // Grace period: wait 500ms before repairing
     if (ageMs < 500) {
       return; // Wait for next render cycle
+    }
+    
+    // PART C: Stale optimistic marker - log and clear
+    if (hasOptimistic && optimisticAge >= 10000) {
+      console.error('[V3_OPTIMISTIC][STALE]', {
+        promptId: ack.promptId,
+        expectedAKey: ack.expectedAKey,
+        optimisticAge,
+        reason: 'Optimistic marker older than 10s but DB never confirmed',
+        action: 'clearing_stale_marker'
+      });
+      delete v3OptimisticPersistRef.current[ack.promptId];
     }
     
     // Missing after grace - repair
@@ -9792,6 +9890,8 @@ export default function CandidateInterview() {
       expectedQKey: ack.expectedQKey,
       reason: 'missing_after_grace',
       ageMs,
+      hasOptimistic,
+      optimisticAge,
       action: 'repairing_transcript',
       ackRepairCount: v3AckRepairCountRef.current
     });
