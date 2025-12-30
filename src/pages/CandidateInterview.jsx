@@ -12138,6 +12138,11 @@ export default function CandidateInterview() {
   
   // ACTIVE CARD OVERLAP NUDGE: Ensure active card never hides behind footer when footer changes
   React.useLayoutEffect(() => {
+    // SCROLL LOCK GATE: Block overlap nudge during v3_pack_opener settle
+    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+      return;
+    }
+    
     if (!shouldRenderFooter) return; // No footer, no nudge needed
     if (!hasActiveCard) return; // No active card, nothing to nudge
     
