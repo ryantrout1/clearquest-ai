@@ -2249,6 +2249,33 @@ export default function CandidateInterview() {
         reason: "Cannot render active card without opener text"
       });
     }
+  } else if (activeUiItem.kind === "DEFAULT" && bottomBarMode === "YES_NO" && currentItem?.type === "question") {
+    // ACTIVE YES/NO QUESTION: Create active card for base questions in YES/NO mode
+    const question = engine?.QById?.[currentItem.id];
+    const questionText = question?.question_text || entry?.text || "(Question)";
+    const stableKey = `question-shown:${currentItem.id}`;
+    
+    activeCard = {
+      __activeCard: true,
+      isEphemeralPromptLaneCard: true,
+      kind: "base_question_yesno",
+      stableKey,
+      text: questionText,
+      questionId: currentItem.id,
+      questionDbId: currentItem.id,
+      questionNumber: question?.question_number,
+      sectionName: engine?.Sections?.find(s => s.id === question?.section_id)?.section_name,
+      source: 'prompt_lane_temporary'
+    };
+    
+    console.log("[BASE_YESNO][ACTIVE_CARD_ADDED]", {
+      questionId: currentItem.id,
+      questionCode: question?.question_id,
+      stableKey,
+      questionNumber: question?.question_number,
+      bottomBarMode,
+      activeUiItemKind: activeUiItem.kind
+    });
   } else if (activeUiItem.kind === "MI_GATE") {
     // FIX: Use currentItem directly when activeUiItem.kind is MI_GATE
     // activeUiItem resolver already handles V3 blocking precedence correctly
@@ -15219,44 +15246,33 @@ export default function CandidateInterview() {
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
             if (entry.role === 'assistant' && getMessageTypeSOT(entry) === 'QUESTION_SHOWN') {
-            // ACTIVE ITEM CHECK: Determine if this is the current active question
-            const questionDbId = entry.meta?.questionDbId;
-            const isActiveBaseQuestion = effectiveItemType === 'question' && 
-              currentItem?.type === 'question' &&
-              currentItem?.id === questionDbId &&
-              activeUiItem?.kind === 'DEFAULT' &&
-              bottomBarMode === 'YES_NO';
+              // ACTIVE ITEM CHECK: Determine if this is the current active question
+              const questionDbId = entry.meta?.questionDbId;
+              const isActiveBaseQuestion = effectiveItemType === 'question' && 
+                currentItem?.type === 'question' &&
+                currentItem?.id === questionDbId &&
+                activeUiItem?.kind === 'DEFAULT' &&
+                bottomBarMode === 'YES_NO';
 
-            // UI CONTRACT ENFORCEMENT: NEVER render inline actions in transcript
-            // All interactions MUST be footer-only (read-only transcript contract)
-            const renderContext = "TRANSCRIPT";
-            const shouldRenderInlineActions = false; // HARD-DISABLED: footer owns all controls
-
-            // DEFENSIVE GUARD: Log if code attempts inline render (should never happen)
-            if (isActiveBaseQuestion && renderContext === "TRANSCRIPT") {
-              console.warn('[UI_CONTRACT][TRANSCRIPT_INLINE_SUPPRESSED]', {
-                component: 'QUESTION_SHOWN',
-                questionId: questionDbId,
-                renderContext,
-                reason: 'Footer owns all controls - inline actions disabled'
-              });
-            }
+              // UI CONTRACT SUPPRESSION: Skip rendering from transcript if active card exists
+              // Active YES/NO questions render ONLY via activeCard (prevents duplicate)
+              if (isActiveBaseQuestion && activeCard?.kind === "base_question_yesno") {
+                console.log('[BASE_YESNO][TRANSCRIPT_SUPPRESSED]', {
+                  questionId: questionDbId,
+                  stableKey: entry.stableKey || entry.id,
+                  reason: 'Active question renders in active lane - suppressing transcript copy'
+                });
+                return null; // Skip transcript render - activeCard owns it
+              }
               
-              // FIX: ALWAYS render base questions (history mode) - active styling only
-              // Answered questions render in history with their answer bubbles below
-              const activeClass = isActiveBaseQuestion 
-                ? 'ring-2 ring-blue-400/40 shadow-lg shadow-blue-500/20' 
-                : '';
-              
+              // HISTORY MODE: Render answered questions from transcript (read-only)
               return (
                 <div 
                   key={entryKey} 
                   data-stablekey={entry.stableKey || entry.id}
-                  data-cq-active-card={isActiveBaseQuestion ? "true" : undefined}
-                  data-ui-contract-card={isActiveBaseQuestion ? "true" : undefined}
                 >
                   <ContentContainer>
-                  <div className={`w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 transition-all duration-150 ${activeClass}`}>
+                  <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-base font-semibold text-blue-400">
                         Question {entry.meta?.questionNumber || ''}
@@ -15269,9 +15285,6 @@ export default function CandidateInterview() {
                       )}
                     </div>
                     <p className="text-white text-base leading-relaxed">{entry.text}</p>
-                    
-                    {/* UI CONTRACT: NO inline actions in history mode - bottom bar owns all user actions */}
-                    {/* shouldRenderInlineActions is always false - all actions in bottom bar */}
                   </div>
                   </ContentContainer>
                 </div>
@@ -15873,7 +15886,7 @@ export default function CandidateInterview() {
           })}
 
           {/* ACTIVE CARD LANE: Render active prompt card at bottom (after transcript) */}
-          {activeCard && (activeUiItem.kind === "V3_OPENER" || activeUiItem.kind === "V3_PROMPT" || activeUiItem.kind === "MI_GATE") && (() => {
+          {activeCard && (activeUiItem.kind === "V3_OPENER" || activeUiItem.kind === "V3_PROMPT" || activeUiItem.kind === "MI_GATE" || activeCard.kind === "base_question_yesno") && (() => {
             console.log('[UI_CONTRACT][ACTIVE_LANE_POSITION_SOT]', {
               activeUiItemKind: activeUiItem?.kind,
               placedAfterTranscript: true,
@@ -15970,6 +15983,35 @@ export default function CandidateInterview() {
                         <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
                         <span className="text-sm text-purple-300">{activeCard.text}</span>
                       </div>
+                    </div>
+                  </ContentContainer>
+                </div>
+              );
+            }
+
+            if (cardKind === "base_question_yesno") {
+              const safeQuestionText = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_BASE_QUESTION');
+              return (
+                <div key={`active-${activeCard.stableKey}`}>
+                  <ContentContainer>
+                    <div 
+                      className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 ring-2 ring-blue-400/40 shadow-lg shadow-blue-500/20 transition-all duration-150"
+                      data-cq-active-card="true"
+                      data-stablekey={activeCard.stableKey}
+                      data-ui-contract-card="true"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-base font-semibold text-blue-400">
+                          Question {activeCard.questionNumber || ''}
+                        </span>
+                        {activeCard.sectionName && (
+                          <>
+                            <span className="text-sm text-slate-500">•</span>
+                            <span className="text-sm font-medium text-slate-300">{activeCard.sectionName}</span>
+                          </>
+                        )}
+                      </div>
+                      <p className="text-white text-base leading-relaxed">{safeQuestionText}</p>
                     </div>
                   </ContentContainer>
                 </div>
