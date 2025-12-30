@@ -1670,6 +1670,44 @@ export default function CandidateInterview() {
   const scrollWriteLockUntilRef = useRef(0);
   
   // TDZ FIX: Scroll helpers declared early (before any useEffects that reference them)
+  
+  // SCROLL LOCK HELPERS: Prevent competing scroll writers
+  const lockScrollWrites = useCallback((reason, ms = 250) => {
+    scrollWriteLockRef.current = true;
+    scrollWriteLockReasonRef.current = reason;
+    scrollWriteLockUntilRef.current = Date.now() + ms;
+    
+    console.log('[SCROLL][LOCK]', {
+      action: 'LOCK',
+      reason,
+      untilMsRemaining: ms
+    });
+  }, []);
+  
+  const unlockScrollWrites = useCallback((reason) => {
+    scrollWriteLockRef.current = false;
+    scrollWriteLockReasonRef.current = null;
+    scrollWriteLockUntilRef.current = 0;
+    
+    console.log('[SCROLL][LOCK]', {
+      action: 'UNLOCK',
+      reason
+    });
+  }, []);
+  
+  const isScrollWriteLocked = useCallback(() => {
+    if (!scrollWriteLockRef.current) return false;
+    
+    const now = Date.now();
+    if (now >= scrollWriteLockUntilRef.current) {
+      // Lock expired - auto-unlock
+      unlockScrollWrites('AUTO_EXPIRE');
+      return false;
+    }
+    
+    return true;
+  }, [unlockScrollWrites]);
+  
   // PART A: Helper to identify true scroll owner at runtime
   const getScrollOwner = useCallback((startElement) => {
     if (!startElement || typeof window === 'undefined') return null;
