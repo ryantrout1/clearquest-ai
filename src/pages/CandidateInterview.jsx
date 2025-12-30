@@ -104,6 +104,15 @@ const resetMountTracker = (sid) => {
   }
 };
 
+// PART A: IN-MEMORY LOG DEDUPE - No storage dependency (module-scope, survives HMR)
+const loggedOnceKeys = new Set();
+const logOnce = (key, logFn) => {
+  if (loggedOnceKeys.has(key)) return false;
+  loggedOnceKeys.add(key);
+  logFn();
+  return true;
+};
+
 // ============================================================================
 // TRANSCRIPT CONTRACT (v1) - Single Source of Truth
 // ============================================================================
@@ -9374,29 +9383,15 @@ export default function CandidateInterview() {
       // PART 3: Verify prompt snapshot exists using ref (prevents stale state)
       const snapshotExists = v3PromptSnapshotsRef.current.some(s => s.promptId === promptId);
       
-      // STEP 3: Dedupe NO_SNAPSHOT warning (log once per promptId)
+      // PART A+D: Dedupe NO_SNAPSHOT warning (in-memory, once per promptId)
       if (!snapshotExists) {
-        const noSnapshotKey = `no_snapshot_${promptId}`;
-        const alreadyLogged = (() => {
-          try {
-            return sessionStorage.getItem(noSnapshotKey);
-          } catch {
-            return null;
-          }
-        })();
-        
-        if (!alreadyLogged) {
-          try {
-            sessionStorage.setItem(noSnapshotKey, '1');
-          } catch {
-            // Storage blocked - skip dedupe
-          }
+        logOnce(`no_snapshot_${promptId}`, () => {
           console.warn('[V3_PROMPT_WATCHDOG][NO_SNAPSHOT]', { 
             promptId, 
-            reason: 'Prompt commit did not create snapshot - expected from commitV3PromptToBottomBar',
+            reason: 'Prompt commit did not create snapshot - check commitV3PromptToBottomBar',
             snapshotsLen: v3PromptSnapshotsRef.current.length
           });
-        }
+        });
         return;
       }
       
@@ -12261,26 +12256,32 @@ export default function CandidateInterview() {
     ...(activeCard ? [activeCard] : [])
   ];
   
-  // B) ENFORCE: MI gate is last - suppress any items that would render after it
+  // PART B: ENFORCE - MI gate is last (REORDER items before gate, don't drop)
   let orderedStream = baseRenderStream;
-  let miGateReorderCount = 0; // CRASH FIX: Always defined before use
+  let miGateReorderCount = 0;
   
   if (activeCard?.kind === "multi_instance_gate") {
-    // Find index of active MI_GATE card
     const miGateIndex = baseRenderStream.findIndex(e => e.__activeCard && e.kind === "multi_instance_gate");
     
     if (miGateIndex !== -1 && miGateIndex < baseRenderStream.length - 1) {
-      // Items exist after MI_GATE - suppress them
+      // Items exist after MI_GATE - REORDER them before gate (don't drop)
+      const itemsBefore = baseRenderStream.slice(0, miGateIndex);
+      const miGateItem = baseRenderStream[miGateIndex];
       const itemsAfter = baseRenderStream.slice(miGateIndex + 1);
-      orderedStream = baseRenderStream.slice(0, miGateIndex + 1);
-      miGateReorderCount = itemsAfter.length; // Track count
       
-      console.warn('[MI_GATE][ORDERING_ENFORCED]', {
-        packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber,
-        suppressedItemsCount: itemsAfter.length,
-        suppressedKinds: itemsAfter.map(e => ({ kind: e.kind || e.messageType, key: e.stableKey || e.id })),
-        reason: 'MI gate must be last - items after gate suppressed'
+      // Reordered: items before + items that were after + gate last
+      orderedStream = [...itemsBefore, ...itemsAfter, miGateItem];
+      miGateReorderCount = itemsAfter.length;
+      
+      // PART A: Log reorder once (in-memory dedupe)
+      logOnce(`migate_reorder_${currentItem?.packId}_${currentItem?.instanceNumber}`, () => {
+        console.warn('[MI_GATE][REORDER_APPLIED]', {
+          packId: currentItem?.packId,
+          instanceNumber: currentItem?.instanceNumber,
+          movedCount: itemsAfter.length,
+          movedKinds: itemsAfter.map(e => ({ kind: e.kind || e.messageType, key: e.stableKey || e.id })),
+          reason: 'Items moved before MI gate to enforce last-item ordering'
+        });
       });
     }
   }
@@ -12375,22 +12376,8 @@ export default function CandidateInterview() {
     );
 
     if (!probeAnswerInRender) {
-      // STEP 4: Dedupe probe A missing log (once per stableKey)
-      const missingKey = `probe_a_missing_${lastProbeAnswer.stableKey || lastProbeAnswer.id}`;
-      const alreadyLogged = (() => {
-        try {
-          return sessionStorage.getItem(missingKey);
-        } catch {
-          return null;
-        }
-      })();
-      
-      if (!alreadyLogged) {
-        try {
-          sessionStorage.setItem(missingKey, '1');
-        } catch {
-          // Storage blocked - skip dedupe
-        }
+      // PART A: Dedupe probe A withheld log (in-memory, once per stableKey)
+      logOnce(`probe_a_withheld_${lastProbeAnswer.stableKey || lastProbeAnswer.id}`, () => {
         console.warn('[CQ_TRANSCRIPT][V3_PROBE_A_WITHHELD_FOR_GATE]', {
           packId,
           instanceNumber,
@@ -12399,7 +12386,7 @@ export default function CandidateInterview() {
           reason: 'Probe answer withheld during active gate transition - will recover',
           action: 'RECOVERY'
         });
-      }
+      });
 
       // FIX D: Add missing answer as UI placeholder (NOT persisted to transcript)
       // This is a non-transcript render item that fills the gap during gate transition
@@ -12499,23 +12486,9 @@ export default function CandidateInterview() {
       });
       
       if (hasItemsAfterMiGateAfterReorder) {
-        // STEP 4: Dedupe alignment violation log (once per gate)
-        const violationKey = `migate_align_${currentItem?.packId}_${currentItem?.instanceNumber}`;
-        const alreadyLogged = (() => {
-          try {
-            return sessionStorage.getItem(violationKey);
-          } catch {
-            return null;
-          }
-        })();
-        
-        if (!alreadyLogged) {
-          try {
-            sessionStorage.setItem(violationKey, '1');
-          } catch {
-            // Storage blocked - skip dedupe
-          }
-          const itemsAfter = renderableTranscriptStream.slice(miGateIndexAfterReorder + 1);
+        // PART A+B: Dedupe alignment violation (in-memory, once per gate)
+        const itemsAfter = renderableTranscriptStream.slice(miGateIndexAfterReorder + 1);
+        logOnce(`migate_align_${currentItem?.packId}_${currentItem?.instanceNumber}`, () => {
           console.error('[MI_GATE][ALIGNMENT_VIOLATION]', {
             packId: currentItem?.packId,
             instanceNumber: currentItem?.instanceNumber,
@@ -12527,7 +12500,7 @@ export default function CandidateInterview() {
             })),
             reason: 'MI gate must be last - regression detected AFTER reorder'
           });
-        }
+        });
       }
     } catch (assertError) {
       // CRASH GUARD: Never crash interview due to instrumentation errors
@@ -12758,7 +12731,15 @@ export default function CandidateInterview() {
             }
             
             // STEP 4: Ensure mainPaneRendered is always boolean
-            const { mainPaneRendered = false, footerButtonsOnly = false } = finalTracker;
+            // PART C: mainPaneRendered computed deterministically from finalTranscriptList
+            const miGateInRender = (renderedTranscriptSnapshotRef.current || renderedTranscript).some(it => 
+              it.__activeCard === true && 
+              it.kind === 'multi_instance_gate' &&
+              it.stableKey === trackerKey
+            );
+            
+            const mainPaneRendered = miGateInRender; // ALWAYS boolean
+            const { footerButtonsOnly = false } = finalTracker;
             
             // UI CONTRACT: Self-test requires main pane render AND footer buttons-only
             const passCondition = mainPaneRendered === true && footerButtonsOnly === true;
@@ -12773,25 +12754,10 @@ export default function CandidateInterview() {
                 footerButtonsOnly: true
               });
             } else {
-              // STEP 5: Dedupe UI contract fail (once per gate)
-              const failKey = `migate_fail_${trackerKey}`;
-              const alreadyLogged = (() => {
-                try {
-                  return sessionStorage.getItem(failKey);
-                } catch {
-                  return null;
-                }
-              })();
+              // PART A: Dedupe UI contract fail (in-memory, once per gate)
+              const finalRenderList = renderedTranscriptSnapshotRef.current || renderedTranscript;
               
-              if (!alreadyLogged) {
-                try {
-                  sessionStorage.setItem(failKey, '1');
-                } catch {
-                  // Storage blocked - skip dedupe
-                }
-                // Enhanced failure diagnostics
-                const finalRenderList = renderedTranscriptSnapshotRef.current || renderedTranscript;
-                
+              logOnce(`migate_fail_${trackerKey}`, () => {
                 console.error('[MI_GATE][UI_CONTRACT_FAIL]', {
                   trackerKey,
                   itemId: gateItemId,
@@ -12811,7 +12777,7 @@ export default function CandidateInterview() {
                     )
                   }
                 });
-              }
+              });
             }
           } catch (testError) {
             // SAFETY: Self-test errors must never crash the app
