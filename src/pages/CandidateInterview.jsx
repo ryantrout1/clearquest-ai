@@ -16523,9 +16523,8 @@ export default function CandidateInterview() {
 
 
 
-            {/* LEGACY V3 PROMPT RENDER PATH - HARD DISABLED */}
-            {(() => {
             {/* FIX B4: LEGACY_BLOCK_REACHED spam eliminated - never log (path is permanently disabled) */}
+            {/* LEGACY V3 PROMPT RENDER PATH - HARD DISABLED */}
             {(() => {
               // HARD DISABLED: Legacy V3 prompt render path must NEVER render UI
               // All V3 prompts render via canonical stream (activeCard in renderStream)
