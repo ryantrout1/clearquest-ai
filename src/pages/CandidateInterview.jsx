@@ -1848,6 +1848,43 @@ export default function CandidateInterview() {
           deltaCorrectionApplied: Math.round(scrollTopAfter - scrollTopBefore)
         });
         
+        // PART B: Expand spacer when overlap detected (v3_opener only)
+        if (isV3Opener && overlapPx > 4) {
+          const packId = currentItem?.packId;
+          const instanceNumber = currentItem?.instanceNumber;
+          const expansionKey = `${packId}:${instanceNumber}`;
+          
+          // PART B: Only expand once per instance
+          if (packId && instanceNumber && !expandedInstancesRef.current.has(expansionKey)) {
+            expandedInstancesRef.current.add(expansionKey);
+            
+            const additionalSpacerPx = overlapPx + 32; // Add overlap + buffer
+            
+            setExtraBottomSpacerPx(prev => {
+              const next = Math.min(prev + additionalSpacerPx, 300); // Cap at 300px
+              
+              logOnce(`v3_spacer_expand_${packId}_${instanceNumber}`, () => {
+                console.log('[SPACER][V3_DYNAMIC_EXPAND]', {
+                  packId,
+                  instanceNumber,
+                  overlapPx: Math.round(overlapPx),
+                  extraBottomSpacerPxBefore: Math.round(prev),
+                  extraBottomSpacerPxAfter: Math.round(next),
+                  bottomSpacerPxAfter: Math.round(baseSpacerPx + next),
+                  reason: 'Insufficient scroll range - expanding spacer'
+                });
+              });
+              
+              return next;
+            });
+            
+            // PART B: Schedule retry after spacer expands
+            requestAnimationFrame(() => {
+              ensureActiveVisibleAfterRender('V3_OPENER_SPACER_EXPAND_RETRY', activeKindSOT);
+            });
+          }
+        }
+        
         // PART B: One retry for v3_pack_opener (layout may settle)
         if (isV3Opener && overlapPx > 4) {
           requestAnimationFrame(() => {
@@ -2428,6 +2465,10 @@ export default function CandidateInterview() {
   // PART A: Optimistic persist markers (prevent UI stall on slow DB writes)
   const v3OptimisticPersistRef = useRef({}); // Map<promptId, {stableKeyA, answerText, ts}>
   
+  // PART A: Extra bottom spacer for V3 opener overlap correction
+  const [extraBottomSpacerPx, setExtraBottomSpacerPx] = useState(0);
+  const expandedInstancesRef = useRef(new Set()); // Track expanded instances (prevent repeat)
+  
   // UI CONTRACT STATUS: Component-level refs (prevents cross-session leakage)
   const openerMergeStatusRef = React.useRef('UNKNOWN');
   const footerClearanceStatusRef = React.useRef('UNKNOWN');
@@ -2479,6 +2520,24 @@ export default function CandidateInterview() {
   
   // ACTIVE KIND CHANGE DETECTION: Track last logged kind to prevent spam
   const lastLoggedActiveKindRef = useRef(null);
+  
+  // PART C: Reset spacer when leaving V3 opener
+  useEffect(() => {
+    const wasV3Opener = lastLoggedActiveKindRef.current === 'V3_OPENER' || 
+                        lastLoggedActiveKindRef.current === 'v3_pack_opener';
+    const isV3OpenerNow = activeKindSOT === 'V3_OPENER' || activeKindSOT === 'v3_pack_opener';
+    
+    // Reset spacer when transitioning AWAY from V3 opener
+    if (wasV3Opener && !isV3OpenerNow && extraBottomSpacerPx > 0) {
+      setExtraBottomSpacerPx(0);
+      console.log('[SPACER][V3_RESET]', {
+        fromKind: lastLoggedActiveKindRef.current,
+        toKind: activeKindSOT,
+        extraBottomSpacerPxBefore: extraBottomSpacerPx,
+        reason: 'Left V3 opener - resetting spacer'
+      });
+    }
+  }, [activeKindSOT, extraBottomSpacerPx]);
   
   // RENDER STREAM SNAPSHOT: Track last stream length for change detection (PART E)
   const lastRenderStreamLenRef = useRef(0);
@@ -10962,7 +11021,16 @@ export default function CandidateInterview() {
   
   // PART C: BOTTOM SPACER HEIGHT - Measured from stable footer shell
   // Uses footerShellHeightPx (source of truth for all modes)
-  const bottomSpacerPx = Math.max(footerShellHeightPx + 16, 80); // 80px minimum for safe clearance
+  // PART A: Compute base spacer (before expansion)
+  const baseSpacerPx = Math.max(footerShellHeightPx + 16, 80); // 80px minimum for safe clearance
+  
+  // PART A: Apply expansion for V3 opener only
+  const isV3Opener = (activeUiItem?.kind === 'V3_OPENER') || 
+                     (currentItem?.type === 'v3_pack_opener') || 
+                     (activeKindSOT === 'V3_OPENER' || activeKindSOT === 'v3_pack_opener');
+  const bottomSpacerPx = isV3Opener 
+    ? baseSpacerPx + extraBottomSpacerPx 
+    : baseSpacerPx;
   
   // DIAGNOSTIC LOG: Show bottom spacer computation (deduped)
   const spacerLogKey = `${bottomBarMode}:${footerShellHeightPx}:${bottomSpacerPx}`;
