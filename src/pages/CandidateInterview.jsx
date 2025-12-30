@@ -3248,11 +3248,23 @@ export default function CandidateInterview() {
   // BOTTOM BAR RENDER TYPE - Single source of truth (top-level component scope)
   // ============================================================================
   // CRITICAL: Declared at top-level so ALL render code can access it
-  const bottomBarRenderTypeSOT = activeUiItem?.kind === "V3_PROMPT" ? "v3_probing" :
-                                  activeUiItem?.kind === "V3_WAITING" ? "v3_waiting" :
-                                  activeUiItem?.kind === "V3_OPENER" ? "v3_pack_opener" :
-                                  activeUiItem?.kind === "MI_GATE" ? "multi_instance_gate" :
-                                  "default";
+  const bottomBarRenderTypeSOT = (() => {
+    // PRIORITY 1: V3 states (highest precedence)
+    if (activeUiItem?.kind === "V3_PROMPT") return "v3_probing";
+    if (activeUiItem?.kind === "V3_WAITING") return "v3_waiting";
+    if (activeUiItem?.kind === "V3_OPENER") return "v3_pack_opener";
+    if (activeUiItem?.kind === "MI_GATE") return "multi_instance_gate";
+    
+    // PRIORITY 2: Base yes/no questions (FIX #1)
+    if (activeUiItem?.kind === "DEFAULT" && 
+        currentItem?.type === "question" && 
+        engine?.QById?.[currentItem.id]?.response_type === "yes_no") {
+      return "yes_no";
+    }
+    
+    // PRIORITY 3: Default fallback
+    return "default";
+  })();
   
   // Sanity log: confirm variable exists before render
   console.log("[BOTTOM_BAR_RENDER_TYPE][SOT_TOP]", { 
@@ -3260,8 +3272,23 @@ export default function CandidateInterview() {
     bottomBarRenderTypeSOT,
     v3PromptPhase,
     hasV3PromptText,
-    hasActiveV3Prompt
+    hasActiveV3Prompt,
+    activeCardKind: activeCard?.kind,
+    currentItemId: currentItem?.id,
+    currentItemResponseType: currentItem?.type === "question" ? engine?.QById?.[currentItem.id]?.response_type : null
   });
+  
+  // FIX #1: Diagnostic log for base yes/no routing
+  if (bottomBarRenderTypeSOT === "yes_no") {
+    console.log('[UI_CONTRACT][BASE_YESNO_BOTTOM_BAR_ROUTE]', {
+      activeCardKind: activeCard?.kind,
+      bottomBarRenderTypeSOT,
+      bottomBarModeSOTSafe,
+      effectiveItemType,
+      currentItemId: currentItem?.id,
+      questionResponseType: engine?.QById?.[currentItem?.id]?.response_type
+    });
+  }
   
   // ============================================================================
   // TDZ GUARD: EARLY BOTTOM BAR MODE - Safe canonical source (no late variables)
@@ -3270,6 +3297,7 @@ export default function CandidateInterview() {
   const bottomBarModeSOT = (() => {
     // Derive mode from early bottomBarRenderTypeSOT only (TDZ-safe)
     if (bottomBarRenderTypeSOT === "multi_instance_gate") return "YES_NO";
+    if (bottomBarRenderTypeSOT === "yes_no") return "YES_NO"; // FIX #1: Map yes_no render type to YES_NO mode
     if (bottomBarRenderTypeSOT === "v3_pack_opener") return "TEXT_INPUT";
     if (bottomBarRenderTypeSOT === "v3_probing") return "TEXT_INPUT";
     if (bottomBarRenderTypeSOT === "v3_waiting") return "V3_WAITING";
@@ -11169,6 +11197,16 @@ export default function CandidateInterview() {
                               (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO' || bottomBarModeSOT === 'SELECT' || bottomBarModeSOT === 'V3_WAITING')) ||
                               bottomBarModeSOT === 'CTA';
   
+  // FIX #1: Diagnostic log for footer visibility
+  if (bottomBarRenderTypeSOT === "yes_no") {
+    console.log('[BASE_YESNO][FOOTER_RENDER_CHECK]', {
+      shouldRenderFooter,
+      screenMode,
+      bottomBarModeSOT,
+      bottomBarRenderTypeSOT
+    });
+  }
+  
   // REGRESSION LOGGING: Clearance SOT (once per active item, deduped)
   const clearanceLogKeyRef = React.useRef(null);
   const clearanceLogKey = `${currentItem?.id || 'none'}:${bottomBarModeSOTSafe}`;
@@ -17042,13 +17080,15 @@ export default function CandidateInterview() {
                 activeUiItem?.kind === 'DEFAULT' &&
                 bottomBarModeSOT === 'YES_NO';
 
-              // UI CONTRACT SUPPRESSION: Skip rendering from transcript if active card exists
+              // FIX #2: Suppress ACTIVE base questions from transcript (prevent duplicate rendering)
               // Active YES/NO questions render ONLY via activeCard (prevents duplicate)
-              if (isActiveBaseQuestion && activeCard?.kind === "base_question_yesno") {
+              if (isActiveBaseQuestion) {
                 console.log('[BASE_YESNO][TRANSCRIPT_SUPPRESSED]', {
                   questionId: questionDbId,
                   stableKey: entry.stableKey || entry.id,
-                  reason: 'Active question renders in active lane - suppressing transcript copy'
+                  activeCardKind: activeCard?.kind,
+                  hasActiveCard: !!activeCard,
+                  reason: 'Active base question - suppressing transcript copy to prevent duplicate'
                 });
                 return null; // Skip transcript render - activeCard owns it
               }
