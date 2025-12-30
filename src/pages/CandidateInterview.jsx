@@ -11580,10 +11580,15 @@ export default function CandidateInterview() {
                 const scroller = scrollOwnerRef.current || historyRef.current;
                 if (!scroller) return;
                 
-                // PART C: Direct scrollTop assignment (no scrollIntoView ambiguity)
-                const targetScrollTop = scroller.scrollHeight;
+                // PART A: Correct scrollTop math (maxScrollTop = scrollHeight - clientHeight)
+                const scrollHeight = scroller.scrollHeight;
+                const clientHeight = scroller.clientHeight;
+                const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
+                const requestedScrollTop = maxScrollTop + 8; // Small buffer (browser will clamp)
+                
                 const scrollTopBefore = scroller.scrollTop;
-                scroller.scrollTop = targetScrollTop;
+                scroller.scrollTop = requestedScrollTop;
+                const actualScrollTopAfter = scroller.scrollTop; // Read back actual value
                 
                 console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
                   reason: 'FORCE_ANCHOR_ON_QUESTION_SHOWN',
@@ -11591,9 +11596,11 @@ export default function CandidateInterview() {
                   instanceNumber: currentItem?.instanceNumber,
                   strategy: 'SCROLL_TOP_DIRECT',
                   scrollTopBefore: Math.round(scrollTopBefore),
-                  scrollTopAfter: Math.round(scroller.scrollTop),
-                  scrollHeight: Math.round(scroller.scrollHeight),
-                  clientHeight: Math.round(scroller.clientHeight),
+                  maxScrollTop: Math.round(maxScrollTop),
+                  requestedScrollTop: Math.round(requestedScrollTop),
+                  actualScrollTopAfter: Math.round(actualScrollTopAfter),
+                  scrollHeight: Math.round(scrollHeight),
+                  clientHeight: Math.round(clientHeight),
                   bypassedTypingLock: isUserTyping && forceAutoScrollOnceRef.current
                 });
                 
@@ -13473,10 +13480,15 @@ export default function CandidateInterview() {
         const scroller = scrollOwnerRef.current || historyRef.current;
         if (!scroller) return;
         
-        // PART C: Direct scrollTop = scrollHeight (deterministic)
-        const targetScrollTop = scroller.scrollHeight;
+        // PART A: Correct scrollTop math (maxScrollTop = scrollHeight - clientHeight)
+        const scrollHeight = scroller.scrollHeight;
+        const clientHeight = scroller.clientHeight;
+        const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
+        const requestedScrollTop = maxScrollTop + 8; // Small buffer (browser will clamp)
+        
         const scrollTopBefore = scroller.scrollTop;
-        scroller.scrollTop = targetScrollTop;
+        scroller.scrollTop = requestedScrollTop;
+        const actualScrollTopAfter = scroller.scrollTop; // Read back actual value
         
         console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
           reason: 'YESNO_CLICK',
@@ -13485,9 +13497,11 @@ export default function CandidateInterview() {
           instanceNumber: currentItem?.instanceNumber,
           strategy: 'SCROLL_TOP_DIRECT',
           scrollTopBefore: Math.round(scrollTopBefore),
-          scrollTopAfter: Math.round(scroller.scrollTop),
-          scrollHeight: Math.round(scroller.scrollHeight),
-          clientHeight: Math.round(scroller.clientHeight)
+          maxScrollTop: Math.round(maxScrollTop),
+          requestedScrollTop: Math.round(requestedScrollTop),
+          actualScrollTopAfter: Math.round(actualScrollTopAfter),
+          scrollHeight: Math.round(scrollHeight),
+          clientHeight: Math.round(clientHeight)
         });
       });
     }
