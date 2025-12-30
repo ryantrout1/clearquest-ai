@@ -1859,10 +1859,13 @@ export default function CandidateInterview() {
             const occlusionTop2 = composerRect2.top;
             const overlapPx2 = Math.max(0, activeRect2.bottom - (occlusionTop2 - clearancePx));
             
+            // Compute scroll dimensions for PASS2 (before if/else to avoid TDZ)
+            const scrollTopBefore2 = scroller.scrollTop;
+            const scrollHeight2 = scroller.scrollHeight;
+            const clientHeight2 = scroller.clientHeight;
+            const maxScrollTop2 = Math.max(0, scrollHeight2 - clientHeight2);
+            
             if (overlapPx2 > 4) {
-              const scrollTopBefore2 = scroller.scrollTop;
-              const maxScrollTop2 = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-              
               // Apply delta again
               const desiredDelta2 = overlapPx2 + bufferPx;
               scroller.scrollTop = Math.min(maxScrollTop2, scroller.scrollTop + desiredDelta2);
