@@ -1551,6 +1551,7 @@ export default function CandidateInterview() {
   const historyRef = useRef(null);
   const bottomAnchorRef = useRef(null);
   const footerRef = useRef(null);
+  const footerRootRef = useRef(null); // Footer container root (for DOM height sampling)
   const promptLaneRef = useRef(null);
   const autoScrollEnabledRef = useRef(true);
   const didInitialSnapRef = useRef(false);
@@ -10022,19 +10023,31 @@ export default function CandidateInterview() {
     ? Math.max(dynamicBottomPaddingPxRaw, CTA_MIN_PADDING_PX)
     : dynamicBottomPaddingPxRaw;
   
-  // FOOTER CLEARANCE SOT: Single source of truth for footer clearance (spacer + padding)
-  // Uses real footer height + safety gap for guaranteed clearance
-  const footerClearanceSOTPx = shouldRenderFooter
-    ? Math.max(0, (footerMeasuredHeightPx || 0) + (hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX))
+  // FOOTER DOM HEIGHT SAMPLING: Real-time footer height from DOM (layout-safe)
+  const footerDomHeightPx = shouldRenderFooter && footerRootRef.current
+    ? Math.round(footerRootRef.current.getBoundingClientRect().height || 0)
     : 0;
   
-  // APPLIED CLEARANCE: Hard minimum (never below 8px when footer visible)
-  const footerClearanceAppliedPx = Math.max(footerClearanceSOTPx, shouldRenderFooter ? 8 : 0);
+  // FOOTER HEIGHT SOT: Use max of measured (observer) and DOM (real-time)
+  const footerHeightSOTPx = Math.max(footerMeasuredHeightPx || 0, footerDomHeightPx || 0);
+  
+  // FOOTER CLEARANCE SOT: Single source of truth for footer clearance (spacer + padding)
+  // Uses hardened footer height + safety gap for guaranteed clearance
+  const footerClearanceSOTPx = shouldRenderFooter
+    ? Math.max(0, footerHeightSOTPx + (hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX))
+    : 0;
+  
+  // APPLIED CLEARANCE: Hard minimum (24px when footer visible, prevents occlusion during transitions)
+  const footerClearanceAppliedPx = shouldRenderFooter 
+    ? Math.max(footerClearanceSOTPx, 24) 
+    : 0;
   
   // DIAGNOSTIC LOG: Show padding computation (always on)
   console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
     mode: bottomBarMode,
     footerMeasuredHeightPx,
+    footerDomHeightPx,
+    footerHeightSOTPx,
     computedPaddingPx: dynamicBottomPaddingPx,
     footerClearanceSOTPx,
     footerClearanceAppliedPx,
@@ -11121,7 +11134,7 @@ export default function CandidateInterview() {
     if (!hasActiveCard) return; // No active card, nothing to nudge
     
     const scrollContainer = historyRef.current;
-    const footerEl = footerRef.current;
+    const footerEl = footerRootRef.current; // Use stable footer root ref
     if (!scrollContainer || !footerEl) return;
     
     requestAnimationFrame(() => {
@@ -11154,7 +11167,7 @@ export default function CandidateInterview() {
         return;
       }
       
-      // Measure overlap
+      // Measure overlap using footer root ref (stable DOM node)
       const activeCardRect = activeCardEl.getBoundingClientRect();
       const footerRect = footerEl.getBoundingClientRect();
       const clearancePx = SAFE_FOOTER_CLEARANCE_PX || 8;
@@ -11171,6 +11184,7 @@ export default function CandidateInterview() {
           console.log('[UI_CONTRACT][FOOTER_OVERLAP_NUDGE]', {
             overlapPx: Math.round(overlapPx),
             footerMeasuredHeightPx,
+            footerDomHeightPx: Math.round(footerRect.height),
             bottomBarMode,
             stableKey: activeCardEl.getAttribute('data-stablekey'),
             scrollTopBefore: Math.round(scrollTopBefore),
@@ -16240,7 +16254,7 @@ export default function CandidateInterview() {
               {/* V3 UI-ONLY HISTORY: Rendered via canonical stream (lines 8942-8985) */}
             {/* Separate loop removed - renderStream includes v3UiRenderable */}
 
-      <footer className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
+      <footer ref={footerRootRef} className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
         <div ref={footerRef} className="max-w-5xl mx-auto">
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
           {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarMode guard above */}
