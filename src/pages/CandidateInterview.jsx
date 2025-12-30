@@ -12007,8 +12007,10 @@ export default function CandidateInterview() {
               activeItemId: currentItem?.id
             });
 
-            // PART C: Second corrective nudge (bypass typing lock for explicit navigation)
-            if ((!isUserTyping || forceAutoScrollOnceRef.current) && scrollContainer) {
+            // PART C: Second corrective nudge (bypass typing lock) - MI gate uses shared helper
+            const isMiGateRetry = currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+            
+            if ((!isUserTyping || forceAutoScrollOnceRef.current) && scrollContainer && !isMiGateRetry) {
               scrollContainer.scrollTop += finalOverlapPx + 16;
               console.log('[SCROLL][CORRECTIVE_NUDGE_RETRY]', {
                 remainingOverlapPx: Math.round(finalOverlapPx),
@@ -12019,6 +12021,13 @@ export default function CandidateInterview() {
               if (forceAutoScrollOnceRef.current) {
                 forceAutoScrollOnceRef.current = false;
                 console.log('[SCROLL][FORCE_ONCE_CLEARED]', { reason: 'corrective_nudge_retry' });
+              }
+            } else if (isMiGateRetry) {
+              scrollToBottomForMiGate('CORRECTIVE_NUDGE_RETRY');
+              
+              if (forceAutoScrollOnceRef.current) {
+                forceAutoScrollOnceRef.current = false;
+                console.log('[SCROLL][FORCE_ONCE_CLEARED]', { reason: 'mi_gate_corrective_nudge_retry' });
               }
             }
           }
