@@ -10736,9 +10736,8 @@ export default function CandidateInterview() {
   
   // PART B: BOTTOM SPACER HEIGHT - Real element clearance (NOT padding)
   // Replaces paddingBottom with actual DOM spacer (ChatGPT pattern)
-  const bottomSpacerPx = shouldRenderFooter
-    ? Math.max(footerHeightSOTPx + 16, 80) // 80px minimum for safe clearance
-    : 24; // Minimal spacer when no footer (prevents collapse)
+  // ALWAYS use composer height (sticky composer always present in this layout)
+  const bottomSpacerPx = Math.max(footerHeightSOTPx + 16, 80); // 80px minimum for safe clearance
   
   // DIAGNOSTIC LOG: Show bottom spacer computation (always on)
   console.log('[LAYOUT][BOTTOM_SPACER_APPLIED]', {
