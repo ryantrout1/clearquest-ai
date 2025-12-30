@@ -17107,17 +17107,11 @@ export default function CandidateInterview() {
 
           </div>
 
-          {/* PART A+B: BOTTOM SPACER - Real DOM element for composer clearance (ChatGPT pattern) */}
+          {/* Sticky composer inside scroll owner (ChatGPT pattern) */}
           <div 
-            ref={bottomAnchorRef} 
-            aria-hidden="true" 
-            style={{ height: `${bottomSpacerPx}px`, flexShrink: 0, margin: 0, padding: 0 }} 
-          />
-          </div>
-          </main>
-
-      {/* CANONICAL STREAM ACTIVE CARDS: Removed - duplicate renderer */}
-      {/* Active cards render in main loop via isActiveCard check (lines 8627-8692) */}
+            ref={footerRef}
+            className="sticky bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4 mt-auto z-10"
+          >
 
       {/* V3 Pack Opener Card - SYNTHETIC RENDER (disabled by ENABLE_SYNTHETIC_TRANSCRIPT) */}
       {false && ENABLE_SYNTHETIC_TRANSCRIPT && (() => {
