@@ -113,6 +113,27 @@ const logOnce = (key, logFn) => {
   return true;
 };
 
+// PART C: Unified MI gate detector (consistent across all checks)
+const isMiGateItem = (item, packId, instanceNumber) => {
+  if (!item || !packId || instanceNumber === undefined) return false;
+  
+  // Match active card gates
+  if (item.__activeCard && item.kind === 'multi_instance_gate') {
+    const itemPackId = item.packId || item.meta?.packId;
+    const itemInstance = item.instanceNumber || item.meta?.instanceNumber;
+    return itemPackId === packId && itemInstance === instanceNumber;
+  }
+  
+  // Match transcript gate entries
+  if (item.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
+    const itemPackId = item.meta?.packId || item.packId;
+    const itemInstance = item.meta?.instanceNumber || item.instanceNumber;
+    return itemPackId === packId && itemInstance === instanceNumber;
+  }
+  
+  return false;
+};
+
 // ============================================================================
 // TRANSCRIPT CONTRACT (v1) - Single Source of Truth
 // ============================================================================
