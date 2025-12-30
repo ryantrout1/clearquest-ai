@@ -10877,6 +10877,25 @@ export default function CandidateInterview() {
   
   const bottomSpacerPx = Math.max(footerHeightSOTPx + 16 + v3ExtraClearancePx, 80); // 80px minimum for safe clearance
   
+  // PART C: Log extra clearance when v3_opener active (deduped)
+  if (isV3Opener && v3ExtraClearancePx > 0) {
+    const packId = currentItem?.packId;
+    const instanceNumber = currentItem?.instanceNumber;
+    const logKey = `v3_extra_clearance_${packId}_${instanceNumber}`;
+    
+    logOnce(logKey, () => {
+      console.log('[SPACER][V3_OPENER_EXTRA_CLEARANCE]', {
+        v3ExtraClearancePx,
+        bottomSpacerPx,
+        footerHeightSOTPx,
+        mode: bottomBarMode,
+        packId,
+        instanceNumber,
+        activeKindSOT
+      });
+    });
+  }
+  
   // DIAGNOSTIC LOG: Show bottom spacer computation (always on)
   console.log('[LAYOUT][BOTTOM_SPACER_APPLIED]', {
     mode: bottomBarMode,
@@ -10884,6 +10903,8 @@ export default function CandidateInterview() {
     footerDomHeightPx,
     footerHeightSOTPx,
     bottomSpacerPx,
+    isV3Opener,
+    v3ExtraClearancePx,
     shouldRenderFooter,
     appliedTo: 'real_dom_spacer_element',
     strategy: 'chatgpt_gravity_model',
