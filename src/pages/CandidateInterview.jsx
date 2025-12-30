@@ -1732,8 +1732,9 @@ export default function CandidateInterview() {
     // STEP 1: First scroll to bottom (ChatGPT pattern)
     scrollToBottom(reason);
     
-    // STEP 2: Then check for overlap and correct if needed
+    // STEP 2: Overlap correction with proper clamping + settle retry
     requestAnimationFrame(() => {
+      // Measure pass 1
       const footerRect = footerEl.getBoundingClientRect();
       
       // Multi-tier active card search
@@ -1756,17 +1757,54 @@ export default function CandidateInterview() {
         const scrollHeight = scroller.scrollHeight;
         const clientHeight = scroller.clientHeight;
         const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-        const nudgeScrollTop = Math.min(maxScrollTop, scroller.scrollTop + overlapPx + 16);
-        scroller.scrollTop = nudgeScrollTop;
+        const targetScrollTop = Math.min(maxScrollTop, scroller.scrollTop + overlapPx + 16);
         
-        console.log('[SCROLL][ENSURE_ACTIVE][OVERLAP_CORRECTED]', {
+        scroller.scrollTop = targetScrollTop;
+        const actualScrollTop = scroller.scrollTop;
+        
+        // Retry if browser clamped differently
+        if (actualScrollTop < targetScrollTop - 2) {
+          scroller.scrollTop = targetScrollTop;
+        }
+        
+        console.log('[SCROLL][ENSURE_ACTIVE][PASS1]', {
           reason,
           overlapPx: Math.round(overlapPx),
-          scrollTopAfter: Math.round(scroller.scrollTop)
+          targetScrollTop: Math.round(targetScrollTop),
+          actualScrollTop: Math.round(actualScrollTop),
+          maxScrollTop: Math.round(maxScrollTop)
         });
+        
+        // PASS 2: Settle retry for v3 active kinds (composer height may still be settling)
+        const shouldRetry = (reason === 'ACTIVE_ITEM_CHANGED' || reason === 'RENDER_LIST_APPENDED') &&
+                           activeUiItem?.kind?.startsWith?.('V3');
+        
+        if (shouldRetry) {
+          requestAnimationFrame(() => {
+            const footerRect2 = footerEl.getBoundingClientRect();
+            const activeRect2 = activeCardEl.getBoundingClientRect();
+            const overlapPx2 = Math.max(0, activeRect2.bottom - footerRect2.top);
+            
+            if (overlapPx2 > 4) {
+              const scrollHeight2 = scroller.scrollHeight;
+              const clientHeight2 = scroller.clientHeight;
+              const maxScrollTop2 = Math.max(0, scrollHeight2 - clientHeight2);
+              const targetScrollTop2 = Math.min(maxScrollTop2, scroller.scrollTop + overlapPx2 + 16);
+              
+              scroller.scrollTop = targetScrollTop2;
+              
+              console.log('[SCROLL][ENSURE_ACTIVE][PASS2_RETRY]', {
+                reason,
+                overlapPx2: Math.round(overlapPx2),
+                targetScrollTop2: Math.round(targetScrollTop2),
+                maxScrollTop2: Math.round(maxScrollTop2)
+              });
+            }
+          });
+        }
       }
     });
-  }, [scrollToBottom]);
+  }, [scrollToBottom, activeUiItem]);
   const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
   const pendingScrollRafRef = useRef(null);
