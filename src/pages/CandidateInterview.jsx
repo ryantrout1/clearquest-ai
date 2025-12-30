@@ -12292,6 +12292,11 @@ export default function CandidateInterview() {
 
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
   useEffect(() => {
+    // SCROLL LOCK GATE: Block prompt visibility during v3_pack_opener settle
+    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+      return;
+    }
+    
     // Trigger: V3 probing active with prompt available
     if (!v3ProbingActive || !v3ActivePromptText) return;
     
