@@ -12251,6 +12251,8 @@ export default function CandidateInterview() {
   
   // B) ENFORCE: MI gate is last - suppress any items that would render after it
   let orderedStream = baseRenderStream;
+  let miGateReorderCount = 0; // CRASH FIX: Always defined before use
+  
   if (activeCard?.kind === "multi_instance_gate") {
     // Find index of active MI_GATE card
     const miGateIndex = baseRenderStream.findIndex(e => e.__activeCard && e.kind === "multi_instance_gate");
@@ -12259,6 +12261,7 @@ export default function CandidateInterview() {
       // Items exist after MI_GATE - suppress them
       const itemsAfter = baseRenderStream.slice(miGateIndex + 1);
       orderedStream = baseRenderStream.slice(0, miGateIndex + 1);
+      miGateReorderCount = itemsAfter.length; // Track count
       
       console.warn('[MI_GATE][ORDERING_ENFORCED]', {
         packId: currentItem?.packId,
