@@ -17951,8 +17951,10 @@ export default function CandidateInterview() {
               </p>
             ) : null;
           })()}
+            </div>
+          </div>
         </div>
-      </footer>
+      </main>
 
       <Dialog open={showCompletionModal} onOpenChange={() => {}}>
         <DialogContent className="bg-slate-900 border-slate-700 text-white">
