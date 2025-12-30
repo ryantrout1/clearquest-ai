@@ -10697,7 +10697,6 @@ export default function CandidateInterview() {
         if (delta < 2) return prev;
         
         console.log('[FOOTER_SHELL][MEASURE]', {
-          mode: bottomBarMode,
           height: measured,
           delta
         });
@@ -10724,7 +10723,7 @@ export default function CandidateInterview() {
       resizeObserver.disconnect();
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [bottomBarMode, sessionId]); // PART E: Trigger on mode switch
+  }, [sessionId]); // TDZ FIX: Removed bottomBarMode dep (not available at this point)
 
   // ============================================================================
   // UNIFIED BOTTOM BAR MODE + FOOTER PADDING COMPUTATION (Single Source of Truth)
@@ -10862,15 +10861,18 @@ export default function CandidateInterview() {
   // Uses footerShellHeightPx (source of truth for all modes)
   const bottomSpacerPx = Math.max(footerShellHeightPx + 16, 80); // 80px minimum for safe clearance
   
-  // DIAGNOSTIC LOG: Show bottom spacer computation (always on)
-  console.log('[LAYOUT][BOTTOM_SPACER_APPLIED]', {
-    mode: bottomBarMode,
-    footerShellHeightPx,
-    bottomSpacerPx,
-    shouldRenderFooter,
-    appliedTo: 'real_dom_spacer_element',
-    strategy: 'stable_shell_measurement',
-    minSpacerPx: 80
+  // DIAGNOSTIC LOG: Show bottom spacer computation (deduped)
+  const spacerLogKey = `${bottomBarMode}:${footerShellHeightPx}:${bottomSpacerPx}`;
+  logOnce(spacerLogKey, () => {
+    console.log('[LAYOUT][BOTTOM_SPACER_APPLIED]', {
+      mode: bottomBarMode,
+      footerShellHeightPx,
+      bottomSpacerPx,
+      shouldRenderFooter,
+      appliedTo: 'real_dom_spacer_element',
+      strategy: 'stable_shell_measurement',
+      minSpacerPx: 80
+    });
   });
   
   // GUARDRAIL A: Bottom spacer assertion (verify real DOM element exists)
