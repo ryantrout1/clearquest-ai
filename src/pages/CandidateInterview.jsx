@@ -11208,23 +11208,33 @@ export default function CandidateInterview() {
     });
   }, []);
   
-  // SAFE DIAGNOSTIC: Log footer clearance target when it changes
-  const lastClearanceTargetLogKeyRef = React.useRef(null);
+  // CLEARANCE ENABLEMENT: Only apply footer clearance when there's interview content to protect
+  const hasScrollableInterviewContent = Boolean(
+    transcriptSOT?.length > 0 || 
+    hasActiveCardSOT || 
+    activeUiItem?.kind !== 'DEFAULT' ||
+    screenMode === 'QUESTION'
+  );
+  
+  // SAFE DIAGNOSTIC: Log clearance enablement when it changes
+  const lastClearanceEnablementLogKeyRef = React.useRef(null);
   React.useEffect(() => {
-    if (!shouldRenderFooter) return;
-    
-    const logKey = `${bottomBarModeSOTSafe}:${footerClearancePx}`;
-    if (logKey !== lastClearanceTargetLogKeyRef.current) {
-      lastClearanceTargetLogKeyRef.current = logKey;
-      console.log('[UI_CONTRACT][FOOTER_CLEARANCE_TARGET]', {
-        appliedTo: 'CONTENT_WRAPPER_ONLY',
-        footerClearancePx,
+    const logKey = `${bottomBarModeSOTSafe}:${hasScrollableInterviewContent}:${transcriptSOT?.length || 0}`;
+    if (logKey !== lastClearanceEnablementLogKeyRef.current) {
+      lastClearanceEnablementLogKeyRef.current = logKey;
+      
+      const appliedPaddingBottomPx = (shouldRenderFooter && hasScrollableInterviewContent) ? footerClearancePx : 0;
+      
+      console.log('[UI_CONTRACT][CLEARANCE_ENABLEMENT]', {
+        shouldRenderFooter,
+        hasScrollableInterviewContent,
+        appliedPaddingBottomPx,
         bottomBarMode: bottomBarModeSOTSafe,
-        effectiveItemType,
-        note: 'No padding on outer scroll container to avoid blank space under footer'
+        transcriptLen: transcriptSOT?.length || 0,
+        activeUiItemKind: activeUiItem?.kind
       });
     }
-  }, [shouldRenderFooter, footerClearancePx, bottomBarModeSOTSafe, effectiveItemType]);
+  }, [shouldRenderFooter, hasScrollableInterviewContent, footerClearancePx, bottomBarModeSOTSafe, transcriptSOT?.length, activeUiItem?.kind]);
   
   // Step 6: Compute footer padding (TDZ-safe - unified across all modes including WELCOME)
   
@@ -16758,7 +16768,7 @@ export default function CandidateInterview() {
         <div 
           className="min-h-0 flex flex-col px-4 pt-6"
           style={{
-            paddingBottom: shouldRenderFooter 
+            paddingBottom: (shouldRenderFooter && hasScrollableInterviewContent)
               ? `${footerClearancePx}px`
               : '0px'
           }}
