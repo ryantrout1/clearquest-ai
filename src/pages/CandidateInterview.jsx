@@ -15251,11 +15251,11 @@ export default function CandidateInterview() {
       console.log('[TDZ_GUARD][FINAL_LIST_REF_SYNC]', { len: finalListLenRef.current });
     }
     
-    // Regression guard logging
+    // Regression guard logging (use frozen renderedItems)
     const candidateVisibleQuestionsInDb = transcriptToRenderDeduped.filter(e => 
       e.messageType === 'QUESTION_SHOWN' && e.visibleToCandidate === true
     ).length;
-    const candidateVisibleQuestionsInRender = finalListWithGateOrdered.filter(e => 
+    const candidateVisibleQuestionsInRender = renderedItems.filter(e => 
       e.messageType === 'QUESTION_SHOWN' && e.visibleToCandidate === true
     ).length;
     
@@ -15263,7 +15263,7 @@ export default function CandidateInterview() {
       const droppedQuestions = transcriptToRenderDeduped.filter(e => 
         e.messageType === 'QUESTION_SHOWN' && 
         e.visibleToCandidate === true &&
-        !finalListWithGateOrdered.some(r => (r.stableKey && r.stableKey === e.stableKey) || (r.id && r.id === e.id))
+        !renderedItems.some(r => (r.stableKey && r.stableKey === e.stableKey) || (r.id && r.id === e.id))
       );
       
       console.log('[CQ_TRANSCRIPT][BASE_Q_SUPPRESSED_STATS]', {
@@ -15285,7 +15285,7 @@ export default function CandidateInterview() {
       });
     }
     
-    return finalListWithGateOrdered;
+    return renderedItems;
   }, [
     renderableTranscriptStream,
     activeUiItem,
