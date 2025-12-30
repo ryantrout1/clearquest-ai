@@ -17509,7 +17509,7 @@ export default function CandidateInterview() {
                   // PART D: Ensure question visible after welcome dismiss (ChatGPT initial scroll)
                   setTimeout(() => {
                     requestAnimationFrame(() => {
-                      ensureActiveVisibleAfterRender("WELCOME_DISMISSED");
+                      ensureActiveVisibleAfterRender("WELCOME_DISMISSED", activeKindSOT);
                     });
                   }, 150);
                 }}
