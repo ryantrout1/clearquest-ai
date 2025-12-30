@@ -11426,6 +11426,11 @@ export default function CandidateInterview() {
   // Re-anchor bottom on footer height changes when auto-scroll is enabled
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
   useEffect(() => {
+    // SCROLL LOCK GATE: Block footer height re-anchor during v3_pack_opener settle
+    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+      return;
+    }
+    
     if (!historyRef.current) return;
     if (!autoScrollEnabledRef.current) return;
     if (isUserTyping) return;
