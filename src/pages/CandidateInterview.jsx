@@ -1203,33 +1203,23 @@ export default function CandidateInterview() {
     timestamp: Date.now()
   });
   
-  // UI CONTRACT GUARD: Block render if no sessionId (defensive)
+  // HARD ROUTE GUARD: Redirect if no sessionId (BEFORE any hooks/state)
   if (!sessionId) {
     console.error('[UI_CONTRACT][CANDIDATE_INTERVIEW_NO_SESSION]', {
       reason: 'SessionId missing from URL - interview cannot render',
-      action: 'TERMINAL_UI_SHOWN',
-      url: window.location.href
+      action: 'TERMINAL_REDIRECT_TO_STARTINTERVIEW',
+      url: window.location.href,
+      willRedirectTo: `/StartInterview${location.search || ''}`
     });
     
-    // TERMINAL UI: Stable error state with navigation option
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center space-y-6 max-w-md">
-          <AlertCircle className="w-16 h-16 text-red-400 mx-auto" />
-          <div className="space-y-2">
-            <h2 className="text-xl font-semibold text-white">This interview link is invalid or has expired.</h2>
-            <p className="text-slate-400 text-sm">The session ID is missing from the URL.</p>
-          </div>
-          <Button
-            onClick={() => navigate(createPageUrl("StartInterview"))}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
-            size="lg"
-          >
-            Return to Start
-          </Button>
-        </div>
-      </div>
-    );
+    // Prevent redirect loops: only redirect if not already on StartInterview
+    if (location.pathname !== '/StartInterview') {
+      // Preserve existing query params (hide_badge, server_url, etc.)
+      navigate(`/StartInterview${location.search || ''}`, { replace: true });
+    }
+    
+    // Return null immediately - STOPS all subsequent hooks from executing
+    return null;
   }
   
   // TODO: REMOVE CQDIAG after PASS validation
