@@ -12636,9 +12636,8 @@ export default function CandidateInterview() {
   
   // Use renderableTranscriptStream for all rendering below (immutable - safe for React)
   
-  // PART B: ALIGNMENT_VIOLATION_STREAM check REMOVED (redundant - finalTranscriptList guarantees gate last)
-  // This intermediate check was triggering on pre-enforcement stream state
-  // Final enforcement in finalTranscriptList useMemo (line ~15217) is canonical and deterministic
+  // PART B: MI_GATE alignment check moved to post-enforcement (finalTranscriptList useMemo)
+  // Intermediate pre-enforcement checks removed - canonical enforcement at line ~15402 is single source of truth
   
   // PART E: Stream snapshot log (only on length changes, with array guard)
   const renderStreamLen = Array.isArray(renderableTranscriptStream) ? renderableTranscriptStream.length : 0;
