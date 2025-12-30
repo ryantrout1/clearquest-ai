@@ -11193,48 +11193,35 @@ export default function CandidateInterview() {
     });
   }
   
-  // SAFE DIAGNOSTIC: Log footer layout chain on mount
-  const footerLayoutLoggedRef = React.useRef(false);
-  React.useEffect(() => {
-    if (footerLayoutLoggedRef.current) return;
-    footerLayoutLoggedRef.current = true;
-    
-    console.log('[UI_CONTRACT][FOOTER_LAYOUT_CHAIN]', {
-      mainOverflow: 'auto',
-      footerPosition: 'sticky',
-      contentWrapperMinH: 'min-h-0',
-      clearanceTarget: 'CONTENT_WRAPPER',
-      note: 'Footer is direct child of main (not inside padded content); content wrapper uses min-h-0 to prevent stretching'
-    });
-  }, []);
-  
   // CLEARANCE ENABLEMENT: Only apply footer clearance when there's interview content to protect
-  const hasScrollableInterviewContent = Boolean(
+  const hasInterviewContent = Boolean(
     transcriptSOT?.length > 0 || 
     hasActiveCardSOT || 
     activeUiItem?.kind !== 'DEFAULT' ||
     screenMode === 'QUESTION'
   );
   
-  // SAFE DIAGNOSTIC: Log clearance enablement when it changes
-  const lastClearanceEnablementLogKeyRef = React.useRef(null);
+  const shouldApplyFooterClearance = shouldRenderFooter && hasInterviewContent;
+  
+  // SAFE DIAGNOSTIC: Log footer position and clearance when it changes
+  const lastFooterPositionLogKeyRef = React.useRef(null);
   React.useEffect(() => {
-    const logKey = `${bottomBarModeSOTSafe}:${hasScrollableInterviewContent}:${transcriptSOT?.length || 0}`;
-    if (logKey !== lastClearanceEnablementLogKeyRef.current) {
-      lastClearanceEnablementLogKeyRef.current = logKey;
+    const logKey = `${bottomBarModeSOTSafe}:${shouldApplyFooterClearance}:${transcriptSOT?.length || 0}`;
+    if (logKey !== lastFooterPositionLogKeyRef.current) {
+      lastFooterPositionLogKeyRef.current = logKey;
       
-      const appliedPaddingBottomPx = (shouldRenderFooter && hasScrollableInterviewContent) ? footerClearancePx : 0;
-      
-      console.log('[UI_CONTRACT][CLEARANCE_ENABLEMENT]', {
-        shouldRenderFooter,
-        hasScrollableInterviewContent,
-        appliedPaddingBottomPx,
+      console.log('[UI_CONTRACT][FOOTER_POSITION_SOT]', {
+        footerPosition: 'fixed',
+        shouldApplyFooterClearance,
+        footerClearancePx,
+        dynamicFooterHeightPx,
         bottomBarMode: bottomBarModeSOTSafe,
         transcriptLen: transcriptSOT?.length || 0,
+        hasActiveCardSOT,
         activeUiItemKind: activeUiItem?.kind
       });
     }
-  }, [shouldRenderFooter, hasScrollableInterviewContent, footerClearancePx, bottomBarModeSOTSafe, transcriptSOT?.length, activeUiItem?.kind]);
+  }, [shouldRenderFooter, shouldApplyFooterClearance, footerClearancePx, dynamicFooterHeightPx, bottomBarModeSOTSafe, transcriptSOT?.length, hasActiveCardSOT, activeUiItem?.kind]);
   
   // Step 6: Compute footer padding (TDZ-safe - unified across all modes including WELCOME)
   
@@ -16768,7 +16755,7 @@ export default function CandidateInterview() {
         <div 
           className="min-h-0 flex flex-col px-4 pt-6"
           style={{
-            paddingBottom: (shouldRenderFooter && hasScrollableInterviewContent)
+            paddingBottom: shouldApplyFooterClearance
               ? `${footerClearancePx}px`
               : '0px'
           }}
@@ -17875,10 +17862,10 @@ export default function CandidateInterview() {
           />
         </div>
         
-        {/* FOOTER SHELL - Direct child of main (not inside content wrapper to prevent gap) */}
+        {/* FOOTER SHELL - Fixed to viewport bottom (deterministic positioning) */}
         <div 
           ref={footerShellRef}
-          className="sticky bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4 z-10 h-auto min-h-0 flex-none"
+          className="fixed bottom-0 left-0 right-0 w-full bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4 z-10 h-auto min-h-0 flex-none"
         >
             <div className="max-w-5xl mx-auto h-auto min-h-0 flex-none" ref={footerRef}>
 
