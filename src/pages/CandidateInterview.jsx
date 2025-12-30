@@ -17110,7 +17110,7 @@ export default function CandidateInterview() {
           {/* Sticky composer inside scroll owner (ChatGPT pattern) */}
           <div 
             ref={footerRef}
-            className="sticky bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4 mt-auto z-10"
+            className="sticky bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4 z-10"
           >
             <div className="max-w-5xl mx-auto">
 
