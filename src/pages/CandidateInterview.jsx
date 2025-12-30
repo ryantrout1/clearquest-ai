@@ -1829,6 +1829,9 @@ export default function CandidateInterview() {
   // GUARDRAIL DEDUPE: Track logged errors to prevent spam
   const lastClearanceErrorKeyRef = React.useRef(null);
   
+  // GRAVITY FOLLOW: Track last scroll for dedupe
+  const lastGravityFollowKeyRef = React.useRef(null);
+  
   // GOLDEN CONTRACT CHECK: Dedupe tracking for golden check emissions
   const lastGoldenCheckPayloadRef = React.useRef(null);
   
@@ -2067,6 +2070,38 @@ export default function CandidateInterview() {
   };
   
   const activeUiItem = resolveActiveUiItem();
+  
+  // ============================================================================
+  // ACTIVE CARD KEY SOT - Single source of truth for active card identifier
+  // ============================================================================
+  const activeCardKeySOT = (() => {
+    if (activeUiItem.kind === "V3_PROMPT") {
+      const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+      return promptId ? `v3-prompt:${promptId}` : null;
+    }
+    if (activeUiItem.kind === "V3_OPENER") {
+      return currentItem?.id || `v3-opener:${currentItem?.packId}:${currentItem?.instanceNumber}`;
+    }
+    if (activeUiItem.kind === "V3_WAITING") {
+      const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+      return loopKey ? `v3-waiting:${loopKey}` : null;
+    }
+    if (activeUiItem.kind === "MI_GATE") {
+      return currentItem?.id || `mi-gate:${currentItem?.packId}:${currentItem?.instanceNumber}`;
+    }
+    if (activeUiItem.kind === "DEFAULT" && currentItem?.type === "question") {
+      return currentItem?.id;
+    }
+    return null;
+  })();
+  
+  const hasActiveCardSOT = Boolean(activeCardKeySOT);
+  
+  console.log('[ACTIVE_CARD_KEY_SOT]', {
+    activeUiItemKind: activeUiItem.kind,
+    activeCardKeySOT,
+    hasActiveCardSOT
+  });
   
   // ============================================================================
   // ACTIVE CARD COMPUTATION - MUST precede footer mode (prevents TDZ)
@@ -3063,6 +3098,13 @@ export default function CandidateInterview() {
   const isNearBottom = (el, thresholdPx = 80) => {
     if (!el) return false;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    return distanceFromBottom <= thresholdPx;
+  };
+  
+  // GRAVITY FOLLOW: Compute near-bottom for auto-scroll decisions (NO footer math)
+  const computeNearBottom = (scrollContainer, thresholdPx = 80) => {
+    if (!scrollContainer) return false;
+    const distanceFromBottom = scrollContainer.scrollHeight - (scrollContainer.scrollTop + scrollContainer.clientHeight);
     return distanceFromBottom <= thresholdPx;
   };
   
@@ -11185,57 +11227,92 @@ export default function CandidateInterview() {
     dynamicBottomPaddingPx
   ]);
   
-  // ACTIVE CARD PIN: Prevent active card from sliding behind footer
+  // GRAVITY FOLLOW: Auto-scroll active card into view when it changes (ChatGPT-style)
   React.useLayoutEffect(() => {
-    if (isUserTyping) return; // Skip during typing to prevent jank
-    if (!shouldRenderFooter) return; // No footer, no pin needed
-    
+    // GUARD: Skip if user scrolled up manually
     const scrollContainer = historyRef.current;
-    if (!scrollContainer || !bottomAnchorRef.current) return;
+    if (!scrollContainer) return;
     
-    // Only pin when there's an active card
-    if (!hasActiveCard) return;
+    // Check if user is near bottom (respect manual scroll up)
+    const nearBottom = computeNearBottom(scrollContainer, 80);
+    if (!nearBottom) {
+      console.log('[SCROLL][GRAVITY_FOLLOW_SKIP]', {
+        reason: 'user_scrolled_up',
+        activeCardKeySOT,
+        bottomBarMode
+      });
+      return;
+    }
     
-    // Check if content is obscured (can scroll more than should be possible)
-    const scrollHeight = scrollContainer.scrollHeight;
-    const clientHeight = scrollContainer.clientHeight;
-    const scrollTop = scrollContainer.scrollTop;
-    const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-    const isAtBottom = Math.abs(scrollTop - maxScrollTop) < 2;
+    // GUARD: Skip during typing to prevent jank
+    if (isUserTyping) return;
     
-    // If user scrolled up, don't auto-pin (respect manual scroll)
-    if (!shouldAutoScrollRef.current && !isAtBottom) return;
+    // GUARD: Must have active card
+    if (!hasActiveCardSOT) return;
+    
+    // Dedupe: Only scroll when active card key actually changes
+    const gravityKey = `${activeCardKeySOT}:${bottomBarMode}:${screenMode}`;
+    if (lastGravityFollowKeyRef.current === gravityKey) {
+      return; // Already scrolled for this card+mode combo
+    }
     
     requestAnimationFrame(() => {
-      if (!scrollContainer) return;
-      
-      // Pin to bottom (ensures active card visible above footer)
-      const currentMax = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight);
-      const currentScroll = scrollContainer.scrollTop;
-      
-      // Only pin if we're near bottom or at bottom
-      if (currentScroll >= currentMax - 20 || shouldAutoScrollRef.current) {
-        scrollContainer.scrollTop = currentMax;
+      requestAnimationFrame(() => {
+        if (!scrollContainer) return;
         
-        console.log('[SCROLL][ACTIVE_CARD_PIN]', {
-          hasActiveCard,
-          bottomBarMode,
-          effectiveItemType,
-          scrollTopBefore: currentScroll,
-          scrollTopAfter: currentMax,
-          pinned: currentScroll !== currentMax
-        });
-      }
+        // Verify still near bottom (guard against stale scroll during RAF delay)
+        const stillNearBottom = computeNearBottom(scrollContainer, 80);
+        if (!stillNearBottom) return;
+        
+        const scrollTopBefore = scrollContainer.scrollTop;
+        let didScroll = false;
+        
+        // Strategy A: Scroll active card into view (preferred)
+        const activeCardEl = scrollContainer.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+        if (activeCardEl) {
+          activeCardEl.scrollIntoView({ block: "end", behavior: "auto" });
+          didScroll = true;
+          console.log('[SCROLL][GRAVITY_FOLLOW_APPLIED]', {
+            activeCardKeySOT,
+            mode: bottomBarMode,
+            screenMode,
+            strategy: 'ACTIVE_CARD_SCROLL_INTO_VIEW',
+            distanceFromBottom: scrollContainer.scrollHeight - (scrollTopBefore + scrollContainer.clientHeight)
+          });
+        }
+        // Strategy B: Fallback to bottom anchor
+        else if (bottomAnchorRef.current) {
+          bottomAnchorRef.current.scrollIntoView({ block: "end", behavior: "auto" });
+          didScroll = true;
+          console.log('[SCROLL][GRAVITY_FOLLOW_APPLIED]', {
+            activeCardKeySOT,
+            mode: bottomBarMode,
+            screenMode,
+            strategy: 'BOTTOM_ANCHOR_FALLBACK',
+            distanceFromBottom: scrollContainer.scrollHeight - (scrollTopBefore + scrollContainer.clientHeight)
+          });
+        }
+        
+        if (didScroll) {
+          // Mark this key as scrolled
+          lastGravityFollowKeyRef.current = gravityKey;
+          
+          const scrollTopAfter = scrollContainer.scrollTop;
+          console.log('[SCROLL][GRAVITY_FOLLOW_METRICS]', {
+            scrollTopBefore: Math.round(scrollTopBefore),
+            scrollTopAfter: Math.round(scrollTopAfter),
+            delta: Math.round(scrollTopAfter - scrollTopBefore)
+          });
+        }
+      });
     });
   }, [
-    hasActiveCard,
-    currentItem?.id,
-    currentItem?.type,
+    activeCardKeySOT,
+    transcriptSOT.length,
     bottomBarMode,
-    effectiveItemType,
-    dynamicBottomPaddingPx,
-    shouldRenderFooter,
-    isUserTyping
+    screenMode,
+    isUserTyping,
+    hasActiveCardSOT
   ]);
   
   // ACTIVE CARD OVERLAP NUDGE: Ensure active card never hides behind footer when footer changes
