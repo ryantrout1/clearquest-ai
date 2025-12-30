@@ -2249,11 +2249,18 @@ export default function CandidateInterview() {
         reason: "Cannot render active card without opener text"
       });
     }
-  } else if (activeUiItem.kind === "DEFAULT" && bottomBarMode === "YES_NO" && currentItem?.type === "question") {
+  } else if (activeUiItem.kind === "DEFAULT" && isYesNoQuestionEarly) {
     // ACTIVE YES/NO QUESTION: Create active card for base questions in YES/NO mode
+    // TDZ-SAFE: Uses isYesNoQuestionEarly (no bottomBarMode dependency)
     const question = engine?.QById?.[currentItem.id];
-    const questionText = question?.question_text || entry?.text || "(Question)";
+    const questionText = question?.question_text || "(Question)";
     const stableKey = `question-shown:${currentItem.id}`;
+    
+    console.log("[TDZ_FIX][ACTIVE_CARD_EARLY_MODE]", { 
+      isYesNoQuestionEarly, 
+      currentItemType: currentItem?.type, 
+      activeKind: activeUiItem?.kind 
+    });
     
     activeCard = {
       __activeCard: true,
@@ -2273,7 +2280,6 @@ export default function CandidateInterview() {
       questionCode: question?.question_id,
       stableKey,
       questionNumber: question?.question_number,
-      bottomBarMode,
       activeUiItemKind: activeUiItem.kind
     });
   } else if (activeUiItem.kind === "MI_GATE") {
@@ -2355,6 +2361,10 @@ export default function CandidateInterview() {
   if (activeUiItem.kind !== "V3_PROMPT" && lastRenderedV3PromptKeyRef.current) {
     lastRenderedV3PromptKeyRef.current = null;
   }
+  
+  // TDZ FIX: Early YES/NO detection (safe - no bottomBarMode dependency)
+  const isYesNoQuestionEarly = currentItem?.type === "question" && 
+                                engine?.QById?.[currentItem.id]?.response_type === "yes_no";
   
   // PART 2: V3 Prompt Active SOT (single source of truth boolean)
   const v3PromptIdSOT = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId || null;
