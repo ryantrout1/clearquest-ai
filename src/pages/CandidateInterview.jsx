@@ -11674,6 +11674,11 @@ export default function CandidateInterview() {
   
   // ANCHOR V3 PROBE QUESTION: Keep just-appended question visible (ChatGPT-style)
   React.useLayoutEffect(() => {
+    // SCROLL LOCK GATE: Block anchor during v3_pack_opener settle
+    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+      return;
+    }
+    
     if (v3ScrollAnchorRef.current.kind !== 'V3_PROBE_QUESTION') return;
     
     const anchorAge = Date.now() - v3ScrollAnchorRef.current.ts;
