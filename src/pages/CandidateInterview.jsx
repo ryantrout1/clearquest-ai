@@ -1722,7 +1722,7 @@ export default function CandidateInterview() {
   
   // PART D: CANONICAL POST-RENDER VISIBILITY CORRECTION
   // ChatGPT-style: Ensures active item is ALWAYS fully visible above footer
-  const ensureActiveVisibleAfterRender = useCallback((reason) => {
+  const ensureActiveVisibleAfterRender = useCallback((reason, activeKindSOT) => {
     const scroller = scrollOwnerRef.current || historyRef.current;
     if (!scroller) return;
     
@@ -1777,7 +1777,7 @@ export default function CandidateInterview() {
         
         // PASS 2: Settle retry for v3 active kinds (composer height may still be settling)
         const shouldRetry = (reason === 'ACTIVE_ITEM_CHANGED' || reason === 'RENDER_LIST_APPENDED') &&
-                           activeUiItem?.kind?.startsWith?.('V3');
+                           activeKindSOT?.startsWith?.('V3');
         
         if (shouldRetry) {
           requestAnimationFrame(() => {
@@ -1804,7 +1804,7 @@ export default function CandidateInterview() {
         }
       }
     });
-  }, [scrollToBottom, activeUiItem]);
+  }, [scrollToBottom]);
   const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
   const pendingScrollRafRef = useRef(null);
