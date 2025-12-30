@@ -134,6 +134,29 @@ const isMiGateItem = (item, packId, instanceNumber) => {
   return false;
 };
 
+// TASK 1: Compact render list diagnostic (only when violations occur)
+const logRenderListSummary = (list, gatePackId, gateInstanceNumber, reason) => {
+  const gateIndex = list.findIndex(item => isMiGateItem(item, gatePackId, gateInstanceNumber));
+  
+  const summary = list.map((item, idx) => {
+    const kind = item.kind || item.messageType || item.type || 'unknown';
+    const key = item.stableKey || item.id || '';
+    const keySuffix = key.length > 20 ? '...' + key.slice(-15) : key;
+    const isGate = idx === gateIndex;
+    return `${idx}:${kind}${isGate ? '(GATE)' : ''}${keySuffix ? ':' + keySuffix : ''}`;
+  }).join(' | ');
+  
+  console.error('[MI_GATE][RENDER_LIST_SUMMARY]', {
+    reason,
+    packId: gatePackId,
+    instanceNumber: gateInstanceNumber,
+    totalItems: list.length,
+    gateIndex,
+    lastIndex: list.length - 1,
+    summary
+  });
+};
+
 // ============================================================================
 // TRANSCRIPT CONTRACT (v1) - Single Source of Truth
 // ============================================================================
