@@ -11634,14 +11634,23 @@ export default function CandidateInterview() {
           const finalOverlapPx = Math.max(0, finalCardRect.bottom - (finalFooterRect.top - clearancePx));
           
           if (finalOverlapPx > 4) {
-            console.error('[UI_CONTRACT][FOOTER_OVERLAP_DETECTED]', {
-              activeCardKeySOT,
-              overlapPx: Math.round(finalOverlapPx),
-              cardBottom: Math.round(finalCardRect.bottom),
-              footerTop: Math.round(finalFooterRect.top),
-              paddingApplied: dynamicBottomPaddingPx,
-              reason: 'Active card still obscured after nudge'
+            // PART A: Capture violation snapshot
+            captureViolationSnapshot({
+              reason: 'ACTIVE_BEHIND_FOOTER_AFTER_NUDGE',
+              list: finalListRef.current,
+              packId: currentItem?.packId,
+              instanceNumber: currentItem?.instanceNumber,
+              activeItemId: currentItem?.id
             });
+            
+            // PART C: Second corrective nudge if still overlapping
+            if (!isUserTyping && scrollContainer) {
+              scrollContainer.scrollTop += finalOverlapPx + 8;
+              console.log('[SCROLL][CORRECTIVE_NUDGE_RETRY]', {
+                remainingOverlapPx: Math.round(finalOverlapPx),
+                applied: true
+              });
+            }
           }
         });
       } else if (CQ_DEBUG_FOOTER_ANCHOR) {
