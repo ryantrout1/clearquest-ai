@@ -1694,38 +1694,33 @@ export default function CandidateInterview() {
     return historyRef.current;
   }, []);
   
-  // PART A: Shared MI gate scroll helper - SINGLE source of truth for all MI gate scrolling
-  const scrollToBottomForMiGate = useCallback((reason) => {
-    // Use runtime-identified scroll owner (fallback to historyRef)
+  // PART D: CANONICAL SCROLL TO BOTTOM - Single source of truth for bottom scrolling
+  const scrollToBottom = useCallback((reason) => {
     const scroller = scrollOwnerRef.current || historyRef.current;
     if (!scroller) {
-      console.warn('[SCROLL][MI_GATE_NO_SCROLLER]', { reason });
+      console.warn('[SCROLL][NO_SCROLLER]', { reason });
       return;
     }
     
-    // Correct scrollTop math (maxScrollTop = scrollHeight - clientHeight)
     const scrollHeight = scroller.scrollHeight;
     const clientHeight = scroller.clientHeight;
     const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-    const requestedScrollTop = maxScrollTop + 8; // Small buffer (browser will clamp)
     
     const scrollTopBefore = scroller.scrollTop;
-    scroller.scrollTop = requestedScrollTop;
-    const actualScrollTopAfter = scroller.scrollTop; // Read back actual value
+    scroller.scrollTop = maxScrollTop;
+    const scrollTopAfter = scroller.scrollTop;
     
-    console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
+    console.log('[SCROLL][TO_BOTTOM]', {
       reason,
-      strategy: 'SCROLL_TOP_DIRECT',
       scrollTopBefore: Math.round(scrollTopBefore),
+      scrollTopAfter: Math.round(scrollTopAfter),
       maxScrollTop: Math.round(maxScrollTop),
-      requestedScrollTop: Math.round(requestedScrollTop),
-      actualScrollTopAfter: Math.round(actualScrollTopAfter),
       scrollHeight: Math.round(scrollHeight),
       clientHeight: Math.round(clientHeight)
     });
   }, []);
   
-  // PART A: CANONICAL POST-RENDER VISIBILITY CORRECTION
+  // PART D: CANONICAL POST-RENDER VISIBILITY CORRECTION
   // ChatGPT-style: Ensures active item is ALWAYS fully visible above footer
   const ensureActiveVisibleAfterRender = useCallback((reason) => {
     const scroller = scrollOwnerRef.current || historyRef.current;
@@ -1734,50 +1729,33 @@ export default function CandidateInterview() {
     const footerEl = footerRef.current;
     if (!footerEl) return;
     
-    const footerRect = footerEl.getBoundingClientRect();
+    // STEP 1: First scroll to bottom (ChatGPT pattern)
+    scrollToBottom(reason);
     
-    // PART A: Multi-tier active card search
-    // Location 1: Try scroll container first (strict)
-    let activeCardEl = scroller.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
-    
-    // Location 2: Fallback to loose marker
-    if (!activeCardEl) {
-      activeCardEl = scroller.querySelector('[data-cq-active-card="true"]');
-    }
-    
-    // Location 3: Fallback to activeLaneCardRef
-    if (!activeCardEl && activeLaneCardRef.current) {
-      activeCardEl = activeLaneCardRef.current;
-    }
-    
-    // NO ACTIVE CARD: Fallback to bottom strategy
-    if (!activeCardEl) {
-      const scrollHeight = scroller.scrollHeight;
-      const clientHeight = scroller.clientHeight;
-      const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-      
-      scroller.scrollTop = maxScrollTop;
-      
-      console.log('[SCROLL][ENSURE_ACTIVE][FALLBACK_BOTTOM]', {
-        reason,
-        scrollTopAfter: Math.round(scroller.scrollTop),
-        maxScrollTop: Math.round(maxScrollTop)
-      });
-      return;
-    }
-    
-    // ACTIVE CARD FOUND: First scroll to bottom (ChatGPT style)
-    const scrollHeight = scroller.scrollHeight;
-    const clientHeight = scroller.clientHeight;
-    const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-    scroller.scrollTop = maxScrollTop;
-    
-    // Then compute overlap in same RAF tick
+    // STEP 2: Then check for overlap and correct if needed
     requestAnimationFrame(() => {
+      const footerRect = footerEl.getBoundingClientRect();
+      
+      // Multi-tier active card search
+      let activeCardEl = scroller.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+      if (!activeCardEl) {
+        activeCardEl = scroller.querySelector('[data-cq-active-card="true"]');
+      }
+      if (!activeCardEl && activeLaneCardRef.current) {
+        activeCardEl = activeLaneCardRef.current;
+      }
+      
+      // No active card - already at bottom from step 1
+      if (!activeCardEl) return;
+      
+      // Compute overlap
       const activeRect = activeCardEl.getBoundingClientRect();
       const overlapPx = Math.max(0, activeRect.bottom - footerRect.top);
       
       if (overlapPx > 4) {
+        const scrollHeight = scroller.scrollHeight;
+        const clientHeight = scroller.clientHeight;
+        const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
         const nudgeScrollTop = Math.min(maxScrollTop, scroller.scrollTop + overlapPx + 16);
         scroller.scrollTop = nudgeScrollTop;
         
@@ -1786,15 +1764,9 @@ export default function CandidateInterview() {
           overlapPx: Math.round(overlapPx),
           scrollTopAfter: Math.round(scroller.scrollTop)
         });
-      } else {
-        console.log('[SCROLL][ENSURE_ACTIVE][NO_OVERLAP]', {
-          reason,
-          overlapPx: Math.round(overlapPx),
-          scrollTopAfter: Math.round(scroller.scrollTop)
-        });
       }
     });
-  }, []);
+  }, [scrollToBottom]);
   const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
   const pendingScrollRafRef = useRef(null);
@@ -10729,33 +10701,23 @@ export default function CandidateInterview() {
   // FOOTER HEIGHT SOT: Use max of measured (observer) and DOM (real-time)
   const footerHeightSOTPx = Math.max(footerMeasuredHeightPx || 0, footerDomHeightPx || 0);
   
-  // FOOTER CLEARANCE SOT: Single source of truth for footer clearance (spacer + padding)
-  // Uses hardened footer height + safety gap for guaranteed clearance
-  const footerClearanceSOTPx = shouldRenderFooter
-    ? Math.max(0, footerHeightSOTPx + (hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX))
-    : 0;
+  // PART B: BOTTOM SPACER HEIGHT - Real element clearance (NOT padding)
+  // Replaces paddingBottom with actual DOM spacer (ChatGPT pattern)
+  const bottomSpacerPx = shouldRenderFooter
+    ? Math.max(footerHeightSOTPx + 16, 80) // 80px minimum for safe clearance
+    : 24; // Minimal spacer when no footer (prevents collapse)
   
-  // APPLIED CLEARANCE: Hard minimum (24px when footer visible, prevents occlusion during transitions)
-  const footerClearanceAppliedPx = shouldRenderFooter 
-    ? Math.max(footerClearanceSOTPx, 24) 
-    : 0;
-  
-  // DIAGNOSTIC LOG: Show padding computation (always on)
-  console.log('[LAYOUT][FOOTER_PADDING_APPLIED]', {
+  // DIAGNOSTIC LOG: Show bottom spacer computation (always on)
+  console.log('[LAYOUT][BOTTOM_SPACER_APPLIED]', {
     mode: bottomBarMode,
     footerMeasuredHeightPx,
     footerDomHeightPx,
     footerHeightSOTPx,
-    computedPaddingPx: dynamicBottomPaddingPx,
-    footerClearanceSOTPx,
-    footerClearanceAppliedPx,
-    safeFooterClearancePx: SAFE_FOOTER_CLEARANCE_PX,
-    hasActiveCard,
-    effectiveGap: hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX,
-    gapReduction: hasActiveCard ? '~75%' : 'none',
+    bottomSpacerPx,
     shouldRenderFooter,
-    appliedTo: 'spacer_and_scroll_padding_unified',
-    scrollPaddingBottomPx: footerClearanceAppliedPx
+    appliedTo: 'real_dom_spacer_element',
+    strategy: 'chatgpt_gravity_model',
+    minSpacerPx: 80
   });
   
   // GUARDRAIL A: Structural assertion - DISABLED in 3-row shell mode (footer in normal flow, no spacer needed)
@@ -16095,18 +16057,15 @@ export default function CandidateInterview() {
       </style>
 
       <main 
-        className="overflow-y-auto cq-scroll scrollbar-thin" 
+        className="overflow-y-auto cq-scroll scrollbar-thin min-h-0" 
         ref={historyRef} 
         onScroll={handleTranscriptScroll}
-        style={{
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)'
-        }}
       >
-        <div className="min-h-full flex flex-col px-4">
-          {/* PART B: Flex spacer - pushes transcript to bottom when content is short (ChatGPT gravity) */}
+        <div className="min-h-full flex flex-col px-4 pt-6">
+          {/* PART A: TOP SPACER - Pushes content to bottom when short (ChatGPT gravity) */}
           <div className="flex-1" aria-hidden="true" />
           
-          <div className="space-y-3 pt-6">
+          <div className="space-y-3">
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {finalTranscriptList.map((entry, index) => {
               // CANONICAL STREAM: Handle both transcript entries AND active cards
@@ -17181,15 +17140,16 @@ export default function CandidateInterview() {
             return null;
           })()}
 
-          {/* PART C: Bottom sentinel - ONLY clearance mechanism (footer space reserved here, not container padding) */}
+          </div>
+
+          {/* PART A+B: BOTTOM SPACER - Real DOM element for composer clearance (ChatGPT pattern) */}
           <div 
             ref={bottomAnchorRef} 
             aria-hidden="true" 
-            style={{ height: `${Math.max(footerClearanceAppliedPx, 24)}px`, margin: 0, padding: 0 }} 
+            style={{ height: `${bottomSpacerPx}px`, flexShrink: 0, margin: 0, padding: 0 }} 
           />
           </div>
-        </div>
-      </main>
+          </main>
 
       {/* CANONICAL STREAM ACTIVE CARDS: Removed - duplicate renderer */}
       {/* Active cards render in main loop via isActiveCard check (lines 8627-8692) */}
@@ -17530,7 +17490,12 @@ export default function CandidateInterview() {
                     questionCode: firstQuestion.question_id
                   });
                   
-                  setTimeout(() => autoScrollToBottom(), 100);
+                  // PART D: Ensure question visible after welcome dismiss (ChatGPT initial scroll)
+                  setTimeout(() => {
+                    requestAnimationFrame(() => {
+                      ensureActiveVisibleAfterRender("WELCOME_DISMISSED");
+                    });
+                  }, 150);
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-4 text-lg font-semibold"
                 size="lg"
