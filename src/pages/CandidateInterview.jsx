@@ -11782,6 +11782,11 @@ export default function CandidateInterview() {
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
+    // SCROLL LOCK GATE: Block force-scroll during v3_pack_opener settle
+    if (isScrollWriteLocked() && scrollWriteLockReasonRef.current?.startsWith('V3_PACK_OPENER')) {
+      return;
+    }
+    
     // Only run for base questions with footer visible
     if (effectiveItemType !== 'question' || !shouldRenderFooter) return;
     if (!currentItem?.id || currentItem.type !== 'question') return;
