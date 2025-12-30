@@ -12731,15 +12731,30 @@ export default function CandidateInterview() {
             }
             
             // STEP 4: Ensure mainPaneRendered is always boolean
-            // PART C: mainPaneRendered computed deterministically from finalTranscriptList
-            const miGateInRender = (renderedTranscriptSnapshotRef.current || renderedTranscript).some(it => 
-              it.__activeCard === true && 
-              it.kind === 'multi_instance_gate' &&
-              it.stableKey === trackerKey
+            // PART C: mainPaneRendered computed from FINAL render list (after all processing)
+            const miGateInFinalList = finalTranscriptList.some(it => 
+              (it.__activeCard === true && it.kind === 'multi_instance_gate' && it.stableKey === trackerKey) ||
+              (it.messageType === 'MULTI_INSTANCE_GATE_SHOWN' && 
+               (it.meta?.packId || it.packId) === currentItem?.packId && 
+               (it.meta?.instanceNumber || it.instanceNumber) === currentItem?.instanceNumber)
             );
             
-            const mainPaneRendered = miGateInRender; // ALWAYS boolean
+            const mainPaneRendered = miGateInFinalList; // ALWAYS boolean (from final list)
             const { footerButtonsOnly = false } = finalTracker;
+            
+            // PART C: Diagnostic - if gate should be present but isn't, log why
+            if (!mainPaneRendered && activeUiItem?.kind === "MI_GATE") {
+              logOnce(`migate_missing_${trackerKey}`, () => {
+                console.error('[MI_GATE][GATE_MISSING_FROM_FINAL_LIST]', {
+                  trackerKey,
+                  packId: currentItem?.packId,
+                  instanceNumber: currentItem?.instanceNumber,
+                  finalListLen: finalTranscriptList.length,
+                  activeUiItemKind: activeUiItem?.kind,
+                  reason: 'MI gate is active but not in final render list - possible filter bug'
+                });
+              });
+            }
             
             // UI CONTRACT: Self-test requires main pane render AND footer buttons-only
             const passCondition = mainPaneRendered === true && footerButtonsOnly === true;
@@ -15096,10 +15111,83 @@ export default function CandidateInterview() {
         })
       : transcriptToRenderDeduped;
     
+    // PART B: FINAL REORDER - Enforce MI gate is last (after ALL processing)
+    let finalListWithGateOrdered = finalList;
+    
+    // Check if MI gate exists in final list for current pack/instance
+    const currentGatePackId = currentItem?.packId;
+    const currentGateInstanceNumber = currentItem?.instanceNumber;
+    const shouldEnforceMiGateLast = activeCard?.kind === "multi_instance_gate" && 
+                                    currentGatePackId && 
+                                    currentGateInstanceNumber;
+    
+    if (shouldEnforceMiGateLast) {
+      const miGateIndex = finalList.findIndex(e => 
+        (e.__activeCard && e.kind === "multi_instance_gate") ||
+        (e.messageType === 'MULTI_INSTANCE_GATE_SHOWN' && 
+         (e.meta?.packId || e.packId) === currentGatePackId && 
+         (e.meta?.instanceNumber || e.instanceNumber) === currentGateInstanceNumber)
+      );
+      
+      if (miGateIndex !== -1 && miGateIndex < finalList.length - 1) {
+        // Items exist after MI gate - REORDER
+        const itemsBefore = finalList.slice(0, miGateIndex);
+        const miGateItem = finalList[miGateIndex];
+        const itemsAfter = finalList.slice(miGateIndex + 1);
+        
+        finalListWithGateOrdered = [...itemsBefore, ...itemsAfter, miGateItem];
+        
+        // PART A: Log reorder once (in-memory dedupe)
+        logOnce(`migate_final_reorder_${currentGatePackId}_${currentGateInstanceNumber}`, () => {
+          console.warn('[MI_GATE][FINAL_REORDER_APPLIED]', {
+            packId: currentGatePackId,
+            instanceNumber: currentGateInstanceNumber,
+            movedCount: itemsAfter.length,
+            movedKinds: itemsAfter.map(e => ({ 
+              kind: e.kind || e.messageType, 
+              key: (e.stableKey || e.id || '').substring(0, 40) 
+            }))
+          });
+        });
+      }
+      
+      // PART B: Post-reorder assertion (verify no items after gate)
+      const finalGateIndex = finalListWithGateOrdered.findIndex(e => 
+        (e.__activeCard && e.kind === "multi_instance_gate") ||
+        (e.messageType === 'MULTI_INSTANCE_GATE_SHOWN' && 
+         (e.meta?.packId || e.packId) === currentGatePackId && 
+         (e.meta?.instanceNumber || e.instanceNumber) === currentGateInstanceNumber)
+      );
+      
+      if (finalGateIndex !== -1 && finalGateIndex < finalListWithGateOrdered.length - 1) {
+        // Still items after gate - emergency fix
+        const stillAfter = finalListWithGateOrdered.slice(finalGateIndex + 1);
+        
+        logOnce(`migate_post_reorder_fail_${currentGatePackId}_${currentGateInstanceNumber}`, () => {
+          console.error('[MI_GATE][POST_REORDER_STILL_NOT_LAST]', {
+            packId: currentGatePackId,
+            instanceNumber: currentGateInstanceNumber,
+            itemsStillAfterCount: stillAfter.length,
+            trailingItems: stillAfter.map(e => ({
+              kind: e.kind || e.messageType || e.type,
+              key: (e.stableKey || e.id || '').substring(0, 40),
+              isActiveCard: e.__activeCard || false
+            })),
+            reason: 'Items still after gate post-reorder - forcing final correction'
+          });
+        });
+        
+        // Emergency fix: move trailing items before gate
+        const beforeGate = finalListWithGateOrdered.slice(0, finalGateIndex);
+        const gateItem = finalListWithGateOrdered[finalGateIndex];
+        finalListWithGateOrdered = [...beforeGate, ...stillAfter, gateItem];
+      }
+    }
+    
     // TDZ GUARD: Update length counter + sync finalList refs (after finalList is computed)
-    bottomAnchorLenRef.current = finalList.length;
-    finalListRef.current = Array.isArray(finalList) ? finalList : [];
-    finalListLenRef.current = Array.isArray(finalList) ? finalList.length : 0;
+    bottomAnchorLenRef.current = finalListWithGateOrdered.length;
+    finalListRef.current = Array.isArray(finalListWithGateOrdered) ? finalListWithGateOrdered : [];
+    finalListLenRef.current = Array.isArray(finalListWithGateOrdered) ? finalListWithGateOrdered.length : 0;
     
     if (CQ_DEBUG_FOOTER_ANCHOR) {
       console.log('[TDZ_GUARD][FINAL_LIST_REF_SYNC]', { len: finalListLenRef.current });
@@ -15109,7 +15197,7 @@ export default function CandidateInterview() {
     const candidateVisibleQuestionsInDb = transcriptToRenderDeduped.filter(e => 
       e.messageType === 'QUESTION_SHOWN' && e.visibleToCandidate === true
     ).length;
-    const candidateVisibleQuestionsInRender = finalList.filter(e => 
+    const candidateVisibleQuestionsInRender = finalListWithGateOrdered.filter(e => 
       e.messageType === 'QUESTION_SHOWN' && e.visibleToCandidate === true
     ).length;
     
@@ -15117,7 +15205,7 @@ export default function CandidateInterview() {
       const droppedQuestions = transcriptToRenderDeduped.filter(e => 
         e.messageType === 'QUESTION_SHOWN' && 
         e.visibleToCandidate === true &&
-        !finalList.some(r => (r.stableKey && r.stableKey === e.stableKey) || (r.id && r.id === e.id))
+        !finalListWithGateOrdered.some(r => (r.stableKey && r.stableKey === e.stableKey) || (r.id && r.id === e.id))
       );
       
       console.log('[CQ_TRANSCRIPT][BASE_Q_SUPPRESSED_STATS]', {
@@ -15139,7 +15227,7 @@ export default function CandidateInterview() {
       });
     }
     
-    return finalList;
+    return finalListWithGateOrdered;
   }, [
     renderableTranscriptStream,
     activeUiItem,
