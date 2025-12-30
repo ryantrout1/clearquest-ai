@@ -3281,6 +3281,26 @@ export default function CandidateInterview() {
     console.log('[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT, bottomBarModeSOT });
   }
   
+  // ============================================================================
+  // REGRESSION-PROOF SAFE WRAPPER - Validates mode before critical UI logic
+  // ============================================================================
+  const VALID_MODES = ['YES_NO', 'TEXT_INPUT', 'DEFAULT', 'V3_WAITING', 'CTA', 'SELECT', 'HIDDEN', 'DISABLED'];
+  const bottomBarModeSOTSafe = VALID_MODES.includes(bottomBarModeSOT) ? bottomBarModeSOT : 'DEFAULT';
+  
+  // One-time warning if fallback triggered (dev-only, once per mount)
+  const fallbackWarningLoggedRef = React.useRef(false);
+  if (bottomBarModeSOTSafe !== bottomBarModeSOT && !fallbackWarningLoggedRef.current) {
+    fallbackWarningLoggedRef.current = true;
+    if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+      console.warn('[BOTTOM_BAR_MODE_SOT][FALLBACK]', { 
+        bottomBarRenderTypeSOT, 
+        bottomBarModeSOT, 
+        bottomBarModeSOTSafe,
+        reason: 'Invalid mode detected - using DEFAULT fallback'
+      });
+    }
+  }
+  
   // V3 PROMPT PHASE CHANGE TRACKER (unconditional hook)
   useEffect(() => {
     if (v3PromptPhase !== lastV3PromptPhaseRef.current) {
@@ -12045,14 +12065,14 @@ export default function CandidateInterview() {
     const activeKey = activeCardKeySOT || currentItem?.id || `${currentItem?.packId}:${currentItem?.instanceNumber}`;
     if (!activeKey) return;
     
-    // TDZ-SAFE: Use early bottomBarModeSOT (computed before late references)
-    const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
+    // REGRESSION-PROOF: Use safe wrapper (validates mode before use)
+    const isYesNoModeFresh = bottomBarModeSOTSafe === 'YES_NO';
     const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender("ACTIVE_ITEM_CHANGED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT, bottomBarModeSOT, effectiveItemType, activeUiItem]);
+  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT, bottomBarModeSOTSafe, effectiveItemType, activeUiItem]);
   
   // PART B: RENDER LIST APPENDED - TDZ-safe using ref (no direct finalTranscriptList reference)
   React.useLayoutEffect(() => {
@@ -12067,14 +12087,14 @@ export default function CandidateInterview() {
     // Length increased - trigger scroll correction
     prevFinalListLenForScrollRef.current = currentLen;
     
-    // TDZ-SAFE: Use early bottomBarModeSOT (computed before late references)
-    const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
+    // REGRESSION-PROOF: Use safe wrapper (validates mode before use)
+    const isYesNoModeFresh = bottomBarModeSOTSafe === 'YES_NO';
     const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender("RENDER_LIST_APPENDED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT, activeKindSOT, bottomBarModeSOT, effectiveItemType, activeUiItem]);
+  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT, activeKindSOT, bottomBarModeSOTSafe, effectiveItemType, activeUiItem]);
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
