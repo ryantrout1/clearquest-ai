@@ -17107,6 +17107,14 @@ export default function CandidateInterview() {
 
           </div>
 
+          {/* BOTTOM SPACER - Reserves space for sticky composer (ChatGPT pattern) */}
+          <div
+            ref={bottomAnchorRef}
+            aria-hidden="true"
+            data-ui-contract-anchor="true"
+            style={{ height: `${bottomSpacerPx}px`, flexShrink: 0 }}
+          />
+
           {/* Sticky composer inside scroll owner (ChatGPT pattern) */}
           <div 
             ref={footerRef}
