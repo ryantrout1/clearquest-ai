@@ -3873,6 +3873,8 @@ export default function CandidateInterview() {
       });
     }
     
+    console.log("[FORENSIC][HOOK_ORDER_FIXED]", { ok: true, timestamp: Date.now() });
+    
     console.log('[FORENSIC][MOUNT]', { 
       component: 'CandidateInterview', 
       instanceId: componentInstanceId.current,
@@ -3953,6 +3955,31 @@ export default function CandidateInterview() {
       window.removeEventListener('unhandledrejection', handleRejection);
     };
   }, [sessionId]);
+
+  // UI_CONTRACT: 3-row shell audit (unconditional hook - must run on every render)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !historyRef.current) return;
+    
+    requestAnimationFrame(() => {
+      try {
+        const container = document.querySelector('.grid.grid-rows-\\[auto_1fr_auto\\]');
+        const hasGrid3Row = !!container;
+        const footerEl = footerRootRef.current;
+        const footerIsOverlay = footerEl ? getComputedStyle(footerEl).position === 'fixed' || getComputedStyle(footerEl).position === 'absolute' : false;
+        const hasFooterSpacer = !!historyRef.current?.querySelector('[data-cq-footer-spacer="true"]');
+        const middleIsOnlyScroll = historyRef.current ? getComputedStyle(historyRef.current).overflowY === 'auto' : false;
+        
+        console.log('[UI_CONTRACT][SHELL_3ROW_AUDIT]', {
+          hasGrid3Row,
+          footerIsOverlay,
+          hasFooterSpacer,
+          middleIsOnlyScroll
+        });
+      } catch (e) {
+        // Silent - audit should never crash
+      }
+    });
+  }, []); // Run once on mount
 
   const resumeFromDB = async () => {
     try {
@@ -14909,30 +14936,6 @@ export default function CandidateInterview() {
   }
 
   // UI CONTRACT: 3-row shell enforced - do not reintroduce footer spacers/padding hacks; footer must stay in layout flow.
-  // CONTRACT AUDIT: Simple runtime checks (DOM available after mount)
-  React.useEffect(() => {
-    if (typeof window === 'undefined' || !historyRef.current) return;
-    
-    requestAnimationFrame(() => {
-      try {
-        const container = document.querySelector('.grid.grid-rows-\\[auto_1fr_auto\\]');
-        const hasGrid3Row = !!container;
-        const footerEl = footerRootRef.current;
-        const footerIsOverlay = footerEl ? getComputedStyle(footerEl).position === 'fixed' || getComputedStyle(footerEl).position === 'absolute' : false;
-        const hasFooterSpacer = !!historyRef.current?.querySelector('[data-cq-footer-spacer="true"]');
-        const middleIsOnlyScroll = historyRef.current ? getComputedStyle(historyRef.current).overflowY === 'auto' : false;
-        
-        console.log('[UI_CONTRACT][SHELL_3ROW_AUDIT]', {
-          hasGrid3Row,
-          footerIsOverlay,
-          hasFooterSpacer,
-          middleIsOnlyScroll
-        });
-      } catch (e) {
-        // Silent - audit should never crash
-      }
-    });
-  }, []); // Run once on mount
   
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white grid grid-rows-[auto_1fr_auto] overflow-hidden">
