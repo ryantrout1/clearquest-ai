@@ -10406,6 +10406,39 @@ export default function CandidateInterview() {
     // Fallback: return historyRef if walk-up failed
     return historyRef.current;
   }, []);
+  
+  // PART A: Shared MI gate scroll helper - SINGLE source of truth for all MI gate scrolling
+  const scrollToBottomForMiGate = useCallback((reason) => {
+    // PART C: Use runtime-identified scroll owner (fallback to historyRef)
+    const scroller = scrollOwnerRef.current || historyRef.current;
+    if (!scroller) {
+      console.warn('[SCROLL][MI_GATE_NO_SCROLLER]', { reason });
+      return;
+    }
+    
+    // PART A: Correct scrollTop math (maxScrollTop = scrollHeight - clientHeight)
+    const scrollHeight = scroller.scrollHeight;
+    const clientHeight = scroller.clientHeight;
+    const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
+    const requestedScrollTop = maxScrollTop + 8; // Small buffer (browser will clamp)
+    
+    const scrollTopBefore = scroller.scrollTop;
+    scroller.scrollTop = requestedScrollTop;
+    const actualScrollTopAfter = scroller.scrollTop; // Read back actual value
+    
+    console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
+      reason,
+      packId: currentItem?.packId,
+      instanceNumber: currentItem?.instanceNumber,
+      strategy: 'SCROLL_TOP_DIRECT',
+      scrollTopBefore: Math.round(scrollTopBefore),
+      maxScrollTop: Math.round(maxScrollTop),
+      requestedScrollTop: Math.round(requestedScrollTop),
+      actualScrollTopAfter: Math.round(actualScrollTopAfter),
+      scrollHeight: Math.round(scrollHeight),
+      clientHeight: Math.round(clientHeight)
+    });
+  }, [currentItem]);
 
   // AUTO-GROWING INPUT: Measure footer height dynamically (includes growing textarea)
   useEffect(() => {
@@ -11573,36 +11606,10 @@ export default function CandidateInterview() {
                                 activeUiItem?.kind === 'MI_GATE';
           
           if (isMiGateActive) {
-            // Bottom-anchor strategy: direct scrollTop control (deterministic)
+            // Bottom-anchor strategy: use shared helper
             if (!isUserTyping || forceAutoScrollOnceRef.current) {
               requestAnimationFrame(() => {
-                // PART C: Use runtime-identified scroll owner (fallback to historyRef)
-                const scroller = scrollOwnerRef.current || historyRef.current;
-                if (!scroller) return;
-                
-                // PART A: Correct scrollTop math (maxScrollTop = scrollHeight - clientHeight)
-                const scrollHeight = scroller.scrollHeight;
-                const clientHeight = scroller.clientHeight;
-                const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-                const requestedScrollTop = maxScrollTop + 8; // Small buffer (browser will clamp)
-                
-                const scrollTopBefore = scroller.scrollTop;
-                scroller.scrollTop = requestedScrollTop;
-                const actualScrollTopAfter = scroller.scrollTop; // Read back actual value
-                
-                console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
-                  reason: 'FORCE_ANCHOR_ON_QUESTION_SHOWN',
-                  packId: currentItem?.packId,
-                  instanceNumber: currentItem?.instanceNumber,
-                  strategy: 'SCROLL_TOP_DIRECT',
-                  scrollTopBefore: Math.round(scrollTopBefore),
-                  maxScrollTop: Math.round(maxScrollTop),
-                  requestedScrollTop: Math.round(requestedScrollTop),
-                  actualScrollTopAfter: Math.round(actualScrollTopAfter),
-                  scrollHeight: Math.round(scrollHeight),
-                  clientHeight: Math.round(clientHeight),
-                  bypassedTypingLock: isUserTyping && forceAutoScrollOnceRef.current
-                });
+                scrollToBottomForMiGate('FORCE_ANCHOR_ON_QUESTION_SHOWN');
                 
                 if (forceAutoScrollOnceRef.current) {
                   forceAutoScrollOnceRef.current = false;
@@ -13476,33 +13483,7 @@ export default function CandidateInterview() {
     
     if (isMiGateClick) {
       requestAnimationFrame(() => {
-        // PART C: Use runtime-identified scroll owner
-        const scroller = scrollOwnerRef.current || historyRef.current;
-        if (!scroller) return;
-        
-        // PART A: Correct scrollTop math (maxScrollTop = scrollHeight - clientHeight)
-        const scrollHeight = scroller.scrollHeight;
-        const clientHeight = scroller.clientHeight;
-        const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-        const requestedScrollTop = maxScrollTop + 8; // Small buffer (browser will clamp)
-        
-        const scrollTopBefore = scroller.scrollTop;
-        scroller.scrollTop = requestedScrollTop;
-        const actualScrollTopAfter = scroller.scrollTop; // Read back actual value
-        
-        console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
-          reason: 'YESNO_CLICK',
-          answer,
-          packId: currentItem?.packId,
-          instanceNumber: currentItem?.instanceNumber,
-          strategy: 'SCROLL_TOP_DIRECT',
-          scrollTopBefore: Math.round(scrollTopBefore),
-          maxScrollTop: Math.round(maxScrollTop),
-          requestedScrollTop: Math.round(requestedScrollTop),
-          actualScrollTopAfter: Math.round(actualScrollTopAfter),
-          scrollHeight: Math.round(scrollHeight),
-          clientHeight: Math.round(clientHeight)
-        });
+        scrollToBottomForMiGate(`YESNO_CLICK_${answer}`);
       });
     }
     
