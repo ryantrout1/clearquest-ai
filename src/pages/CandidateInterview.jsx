@@ -15233,7 +15233,7 @@ export default function CandidateInterview() {
         // Still items after gate - CORRECTIVE FIX
         const trailingItems = finalListWithGateOrdered.slice(finalGateIndex + 1);
         
-        // STEP 3: Forensic detail (deduped, once per pack+instance)
+        // STEP 3: Forensic detail + TASK 1 diagnostic (deduped, once per pack+instance)
         logOnce(`migate_trailing_${currentGatePackId}_${currentGateInstanceNumber}`, () => {
           const isV3Item = (item) => {
             const k = item.kind || item.messageType || '';
@@ -15256,6 +15256,14 @@ export default function CandidateInterview() {
             })),
             reason: 'Items found after gate post-reorder - applying corrective fix'
           });
+          
+          // TASK 1: Print full render list when violation detected
+          logRenderListSummary(
+            finalListWithGateOrdered, 
+            currentGatePackId, 
+            currentGateInstanceNumber,
+            'TRAILING_ITEMS_DETECTED'
+          );
         });
         
         // Corrective fix: move trailing items before gate
