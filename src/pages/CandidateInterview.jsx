@@ -1961,7 +1961,7 @@ export default function CandidateInterview() {
             
             // PART B: Schedule retry after spacer expands (TDZ-SAFE: compute at call time)
             requestAnimationFrame(() => {
-              const isYesNoForRetry = bottomBarMode === 'YES_NO';
+              const isYesNoForRetry = bottomBarModeSOT === 'YES_NO';
               const isMiGateForRetry = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
               ensureActiveVisibleAfterRender('V3_OPENER_SPACER_EXPAND_RETRY', activeKindForRetry, isYesNoForRetry, isMiGateForRetry);
             });
@@ -2506,7 +2506,7 @@ export default function CandidateInterview() {
   const lastV3SubmitLockKeyRef = useRef(null);
   
   // TDZ SAFETY: Refs for state used in watchdog (avoids stale closures and TDZ)
-  const bottomBarModeRef = useRef(null);
+  const bottomBarModeSOTRef = useRef(null);
   const v3ActivePromptTextRef = useRef(null);
   const v3ProbingActiveRef = useRef(null);
   const v3ProbingContextRef = useRef(null);
@@ -2816,7 +2816,7 @@ export default function CandidateInterview() {
   // CRITICAL: Declared AFTER activeUiItem is initialized, prevents TDZ in callbacks
   const activeKindSOT = activeUiItem?.kind || currentItem?.type || 'UNKNOWN';
   
-  // TDZ SAFE DEFAULTS — real values computed later when bottomBarMode/effectiveItemType exist.
+  // TDZ SAFE DEFAULTS — real values computed later when bottomBarModeSOT/effectiveItemType exist.
   // These are placeholders to prevent "undefined" errors in early code paths.
   const isYesNoModeSOT = false;
   const isMiGateSOT = false;
@@ -3266,8 +3266,8 @@ export default function CandidateInterview() {
   // ============================================================================
   // TDZ GUARD: EARLY BOTTOM BAR MODE - Safe canonical source (no late variables)
   // ============================================================================
-  // Use bottomBarModeSOT above this point; do not reference bottomBarMode before its declaration.
-  const bottomBarModeSOT = (() => {
+  // Use bottomBarModeSOTSOT above this point; do not reference bottomBarModeSOT before its declaration.
+  const bottomBarModeSOTSOT = (() => {
     // Derive mode from early bottomBarRenderTypeSOT only (TDZ-safe)
     if (bottomBarRenderTypeSOT === "multi_instance_gate") return "YES_NO";
     if (bottomBarRenderTypeSOT === "v3_pack_opener") return "TEXT_INPUT";
@@ -3278,7 +3278,7 @@ export default function CandidateInterview() {
   })();
   
   if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-    console.log('[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT, bottomBarModeSOT });
+    console.log('[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT, bottomBarModeSOTSOT });
   }
   
   // V3 PROMPT PHASE CHANGE TRACKER (unconditional hook)
@@ -3825,7 +3825,7 @@ export default function CandidateInterview() {
         console.error('[UI_CONTRACT][VIOLATION]', {
           reason: 'Gate prompt visible but footer not in YES_NO with multi_instance_gate',
           effectiveType,
-          bottomBarMode: footerIsYesNo ? 'YES_NO' : 'other',
+          bottomBarModeSOT: footerIsYesNo ? 'YES_NO' : 'other',
           lastMessageType: last.messageType
         });
       }
@@ -5802,7 +5802,7 @@ export default function CandidateInterview() {
 
   const handleAnswer = useCallback(async (value) => {
     // GUARD: Block YES/NO during V3 prompt answering (prevents stray "Yes" bubble)
-    if (activeUiItem?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarMode === 'TEXT_INPUT')) {
+    if (activeUiItem?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
       // Allow V3 probe answer submission (text input), block YES/NO only
       const isYesNoAnswer = value === 'Yes' || value === 'No';
       if (isYesNoAnswer) {
@@ -5811,7 +5811,7 @@ export default function CandidateInterview() {
           activeUiItemKind: activeUiItem?.kind,
           v3PromptPhase,
           currentItemType: currentItem?.type,
-          bottomBarMode,
+          bottomBarModeSOT,
           reason: 'V3 prompt active - YES/NO submission blocked'
         });
         return; // Hard block - prevent stray "Yes"/"No" appends
@@ -5887,7 +5887,7 @@ export default function CandidateInterview() {
         currentItemId: currentItem?.id,
         packId: currentItem?.packId,
         instanceNumber: currentItem?.instanceNumber,
-        bottomBarMode,
+        bottomBarModeSOT,
         answer: value,
         source: 'handleAnswer_direct_call'
       });
@@ -8849,7 +8849,7 @@ export default function CandidateInterview() {
         stableKey,
         messageType: 'CTA_ACK',
         effectiveItemType: 'section_transition',
-        bottomBarMode: 'CTA',
+        bottomBarModeSOT: 'CTA',
         sectionId: currentSectionId,
         nextSectionId,
         visibleToCandidate: true
@@ -10263,7 +10263,7 @@ export default function CandidateInterview() {
       // Snapshot log: prove refs are fresh (no stale closure)
       const snapshotPayload = {
         promptId,
-        bottomBarMode: bottomBarModeRef.current,
+        bottomBarModeSOT: bottomBarModeSOTRef.current,
         v3ProbingActive: v3ProbingActiveRef.current,
         hasPrompt: !!v3ActivePromptTextRef.current,
         promptExistsNow
@@ -10296,7 +10296,7 @@ export default function CandidateInterview() {
       // Check UI stability using ONLY refs (no stale closures)
       const isReady = 
         v3ProbingActiveRef.current === true &&
-        bottomBarModeRef.current === 'TEXT_INPUT' &&
+        bottomBarModeSOTRef.current === 'TEXT_INPUT' &&
         v3ActivePromptTextRef.current &&
         v3ActivePromptTextRef.current.trim().length > 0 &&
         promptMatch;
@@ -10307,7 +10307,7 @@ export default function CandidateInterview() {
         instanceNumber: snapshot.instanceNumber,
         loopKey: snapshot.loopKey,
         promptId,
-        bottomBarMode: bottomBarModeRef.current,
+        bottomBarModeSOT: bottomBarModeSOTRef.current,
         v3ProbingActive: v3ProbingActiveRef.current,
         hasPrompt: !!v3ActivePromptTextRef.current,
         promptMatch,
@@ -10319,14 +10319,14 @@ export default function CandidateInterview() {
       // RUNTIME ASSERT: Verify OK decision is correct (TDZ-safe via ref)
       if (isReady) {
         // Assert conditions match
-        if (bottomBarModeRef.current !== 'TEXT_INPUT' || !promptMatch) {
+        if (bottomBarModeSOTRef.current !== 'TEXT_INPUT' || !promptMatch) {
           console.error('[V3_PROMPT_WATCHDOG][ASSERT_FAIL_TO_FAILED]', {
             reason: 'OK decision but conditions invalid',
             packId: snapshot.packId,
             instanceNumber: snapshot.instanceNumber,
             loopKey: snapshot.loopKey,
             promptId,
-            bottomBarMode: bottomBarModeRef.current,
+            bottomBarModeSOT: bottomBarModeSOTRef.current,
             promptMatch
           });
           // Force FAILED path
@@ -10362,7 +10362,7 @@ export default function CandidateInterview() {
       
       // FAILED: UI did not stabilize (ref-based, no stale closure)
       const failureReason = !promptMatch ? 'PROMPT_MISMATCH' : 
-                           bottomBarModeRef.current !== 'TEXT_INPUT' ? 'WRONG_BOTTOM_BAR_MODE' :
+                           bottomBarModeSOTRef.current !== 'TEXT_INPUT' ? 'WRONG_BOTTOM_BAR_MODE' :
                            !v3ProbingActiveRef.current ? 'PROBING_NOT_ACTIVE' :
                            'PROMPT_NOT_BOUND';
       
@@ -10374,7 +10374,7 @@ export default function CandidateInterview() {
         loopKey: snapshot.loopKey,
         reason: failureReason,
         v3ProbingActive: v3ProbingActiveRef.current,
-        bottomBarMode: bottomBarModeRef.current,
+        bottomBarModeSOT: bottomBarModeSOTRef.current,
         hasPrompt: !!v3ActivePromptTextRef.current,
         promptMatch
       };
@@ -10964,7 +10964,7 @@ export default function CandidateInterview() {
         if (delta < 2) return prev;
         
         console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SOT]', {
-          bottomBarMode,
+          bottomBarModeSOT,
           effectiveItemType,
           footerHeightPx: totalClearance,
           paddingBottomPx: totalClearance,
@@ -10989,7 +10989,7 @@ export default function CandidateInterview() {
       resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
     };
-  }, [bottomBarMode, effectiveItemType]);
+  }, [bottomBarModeSOT, effectiveItemType]);
 
   // PART B: Measure footer shell height from stable wrapper (all modes)
   useEffect(() => {
@@ -11055,13 +11055,13 @@ export default function CandidateInterview() {
       resizeObserver.disconnect();
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [sessionId]); // TDZ FIX: Removed bottomBarMode dep (not available at this point)
+  }, [sessionId]); // TDZ FIX: Removed bottomBarModeSOT dep (not available at this point)
 
   // ============================================================================
   // UNIFIED BOTTOM BAR MODE + FOOTER PADDING COMPUTATION (Single Source of Truth)
   // ============================================================================
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
-  // CRITICAL: DECLARED FIRST - Before all effects that use bottomBarMode/effectiveItemType
+  // CRITICAL: DECLARED FIRST - Before all effects that use bottomBarModeSOT/effectiveItemType
   // All variables declared EXACTLY ONCE in this block
   
   // Step 1: Compute currentItemType (base type before precedence)
@@ -11083,74 +11083,12 @@ export default function CandidateInterview() {
                            v3ProbingActive ? 'v3_probing' : 
                            currentItemType;
   
-  // Step 4: Compute bottom bar mode (final - no early/refined split)
-  let bottomBarMode = "HIDDEN";
-  
-  // Pre-interview intro (WELCOME screen only)
-  if (screenMode === 'WELCOME' && !v3ProbingActive && !currentItem) {
-    bottomBarMode = "CTA";
-  }
-  // Section transition blockers
-  else if (activeBlocker?.type === 'SECTION_MESSAGE' && currentItem?.type !== 'section_transition') {
-    bottomBarMode = "CTA";
-  }
-  else if (pendingSectionTransition && currentItem?.type === 'section_transition') {
-    bottomBarMode = "CTA";
-  }
-  // V3_WAITING: V3 probing active but no prompt yet (engine deciding)
-  else if (effectiveItemType === 'v3_probing' && v3ProbingActive && !hasActiveV3Prompt) {
-    bottomBarMode = "V3_WAITING";
-  }
-  // V3_PROMPT active (canonical routing via activeUiItem)
-  else if (activeUiItem.kind === "V3_PROMPT") {
-    bottomBarMode = "TEXT_INPUT";
-  }
-  // V3_OPENER active
-  else if (activeUiItem.kind === "V3_OPENER") {
-    // FOOTER GATING: Verify main-pane card exists before allowing TEXT_INPUT
-    const hasActiveOpenerCard = activeCard && activeCard.kind === "v3_pack_opener";
-    
-    if (!hasActiveOpenerCard) {
-      console.error("[V3_UI_CONTRACT][ORPHANED_TEXT_INPUT_PREVENTED]", {
-        activeUiItemKind: activeUiItem.kind,
-        packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber,
-        hasActiveCard: !!activeCard,
-        activeCardKind: activeCard?.kind || null,
-        reason: "V3_OPENER is active but no main-pane card mounted - preventing orphaned footer",
-        action: "forcing DISABLED mode"
-      });
-      bottomBarMode = "DISABLED";
-    } else {
-      bottomBarMode = "TEXT_INPUT";
-    }
-  }
-  // MI_GATE active
-  else if (activeUiItem.kind === "MI_GATE") {
-    const gatePromptText = activeUiItem.promptText || currentItem?.promptText || multiInstanceGate?.promptText;
-    bottomBarMode = (gatePromptText && gatePromptText.trim().length > 0) ? "YES_NO" : "DISABLED";
-  }
-  // Regular yes/no questions
-  else if (currentItem?.type === 'question' && engine?.QById[currentItem.id]?.response_type === 'yes_no') {
-    bottomBarMode = "YES_NO";
-  }
-  // V2 pack field yes/no
-  else if (currentItem?.type === 'v2_pack_field' && currentItem?.fieldConfig?.inputType === 'yes_no') {
-    bottomBarMode = "YES_NO";
-  }
-  // V2 pack field select
-  else if (currentItem?.type === 'v2_pack_field' && currentItem?.fieldConfig?.inputType === 'select_single') {
-    bottomBarMode = "SELECT";
-  }
-  // Text input for answerable items
-  else if (currentItem && (currentItem.type === 'question' || currentItem.type === 'v2_pack_field' || currentItem.type === 'v3_pack_opener' || currentItem.type === 'followup')) {
-    bottomBarMode = "TEXT_INPUT";
-  }
+  // TDZ ELIMINATED: Late bottomBarMode declaration removed - bottomBarModeSOT is canonical source
   
   // Step 5: Compute footer rendering flag (include V3_WAITING and CTA)
   const shouldRenderFooter = (screenMode === 'QUESTION' && 
-                              (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO' || bottomBarMode === 'SELECT' || bottomBarMode === 'V3_WAITING')) ||
-                              bottomBarMode === 'CTA';
+                              (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO' || bottomBarModeSOT === 'SELECT' || bottomBarModeSOT === 'V3_WAITING')) ||
+                              bottomBarModeSOT === 'CTA';
   
   // Step 6: Compute footer padding (TDZ-safe - unified across all modes including WELCOME)
   
@@ -11165,19 +11103,19 @@ export default function CandidateInterview() {
   
   // UNIFIED PADDING FORMULA: Reduced ~75% for active cards, special case for CTA
   // CTA: footer + 12px gap (tight), Active: footer + 8px gap, History: footer + 16px gap
-  const footerH = bottomBarMode === 'CTA' 
+  const footerH = bottomBarModeSOT === 'CTA' 
     ? Math.max(footerMeasuredHeightPx || CTA_FALLBACK_FOOTER_PX, CTA_FALLBACK_FOOTER_PX)
     : footerMeasuredHeightPx;
   const ctaPadding = footerH + CTA_GAP_PX;
   
   const dynamicBottomPaddingPxRaw = shouldRenderFooter 
-    ? (bottomBarMode === 'CTA' 
+    ? (bottomBarModeSOT === 'CTA' 
         ? ctaPadding
         : footerMeasuredHeightPx + (hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX))
     : 0;
   
   // CTA CLAMP: Ensure CTA padding never below minimum (prevents compensation shrinkage)
-  const dynamicBottomPaddingPx = (bottomBarMode === 'CTA' || effectiveItemType === 'section_transition')
+  const dynamicBottomPaddingPx = (bottomBarModeSOT === 'CTA' || effectiveItemType === 'section_transition')
     ? Math.max(dynamicBottomPaddingPxRaw, CTA_MIN_PADDING_PX)
     : dynamicBottomPaddingPxRaw;
   
@@ -11204,8 +11142,8 @@ export default function CandidateInterview() {
     : baseSpacerPx;
   
   // PART B: YES/NO mode override (needs extra clearance for button footer)
-  // TDZ-SAFE: Compute locally from available late variables (bottomBarMode exists here)
-  const isYesNoModeDerived = bottomBarMode === 'YES_NO';
+  // TDZ-SAFE: Compute locally from available late variables (bottomBarModeSOT exists here)
+  const isYesNoModeDerived = bottomBarModeSOT === 'YES_NO';
   const isMiGateDerived = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
   
   // DYNAMIC CLEARANCE: Use measured footer height + extra margin for YES/NO
@@ -11217,10 +11155,10 @@ export default function CandidateInterview() {
     : normalModeClearance;
   
   // DIAGNOSTIC LOG: Show bottom spacer computation (deduped)
-  const spacerLogKey = `${bottomBarMode}:${footerShellHeightPx}:${bottomSpacerPx}`;
+  const spacerLogKey = `${bottomBarModeSOT}:${footerShellHeightPx}:${bottomSpacerPx}`;
   logOnce(spacerLogKey, () => {
     console.log('[LAYOUT][BOTTOM_SPACER_APPLIED]', {
-      mode: bottomBarMode,
+      mode: bottomBarModeSOT,
       footerShellHeightPx,
       bottomSpacerPx,
       shouldRenderFooter,
@@ -11242,7 +11180,7 @@ export default function CandidateInterview() {
         
         if (!spacer) {
           console.error('[UI_CONTRACT][BOTTOM_SPACER_MISSING]', {
-            mode: bottomBarMode,
+            mode: bottomBarModeSOT,
             expectedHeightPx: bottomSpacerPx,
             reason: 'Bottom spacer element ref not attached'
           });
@@ -11258,7 +11196,7 @@ export default function CandidateInterview() {
         
         if (!heightMatches) {
           console.warn('[UI_CONTRACT][BOTTOM_SPACER_HEIGHT_MISMATCH]', {
-            mode: bottomBarMode,
+            mode: bottomBarModeSOT,
             expectedHeightPx,
             actualHeightPx: spacerHeightPx,
             delta: spacerHeightPx - expectedHeightPx
@@ -11272,7 +11210,7 @@ export default function CandidateInterview() {
         
         if (!isScrollContainer) {
           console.error('[UI_CONTRACT][SCROLL_CONTAINER_INVALID]', {
-            mode: bottomBarMode,
+            mode: bottomBarModeSOT,
             overflowY,
             reason: 'Container does not have overflow-y auto/scroll'
           });
@@ -11286,17 +11224,17 @@ export default function CandidateInterview() {
   // WELCOME-specific log to confirm unified path
   if (screenMode === 'WELCOME') {
     console.log('[WELCOME][FOOTER_PADDING_SOT]', {
-      bottomBarMode,
+      bottomBarModeSOT,
       computedPaddingPx: dynamicBottomPaddingPx,
       usesUnifiedLogic: true
     });
   }
   
   // GUARDRAIL C: Mode switch assertion (verify bottom spacer on mode changes)
-  const prevBottomBarModeRef = React.useRef(bottomBarMode);
+  const prevBottomBarModeRef = React.useRef(bottomBarModeSOT);
   React.useEffect(() => {
     const prevMode = prevBottomBarModeRef.current;
-    const currentMode = bottomBarMode;
+    const currentMode = bottomBarModeSOT;
     
     if (prevMode !== currentMode && typeof window !== 'undefined') {
       requestAnimationFrame(() => {
@@ -11334,7 +11272,7 @@ export default function CandidateInterview() {
     }
     
     prevBottomBarModeRef.current = currentMode;
-  }, [bottomBarMode, bottomSpacerPx]);
+  }, [bottomBarModeSOT, bottomSpacerPx]);
   
   // FOOTER CLEARANCE ASSERTION: DISABLED in 3-row shell mode (footer in normal flow, no overlap possible)
   if (!IS_3ROW_SHELL && hasActiveCard && typeof window !== 'undefined') {
@@ -11358,7 +11296,7 @@ export default function CandidateInterview() {
         }
 
         // YES_NO ACTIVE CARD VERIFICATION: Log active question stableKey for diagnostics
-        if (screenMode === 'QUESTION' && bottomBarMode === 'YES_NO' && effectiveItemType === 'question') {
+        if (screenMode === 'QUESTION' && bottomBarModeSOT === 'YES_NO' && effectiveItemType === 'question') {
           const activeQuestionStableKey = currentItem?.id ? `question-shown:${currentItem.id}` : null;
           
           if (activeQuestionStableKey) {
@@ -11370,7 +11308,7 @@ export default function CandidateInterview() {
               activeQuestionStableKey,
               foundInDomCount: foundInDom,
               screenMode,
-              bottomBarMode,
+              bottomBarModeSOT,
               currentItemId: currentItem?.id
             });
             
@@ -11380,7 +11318,7 @@ export default function CandidateInterview() {
               console.warn('[UI_CONTRACT][YESNO_ACTIVE_CARD_COUNT_ANOMALY]', {
                 count: totalActiveCards,
                 screenMode,
-                bottomBarMode,
+                bottomBarModeSOT,
                 expected: 1,
                 reason: totalActiveCards === 0 ? 'no_active_card_markers' : 'multiple_active_card_markers'
               });
@@ -11388,7 +11326,7 @@ export default function CandidateInterview() {
           } else {
             console.warn('[UI_CONTRACT][ACTIVE_CARD_KEY_MISSING]', {
               screenMode,
-              bottomBarMode,
+              bottomBarModeSOT,
               effectiveItemType,
               currentItemId: currentItem?.id,
               action: 'NO_ACTIVE_CARD_THIS_FRAME'
@@ -11399,12 +11337,12 @@ export default function CandidateInterview() {
         // WELCOME/CTA BYPASS: Skip active card validation for welcome screen
         // WELCOME mode has no active interview cards in scroll history (only welcome message)
         const isWelcomeCta = screenMode === 'WELCOME' && 
-                            bottomBarMode === 'CTA' && 
+                            bottomBarModeSOT === 'CTA' && 
                             activeUiItem?.kind === 'DEFAULT';
         
         if (isWelcomeCta) {
           console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SKIP]', {
-            mode: bottomBarMode,
+            mode: bottomBarModeSOT,
             screenMode,
             activeUiItemKind: activeUiItem?.kind,
             reason: 'WELCOME_CTA_NO_SCROLL_ACTIVE_CARD - welcome screen has no active interview cards to protect',
@@ -11415,7 +11353,7 @@ export default function CandidateInterview() {
           
           console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', {
             status: 'SKIP',
-            mode: bottomBarMode,
+            mode: bottomBarModeSOT,
             screenMode,
             reason: 'WELCOME_CTA_MODE'
           });
@@ -11428,7 +11366,7 @@ export default function CandidateInterview() {
           const spacer = scrollContainer.querySelector('[data-cq-footer-spacer="true"]');
           if (!spacer) {
             console.error('[UI_CONTRACT][FOOTER_SPACER_MISSING]', {
-              mode: bottomBarMode,
+              mode: bottomBarModeSOT,
               expectedHeightPx: dynamicBottomPaddingPx,
               reason: 'Footer spacer element not found - clearance may fail'
             });
@@ -11450,7 +11388,7 @@ export default function CandidateInterview() {
           
           if (!isQuestionMode) {
             console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SKIP]', {
-              mode: bottomBarMode,
+              mode: bottomBarModeSOT,
               screenMode,
               activeUiItemKind: activeUiItem?.kind,
               hasActiveCard,
@@ -11463,7 +11401,7 @@ export default function CandidateInterview() {
             
             console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', {
               status: 'SKIP',
-              mode: bottomBarMode,
+              mode: bottomBarModeSOT,
               screenMode,
               reason: 'DERIVED_FLAG_DOM_MISMATCH_NON_QUESTION_MODE'
             });
@@ -11478,11 +11416,11 @@ export default function CandidateInterview() {
           
           if (activeCardsInContainer.length === 0) {
             // Dedupe: Only log once per unique mode+kind combo
-            const errorKey = `${bottomBarMode}:${activeUiItem?.kind}`;
+            const errorKey = `${bottomBarModeSOT}:${activeUiItem?.kind}`;
             if (lastClearanceErrorKeyRef.current !== errorKey) {
               lastClearanceErrorKeyRef.current = errorKey;
               console.warn('[UI_CONTRACT][ACTIVE_CARD_NOT_IN_SCROLL_CONTAINER]', {
-                mode: bottomBarMode,
+                mode: bottomBarModeSOT,
                 activeUiItemKind: activeUiItem?.kind,
                 hasActiveCard,
                 screenMode,
@@ -11555,7 +11493,7 @@ export default function CandidateInterview() {
 
         if (!lastItem) {
           console.error('[UI_CONTRACT][FOOTER_CLEARANCE_UNMEASURABLE]', {
-            mode: bottomBarMode,
+            mode: bottomBarModeSOT,
             reason: 'no_last_item_before_spacer',
             allItemsCount: allItems.length
           });
@@ -11635,7 +11573,7 @@ export default function CandidateInterview() {
         }
 
         console.log('[UI_CONTRACT][FOOTER_CLEARANCE_ASSERT]', {
-          mode: bottomBarMode,
+          mode: bottomBarModeSOT,
           footerMeasuredHeightPx,
           safeFooterClearancePx: SAFE_FOOTER_CLEARANCE_PX,
           spacerHeightPx: dynamicBottomPaddingPx,
@@ -11651,7 +11589,7 @@ export default function CandidateInterview() {
         const status = lastItemBottomOverlapPx <= 2 ? 'PASS' : 'FAIL';
         const statusPayload = {
           status,
-          mode: bottomBarMode,
+          mode: bottomBarModeSOT,
           overlapPx: Math.round(lastItemBottomOverlapPx),
           spacerHeightPx: dynamicBottomPaddingPx,
           measurementCorrected
@@ -11664,14 +11602,14 @@ export default function CandidateInterview() {
 
         // Dedupe failure logs: only log once per unique failure key
         if (status === 'FAIL') {
-          const failKey = `${bottomBarMode}:${Math.round(lastItemBottomOverlapPx)}`;
+          const failKey = `${bottomBarModeSOT}:${Math.round(lastItemBottomOverlapPx)}`;
           if (lastClearanceErrorKeyRef.current !== failKey) {
             lastClearanceErrorKeyRef.current = failKey;
             
             if (measurementCorrected) {
               console.warn('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS_FAIL_CORRECTED]', {
                 correctedOverlapPx: Math.round(lastItemBottomOverlapPx),
-                mode: bottomBarMode,
+                mode: bottomBarModeSOT,
                 reason: 'overlap_detected_after_target_correction',
                 originalOverlapPx: Math.round(originalOverlapPx),
                 correctionImproved: lastItemBottomOverlapPx < originalOverlapPx
@@ -11690,7 +11628,7 @@ export default function CandidateInterview() {
         
         if (lastItemBottomOverlapPx > 0) {
           console.error('[UI_CONTRACT][FOOTER_OVERLAP_DETECTED]', {
-            mode: bottomBarMode,
+            mode: bottomBarModeSOT,
             overlapPx: Math.round(lastItemBottomOverlapPx),
             footerMeasuredHeightPx,
             spacerHeightPx: dynamicBottomPaddingPx,
@@ -11704,7 +11642,7 @@ export default function CandidateInterview() {
         const roundedOverlap = Math.round(lastItemBottomOverlapPx);
         if (roundedOverlap > maxOverlapSeenRef.current.maxOverlapPx) {
           console.error('[UI_CONTRACT][FOOTER_OVERLAP_REGRESSION]', {
-            mode: bottomBarMode,
+            mode: bottomBarModeSOT,
             overlapPx: roundedOverlap,
             previousMaxOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
             maxOverlapPx: roundedOverlap,
@@ -11715,7 +11653,7 @@ export default function CandidateInterview() {
           });
           
           maxOverlapSeenRef.current.maxOverlapPx = roundedOverlap;
-          maxOverlapSeenRef.current.lastModeSeen = bottomBarMode;
+          maxOverlapSeenRef.current.lastModeSeen = bottomBarModeSOT;
         }
       } catch (err) {
         // Silent - assertion should never crash
@@ -11724,13 +11662,13 @@ export default function CandidateInterview() {
   }
   
   // CTA SOT diagnostic (single consolidated log)
-  if (bottomBarMode === 'CTA') {
+  if (bottomBarModeSOT === 'CTA') {
     console.log('[CTA][SOT_PADDING]', {
       footerMeasuredHeightPx,
       dynamicBottomPaddingPx,
       shouldRenderFooter,
       effectiveItemType,
-      bottomBarMode
+      bottomBarModeSOT
     });
   }
   
@@ -11758,7 +11696,7 @@ export default function CandidateInterview() {
           footerMeasuredHeightPx: measured,
           appliedPaddingPx: measured + 8,
           delta,
-          bottomBarMode,
+          bottomBarModeSOT,
           shouldRenderFooter,
           effectiveItemType
         });
@@ -11766,7 +11704,7 @@ export default function CandidateInterview() {
         return measured;
       });
     });
-  }, [bottomBarMode, shouldRenderFooter, effectiveItemType]);
+  }, [bottomBarModeSOT, shouldRenderFooter, effectiveItemType]);
 
   // Re-anchor bottom on footer height changes when auto-scroll is enabled
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
@@ -11787,7 +11725,7 @@ export default function CandidateInterview() {
 
   // SMOOTH GLIDE AUTOSCROLL: ChatGPT-style smooth scrolling on new content
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
-  // TDZ-SAFE: bottomBarMode declared above (line ~7876) before this effect
+  // TDZ-SAFE: bottomBarModeSOT declared above (line ~7876) before this effect
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block auto-scroll during any scroll lock
     if (isScrollWriteLocked()) {
@@ -11802,7 +11740,7 @@ export default function CandidateInterview() {
     if (!scrollContainer || !bottomAnchorRef.current) return;
     
     // CTA FORCE-ANCHOR: Ensure CTA always visible (one-time on entry)
-    if (bottomBarMode === 'CTA' && !isUserTyping) {
+    if (bottomBarModeSOT === 'CTA' && !isUserTyping) {
       const { scrollTop: beforeScroll, scrollHeight, clientHeight } = scrollContainer;
       const targetScrollTop = Math.max(0, scrollHeight - clientHeight);
       
@@ -11839,10 +11777,10 @@ export default function CandidateInterview() {
     }
     
     // GUARD D: Skip during V3_WAITING (engine deciding)
-    if (bottomBarMode === 'V3_WAITING') {
+    if (bottomBarModeSOT === 'V3_WAITING') {
       console.log('[SCROLL][GLIDE_SKIPPED]', {
         reason: 'v3_waiting_mode',
-        bottomBarMode
+        bottomBarModeSOT
       });
       return;
     }
@@ -11915,7 +11853,7 @@ export default function CandidateInterview() {
       });
       
       console.log('[SCROLL][GRAVITY_APPLIED]', {
-        bottomBarMode,
+        bottomBarModeSOT,
         effectiveItemType,
         distanceFromBottom: Math.round(distanceFromBottom),
         thresholdPx: NEAR_BOTTOM_THRESHOLD_PX,
@@ -11931,7 +11869,7 @@ export default function CandidateInterview() {
   }, [
     transcriptSOT.length,
     isUserTyping,
-    bottomBarMode
+    bottomBarModeSOT
   ]);
 
   // ANCHOR LAST V3 ANSWER: Keep recently submitted answer visible during transitions
@@ -11991,7 +11929,7 @@ export default function CandidateInterview() {
             stableKey: targetStableKey,
             didScroll: false,
             reason: 'already_visible',
-            bottomBarMode,
+            bottomBarModeSOT,
             effectiveItemType
           });
         }
@@ -12008,7 +11946,7 @@ export default function CandidateInterview() {
         console.log('[SCROLL][ANCHOR_LAST_V3_ANSWER]', {
           stableKey: targetStableKey,
           didScroll,
-          bottomBarMode,
+          bottomBarModeSOT,
           effectiveItemType,
           scrollTopBefore: Math.round(scrollTopBefore),
           scrollTopAfter: Math.round(scrollTopAfter),
@@ -12020,7 +11958,7 @@ export default function CandidateInterview() {
       
       recentAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
     });
-  }, [transcriptSOT.length, bottomBarMode, effectiveItemType, dynamicBottomPaddingPx, cqDiagEnabled]);
+  }, [transcriptSOT.length, bottomBarModeSOT, effectiveItemType, dynamicBottomPaddingPx, cqDiagEnabled]);
   
   // ANCHOR V3 PROBE QUESTION: Keep just-appended question visible (ChatGPT-style)
   React.useLayoutEffect(() => {
@@ -12085,7 +12023,7 @@ export default function CandidateInterview() {
           didFind: true,
           didScroll,
           overflowPx,
-          bottomBarMode,
+          bottomBarModeSOT,
           scrollTopBefore: Math.round(scrollTopBefore),
           scrollTopAfter: Math.round(scrollTopAfter),
           footerSafePx
@@ -12094,7 +12032,7 @@ export default function CandidateInterview() {
       
       v3ScrollAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
     });
-  }, [transcriptSOT.length, bottomBarMode, dynamicBottomPaddingPx, cqDiagEnabled]);
+  }, [transcriptSOT.length, bottomBarModeSOT, dynamicBottomPaddingPx, cqDiagEnabled]);
   
   // TDZ GUARD: Track previous render list length for append detection (using ref, not direct variable)
   const prevFinalListLenForScrollRef = useRef(0);
@@ -12107,14 +12045,14 @@ export default function CandidateInterview() {
     const activeKey = activeCardKeySOT || currentItem?.id || `${currentItem?.packId}:${currentItem?.instanceNumber}`;
     if (!activeKey) return;
     
-    // TDZ-SAFE: Use early bottomBarModeSOT (computed before bottomBarMode declaration)
-    const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
+    // TDZ-SAFE: Use early bottomBarModeSOTSOT (computed before bottomBarModeSOT declaration)
+    const isYesNoModeFresh = bottomBarModeSOTSOT === 'YES_NO';
     const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender("ACTIVE_ITEM_CHANGED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT, bottomBarModeSOT, effectiveItemType, activeUiItem]);
+  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT, bottomBarModeSOTSOT, effectiveItemType, activeUiItem]);
   
   // PART B: RENDER LIST APPENDED - TDZ-safe using ref (no direct finalTranscriptList reference)
   React.useLayoutEffect(() => {
@@ -12129,14 +12067,14 @@ export default function CandidateInterview() {
     // Length increased - trigger scroll correction
     prevFinalListLenForScrollRef.current = currentLen;
     
-    // TDZ-SAFE: Use early bottomBarModeSOT (computed before bottomBarMode declaration)
-    const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
+    // TDZ-SAFE: Use early bottomBarModeSOTSOT (computed before bottomBarModeSOT declaration)
+    const isYesNoModeFresh = bottomBarModeSOTSOT === 'YES_NO';
     const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender("RENDER_LIST_APPENDED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT, activeKindSOT, bottomBarModeSOT, effectiveItemType, activeUiItem]);
+  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT, activeKindSOT, bottomBarModeSOTSOT, effectiveItemType, activeUiItem]);
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
@@ -12251,7 +12189,7 @@ export default function CandidateInterview() {
     let next = dynamicBottomPaddingPx;
     
     // CTA CLAMP: Never allow compensation to reduce CTA padding below minimum
-    if (bottomBarMode === 'CTA' || effectiveItemType === 'section_transition') {
+    if (bottomBarModeSOT === 'CTA' || effectiveItemType === 'section_transition') {
       next = Math.max(next, CTA_MIN_PADDING_PX);
       if (next !== dynamicBottomPaddingPx) {
         console.log('[CTA][PADDING_COMPENSATE_CLAMP]', {
@@ -12277,7 +12215,7 @@ export default function CandidateInterview() {
         delta,
         prev,
         next,
-        bottomBarMode
+        bottomBarModeSOT
       });
       return;
     }
@@ -12286,10 +12224,10 @@ export default function CandidateInterview() {
     if (!scrollContainer) return;
     
     // Skip during V3_WAITING (no scroll adjustments during engine decide)
-    if (bottomBarMode === 'V3_WAITING') {
+    if (bottomBarModeSOT === 'V3_WAITING') {
       console.log('[SCROLL][PADDING_COMPENSATE_SKIP]', {
         reason: 'v3_waiting_mode',
-        bottomBarMode
+        bottomBarModeSOT
       });
       return;
     }
@@ -12316,7 +12254,7 @@ export default function CandidateInterview() {
       scrollTopBefore: scrollTop,
       scrollTopAfter: scrollTop + delta
     });
-  }, [dynamicBottomPaddingPx, screenMode, isUserTyping, bottomBarMode]);
+  }, [dynamicBottomPaddingPx, screenMode, isUserTyping, bottomBarModeSOT]);
   
   // TDZ GUARD: Do not reference finalTranscriptList in hook deps before it is initialized.
   // DETERMINISTIC BOTTOM ANCHOR ENFORCEMENT: Keep transcript pinned to bottom when expected
@@ -12379,7 +12317,7 @@ export default function CandidateInterview() {
       console.log('[SCROLL][GRAVITY_FOLLOW_SKIP]', {
         reason: 'user_scrolled_up',
         activeCardKeySOT,
-        bottomBarMode
+        bottomBarModeSOT
       });
       return;
     }
@@ -12391,7 +12329,7 @@ export default function CandidateInterview() {
     if (!hasActiveCardSOT) return;
     
     // Dedupe: Only scroll when active card key actually changes
-    const gravityKey = `${activeCardKeySOT}:${bottomBarMode}:${screenMode}`;
+    const gravityKey = `${activeCardKeySOT}:${bottomBarModeSOT}:${screenMode}`;
     if (lastGravityFollowKeyRef.current === gravityKey) {
       return; // Already scrolled for this card+mode combo
     }
@@ -12414,7 +12352,7 @@ export default function CandidateInterview() {
           didScroll = true;
           console.log('[SCROLL][GRAVITY_FOLLOW_APPLIED]', {
             activeCardKeySOT,
-            mode: bottomBarMode,
+            mode: bottomBarModeSOT,
             screenMode,
             strategy: 'ACTIVE_CARD_SCROLL_INTO_VIEW',
             distanceFromBottom: scrollContainer.scrollHeight - (scrollTopBefore + scrollContainer.clientHeight)
@@ -12426,7 +12364,7 @@ export default function CandidateInterview() {
           didScroll = true;
           console.log('[SCROLL][GRAVITY_FOLLOW_APPLIED]', {
             activeCardKeySOT,
-            mode: bottomBarMode,
+            mode: bottomBarModeSOT,
             screenMode,
             strategy: 'BOTTOM_ANCHOR_FALLBACK',
             distanceFromBottom: scrollContainer.scrollHeight - (scrollTopBefore + scrollContainer.clientHeight)
@@ -12492,7 +12430,7 @@ export default function CandidateInterview() {
   }, [
     activeCardKeySOT,
     transcriptSOT.length,
-    bottomBarMode,
+    bottomBarModeSOT,
     screenMode,
     isUserTyping,
     hasActiveCardSOT,
@@ -12521,7 +12459,7 @@ export default function CandidateInterview() {
           console.log('[UI_CONTRACT][FOOTER_OVERLAP_NUDGE_SKIP]', {
             reason: 'active_card_not_found',
             hasActiveCard,
-            bottomBarMode
+            bottomBarModeSOT
           });
         }
         return;
@@ -12560,7 +12498,7 @@ export default function CandidateInterview() {
           overlapPx: Math.round(overlapPx),
           footerMeasuredHeightPx,
           footerDomHeightPx: Math.round(footerRect.height),
-          bottomBarMode,
+          bottomBarModeSOT,
           stableKey: activeCardEl.getAttribute('data-stablekey'),
           scrollTopBefore: Math.round(scrollTopBefore),
           scrollTopAfter: Math.round(scrollTopAfter),
@@ -12639,7 +12577,7 @@ export default function CandidateInterview() {
         console.log('[UI_CONTRACT][FOOTER_OVERLAP_NUDGE_SKIP]', {
           reason: 'no_overlap',
           overlapPx: Math.round(overlapPx),
-          bottomBarMode
+          bottomBarModeSOT
         });
       }
     });
@@ -12648,7 +12586,7 @@ export default function CandidateInterview() {
     hasActiveCard,
     footerMeasuredHeightPx,
     activeCard?.stableKey,
-    bottomBarMode,
+    bottomBarModeSOT,
     activeCardKeySOT,
     dynamicBottomPaddingPx
   ]);
@@ -12676,19 +12614,19 @@ export default function CandidateInterview() {
     }
     
     // GUARD A: Skip during V3_WAITING (engine deciding)
-    if (bottomBarMode === 'V3_WAITING') {
+    if (bottomBarModeSOT === 'V3_WAITING') {
       console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
         reason: 'v3_waiting_mode',
-        bottomBarMode
+        bottomBarModeSOT
       });
       return;
     }
     
     // GUARD B: Only run in TEXT_INPUT mode with footer rendered
-    if (bottomBarMode !== 'TEXT_INPUT' || !shouldRenderFooter) {
+    if (bottomBarModeSOT !== 'TEXT_INPUT' || !shouldRenderFooter) {
       console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
         reason: 'wrong_mode',
-        bottomBarMode,
+        bottomBarModeSOT,
         shouldRenderFooter
       });
       return;
@@ -12742,7 +12680,7 @@ export default function CandidateInterview() {
     requestAnimationFrame(() => {
       scrollIntentRef.current = false;
     });
-  }, [v3ProbingActive, v3ActivePromptText, isUserTyping, bottomBarMode, shouldRenderFooter]);
+  }, [v3ProbingActive, v3ActivePromptText, isUserTyping, bottomBarModeSOT, shouldRenderFooter]);
 
   // AUTO-GROWING INPUT: Auto-resize textarea based on content (ChatGPT-style)
   useEffect(() => {
@@ -12754,7 +12692,7 @@ export default function CandidateInterview() {
       console.log('[FOOTER][REF_CHECK]', {
         hasTextareaRef: !!footerTextareaRef.current,
         tagName: footerTextareaRef.current?.tagName,
-        bottomBarMode,
+        bottomBarModeSOT,
         effectiveItemType
       });
     }
@@ -12796,7 +12734,7 @@ export default function CandidateInterview() {
       });
       lastAutoGrowHeightRef.current = newHeight;
     }
-  }, [input, openerDraft, bottomBarMode]);
+  }, [input, openerDraft, bottomBarModeSOT]);
 
   // DEFENSIVE GUARD: Force exit WELCOME mode when interview has progressed
   useEffect(() => {
@@ -13119,7 +13057,7 @@ export default function CandidateInterview() {
           instanceNumber: gateInstanceNumber,
           reason: 'Gate active but no prompt text available - cannot render YES/NO'
         });
-        return null; // Force disabled mode (bottomBarMode will be DISABLED)
+        return null; // Force disabled mode (bottomBarModeSOT will be DISABLED)
       }
       
       // PART 2: Log prompt binding for diagnostics
@@ -13655,18 +13593,18 @@ export default function CandidateInterview() {
   // ============================================================================
   // BOTTOM BAR DERIVED STATE BLOCK - All derived variables in strict order
   // ============================================================================
-  // NOTE: bottomBarMode, effectiveItemType, and shouldRenderFooter already declared in unified block above
-  const needsPrompt = bottomBarMode === 'TEXT_INPUT' || 
+  // NOTE: bottomBarModeSOT, effectiveItemType, and shouldRenderFooter already declared in unified block above
+  const needsPrompt = bottomBarModeSOT === 'TEXT_INPUT' || 
                       ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
   const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
   
 
   
-  // PART D: Align active card when bottomBarMode becomes YES_NO
-  // TDZ-SAFE: Uses early bottomBarModeSOT (computed before late bottomBarMode declaration)
+  // PART D: Align active card when bottomBarModeSOT becomes YES_NO
+  // TDZ-SAFE: Uses early bottomBarModeSOTSOT (computed before late bottomBarModeSOT declaration)
   useLayoutEffect(() => {
-    // TDZ-SAFE: Use bottomBarModeSOT (early, always available)
-    const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
+    // TDZ-SAFE: Use bottomBarModeSOTSOT (early, always available)
+    const isYesNoModeFresh = bottomBarModeSOTSOT === 'YES_NO';
     const isMiGateFresh = currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
     
     if (!isYesNoModeFresh) return;
@@ -13674,11 +13612,11 @@ export default function CandidateInterview() {
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [bottomBarModeSOT, ensureActiveVisibleAfterRender, activeKindSOT, currentItem, activeUiItem]);
+  }, [bottomBarModeSOTSOT, ensureActiveVisibleAfterRender, activeKindSOT, currentItem, activeUiItem]);
 
   // Auto-focus control props (pure values, no hooks)
   const focusEnabled = screenMode === 'QUESTION';
-  const focusShouldTrigger = focusEnabled && bottomBarMode === 'TEXT_INPUT' && (hasPrompt || v3ProbingActive || currentItem?.type === 'v3_pack_opener');
+  const focusShouldTrigger = focusEnabled && bottomBarModeSOT === 'TEXT_INPUT' && (hasPrompt || v3ProbingActive || currentItem?.type === 'v3_pack_opener');
   const focusKey = v3ProbingActive 
     ? `v3:${v3ProbingContext?.packId}:${v3ProbingContext?.instanceNumber}:${v3ActivePromptText?.substring(0, 20)}`
     : currentItem?.type === 'v3_pack_opener'
@@ -13692,7 +13630,7 @@ export default function CandidateInterview() {
     console.log('[MI_GATE][TRACE][MODE]', {
       effectiveItemType,
       currentItemType,
-      bottomBarMode,
+      bottomBarModeSOT,
       isMultiInstanceGate,
       currentItemId: currentItem?.id,
       packId: currentItem?.packId,
@@ -13829,21 +13767,21 @@ export default function CandidateInterview() {
   // Log final mode selection (minimal log - full snapshot already in unified block)
   console.log('[BOTTOM_BAR_MODE]', { 
     activeUiItemKind: activeUiItem.kind,
-    bottomBarMode,
+    bottomBarModeSOT,
     effectiveItemType,
     screenMode
   });
   
   // WATCHDOG FRESHNESS: Sync all watchdog-critical state to refs (no stale closures)
-  // NOTE: Use final bottomBarMode (refined with currentPrompt), not bottomBarModeEarly
-  bottomBarModeRef.current = bottomBarMode;
+  // NOTE: Use final bottomBarModeSOT (refined with currentPrompt), not bottomBarModeSOTEarly
+  bottomBarModeSOTRef.current = bottomBarModeSOT;
   v3ActivePromptTextRef.current = v3ActivePromptText;
   v3ProbingActiveRef.current = v3ProbingActive;
   v3ProbingContextRef.current = v3ProbingContext;
   
   // FRAME TRACE: Log footer controller changes (change-detection only)
   if (footerControllerLocal !== lastFooterControllerRef.current ||
-      bottomBarMode !== lastBottomBarModeRef.current ||
+      bottomBarModeSOT !== lastBottomBarModeRef.current ||
       effectiveItemType !== lastEffectiveItemTypeRef.current) {
     
     console.log('[FRAME_TRACE][FOOTER_CONTROLLER]', {
@@ -13853,25 +13791,25 @@ export default function CandidateInterview() {
       v3PromptPreview: v3ActivePromptText?.substring(0, 40) || null,
       currentItemType,
       effectiveItemType,
-      bottomBarMode,
+      bottomBarModeSOT,
       bottomBarRenderTypeSOT,
       packId: currentItem?.packId || v3ProbingContext?.packId,
       instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
       changed: {
         controller: footerControllerLocal !== lastFooterControllerRef.current,
-        mode: bottomBarMode !== lastBottomBarModeRef.current,
+        mode: bottomBarModeSOT !== lastBottomBarModeRef.current,
         effectiveType: effectiveItemType !== lastEffectiveItemTypeRef.current
       }
     });
     
     lastFooterControllerRef.current = footerControllerLocal;
-    lastBottomBarModeRef.current = bottomBarMode;
+    lastBottomBarModeRef.current = bottomBarModeSOT;
     lastEffectiveItemTypeRef.current = effectiveItemType;
   }
   
   // UI CONTRACT: CTA mode is ONLY valid during WELCOME screen
   // Force override to prevent CTA leaking during interview progression
-  if (bottomBarMode === "CTA" && screenMode !== "WELCOME") {
+  if (bottomBarModeSOT === "CTA" && screenMode !== "WELCOME") {
     if (effectiveItemType === 'section_transition') {
       console.log("[UI_CONTRACT] CTA_SECTION_TRANSITION_ALLOWED", { effectiveItemType, screenMode });
       // Allow CTA specifically for section transitions
@@ -13883,20 +13821,20 @@ export default function CandidateInterview() {
         v3ProbingActive,
         action: 'forcing HIDDEN'
       });
-      bottomBarMode = "HIDDEN";
+      bottomBarModeSOT = "HIDDEN";
     }
   }
   
   // Legacy flags (kept for compatibility)
   const isV2PackField = effectiveItemType === "v2_pack_field";
   const isV3PackOpener = effectiveItemType === "v3_pack_opener";
-  const showTextInput = bottomBarMode === "TEXT_INPUT";
+  const showTextInput = bottomBarModeSOT === "TEXT_INPUT";
   
   // TASK A: Single MI_GATE active boolean (UI contract sentinel)
   const isMiGateActive =
     activeUiItem?.kind === "MI_GATE" &&
     effectiveItemType === "multi_instance_gate" &&
-    bottomBarMode === "YES_NO" &&
+    bottomBarModeSOT === "YES_NO" &&
     currentItem?.type === "multi_instance_gate";
   
   // Log once per activation (de-duped by currentItem.id) - using ref declared at top-level (line 1476)
@@ -13979,7 +13917,7 @@ export default function CandidateInterview() {
       textareaDisabledFinal,
       submitDisabledRaw,
       submitDisabledFinal,
-      bottomBarMode,
+      bottomBarModeSOT,
       effectiveItemType,
       packId: currentItem.packId,
       instanceNumber: currentItem.instanceNumber
@@ -14050,12 +13988,12 @@ export default function CandidateInterview() {
 
   // CONTRACT INVARIANT: Verify V3 prompt always renders as v3_probing
   // bottomBarRenderTypeSOT already declared above (TDZ-safe)
-  if (hasActiveV3Prompt && (bottomBarRenderTypeSOT !== "v3_probing" || bottomBarMode !== "TEXT_INPUT")) {
+  if (hasActiveV3Prompt && (bottomBarRenderTypeSOT !== "v3_probing" || bottomBarModeSOT !== "TEXT_INPUT")) {
     console.error('[V3_UI_CONTRACT][VIOLATION_ACTIVE_ITEM]', {
       hasActiveV3Prompt,
       activeUiItemKind: activeUiItem.kind,
       bottomBarRenderTypeSOT,
-      bottomBarMode,
+      bottomBarModeSOT,
       currentItemType,
       currentItemId: currentItem?.id,
       promptIdPreview: activeUiItem.promptText?.substring(0, 40) || null,
@@ -14086,12 +14024,12 @@ export default function CandidateInterview() {
   // Unified YES/NO click handler - routes to handleAnswer with trace logging (plain function, no hooks)
   const handleYesNoClick = (answer) => {
     // GUARD: Block YES/NO during V3 prompt answering
-    if (activeUiItem?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarMode === 'TEXT_INPUT')) {
+    if (activeUiItem?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
       console.log('[YESNO_BLOCKED_DURING_V3_PROMPT]', {
         clicked: answer,
         activeUiItemKind: activeUiItem?.kind,
         v3PromptPhase,
-        bottomBarMode,
+        bottomBarModeSOT,
         currentItemType: currentItem?.type,
         reason: 'V3 prompt active - YES/NO blocked'
       });
@@ -14110,7 +14048,7 @@ export default function CandidateInterview() {
     
     // PART B: Call ensureActiveVisibleAfterRender after state update
     // TDZ-SAFE: Compute fresh flags using available values
-    const isYesNoModeFresh = bottomBarMode === 'YES_NO';
+    const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
     const isMiGateFresh = currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
@@ -14125,7 +14063,7 @@ export default function CandidateInterview() {
       currentItemId: currentItem?.id,
       packId: currentItem?.packId,
       instanceNumber: currentItem?.instanceNumber,
-      bottomBarMode
+      bottomBarModeSOT
     });
     
     // Route to handleAnswer (same path as all other answer types)
@@ -14248,7 +14186,7 @@ export default function CandidateInterview() {
   const handleBottomBarSubmit = async () => {
     // DIAGNOSTIC: Entry log with full state snapshot
     console.log('[BOTTOM_BAR][SEND_CLICK]', {
-      bottomBarMode,
+      bottomBarModeSOT,
       effectiveItemType,
       activeKind: activeUiItem?.kind,
       packId: currentItem?.packId || v3ProbingContext?.packId,
@@ -14273,7 +14211,7 @@ export default function CandidateInterview() {
     
     // PART B: Call ensureActiveVisibleAfterRender after submit
     // TDZ-SAFE: Compute fresh flags using available values
-    const isYesNoModeFresh = bottomBarMode === 'YES_NO';
+    const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
     const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
@@ -16507,7 +16445,7 @@ export default function CandidateInterview() {
     const payload = {
       sessionId,
       activeUiItemKind: activeUiItem?.kind,
-      bottomBarMode,
+      bottomBarModeSOT,
       footerClearanceStatus: footerClearanceStatusRef.current,
       openerHistoryStatus: openerMergeStatusRef.current,
       suppressProbesInTranscript: (activeUiItem?.kind === "V3_PROMPT" || activeUiItem?.kind === "V3_WAITING") && v3ProbingActive,
@@ -16524,7 +16462,7 @@ export default function CandidateInterview() {
     
     lastGoldenCheckPayloadRef.current = payloadKey;
     console.log('[UI_CONTRACT][GOLDEN_CHECK]', payload);
-  }, [sessionId, activeUiItem, bottomBarMode, v3ProbingActive, finalTranscriptList]);
+  }, [sessionId, activeUiItem, bottomBarModeSOT, v3ProbingActive, finalTranscriptList]);
   
   // CONSOLIDATED UI CONTRACT STATUS LOG (Single Source of Truth)
   // Emits once per mode change with all three contract aspects
@@ -16538,15 +16476,15 @@ export default function CandidateInterview() {
       openerHistory: openerStatus,
       probePolicy: suppressProbes ? 'ACTIVE_SUPPRESS' : 'HISTORY_ALLOWED',
       activeUiItemKind: activeUiItem?.kind,
-      bottomBarMode,
+      bottomBarModeSOT,
       sessionId
     });
     
     // Emit golden check after SOT status (only for active modes)
-    if (bottomBarMode === 'TEXT_INPUT' || bottomBarMode === 'YES_NO') {
+    if (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO') {
       emitGoldenContractCheck();
     }
-  }, [bottomBarMode, activeUiItem?.kind, v3ProbingActive, sessionId, emitGoldenContractCheck]);
+  }, [bottomBarModeSOT, activeUiItem?.kind, v3ProbingActive, sessionId, emitGoldenContractCheck]);
   
   // UI CONTRACT STATUS RESET: Clear status refs on session change
   React.useEffect(() => {
@@ -16967,7 +16905,7 @@ export default function CandidateInterview() {
                 currentItem?.type === 'question' &&
                 currentItem?.id === questionDbId &&
                 activeUiItem?.kind === 'DEFAULT' &&
-                bottomBarMode === 'YES_NO';
+                bottomBarModeSOT === 'YES_NO';
 
               // UI CONTRACT SUPPRESSION: Skip rendering from transcript if active card exists
               // Active YES/NO questions render ONLY via activeCard (prevents duplicate)
@@ -17406,7 +17344,7 @@ export default function CandidateInterview() {
                   currentItem?.type === 'question' &&
                   currentItem?.id === questionId &&
                   activeUiItem?.kind === 'DEFAULT' &&
-                  bottomBarMode === 'YES_NO';
+                  bottomBarModeSOT === 'YES_NO';
                 
                 // AUDIT: Inline actions should never render (legacy type)
                 if (isActiveBaseQuestion) {
@@ -17456,7 +17394,7 @@ export default function CandidateInterview() {
                   currentItem?.type === 'question' &&
                   currentItem?.id === questionId &&
                   activeUiItem?.kind === 'DEFAULT' &&
-                  bottomBarMode === 'YES_NO';
+                  bottomBarModeSOT === 'YES_NO';
                 
                 // AUDIT: Log if this legacy type is somehow active (should not happen)
                 if (isActiveBaseQuestion) {
@@ -18054,8 +17992,8 @@ export default function CandidateInterview() {
 
 
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
-          {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarMode guard above */}
-          {bottomBarMode === "CTA" && screenMode === 'WELCOME' ? (
+          {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarModeSOT guard above */}
+          {bottomBarModeSOT === "CTA" && screenMode === 'WELCOME' ? (
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
@@ -18130,7 +18068,7 @@ export default function CandidateInterview() {
                   // PART D: Ensure question visible after welcome dismiss (ChatGPT initial scroll)
                   // TDZ-SAFE: Compute fresh flags at call time
                   setTimeout(() => {
-                    const isYesNoModeFresh = bottomBarMode === 'YES_NO';
+                    const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
                     const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
                     
                     requestAnimationFrame(() => {
@@ -18144,7 +18082,7 @@ export default function CandidateInterview() {
                 Got it — Let's Begin
               </Button>
             </div>
-          ) : bottomBarMode === "CTA" && (activeBlocker?.type === 'SECTION_MESSAGE' || pendingSectionTransition) ? (
+          ) : bottomBarModeSOT === "CTA" && (activeBlocker?.type === 'SECTION_MESSAGE' || pendingSectionTransition) ? (
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
@@ -18198,7 +18136,7 @@ export default function CandidateInterview() {
                Click to continue to {(activeBlocker?.nextSectionName || pendingSectionTransition?.nextSectionName)}
               </p>
             </div>
-          ) : bottomBarMode === "YES_NO" && !isMultiInstanceGate && (activeBlocker?.type === 'V3_GATE' || isV3Gate) ? (
+          ) : bottomBarModeSOT === "YES_NO" && !isMultiInstanceGate && (activeBlocker?.type === 'V3_GATE' || isV3Gate) ? (
            <div className="flex gap-3">
              <Button
                onClick={() => {
@@ -18223,7 +18161,7 @@ export default function CandidateInterview() {
                No
              </Button>
            </div>
-          ) : bottomBarMode === "YES_NO" && (bottomBarRenderTypeSOT === "multi_instance_gate" || isMultiInstanceGate) ? (
+          ) : bottomBarModeSOT === "YES_NO" && (bottomBarRenderTypeSOT === "multi_instance_gate" || isMultiInstanceGate) ? (
           <div className="space-y-3">
            {/* UI CONTRACT: MI_GATE footer shows buttons ONLY (no prompt text) */}
            {(() => {
@@ -18231,7 +18169,7 @@ export default function CandidateInterview() {
              const isMiGateFooter = 
                activeUiItem?.kind === "MI_GATE" &&
                effectiveItemType === 'multi_instance_gate' &&
-               bottomBarMode === "YES_NO";
+               bottomBarModeSOT === "YES_NO";
 
              if (isMiGateFooter) {
                console.log('[MI_GATE][FOOTER_BUTTONS_ONLY]', {
@@ -18338,7 +18276,7 @@ export default function CandidateInterview() {
              }}
            />
           </div>
-          ) : bottomBarMode === "YES_NO" && bottomBarRenderTypeSOT !== "v3_probing" ? (
+          ) : bottomBarModeSOT === "YES_NO" && bottomBarRenderTypeSOT !== "v3_probing" ? (
           <YesNoControls
             renderContext="FOOTER"
             onYes={() => {
@@ -18362,7 +18300,7 @@ export default function CandidateInterview() {
               questionId: currentItem?.id
             }}
           />
-          ) : bottomBarMode === "V3_WAITING" ? (
+          ) : bottomBarModeSOT === "V3_WAITING" ? (
           <div className="space-y-2">
             <div className="flex gap-3">
               <Textarea
@@ -18383,7 +18321,7 @@ export default function CandidateInterview() {
               </Button>
             </div>
           </div>
-          ) : bottomBarMode === "DISABLED" || (v3ProbingActive && !hasActiveV3Prompt) ? (
+          ) : bottomBarModeSOT === "DISABLED" || (v3ProbingActive && !hasActiveV3Prompt) ? (
           <div className="space-y-2">
             <div className="flex gap-3">
               <Textarea
@@ -18403,7 +18341,7 @@ export default function CandidateInterview() {
               </Button>
             </div>
           </div>
-          ) : bottomBarMode === "SELECT" ? (
+          ) : bottomBarModeSOT === "SELECT" ? (
             <div className="flex flex-wrap gap-2">
               {currentPrompt?.options?.map((option) => (
                 <Button
@@ -18416,14 +18354,14 @@ export default function CandidateInterview() {
                 </Button>
               ))}
             </div>
-          ) : bottomBarMode === "TEXT_INPUT" ? (
+          ) : bottomBarModeSOT === "TEXT_INPUT" ? (
           <div className="space-y-2">
           {/* V3_PROMPT UI CONTRACT: Footer shows input + send only (no prompt text duplication) */}
           {(() => {
-            const isV3PromptActive = activeUiItem?.kind === "V3_PROMPT" && bottomBarMode === "TEXT_INPUT";
+            const isV3PromptActive = activeUiItem?.kind === "V3_PROMPT" && bottomBarModeSOT === "TEXT_INPUT";
             if (isV3PromptActive) {
               console.log("[V3_PROMPT][FOOTER_INPUT_ONLY]", { 
-                bottomBarMode, 
+                bottomBarModeSOT, 
                 effectiveItemType,
                 note: 'Footer shows input + send only - question renders in main pane'
               });
@@ -18622,7 +18560,7 @@ export default function CandidateInterview() {
             console.log('[BOTTOM_BAR_FOOTER]', {
               shouldRenderFooter,
               screenMode,
-              bottomBarMode,
+              bottomBarModeSOT,
               effectiveItemType,
               v3ProbingActive
             });
@@ -18693,7 +18631,7 @@ export default function CandidateInterview() {
         focusKey={focusKey}
         isUserTyping={isUserTyping}
         inputRef={inputRef}
-        bottomBarMode={bottomBarMode}
+        bottomBarModeSOT={bottomBarModeSOT}
         effectiveItemType={effectiveItemType}
         v3ProbingActive={v3ProbingActive}
         hasPrompt={hasPrompt}
