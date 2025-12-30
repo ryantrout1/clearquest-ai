@@ -1886,21 +1886,21 @@ export default function CandidateInterview() {
             const footerRect2 = footerEl.getBoundingClientRect();
             const activeRect2 = activeCardEl.getBoundingClientRect();
             const overlapPx2 = Math.max(0, activeRect2.bottom - footerRect2.top);
-            
+
             if (overlapPx2 > 4) {
               const scrollTopBefore2 = scroller.scrollTop;
-              
+
               // Apply delta correction again
               scroller.scrollTop = scroller.scrollTop + overlapPx2 + bufferPx;
-              
+
               // Clamp to maxScrollTop
               const currentMax2 = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
               if (scroller.scrollTop > currentMax2) {
                 scroller.scrollTop = currentMax2;
               }
-              
+
               const scrollTopAfter2 = scroller.scrollTop;
-              
+
               console.log('[SCROLL][ENSURE_ACTIVE][PASS2_V3_OPENER]', {
                 reason,
                 overlapPx2: Math.round(overlapPx2),
@@ -1910,7 +1910,7 @@ export default function CandidateInterview() {
                 maxScrollTop2: Math.round(currentMax2),
                 deltaCorrectionApplied: Math.round(scrollTopAfter2 - scrollTopBefore2)
               });
-              
+
               // PART C: Unlock after PASS 2 completes
               unlockScrollWrites('V3_PACK_OPENER_SETTLE_PASS2_DONE');
             } else {
@@ -1924,12 +1924,24 @@ export default function CandidateInterview() {
             unlockScrollWrites('V3_PACK_OPENER_SETTLE_PASS1_DONE');
           }
         }
-      } else {
-        // PART C: Unlock if no overlap detected
+        } else {
+        // PART C: Unlock if no overlap detected + PART B: Final scrollTop enforcement
         if (isV3Opener) {
+          // PART B: Ensure we're truly at maxScrollTop for v3_pack_opener (no clamping)
+          const finalScrollTop = scroller.scrollTop;
+          if (finalScrollTop < maxScrollTop - 2) {
+            scroller.scrollTop = maxScrollTop;
+            console.log('[SCROLL][ENSURE_ACTIVE][FINAL_ANCHOR_V3]', {
+              reason,
+              scrollTopBefore: Math.round(finalScrollTop),
+              scrollTopAfter: Math.round(maxScrollTop),
+              forcedToMax: true
+            });
+          }
+
           unlockScrollWrites('V3_PACK_OPENER_SETTLE_NO_OVERLAP');
         }
-      }
+        }
     });
   }, [currentItem, lockScrollWrites, unlockScrollWrites]);
   const didInitialSnapRef = useRef(false);
