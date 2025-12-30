@@ -1913,10 +1913,10 @@ export default function CandidateInterview() {
               return next;
             });
             
-            // PART B: Schedule retry after spacer expands (use local capture + computed flags)
-            const isYesNoForRetry = isYesNoModeSOT;
-            const isMiGateForRetry = isMiGateSOT;
+            // PART B: Schedule retry after spacer expands (TDZ-SAFE: compute at call time)
             requestAnimationFrame(() => {
+              const isYesNoForRetry = bottomBarMode === 'YES_NO';
+              const isMiGateForRetry = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
               ensureActiveVisibleAfterRender('V3_OPENER_SPACER_EXPAND_RETRY', activeKindForRetry, isYesNoForRetry, isMiGateForRetry);
             });
           }
@@ -2770,17 +2770,10 @@ export default function CandidateInterview() {
   // CRITICAL: Declared AFTER activeUiItem is initialized, prevents TDZ in callbacks
   const activeKindSOT = activeUiItem?.kind || currentItem?.type || 'UNKNOWN';
   
-  // TDZ FIX: Declare mode flags EARLY using available primitives (BEFORE callback deps)
-  // Use safe defaults with Boolean() to prevent crashes if inputs undefined
-  const bottomBarModeComputed = bottomBarRenderTypeSOT === "multi_instance_gate" ? "YES_NO" : 
-                                 bottomBarRenderTypeSOT === "v3_pack_opener" ? "TEXT_INPUT" :
-                                 bottomBarRenderTypeSOT === "v3_probing" ? "TEXT_INPUT" :
-                                 "UNKNOWN";
-  
-  const isYesNoModeSOT = Boolean(bottomBarModeComputed === 'YES_NO' || 
-                                 bottomBarRenderTypeSOT === 'multi_instance_gate');
-  const isMiGateSOT = Boolean(bottomBarRenderTypeSOT === 'multi_instance_gate' || 
-                               activeUiItem?.kind === 'MI_GATE');
+  // TDZ SAFE DEFAULTS — real values computed later when bottomBarMode/effectiveItemType exist.
+  // These are placeholders to prevent "undefined" errors in early code paths.
+  const isYesNoModeSOT = false;
+  const isMiGateSOT = false;
   
   // PART C: Reset spacer when leaving V3 opener (moved here - after activeKindSOT exists)
   useEffect(() => {
@@ -2802,12 +2795,16 @@ export default function CandidateInterview() {
   
   // PART D: Align active card when bottomBarMode becomes YES_NO
   useLayoutEffect(() => {
-    if (!isYesNoModeSOT) return;
+    // TDZ-SAFE: Compute fresh flags inside effect using available values
+    const isYesNoModeFresh = bottomBarMode === 'YES_NO';
+    const isMiGateFresh = currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+    
+    if (!isYesNoModeFresh) return;
     
     requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', activeKindSOT, isYesNoModeSOT, isMiGateSOT);
+      ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [bottomBarMode, ensureActiveVisibleAfterRender, activeKindSOT, isYesNoModeSOT, isMiGateSOT]);
+  }, [bottomBarMode, ensureActiveVisibleAfterRender, activeKindSOT, currentItem, activeUiItem]);
   
   // ============================================================================
   // ACTIVE CARD KEY SOT - Single source of truth for active card identifier
@@ -11094,8 +11091,10 @@ export default function CandidateInterview() {
     : baseSpacerPx;
   
   // PART B: YES/NO mode override (needs extra clearance for button footer)
-  // TDZ-SAFE: Use pre-computed flags (declared early at line ~2775)
-  const bottomSpacerPx = (isYesNoModeSOT || isMiGateSOT)
+  // TDZ-SAFE: Compute locally from available late variables (bottomBarMode exists here)
+  const isYesNoModeDerived = bottomBarMode === 'YES_NO';
+  const isMiGateDerived = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+  const bottomSpacerPx = (isYesNoModeDerived || isMiGateDerived)
     ? Math.max(footerShellHeightPx + 24, spacerWithV3Expansion)
     : spacerWithV3Expansion;
   
@@ -11990,10 +11989,14 @@ export default function CandidateInterview() {
     const activeKey = activeCardKeySOT || currentItem?.id || `${currentItem?.packId}:${currentItem?.instanceNumber}`;
     if (!activeKey) return;
     
+    // TDZ-SAFE: Compute fresh flags inside RAF using available values
+    const isYesNoModeFresh = bottomBarMode === 'YES_NO';
+    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+    
     requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender("ACTIVE_ITEM_CHANGED", activeKindSOT, isYesNoModeSOT, isMiGateSOT);
+      ensureActiveVisibleAfterRender("ACTIVE_ITEM_CHANGED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT, isYesNoModeSOT, isMiGateSOT]);
+  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT, bottomBarMode, effectiveItemType, activeUiItem]);
   
   // PART B: RENDER LIST APPENDED - TDZ-safe using ref (no direct finalTranscriptList reference)
   React.useLayoutEffect(() => {
@@ -12008,10 +12011,14 @@ export default function CandidateInterview() {
     // Length increased - trigger scroll correction
     prevFinalListLenForScrollRef.current = currentLen;
     
+    // TDZ-SAFE: Compute fresh flags inside RAF
+    const isYesNoModeFresh = bottomBarMode === 'YES_NO';
+    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+    
     requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender("RENDER_LIST_APPENDED", activeKindSOT, isYesNoModeSOT, isMiGateSOT);
+      ensureActiveVisibleAfterRender("RENDER_LIST_APPENDED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT, activeKindSOT, isYesNoModeSOT, isMiGateSOT]);
+  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT, activeKindSOT, bottomBarMode, effectiveItemType, activeUiItem]);
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
@@ -13970,8 +13977,12 @@ export default function CandidateInterview() {
     });
     
     // PART B: Call ensureActiveVisibleAfterRender after state update
+    // TDZ-SAFE: Compute fresh flags using available values
+    const isYesNoModeFresh = bottomBarMode === 'YES_NO';
+    const isMiGateFresh = currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+    
     requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender(`MI_GATE_YESNO_CLICK_${answer}`, activeKindSOT, isYesNoModeSOT, isMiGateSOT);
+      ensureActiveVisibleAfterRender(`MI_GATE_YESNO_CLICK_${answer}`, activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
     
     // MI_GATE TRACE A: YES/NO button click entry
@@ -14113,8 +14124,12 @@ export default function CandidateInterview() {
     });
     
     // PART B: Call ensureActiveVisibleAfterRender after submit
+    // TDZ-SAFE: Compute fresh flags using available values
+    const isYesNoModeFresh = bottomBarMode === 'YES_NO';
+    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+    
     requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender("BOTTOM_BAR_SUBMIT", activeKindSOT, isYesNoModeSOT, isMiGateSOT);
+      ensureActiveVisibleAfterRender("BOTTOM_BAR_SUBMIT", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
     
     // CQ_GUARD: submitIntent must be declared exactly once (do not duplicate)
@@ -17910,9 +17925,13 @@ export default function CandidateInterview() {
                   });
                   
                   // PART D: Ensure question visible after welcome dismiss (ChatGPT initial scroll)
+                  // TDZ-SAFE: Compute fresh flags at call time
                   setTimeout(() => {
+                    const isYesNoModeFresh = bottomBarMode === 'YES_NO';
+                    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+                    
                     requestAnimationFrame(() => {
-                      ensureActiveVisibleAfterRender("WELCOME_DISMISSED", activeKindSOT, isYesNoModeSOT, isMiGateSOT);
+                      ensureActiveVisibleAfterRender("WELCOME_DISMISSED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
                     });
                   }, 150);
                 }}
