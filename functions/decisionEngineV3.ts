@@ -2563,8 +2563,8 @@ async function decisionEngineV3Probe(base44, {
     // Additional context for caller
     categoryLabel: factModel.category_label,
     missingFields: missingFieldsAfter,
-    completionPercent: factModel.required_fields?.length > 0
-      ? Math.round(((factModel.required_fields.length - missingFieldsAfter.length) / factModel.required_fields.length) * 100)
+    completionPercent: requiredFieldsList.length > 0
+      ? Math.round(((requiredFieldsList.length - missingFieldsAfter.length) / requiredFieldsList.length) * 100)
       : 100,
     stopReasonCode: stopReason || null,
     stopReasonDetail: stopReason ? `Stop triggered: ${stopReason}` : null,
@@ -2577,7 +2577,11 @@ async function decisionEngineV3Probe(base44, {
     v3PromptSource: finalV3PromptSource,
     v3LlmMs: finalV3LlmMs,
     v3EffectiveInstructionsLen: finalV3EffectiveInstructionsLen,
-    v3UseLLMProbeWording: finalV3UseLLMProbeWording
+    v3UseLLMProbeWording: finalV3UseLLMProbeWording,
+    // REQUIRED FIELDS ENFORCEMENT: Pass to frontend for UI gate
+    requiredFieldsSource: requiredFieldsSource,
+    requiredFieldsTotal: requiredFieldsList.length,
+    miGateBlocked: miGateBlocked || false
   };
 }
 

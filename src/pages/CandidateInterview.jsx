@@ -9128,8 +9128,30 @@ export default function CandidateInterview() {
     });
   }, [sessionId]);
 
-  // V3 probing completion handler - deferred transition pattern
-  const handleV3ProbingComplete = useCallback((result) => {
+  // V3 probing completion handler - ENFORCES required fields completion before MI_GATE
+  const handleV3ProbingComplete = useCallback(async (result) => {
+    const { packId, categoryId, instanceNumber, nextAction, stopReason, missingFields } = result || {};
+    
+    // REQUIRED FIELDS GATE: Block MI_GATE if any required fields missing
+    const hasMissingRequired = Array.isArray(missingFields) && missingFields.length > 0;
+    
+    if (hasMissingRequired) {
+      console.error('[UI_CONTRACT][MI_GATE_SUPPRESSED_REQUIRED_FIELDS]', {
+        packId,
+        instanceNumber,
+        reason: 'missing_required_fields',
+        nextAction,
+        stopReason,
+        missingCount: missingFields.length,
+        missingFieldIds: missingFields.map(f => f.field_id || f).join(',')
+      });
+      
+      // DO NOT call exitV3Once - keep probing active
+      // Frontend should re-enter TEXT_INPUT mode and wait for next probe question
+      return;
+    }
+    
+    // All required fields complete - allow exit
     exitV3Once('PROBING_COMPLETE', result);
   }, [exitV3Once]);
 
