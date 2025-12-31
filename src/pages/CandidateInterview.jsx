@@ -8973,131 +8973,14 @@ export default function CandidateInterview() {
 
   // HELPER: Transition to multi-instance "another instance?" gate (reusable)
   const transitionToAnotherInstanceGate = useCallback(async (v3Context) => {
-    const { packId, categoryId, categoryLabel, instanceNumber, packData, missingFields, miGateBlocked, stopReason } = v3Context || v3ProbingContext;
+    const { packId, categoryId, categoryLabel, instanceNumber, packData } = v3Context || v3ProbingContext;
     const baseQuestionId = v3BaseQuestionIdRef.current;
-    const loopKey = `${sessionId}:${categoryId}:${instanceNumber || 1}`;
     
-    // METADATA FALLBACK: Use cached engine decision if not in v3Context
-    let effectivePayload = v3Context;
-    
-    if (!missingFields && !miGateBlocked && !stopReason) {
-      // Check cache for last engine decision
-      const cachedDecision = lastV3DecisionByLoopKeyRef.current[loopKey];
-      
-      if (cachedDecision) {
-        console.log('[UI_CONTRACT][USING_CACHED_DECISION]', {
-          loopKey,
-          packId,
-          instanceNumber,
-          missingCount: cachedDecision.missingFields?.length || 0,
-          miGateBlocked: cachedDecision.miGateBlocked,
-          cacheAge: Date.now() - (cachedDecision.ts || 0)
-        });
-        
-        effectivePayload = {
-          ...v3Context,
-          missingFields: cachedDecision.missingFields || [],
-          miGateBlocked: cachedDecision.miGateBlocked || false,
-          stopReason: cachedDecision.stopReason || null
-        };
-      }
-    }
-    
-    // Extract from effective payload
-    const effectiveMissingFields = effectivePayload?.missingFields;
-    const effectiveMiGateBlocked = effectivePayload?.miGateBlocked;
-    const effectiveStopReason = effectivePayload?.stopReason;
-    
-    // METADATA VALIDATION: Verify engine metadata is present
-    const hasMetadata = {
-      missingFields: Array.isArray(effectiveMissingFields),
-      miGateBlocked: typeof effectiveMiGateBlocked === 'boolean'
-    };
-    
-    if (!hasMetadata.missingFields || !hasMetadata.miGateBlocked) {
-      console.error('[UI_CONTRACT][V3_METADATA_MISSING]', {
-        packId,
-        instanceNumber,
-        loopKey,
-        missingFieldsPresent: hasMetadata.missingFields,
-        miGateBlockedPresent: hasMetadata.miGateBlocked,
-        hasCachedDecision: !!lastV3DecisionByLoopKeyRef.current[loopKey],
-        reason: 'Engine metadata not provided and no cache available'
-      });
-    }
-    
-    // PART C: Extract safe values from effectivePayload
-    const safeMissingFields = Array.isArray(effectivePayload?.missingFields) ? effectivePayload.missingFields : [];
-    const safeMiGateBlocked = typeof effectivePayload?.miGateBlocked === 'boolean' ? effectivePayload.miGateBlocked : false;
-    const safeStopReason = effectivePayload?.stopReason || null;
-    
-    // DIAGNOSTIC: Log every MI_GATE activation attempt with full metadata
-    console.log('[UI_CONTRACT][MI_GATE_ACTIVATION_ATTEMPT]', {
+    console.log('[V3_PACK][ASK_ANOTHER_INSTANCE]', {
       packId,
       instanceNumber,
-      categoryId,
-      loopKey,
-      activeUiItemKindBefore: activeUiItem?.kind,
-      v3ProbingActive,
-      currentItemType: currentItem?.type,
-      miGateBlocked: safeMiGateBlocked,
-      stopReason: safeStopReason,
-      missingCount: safeMissingFields.length,
-      missingFieldIdsSample: safeMissingFields.slice(0, 3).map(f => f.field_id || f).join(','),
-      hasEnginePayload: hasMetadata.missingFields && hasMetadata.miGateBlocked,
-      reason: 'transitionToAnotherInstanceGate called'
+      loopKey: `${sessionId}:${categoryId}:${instanceNumber || 1}`
     });
-    
-    // REQUIRED FIELDS GATE: Block MI_GATE if V3 pack has missing required fields
-    const packConfig = packId ? FOLLOWUP_PACK_CONFIGS[packId] : null;
-    const isV3Pack = packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3';
-    
-    if (isV3Pack) {
-      // FAILSAFE: If no payload metadata, block MI_GATE immediately
-      if (!hasMetadata.missingFields || !hasMetadata.miGateBlocked) {
-        console.error('[UI_CONTRACT][MI_GATE_BLOCKED_NO_PAYLOAD]', {
-          packId,
-          instanceNumber,
-          loopKey,
-          missingFieldsPresent: hasMetadata.missingFields,
-          miGateBlockedPresent: hasMetadata.miGateBlocked,
-          hasCachedDecision: !!lastV3DecisionByLoopKeyRef.current[loopKey],
-          reason: 'No engine payload metadata - cannot validate required fields',
-          action: 'BLOCKED - forcing back to V3 probing'
-        });
-        
-        // FORCE BACK TO V3 PROBING
-        if (!v3ProbingActive) {
-          setV3ProbingActive(true);
-          setV3ProbingContext({
-            packId,
-            categoryId,
-            categoryLabel,
-            baseQuestionId,
-            questionCode: engine?.QById?.[baseQuestionId]?.question_id,
-            sectionId: engine?.QById?.[baseQuestionId]?.section_id,
-            instanceNumber,
-            incidentId: null,
-            packData
-          });
-          
-          setCurrentItem({
-            id: `v3-probing-${packId}-${instanceNumber}`,
-            type: 'v3_probing',
-            packId,
-            categoryId,
-            instanceNumber,
-            baseQuestionId
-          });
-        }
-        
-        return; // HARD BLOCK - no payload means cannot validate
-      }
-      
-      // Check for missing fields from engine result payload
-      const hasMissingRequired = safeMissingFields.length > 0 ||
-                                 safeMiGateBlocked === true ||
-                                 safeStopReason === 'REQUIRED_FIELDS_INCOMPLETE';
     
     const gatePromptText = `Do you have another ${categoryLabel || 'incident'} to report?`;
     const gateItemId = `multi-instance-gate-${packId}-${instanceNumber}`;
