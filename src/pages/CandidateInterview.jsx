@@ -7181,10 +7181,19 @@ export default function CandidateInterview() {
           clicked: answerDisplayText
         });
         
+        console.log('[BASE_YESNO][ANSWER_APPEND_SOT]', {
+          questionId: currentItem.id,
+          stableKey: baseAnswerStableKey,
+          anchorKey: questionStableKey,
+          hasQuestionId: true,
+          reason: 'Base YES/NO answer appended with full metadata at creation'
+        });
+        
         await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], answerDisplayText, {
           stableKey: baseAnswerStableKey,
           messageType: 'ANSWER',
           questionDbId: currentItem.id,
+          questionId: currentItem.id,
           questionCode: question.question_id,
           responseId: savedResponse?.id,
           sectionId: question.section_id,
@@ -15497,9 +15506,9 @@ export default function CandidateInterview() {
         itemsSinceQuestion++;
       }
       
-      // Infer questionId for orphan Yes/No answers
+      // Infer questionId for orphan Yes/No answers - SKIP if questionId already present
       if (mt === 'ANSWER' && (entry.text === 'Yes' || entry.text === 'No')) {
-        const hasQuestionId = !!(entry.questionId || entry.meta?.questionId);
+        const hasQuestionId = !!(entry.questionId || entry.meta?.questionId || entry.meta?.questionDbId);
         
         if (!hasQuestionId && lastSeenQuestionId && itemsSinceQuestion <= ADJACENCY_WINDOW) {
           // RISK 1 FIX: Use Map instead of mutation
@@ -15511,6 +15520,15 @@ export default function CandidateInterview() {
             inferredQuestionId: lastSeenQuestionId,
             itemsSinceQuestion,
             text: entry.text
+          });
+        } else if (hasQuestionId) {
+          // AUDIT: Confirm questionId present at creation (no inference needed)
+          const answerKey = entry.stableKey || entry.id;
+          console.log('[CQ_TRANSCRIPT][ANSWER_HAS_QUESTIONID_SKIP_INFERENCE]', {
+            stableKey: answerKey,
+            questionId: entry.questionId || entry.meta?.questionId || entry.meta?.questionDbId,
+            text: entry.text,
+            reason: 'questionId present at creation - no inference needed'
           });
         }
       }
