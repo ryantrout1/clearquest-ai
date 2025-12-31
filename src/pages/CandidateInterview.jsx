@@ -17855,6 +17855,29 @@ export default function CandidateInterview() {
                   return null;
                 }
                 
+                // TRUTH TEST: Detect deterministic followup rendering during V3 pack
+                const entryPackId = entry.packId || entry.meta?.packId;
+                const activePackId = currentItem?.packId || v3ProbingContext?.packId || activeUiItem?.packId;
+                const packConfig = activePackId ? FOLLOWUP_PACK_CONFIGS?.[activePackId] : null;
+                const isActivePackV3 = Boolean(packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3');
+                const isV3UiActive = (activeUiItem?.kind === 'V3_OPENER' || 
+                                     activeUiItem?.kind === 'V3_PROBING' || 
+                                     currentItem?.type === 'v3_pack_opener' ||
+                                     v3ProbingActive);
+                
+                if (isActivePackV3 && isV3UiActive && entryPackId === activePackId) {
+                  logOnce(`deterministic_followup_rendered_${sessionId}:${entryPackId}`, () => {
+                    console.error('[UI_CONTRACT][DETERMINISTIC_FOLLOWUP_RENDERED_DURING_V3]', {
+                      packId: activePackId,
+                      entryType: entry.type,
+                      stableKey: entry.stableKey || entry.id,
+                      source: entry.source,
+                      reason: 'Deterministic follow-up artifact rendered during V3 pack - should be filtered'
+                    });
+                  });
+                  return null; // SAFETY NET: Block rendering
+                }
+                
                 return (
                   <ContentContainer>
                   <div className="w-full space-y-2">
@@ -17888,6 +17911,29 @@ export default function CandidateInterview() {
                     entryType: entry.type
                   });
                   return null;
+                }
+                
+                // TRUTH TEST: Detect legacy deterministic followup rendering during V3 pack
+                const entryPackId = entry.packId || entry.meta?.packId;
+                const activePackId = currentItem?.packId || v3ProbingContext?.packId || activeUiItem?.packId;
+                const packConfig = activePackId ? FOLLOWUP_PACK_CONFIGS?.[activePackId] : null;
+                const isActivePackV3 = Boolean(packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3');
+                const isV3UiActive = (activeUiItem?.kind === 'V3_OPENER' || 
+                                     activeUiItem?.kind === 'V3_PROBING' || 
+                                     currentItem?.type === 'v3_pack_opener' ||
+                                     v3ProbingActive);
+                
+                if (isActivePackV3 && isV3UiActive && entryPackId === activePackId) {
+                  logOnce(`legacy_followup_rendered_${sessionId}:${entryPackId}`, () => {
+                    console.error('[UI_CONTRACT][DETERMINISTIC_FOLLOWUP_RENDERED_DURING_V3]', {
+                      packId: activePackId,
+                      entryType: entry.type,
+                      stableKey: entry.stableKey || entry.id,
+                      source: 'legacy_no_source',
+                      reason: 'Legacy deterministic follow-up rendered during V3 pack - should be filtered'
+                    });
+                  });
+                  return null; // SAFETY NET: Block rendering
                 }
                 
                 return (
@@ -18614,30 +18660,40 @@ export default function CandidateInterview() {
               </p>
             </div>
           ) : bottomBarModeSOT === "YES_NO" && !isMultiInstanceGate && (activeBlocker?.type === 'V3_GATE' || isV3Gate) ? (
-           <div className="flex gap-3">
-             <Button
-               onClick={() => {
-                 console.log('[V3_GATE][CLICKED] YES');
-                 setV3GateDecision('Yes');
+           (() => {
+             // TRUTH TEST: Detect legacy red/green V3_GATE renderer
+             logOnce(`alt_yesno_v3gate_${sessionId}`, () => {
+               console.error('[UI_CONTRACT][ALT_YESNO_RENDERER_HIT]', {
+                 branch: 'V3_GATE_LEGACY_RED_GREEN',
+                 currentItemId: currentItem?.id,
+                 currentItemType: currentItem?.type,
+                 activeBlockerType: activeBlocker?.type,
+                 isV3Gate,
+                 reason: 'Legacy V3_GATE red/green buttons found - replacing with neutral YesNoControls'
+               });
+             });
+             
+             // REPLACEMENT: Use modern neutral YesNoControls
+             return (
+               <YesNoControls
+                 renderContext="FOOTER"
+                 onYes={() => {
+                   console.log('[V3_GATE][CLICKED] YES');
+                   setV3GateDecision('Yes');
+                 }}
+                 onNo={() => {
+                   console.log('[V3_GATE][CLICKED] NO');
+                   setV3GateDecision('No');
                  }}
                  disabled={isCommitting}
-                 className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-             >
-               <Check className="w-5 h-5 mr-2" />
-               Yes
-             </Button>
-             <Button
-               onClick={() => {
-                 console.log('[V3_GATE][CLICKED] NO');
-                 setV3GateDecision('No');
+                 debugMeta={{
+                   component: 'V3_GATE_FOOTER_NEUTRAL',
+                   activeBlockerType: activeBlocker?.type,
+                   isV3Gate
                  }}
-                 disabled={isCommitting}
-                 className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-             >
-               <X className="w-5 h-5 mr-2" />
-               No
-             </Button>
-           </div>
+               />
+             );
+           })()
           ) : bottomBarModeSOT === "YES_NO" && (bottomBarRenderTypeSOT === "multi_instance_gate" || isMultiInstanceGate) ? (
           <div className="space-y-3">
            {/* UI CONTRACT: MI_GATE footer shows buttons ONLY (no prompt text) */}
@@ -18670,6 +18726,15 @@ export default function CandidateInterview() {
                    tracker
                  });
                }
+               
+               // TRUTH TEST: Assert YesNoControls is the only renderer
+               logOnce(`yesno_renderer_assert_mi_gate_${sessionId}`, () => {
+                 console.log('[UI_CONTRACT][YESNO_RENDERER_ASSERT_OK]', {
+                   renderer: 'YesNoControls',
+                   branch: 'MI_GATE_FOOTER',
+                   neutral: true
+                 });
+               });
              }
 
              return null; // No prompt box in footer - buttons only
@@ -18754,27 +18819,40 @@ export default function CandidateInterview() {
            />
           </div>
           ) : bottomBarModeSOT === "YES_NO" && bottomBarRenderTypeSOT !== "v3_probing" ? (
-          <YesNoControls
-            renderContext="FOOTER"
-            onYes={() => {
-              forceAutoScrollOnceRef.current = true;
-              setIsUserTyping(false);
-              handleYesNoClick("Yes");
-            }}
-            onNo={() => {
-              forceAutoScrollOnceRef.current = true;
-              setIsUserTyping(false);
-              handleYesNoClick("No");
-            }}
-            yesLabel="Yes"
-            noLabel="No"
-            disabled={isCommitting}
-            debugMeta={{
-              component: 'BASE_QUESTION_FOOTER',
-              currentItemType: currentItem?.type,
-              questionId: currentItem?.id
-            }}
-          />
+          (() => {
+            // TRUTH TEST: Assert YesNoControls is the only renderer for base questions
+            logOnce(`yesno_renderer_assert_base_${sessionId}`, () => {
+              console.log('[UI_CONTRACT][YESNO_RENDERER_ASSERT_OK]', {
+                renderer: 'YesNoControls',
+                branch: 'BASE_QUESTION_FOOTER',
+                neutral: true
+              });
+            });
+            
+            return (
+              <YesNoControls
+                renderContext="FOOTER"
+                onYes={() => {
+                  forceAutoScrollOnceRef.current = true;
+                  setIsUserTyping(false);
+                  handleYesNoClick("Yes");
+                }}
+                onNo={() => {
+                  forceAutoScrollOnceRef.current = true;
+                  setIsUserTyping(false);
+                  handleYesNoClick("No");
+                }}
+                yesLabel="Yes"
+                noLabel="No"
+                disabled={isCommitting}
+                debugMeta={{
+                  component: 'BASE_QUESTION_FOOTER',
+                  currentItemType: currentItem?.type,
+                  questionId: currentItem?.id
+                }}
+              />
+            );
+          })()
           ) : bottomBarModeSOT === "V3_WAITING" ? (
           <div className="space-y-2">
             <div className="flex gap-3">
