@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
  * UI CONTRACT ENFORCEMENT:
  * - renderContext="FOOTER": Renders interactive buttons (ONLY valid context)
  * - renderContext="TRANSCRIPT": Returns null (transcript is read-only)
+ * - STYLE LOCK: Always neutral colors, "Yes"/"No" labels (never red/green Y/N)
  * 
  * This component is the ONLY place Yes/No buttons can render in the app.
  */
@@ -19,6 +20,24 @@ export default function YesNoControls({
   disabled = false,
   debugMeta = null
 }) {
+  // STYLE LOCK: Hard-override to prevent legacy styling
+  const lockedYesLabel = "Yes";
+  const lockedNoLabel = "No";
+  
+  // Mount-time diagnostic (once per component instance)
+  const loggedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!loggedRef.current) {
+      console.log('[UI_CONTRACT][YESNO_STYLE_LOCK]', {
+        labels: `${lockedYesLabel}/${lockedNoLabel}`,
+        colors: 'neutral (slate-700)',
+        legacyDisabled: true,
+        reason: 'Modern neutral disclosure model - no red/green Y/N ever'
+      });
+      loggedRef.current = true;
+    }
+  }, []);
+  
   // UI CONTRACT ENFORCEMENT: Hard boundary - transcript NEVER renders controls
   if (renderContext === "TRANSCRIPT") {
     // Minimal guard log only if caller attempted render from transcript
@@ -45,6 +64,7 @@ export default function YesNoControls({
   // FOOTER CONTEXT: Render interactive buttons
   // DESIGN: Neutral disclosure model (legal/investigative context)
   // Both buttons use same neutral color - no semantic green/red meaning
+  // LOCKED STYLING: Always neutral slate-700 (never red/green), always "Yes"/"No" labels
   return (
     <div className="flex gap-3 w-full">
       <Button
@@ -52,14 +72,14 @@ export default function YesNoControls({
         disabled={disabled}
         className="flex-1 bg-slate-700 hover:bg-slate-600 active:bg-slate-800 focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-900 text-white font-medium py-6 text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {yesLabel}
+        {lockedYesLabel}
       </Button>
       <Button
         onClick={onNo}
         disabled={disabled}
         className="flex-1 bg-slate-700 hover:bg-slate-600 active:bg-slate-800 focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-900 text-white font-medium py-6 text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {noLabel}
+        {lockedNoLabel}
       </Button>
     </div>
   );
