@@ -18447,13 +18447,16 @@ export default function CandidateInterview() {
                   
                   // Skip transcript append - routing happens via onIncidentComplete
                 }}
-                onIncidentComplete={({ loopKey, packId, categoryId, instanceNumber, reason, incidentId, completionReason, hasRecap }) => {
+                onIncidentComplete={({ loopKey, packId, categoryId, instanceNumber, reason, incidentId, completionReason, hasRecap, missingFields, miGateBlocked, stopReason }) => {
                   console.log('[V3_PROBING][INCIDENT_COMPLETE_NO_PROMPT]', {
                     loopKey,
                     packId,
                     instanceNumber,
                     reason,
-                    hasRecap
+                    hasRecap,
+                    missingFields: missingFields?.length || 0,
+                    miGateBlocked,
+                    stopReason
                   });
                   
                   // V3 BLOCK RELEASE: Log completion
@@ -18470,7 +18473,13 @@ export default function CandidateInterview() {
                   
                   if (isMultiIncident) {
                     console.log('[V3_INCIDENT_COMPLETE][MULTI] Showing another instance gate');
-                    transitionToAnotherInstanceGate(v3ProbingContext);
+                    // Pass through required fields data from engine result
+                    transitionToAnotherInstanceGate({
+                      ...v3ProbingContext,
+                      missingFields,
+                      miGateBlocked,
+                      stopReason
+                    });
                   } else {
                     console.log('[V3_INCIDENT_COMPLETE][SINGLE] Exiting V3 and advancing');
                     exitV3Once('INCIDENT_COMPLETE_NO_PROMPT', {
