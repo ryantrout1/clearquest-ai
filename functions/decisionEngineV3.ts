@@ -1474,12 +1474,22 @@ async function decisionEngineV3Probe(base44, {
   let promptSource = 'TEMPLATE';
   let llmMs = null;
   
-  // Check stop conditions
+  // PACK COMPLETION GATE: Hard stop until all required fields populated
+  // V3 packs can ONLY be marked complete when ALL required fields have values
   if (mergedConfig.stopWhenRequiredComplete && missingFieldsAfter.length === 0) {
     nextAction = "RECAP";
     stopReason = "REQUIRED_FIELDS_COMPLETE";
     legacyFactState.completion_status = "complete";
     nextPrompt = getCompletionMessage("RECAP", null);
+    
+    console.log('[V3_PACK_COMPLETION_GATE][ALL_REQUIRED_FIELDS_SATISFIED]', {
+      categoryId,
+      incidentId,
+      totalRequiredFields: factModel?.required_fields?.length || 0,
+      collectedCount: (factModel?.required_fields?.length || 0) - missingFieldsAfter.length,
+      missingCount: 0,
+      reason: 'All required follow-up fields populated - pack complete'
+    });
     
     // DIAGNOSTIC: Log STOP only on initial call
     if (!incidentId || isNewIncident) {
@@ -1545,11 +1555,21 @@ async function decisionEngineV3Probe(base44, {
       });
     }
   } else if (missingFieldsAfter.length > 0) {
-    // PACK RESOLUTION SOT: Use explicit packId from request (no fabrication)
-    const resolvedPackId = packId || null;
-    const reqPackInstructions = packInstructions || '';
-    const reqPackInstructionsLen = reqPackInstructions.length;
-    const hasReqPackInstructions = reqPackInstructionsLen > 0;
+  // REQUIRED FIELD AUTO-ENFORCEMENT: Dynamically enforce all required fields
+  // Uses FactModel metadata to determine mandatory completion criteria
+  console.log('[V3_REQUIRED_FIELD_ENFORCEMENT][DYNAMIC_COMPUTATION]', {
+    categoryId,
+    instanceNumber: instanceNumber || 1,
+    totalRequiredFields: factModel?.required_fields?.length || 0,
+    missingRequiredCount: missingFieldsAfter.length,
+    missingFieldIds: missingFieldsAfter.map(f => f.field_id).join(',')
+  });
+
+  // PACK RESOLUTION SOT: Use explicit packId from request (no fabrication)
+  const resolvedPackId = packId || null;
+  const reqPackInstructions = packInstructions || '';
+  const reqPackInstructionsLen = reqPackInstructions.length;
+  const hasReqPackInstructions = reqPackInstructionsLen > 0;
     
     // TASK 1B: Apply default instructions fallback for editor preview
     let effectivePackInstructions = hasReqPackInstructions ? reqPackInstructions : '';
@@ -1676,6 +1696,17 @@ async function decisionEngineV3Probe(base44, {
       // Found first truly missing field
       candidateField = field;
       selectedFieldIdForLogging = field.field_id;
+      
+      // LOG: Field selected for probing
+      console.log('[V3_GENERIC_PROBING][FIELD_SELECTED]', {
+        categoryId,
+        instanceNumber: instanceNumber || 1,
+        fieldId: field.field_id,
+        fieldLabel: field.label,
+        fieldType: field.type,
+        reason: 'Required field missing - auto-enforcement active'
+      });
+      
       break;
     }
     
@@ -1787,16 +1818,35 @@ async function decisionEngineV3Probe(base44, {
         }
       }
       
-      // Use LLM question or fall back to deterministic template
+      // GENERIC V3 PROBING: Generate prompt from field definition (no hardcoded questions)
+      // Uses field label + description as canonical source
       let rawPrompt = null;
       if (llmQuestion) {
         rawPrompt = llmQuestion;
         // promptSource already set to 'LLM' in try block above
+        
+        console.log('[V3_AI_PROMPT_SOURCE][LLM_GENERATED]', {
+          categoryId,
+          fieldId: candidateField?.field_id,
+          fieldLabel: candidateField?.label,
+          promptPreview: llmQuestion?.slice(0, 80),
+          reason: 'LLM generated question from field definition + pack instructions'
+        });
       } else {
+        // FALLBACK: Template generation from field metadata
         rawPrompt = generateV3ProbeQuestion(candidateField, incident.facts);
         promptSource = 'TEMPLATE';
         templateGenerator = 'generateV3ProbeQuestion';
         templateKey = candidateField?.field_id || null;
+        
+        console.log('[V3_AI_PROMPT_SOURCE][TEMPLATE_FALLBACK]', {
+          categoryId,
+          fieldId: candidateField?.field_id,
+          fieldLabel: candidateField?.label,
+          fieldType: candidateField?.type,
+          promptPreview: rawPrompt?.slice(0, 80),
+          reason: 'Generated from field label + type (no hardcoded questions)'
+        });
       }
       
       // TASK 2: Last-resort sanitizer (guarantee clean output)
