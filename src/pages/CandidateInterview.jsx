@@ -13984,6 +13984,41 @@ export default function CandidateInterview() {
   v3ProbingActiveRef.current = v3ProbingActive;
   v3ProbingContextRef.current = v3ProbingContext;
   
+  // UI CONTRACT DIAGNOSTIC: Confirm YES/NO renderer + probing mode (once per session)
+  if (bottomBarModeSOT === 'YES_NO' && currentItem?.type === 'question') {
+    logOnce(`yesno_renderer_sot_${sessionId}`, () => {
+      console.log('[UI_CONTRACT][YESNO_RENDERER_SOT]', {
+        currentItemType: currentItem?.type,
+        questionId: currentItem?.id,
+        questionCode: engine?.QById?.[currentItem?.id]?.question_id,
+        bottomBarRenderTypeSOT,
+        bottomBarModeSOT,
+        renderer: 'YesNoControls_modern_neutral',
+        legacyBlocked: true,
+        reason: 'Base YES/NO question using modern neutral footer buttons'
+      });
+    });
+  }
+  
+  if (v3ProbingActive || currentItem?.type === 'v3_pack_opener') {
+    const packId = currentItem?.packId || v3ProbingContext?.packId;
+    const packConfig = packId ? FOLLOWUP_PACK_CONFIGS[packId] : null;
+    const isV3Pack = packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3';
+    
+    logOnce(`probing_mode_sot_${packId}`, () => {
+      console.log('[UI_CONTRACT][PROBING_MODE_SOT]', {
+        packId,
+        isV3Pack,
+        engineVersion: packConfig?.engineVersion || 'unknown',
+        controller: activeUiItem?.kind || 'DEFAULT',
+        v3ProbingActive,
+        currentItemType: currentItem?.type,
+        bottomBarModeSOT,
+        reason: isV3Pack ? 'V3 pack using conversational probing' : 'Pack version unknown or V2'
+      });
+    });
+  }
+  
   // FRAME TRACE: Log footer controller changes (change-detection only)
   if (footerControllerLocal !== lastFooterControllerRef.current ||
       bottomBarModeSOT !== lastBottomBarModeRef.current ||
