@@ -15905,6 +15905,76 @@ export default function CandidateInterview() {
           textPreview: (e.text || '').substring(0, 40)
         }))
       });
+
+      // ============================================================================
+      // V3 PACK DETERMINISTIC GUARD - Filter deterministic follow-up artifacts
+      // ============================================================================
+      // When a V3 pack is active, suppress ALL deterministic follow-up question items
+      // V3 packs use conversational probing (V3ProbingLoop) - no deterministic UI cards
+
+      // Detect active V3 pack
+      const activePackId = currentItem?.packId || v3ProbingContext?.packId || activeUiItem?.packId || null;
+      const packConfig = activePackId ? FOLLOWUP_PACK_CONFIGS?.[activePackId] : null;
+      const isActivePackV3 = Boolean(packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3');
+      const isV3UiActive = (activeUiItem?.kind === 'V3_OPENER' || 
+                           activeUiItem?.kind === 'V3_PROBING' || 
+                           currentItem?.type === 'v3_pack_opener' ||
+                           v3ProbingActive);
+
+      // Only apply suppression when BOTH are true
+      const shouldFilterDeterministicFollowups = isActivePackV3 && isV3UiActive;
+
+      let transcriptAfterV3Filter = transcriptToRenderDeduped;
+
+      if (shouldFilterDeterministicFollowups) {
+        const beforeLen = transcriptToRenderDeduped.length;
+        const removedTypes = [];
+
+        transcriptAfterV3Filter = transcriptToRenderDeduped.filter(entry => {
+          // Detect deterministic follow-up artifacts
+          const mt = entry.messageType || entry.type || entry.kind || '';
+          const isDeterministicFollowup = 
+            mt === 'FOLLOWUP_QUESTION' ||
+            mt === 'FOLLOWUP_STEP' ||
+            mt === 'FOLLOWUP_DETERMINISTIC' ||
+            mt === 'PACK_STEP' ||
+            entry.kind === 'followup_question' ||
+            entry.type === 'followup_question' ||
+            (entry.packId === activePackId && entry.variant === 'deterministic');
+
+          if (isDeterministicFollowup) {
+            // Track removed type for diagnostic
+            if (removedTypes.length < 5) {
+              removedTypes.push({
+                mt,
+                kind: entry.kind,
+                type: entry.type,
+                stableKeySuffix: (entry.stableKey || entry.id || '').slice(-18)
+              });
+            }
+            return false; // Filter out
+          }
+
+          return true; // Keep all non-deterministic-followup items
+        });
+
+        const removedCount = beforeLen - transcriptAfterV3Filter.length;
+
+        if (removedCount > 0) {
+          logOnce(`v3_deterministic_guard_${sessionId}:${activePackId}`, () => {
+            console.log('[UI_CONTRACT][V3_PACK_DETERMINISTIC_GUARD]', {
+              packId: activePackId,
+              removedCount,
+              beforeLen,
+              afterLen: transcriptAfterV3Filter.length,
+              removedTypesSample: removedTypes,
+              reason: 'V3 pack uses conversational probing - deterministic UI artifacts filtered'
+            });
+          });
+        }
+
+        transcriptToRenderDeduped = transcriptAfterV3Filter;
+      }
       
       if (cqDiagEnabled) {
         console.log('[CQ_GO_STATUS]', {
