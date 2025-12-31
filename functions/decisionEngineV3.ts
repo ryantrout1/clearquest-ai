@@ -1694,16 +1694,45 @@ async function decisionEngineV3Probe(base44, {
   let nextAction = "ASK";
   let nextPrompt = null;
   let stopReason = null;
+  let miGateBlocked = false; // Track if MI_GATE advancement is blocked due to missing required fields
   
   // PROVENANCE: Initialize metadata variables at function scope (for return)
   let promptSource = 'TEMPLATE';
   let llmMs = null;
   
-  // PACK COMPLETION GATE: Hard stop until all required fields populated
-  // V3 packs can ONLY be marked complete when ALL required fields have values
-  if (mergedConfig.stopWhenRequiredComplete && missingFieldsAfter.length === 0) {
+  // CRITICAL HARD GATE: Required fields MUST be complete before ANY stop/recap/advancement
+  // This gate has HIGHEST PRIORITY and blocks all other completion paths
+  if (missingFieldsAfter.length > 0) {
+    // FORCE ASK: Required fields incomplete - MUST probe
+    nextAction = "ASK";
+    stopReason = "REQUIRED_FIELDS_INCOMPLETE";
+    miGateBlocked = true; // Mark that we're blocking MI_GATE advancement
+    
+    console.log('[V3_REQUIRED_FIELDS][HARD_GATE_ACTIVE]', {
+      packId: packId || 'none',
+      categoryId,
+      instanceNumber: instanceNumber || 1,
+      missingCount: missingFieldsAfter.length,
+      missingFieldIds: missingFieldsAfter.map(f => f.field_id).join(','),
+      reason: 'Required fields incomplete - blocking ALL advancement paths (MI_GATE/RECAP/STOP)',
+      forcedAction: 'ASK'
+    });
+    
+    // LOG: MI_GATE specifically blocked
+    console.warn('[V3_REQUIRED_FIELDS][MI_GATE_BLOCKED]', {
+      packId: packId || 'none',
+      instanceNumber: instanceNumber || 1,
+      missingCount: missingFieldsAfter.length,
+      missingFieldIds: missingFieldsAfter.map(f => f.field_id).join(','),
+      blockReason: 'Cannot show "another instance?" gate until all required fields collected for current instance'
+    });
+    
+    // Continue to field selection logic below (will select next missing field)
+  } else if (mergedConfig.stopWhenRequiredComplete && missingFieldsAfter.length === 0) {
+    // All required complete - allow RECAP
     nextAction = "RECAP";
     stopReason = "REQUIRED_FIELDS_COMPLETE";
+    miGateBlocked = false;
     legacyFactState.completion_status = "complete";
     nextPrompt = getCompletionMessage("RECAP", null);
     
@@ -1738,6 +1767,7 @@ async function decisionEngineV3Probe(base44, {
     // This is a probe limit exhaustion scenario - allow STOP but flag as incomplete
     nextAction = "STOP";
     stopReason = "MAX_PROBES_REACHED";
+    miGateBlocked = true; // Still missing fields - block gate even though stopping
     legacyFactState.completion_status = "incomplete";
     nextPrompt = getCompletionMessage("STOP", stopReason);
     
@@ -1772,6 +1802,7 @@ async function decisionEngineV3Probe(base44, {
     // EXCEPTIONAL: Non-substantive limit reached but required fields still missing
     nextAction = "STOP";
     stopReason = "NON_SUBSTANTIVE_LIMIT";
+    miGateBlocked = true; // Still missing fields - block gate even though stopping
     legacyFactState.completion_status = "blocked";
     nextPrompt = getCompletionMessage("STOP", stopReason);
     
@@ -2551,6 +2582,23 @@ async function decisionEngineV3Probe(base44, {
     llmMs: llmMs || null
   };
   
+  // RETURN METADATA LOG: Proof that engine always returns required metadata
+  const returnMetadata = {
+    packId: packId || null,
+    instanceNumber: instanceNumber || 1,
+    miGateBlocked: miGateBlocked || false,
+    stopReason: stopReason || null,
+    missingCount: missingFieldsAfter.length,
+    requiredFieldsTotal: requiredFieldsList.length,
+    requiredFieldsSource: requiredFieldsSource
+  };
+  
+  // Dedupe: log once per instance (prevents spam on multiple probes)
+  const returnLogKey = `${incidentId || 'new'}:${instanceNumber || 1}`;
+  if (returnLogKey) {
+    console.log('[V3_REQUIRED_FIELDS][RETURN_METADATA]', returnMetadata);
+  }
+  
   return {
     updatedSession,
     incidentId,
@@ -2562,11 +2610,11 @@ async function decisionEngineV3Probe(base44, {
     traceId: effectiveTraceId,
     // Additional context for caller
     categoryLabel: factModel.category_label,
-    missingFields: missingFieldsAfter,
+    missingFields: missingFieldsAfter, // ALWAYS array (default [])
     completionPercent: requiredFieldsList.length > 0
       ? Math.round(((requiredFieldsList.length - missingFieldsAfter.length) / requiredFieldsList.length) * 100)
       : 100,
-    stopReasonCode: stopReason || null,
+    stopReasonCode: stopReason || null, // ALWAYS present (default null)
     stopReasonDetail: stopReason ? `Stop triggered: ${stopReason}` : null,
     debug: debugInfo,
     meta: {
@@ -2578,10 +2626,10 @@ async function decisionEngineV3Probe(base44, {
     v3LlmMs: finalV3LlmMs,
     v3EffectiveInstructionsLen: finalV3EffectiveInstructionsLen,
     v3UseLLMProbeWording: finalV3UseLLMProbeWording,
-    // REQUIRED FIELDS ENFORCEMENT: Pass to frontend for UI gate
-    requiredFieldsSource: requiredFieldsSource,
-    requiredFieldsTotal: requiredFieldsList.length,
-    miGateBlocked: miGateBlocked || false
+    // REQUIRED FIELDS ENFORCEMENT: Pass to frontend for UI gate (ALWAYS present)
+    requiredFieldsSource: requiredFieldsSource, // ALWAYS string ('FOLLOWUP_FIELDS' or 'FACTMODEL_FALLBACK')
+    requiredFieldsTotal: requiredFieldsList.length, // ALWAYS number (default 0)
+    miGateBlocked: miGateBlocked || false // ALWAYS boolean (default false)
   };
 }
 
