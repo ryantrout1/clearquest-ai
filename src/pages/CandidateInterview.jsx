@@ -14487,7 +14487,37 @@ export default function CandidateInterview() {
       });
     }
 
-    // ROUTE: V3 probing answer (headless mode) - use submitIntent routing
+    // ROUTE A: V3 PACK OPENER (highest priority - must precede V3 probe routing)
+    if (effectiveItemType === 'v3_pack_opener' && currentItem?.type === 'v3_pack_opener') {
+      const trimmed = (openerDraft ?? "").trim();
+      
+      if (!trimmed) {
+        console.log("[BOTTOM_BAR_SUBMIT][V3_OPENER] blocked: empty input");
+        console.log('[BOTTOM_BAR][SEND_BLOCKED]', { blockedReason: 'OPENER_EMPTY_INPUT' });
+        return;
+      }
+      
+      console.log('[V3_OPENER][SUBMIT_INTENT]', {
+        packId: currentItem.packId,
+        instanceNumber: currentItem.instanceNumber,
+        inputLen: trimmed.length,
+        route: 'V3_PACK_OPENER'
+      });
+      
+      console.log('[BOTTOM_BAR][SUBMIT_DISPATCH]', {
+        effectiveItemType: 'v3_pack_opener',
+        packId: currentItem.packId,
+        instanceNumber: currentItem.instanceNumber,
+        inputLen: trimmed.length,
+        route: 'V3_PACK_OPENER'
+      });
+      
+      // Route to handleAnswer (owns v3_pack_opener submission logic)
+      await handleAnswer(trimmed);
+      return;
+    }
+    
+    // ROUTE B: V3 probing answer (headless mode) - use submitIntent routing
     if (submitIntent.isV3Submit) {
       const trimmed = (input ?? "").trim();
       if (!trimmed) {
