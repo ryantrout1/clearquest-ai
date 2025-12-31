@@ -1192,6 +1192,8 @@ const runV2FieldProbeIfNeeded = async ({
 // - Welcome / start screens must NEVER reappear mid-session
 
 export default function CandidateInterview() {
+  console.log('[BUILD_OK][CandidateInterview]');
+  
   const navigate = useNavigate();
   const urlParams = new URLSearchParams(window.location.search);
   const sessionId = urlParams.get('session');
@@ -8981,6 +8983,43 @@ export default function CandidateInterview() {
       instanceNumber,
       loopKey: `${sessionId}:${categoryId}:${instanceNumber || 1}`
     });
+    
+    // MINIMAL MI_GATE GUARD: Block if required fields incomplete (V3 packs only)
+    const packConfig = FOLLOWUP_PACK_CONFIGS?.[packId];
+    const isV3Pack = packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3';
+    
+    if (isV3Pack) {
+      // Read metadata ONLY if present in v3Context (no cache plumbing)
+      const missingFields = Array.isArray(v3Context?.missingFields) ? v3Context.missingFields : null;
+      const miGateBlocked = v3Context?.miGateBlocked === true;
+      const stopReason = v3Context?.stopReason || null;
+      
+      // SAFETY CHECK: Block MI_GATE if metadata missing or fields incomplete
+      const shouldBlockGate = missingFields === null || 
+                             missingFields.length > 0 || 
+                             miGateBlocked || 
+                             stopReason === 'REQUIRED_FIELDS_INCOMPLETE';
+      
+      if (shouldBlockGate) {
+        console.error('[UI_CONTRACT][MI_GATE_BLOCKED_REQUIRED_FIELDS]', {
+          packId,
+          instanceNumber,
+          missingCount: missingFields ? missingFields.length : 'unknown',
+          miGateBlocked,
+          stopReason,
+          reason: 'Required fields incomplete or metadata missing - blocking MI_GATE'
+        });
+        return; // HARD BLOCK - do not activate gate
+      }
+      
+      // All checks passed - log allowance
+      console.log('[UI_CONTRACT][MI_GATE_ALLOWED]', {
+        packId,
+        instanceNumber,
+        missingCount: 0,
+        reason: 'All required fields complete'
+      });
+    }
     
     const gatePromptText = `Do you have another ${categoryLabel || 'incident'} to report?`;
     const gateItemId = `multi-instance-gate-${packId}-${instanceNumber}`;
