@@ -796,9 +796,20 @@ export default function V3ProbingLoop({
               instanceNumber,
               reason: 'ENGINE_NO_PROMPT_COMPLETE',
               incidentId: data.incidentId || incidentId,
-              completionReason: data.nextAction
+              completionReason: data.nextAction,
+              // CRITICAL: Pass engine metadata for MI_GATE validation
+              missingFields: data.missingFields || [],
+              miGateBlocked: data.miGateBlocked || false,
+              stopReason: data.stopReasonCode || data.stopReason || null
             });
-            console.log('[V3_INCIDENT_COMPLETE][CALLBACK]', { loopKey, packId: safePackId, instanceNumber, nextAction: data.nextAction });
+            console.log('[V3_INCIDENT_COMPLETE][CALLBACK]', { 
+              loopKey, 
+              packId: safePackId, 
+              instanceNumber, 
+              nextAction: data.nextAction,
+              missingCount: data.missingFields?.length || 0,
+              miGateBlocked: data.miGateBlocked || false
+            });
           }
           
           setIsLoading(false);
@@ -842,9 +853,20 @@ export default function V3ProbingLoop({
             reason: 'RECAP_COMPLETE',
             incidentId: data.incidentId || incidentId,
             completionReason: data.nextAction,
-            hasRecap: true
+            hasRecap: true,
+            // CRITICAL: Pass engine metadata for MI_GATE validation
+            missingFields: data.missingFields || [],
+            miGateBlocked: data.miGateBlocked || false,
+            stopReason: data.stopReasonCode || data.stopReason || null
           });
-          console.log('[V3_INCIDENT_COMPLETE][CALLBACK]', { loopKey, packId: safePackId, instanceNumber, nextAction: data.nextAction });
+          console.log('[V3_INCIDENT_COMPLETE][CALLBACK]', { 
+            loopKey, 
+            packId: safePackId, 
+            instanceNumber, 
+            nextAction: data.nextAction,
+            missingCount: data.missingFields?.length || 0,
+            miGateBlocked: data.miGateBlocked || false
+          });
         }
         
         setIsLoading(false);

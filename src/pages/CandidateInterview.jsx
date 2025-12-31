@@ -18470,6 +18470,23 @@ export default function CandidateInterview() {
                     stopReason
                   });
                   
+                  // CACHE ENGINE DECISION: Store for MI_GATE validation
+                  lastV3DecisionByLoopKeyRef.current[loopKey] = {
+                    missingFields: missingFields || [],
+                    miGateBlocked: miGateBlocked || false,
+                    stopReason: stopReason || null,
+                    packId,
+                    instanceNumber,
+                    ts: Date.now()
+                  };
+                  
+                  console.log('[V3_ENGINE_DECISION][CACHED]', {
+                    loopKey,
+                    missingCount: missingFields?.length || 0,
+                    miGateBlocked: miGateBlocked || false,
+                    reason: 'Cached for MI_GATE validation'
+                  });
+                  
                   // V3 BLOCK RELEASE: Log completion
                   console.log('[FLOW][V3_BLOCK_RELEASED]', {
                     loopKey,
