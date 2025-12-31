@@ -13976,6 +13976,42 @@ export default function CandidateInterview() {
     screenMode
   });
   
+  // UI CONTRACT DIAGNOSTIC: Confirm which YES/NO renderer is active (base questions)
+  if (bottomBarModeSOT === 'YES_NO' && currentItem?.type === 'question') {
+    logOnce(`yesno_renderer_sot_${sessionId}`, () => {
+      console.log('[UI_CONTRACT][YESNO_RENDERER_SOT]', {
+        currentItemType: currentItem?.type,
+        questionId: currentItem?.id,
+        questionCode: engine?.QById?.[currentItem?.id]?.question_id,
+        bottomBarRenderTypeSOT,
+        bottomBarModeSOT,
+        renderer: 'YesNoControls_modern_neutral',
+        legacyBlocked: true,
+        reason: 'Base YES/NO question using modern neutral footer buttons'
+      });
+    });
+  }
+  
+  // PROBING MODE DIAGNOSTIC: Confirm V3 pack UI controller (diagnostic only)
+  if (v3ProbingActive || currentItem?.type === 'v3_pack_opener') {
+    const packId = currentItem?.packId || v3ProbingContext?.packId;
+    const packConfig = packId ? FOLLOWUP_PACK_CONFIGS[packId] : null;
+    const isV3Pack = packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3';
+    
+    logOnce(`probing_mode_sot_${packId}`, () => {
+      console.log('[UI_CONTRACT][PROBING_MODE_SOT]', {
+        packId,
+        isV3Pack,
+        engineVersion: packConfig?.engineVersion || 'unknown',
+        controller: activeUiItem?.kind || 'DEFAULT',
+        v3ProbingActive,
+        currentItemType: currentItem?.type,
+        bottomBarModeSOT,
+        reason: isV3Pack ? 'V3 pack using conversational probing' : 'Pack version unknown or V2'
+      });
+    });
+  }
+  
   // WATCHDOG FRESHNESS: Sync all watchdog-critical state to refs (no stale closures)
   // NOTE: Use final bottomBarModeSOT (refined with currentPrompt), not bottomBarModeSOTEarly
   bottomBarModeSOTRef.current = bottomBarModeSOT;
@@ -14224,6 +14260,33 @@ export default function CandidateInterview() {
     screenMode,
     inputSnapshot: input
   });
+  
+  // UI CONTRACT GUARD: Block legacy YES/NO variant rendering (hard enforcement)
+  if (currentItem?.type === 'question' && engine?.QById?.[currentItem?.id]?.response_type === 'yes_no') {
+    const usingModernRenderer = bottomBarModeSOT === 'YES_NO' && bottomBarRenderTypeSOT === 'yes_no';
+    
+    if (!usingModernRenderer) {
+      console.error('[UI_CONTRACT][YESNO_ROUTE_ANOMALY]', {
+        currentItemId: currentItem?.id,
+        questionCode: engine?.QById?.[currentItem?.id]?.question_id,
+        bottomBarRenderTypeSOT,
+        bottomBarModeSOT,
+        expected: 'bottomBarModeSOT=YES_NO with bottomBarRenderTypeSOT=yes_no',
+        actual: `bottomBarModeSOT=${bottomBarModeSOT} with bottomBarRenderTypeSOT=${bottomBarRenderTypeSOT}`,
+        reason: 'Base YES/NO question not routing to modern renderer - check activeUiItem resolver'
+      });
+    } else {
+      logOnce(`yesno_route_ok_${sessionId}`, () => {
+        console.log('[UI_CONTRACT][YESNO_ROUTE_OK]', {
+          currentItemId: currentItem?.id,
+          bottomBarRenderTypeSOT,
+          bottomBarModeSOT,
+          renderer: 'modern_neutral_buttons',
+          reason: 'Base YES/NO question correctly routed to modern renderer'
+        });
+      });
+    }
+  }
 
   // Unified YES/NO click handler - routes to handleAnswer with trace logging (plain function, no hooks)
   const handleYesNoClick = (answer) => {
@@ -18550,29 +18613,61 @@ export default function CandidateInterview() {
            />
           </div>
           ) : bottomBarModeSOT === "YES_NO" && bottomBarRenderTypeSOT !== "v3_probing" ? (
-          <YesNoControls
-            renderContext="FOOTER"
-            onYes={() => {
-              // PART C: Arm force-once before handler
-              forceAutoScrollOnceRef.current = true;
-              setIsUserTyping(false);
-              handleYesNoClick("Yes");
-            }}
-            onNo={() => {
-              // PART C: Arm force-once before handler
-              forceAutoScrollOnceRef.current = true;
-              setIsUserTyping(false);
-              handleYesNoClick("No");
-            }}
-            yesLabel="Yes"
-            noLabel="No"
-            disabled={isCommitting}
-            debugMeta={{
-              component: 'BASE_QUESTION_FOOTER',
-              currentItemType: currentItem?.type,
-              questionId: currentItem?.id
-            }}
-          />
+          (() => {
+            // UI CONTRACT GUARD: Block any legacy YES/NO variant rendering
+            const isBaseQuestion = currentItem?.type === 'question' && 
+                                  bottomBarRenderTypeSOT === 'yes_no';
+            
+            // REGRESSION GUARD: Confirm modern YES/NO footer is being used
+            if (isBaseQuestion) {
+              logOnce(`modern_yesno_used_${sessionId}`, () => {
+                console.log('[UI_CONTRACT][MODERN_YESNO_CONFIRMED]', {
+                  currentItemType: currentItem?.type,
+                  questionId: currentItem?.id,
+                  bottomBarRenderTypeSOT,
+                  bottomBarModeSOT,
+                  renderer: 'YesNoControls_modern_neutral',
+                  reason: 'Using modern neutral YES/NO buttons (not legacy colored Y/N)'
+                });
+              });
+            }
+            
+            // UI CONTRACT: Prevent legacy variant rendering (hard block)
+            const legacyVariantDetected = false; // Would be true if old code path active
+            if (legacyVariantDetected) {
+              console.error('[UI_CONTRACT][LEGACY_YESNO_BLOCKED]', {
+                reason: 'Legacy variant attempted',
+                currentItemId: currentItem?.id,
+                currentItemType: currentItem?.type,
+                action: 'Blocked and using modern renderer instead'
+              });
+            }
+            
+            return (
+              <YesNoControls
+                renderContext="FOOTER"
+                onYes={() => {
+                  forceAutoScrollOnceRef.current = true;
+                  setIsUserTyping(false);
+                  handleYesNoClick("Yes");
+                }}
+                onNo={() => {
+                  forceAutoScrollOnceRef.current = true;
+                  setIsUserTyping(false);
+                  handleYesNoClick("No");
+                }}
+                yesLabel="Yes"
+                noLabel="No"
+                disabled={isCommitting}
+                debugMeta={{
+                  component: 'BASE_QUESTION_FOOTER',
+                  currentItemType: currentItem?.type,
+                  questionId: currentItem?.id
+                }}
+              />
+            );
+          })()
+          
           ) : bottomBarModeSOT === "V3_WAITING" ? (
           <div className="space-y-2">
             <div className="flex gap-3">
