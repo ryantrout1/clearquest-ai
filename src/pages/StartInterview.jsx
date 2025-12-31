@@ -45,6 +45,10 @@ export default function StartInterview() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [questionCount, setQuestionCount] = useState(0);
+  const [checkingExisting, setCheckingExisting] = useState(false); // For "checking sessions" status
+  
+  // Layout shift audit (dev-only, change detection)
+  const lastLayoutSnapshotRef = React.useRef(null);
   
   // Terminal redirect flag (computed after hooks)
   const shouldTerminalRedirect = Boolean(existingSessionId);
@@ -164,25 +168,60 @@ export default function StartInterview() {
     }
   };
 
+  // DEBOUNCED VALIDATION: Prevent rapid API calls while typing
+  const validationTimerRef = React.useRef(null);
+  const validationAbortRef = React.useRef(null);
+  
   useEffect(() => {
-    const timer = setTimeout(() => {
-      // Only validate if department code has some length, otherwise reset validity state
-      if (formData.departmentCode.trim().length >= 3) {
-        validateDepartmentCode(formData.departmentCode);
-      } else {
-        setIsCodeValid(null); // Reset validation status if input is too short or empty
-      }
-    }, 500); // Debounce for 500ms
+    // Cancel in-flight validation
+    if (validationAbortRef.current) {
+      validationAbortRef.current.cancelled = true;
+    }
+    
+    // Clear existing timer
+    if (validationTimerRef.current) {
+      clearTimeout(validationTimerRef.current);
+    }
+    
+    // Reset validation state immediately when input is too short
+    if (formData.departmentCode.trim().length < 3) {
+      setIsCodeValid(null);
+      setIsValidatingCode(false);
+      return;
+    }
+    
+    // Debounce validation check
+    validationTimerRef.current = setTimeout(() => {
+      validateDepartmentCode(formData.departmentCode);
+    }, 500);
 
-    return () => clearTimeout(timer);
-  }, [formData.departmentCode]); // Re-run effect when departmentCode changes
+    return () => {
+      if (validationTimerRef.current) {
+        clearTimeout(validationTimerRef.current);
+      }
+      if (validationAbortRef.current) {
+        validationAbortRef.current.cancelled = true;
+      }
+    };
+  }, [formData.departmentCode]);
 
   const validateDepartmentCode = async (code) => {
+    // Create abort token for this validation
+    const abortToken = { cancelled: false };
+    validationAbortRef.current = abortToken;
+    
     setIsValidatingCode(true);
+    
     try {
       const departments = await base44.entities.Department.filter({
         department_code: code.trim().toUpperCase()
       });
+      
+      // Check if cancelled before updating state
+      if (abortToken.cancelled) {
+        console.log('[VALIDATION][CANCELLED]', { code });
+        return;
+      }
       
       if (departments.length > 0) {
         setIsCodeValid(true);
@@ -190,10 +229,14 @@ export default function StartInterview() {
         setIsCodeValid(false);
       }
     } catch (err) {
+      if (abortToken.cancelled) return;
+      
       console.error('Error validating department code:', err);
-      setIsCodeValid(null); // Keep null on error, could be network issue
+      setIsCodeValid(null);
     } finally {
-      setIsValidatingCode(false);
+      if (!abortToken.cancelled) {
+        setIsValidatingCode(false);
+      }
     }
   };
 
@@ -274,6 +317,7 @@ export default function StartInterview() {
       }
 
       console.log(`🔍 Checking for existing sessions: ${deptCode} / ${fileNum}`);
+      setCheckingExisting(true);
 
       // Even if isCodeValid is true, re-fetch to ensure department exists and get full details if needed
       const departments = await base44.entities.Department.filter({
@@ -283,6 +327,7 @@ export default function StartInterview() {
       if (departments.length === 0) {
         setError("Invalid department code. Please check and try again.");
         setIsSubmitting(false);
+        setCheckingExisting(false);
         return;
       }
 
@@ -409,6 +454,7 @@ export default function StartInterview() {
       requestCompletedRef.value = true;
       clearTimeout(sessionTimeout);
       setIsSubmitting(false);
+      setCheckingExisting(false);
     }
   };
 
@@ -425,6 +471,26 @@ export default function StartInterview() {
       </PublicAppShell>
     );
   }
+  
+  // LAYOUT SHIFT AUDIT: Compute UI snapshot for change detection (dev-only)
+  React.useEffect(() => {
+    const snapshot = {
+      deptLen: formData.departmentCode.length,
+      fileLen: formData.fileNumber.length,
+      isChecking: isValidatingCode,
+      isValidDept: isCodeValid,
+      isValidFile: formData.fileNumber.length > 0,
+      helperShown: isCodeValid === false,
+      canSubmit: !isSubmitting && isCodeValid !== false,
+      checkingExisting
+    };
+    
+    const key = JSON.stringify(snapshot);
+    if (lastLayoutSnapshotRef.current !== key) {
+      console.log('[START_INTERVIEW][LAYOUT_SOT]', snapshot);
+      lastLayoutSnapshotRef.current = key;
+    }
+  }, [formData, isValidatingCode, isCodeValid, isSubmitting, checkingExisting]);
   
   // NORMAL RENDER: Show StartInterview form
   return (
@@ -471,24 +537,28 @@ export default function StartInterview() {
                     placeholder="Enter code (e.g., PD-2024)"
                     value={formData.departmentCode}
                     onChange={(e) => setFormData({...formData, departmentCode: e.target.value.toUpperCase()})}
-                    className="bg-slate-900/50 border-slate-600 text-white h-12 pr-10" // pr-10 for icon space
+                    className="bg-slate-900/50 border-slate-600 text-white h-12 pr-10"
                     required
                   />
-                  {isValidatingCode && (
-                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-400 animate-spin" />
-                  )}
-                  {!isValidatingCode && formData.departmentCode.trim().length >= 3 && isCodeValid === true && (
-                    <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-green-400" />
-                  )}
-                  {!isValidatingCode && formData.departmentCode.trim().length >= 3 && isCodeValid === false && (
-                    <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-red-400" />
-                  )}
+                  {/* RESERVED ICON SLOT: Always present, opacity transitions (prevents input text shift) */}
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 transition-opacity duration-200">
+                    {isValidatingCode && (
+                      <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
+                    )}
+                    {!isValidatingCode && formData.departmentCode.trim().length >= 3 && isCodeValid === true && (
+                      <CheckCircle className="w-5 h-5 text-green-400" />
+                    )}
+                    {!isValidatingCode && formData.departmentCode.trim().length >= 3 && isCodeValid === false && (
+                      <AlertCircle className="w-5 h-5 text-red-400" />
+                    )}
+                  </div>
                 </div>
-                {isCodeValid === false && formData.departmentCode.trim().length >= 3 && (
-                  <p className="text-xs text-red-400 mt-1">
-                    Department code not found. Please verify and try again.
+                {/* RESERVED STATUS SLOT: Always rendered, min-height prevents layout shift */}
+                <div className="min-h-[20px] transition-opacity duration-200" style={{ opacity: (isCodeValid === false && formData.departmentCode.trim().length >= 3) ? 1 : 0 }}>
+                  <p className="text-xs text-red-400">
+                    {isCodeValid === false ? "Department code not found. Please verify and try again." : "\u00A0"}
                   </p>
-                )}
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -508,9 +578,22 @@ export default function StartInterview() {
                   className="bg-slate-900/50 border-slate-600 text-white h-12"
                   required
                 />
-                <p className="text-xs text-slate-400">
-                  This identifies the applicant's case file for tracking purposes.
-                </p>
+                {/* RESERVED STATUS SLOT: Always rendered for stable layout */}
+                <div className="min-h-[20px]">
+                  <p className="text-xs text-slate-400">
+                    This identifies the applicant's case file for tracking purposes.
+                  </p>
+                </div>
+              </div>
+              
+              {/* RESERVED STATUS SLOT: "Checking sessions" message (stable position) */}
+              <div className="min-h-[32px] transition-opacity duration-200" style={{ opacity: checkingExisting ? 1 : 0 }}>
+                {checkingExisting && (
+                  <div className="flex items-center gap-2 text-sm text-blue-300">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Checking for existing sessions...</span>
+                  </div>
+                )}
               </div>
 
               <div className="bg-blue-950/20 border border-blue-800/30 rounded-lg p-4 space-y-2">
@@ -523,24 +606,27 @@ export default function StartInterview() {
                 </ul>
               </div>
 
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 md:h-14 text-base md:text-lg"
-                disabled={isSubmitting || isCodeValid === false}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Creating Session...
-                  </>
-                ) : (
-                  <>
-                    <Shield className="w-5 h-5 mr-2" />
-                    Begin Interview
-                  </>
-                )}
-              </Button>
+              {/* STABLE BUTTON ROW: Fixed height, no layout shift on state changes */}
+              <div className="min-h-[56px] md:min-h-[64px]">
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 md:h-14 text-base md:text-lg transition-opacity duration-200"
+                  disabled={isSubmitting || isCodeValid === false}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    {/* FIXED ICON SLOT: 24px reserved (prevents text shift) */}
+                    <div className="w-5 h-5 flex items-center justify-center">
+                      {isSubmitting ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Shield className="w-5 h-5" />
+                      )}
+                    </div>
+                    <span>{isSubmitting ? "Creating Session..." : "Begin Interview"}</span>
+                  </div>
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
