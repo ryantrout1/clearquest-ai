@@ -7199,7 +7199,8 @@ export default function CandidateInterview() {
           sectionId: question.section_id,
           answerDisplayText,
           answerContext: 'BASE_QUESTION',
-          parentStableKey: questionStableKey
+          parentStableKey: questionStableKey,
+          afterStableKey: questionStableKey
         });
         
         // CQ_TRANSCRIPT_CONTRACT: Invariant check after base answer append
@@ -13976,42 +13977,6 @@ export default function CandidateInterview() {
     screenMode
   });
   
-  // UI CONTRACT DIAGNOSTIC: Confirm which YES/NO renderer is active (base questions)
-  if (bottomBarModeSOT === 'YES_NO' && currentItem?.type === 'question') {
-    logOnce(`yesno_renderer_sot_${sessionId}`, () => {
-      console.log('[UI_CONTRACT][YESNO_RENDERER_SOT]', {
-        currentItemType: currentItem?.type,
-        questionId: currentItem?.id,
-        questionCode: engine?.QById?.[currentItem?.id]?.question_id,
-        bottomBarRenderTypeSOT,
-        bottomBarModeSOT,
-        renderer: 'YesNoControls_modern_neutral',
-        legacyBlocked: true,
-        reason: 'Base YES/NO question using modern neutral footer buttons'
-      });
-    });
-  }
-  
-  // PROBING MODE DIAGNOSTIC: Confirm V3 pack UI controller (diagnostic only)
-  if (v3ProbingActive || currentItem?.type === 'v3_pack_opener') {
-    const packId = currentItem?.packId || v3ProbingContext?.packId;
-    const packConfig = packId ? FOLLOWUP_PACK_CONFIGS[packId] : null;
-    const isV3Pack = packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3';
-    
-    logOnce(`probing_mode_sot_${packId}`, () => {
-      console.log('[UI_CONTRACT][PROBING_MODE_SOT]', {
-        packId,
-        isV3Pack,
-        engineVersion: packConfig?.engineVersion || 'unknown',
-        controller: activeUiItem?.kind || 'DEFAULT',
-        v3ProbingActive,
-        currentItemType: currentItem?.type,
-        bottomBarModeSOT,
-        reason: isV3Pack ? 'V3 pack using conversational probing' : 'Pack version unknown or V2'
-      });
-    });
-  }
-  
   // WATCHDOG FRESHNESS: Sync all watchdog-critical state to refs (no stale closures)
   // NOTE: Use final bottomBarModeSOT (refined with currentPrompt), not bottomBarModeSOTEarly
   bottomBarModeSOTRef.current = bottomBarModeSOT;
@@ -14260,33 +14225,6 @@ export default function CandidateInterview() {
     screenMode,
     inputSnapshot: input
   });
-  
-  // UI CONTRACT GUARD: Block legacy YES/NO variant rendering (hard enforcement)
-  if (currentItem?.type === 'question' && engine?.QById?.[currentItem?.id]?.response_type === 'yes_no') {
-    const usingModernRenderer = bottomBarModeSOT === 'YES_NO' && bottomBarRenderTypeSOT === 'yes_no';
-    
-    if (!usingModernRenderer) {
-      console.error('[UI_CONTRACT][YESNO_ROUTE_ANOMALY]', {
-        currentItemId: currentItem?.id,
-        questionCode: engine?.QById?.[currentItem?.id]?.question_id,
-        bottomBarRenderTypeSOT,
-        bottomBarModeSOT,
-        expected: 'bottomBarModeSOT=YES_NO with bottomBarRenderTypeSOT=yes_no',
-        actual: `bottomBarModeSOT=${bottomBarModeSOT} with bottomBarRenderTypeSOT=${bottomBarRenderTypeSOT}`,
-        reason: 'Base YES/NO question not routing to modern renderer - check activeUiItem resolver'
-      });
-    } else {
-      logOnce(`yesno_route_ok_${sessionId}`, () => {
-        console.log('[UI_CONTRACT][YESNO_ROUTE_OK]', {
-          currentItemId: currentItem?.id,
-          bottomBarRenderTypeSOT,
-          bottomBarModeSOT,
-          renderer: 'modern_neutral_buttons',
-          reason: 'Base YES/NO question correctly routed to modern renderer'
-        });
-      });
-    }
-  }
 
   // Unified YES/NO click handler - routes to handleAnswer with trace logging (plain function, no hooks)
   const handleYesNoClick = (answer) => {
@@ -17261,6 +17199,23 @@ export default function CandidateInterview() {
 
             // User answer (ANSWER from chatTranscriptHelpers)
             if (entry.role === 'user' && getMessageTypeSOT(entry) === 'ANSWER') {
+              // DEDUPE: Skip if this answer is being rendered under active base question card
+              const isActiveBaseQuestion = activeCard?.kind === 'base_question_yesno';
+              const activeQuestionId = activeCard?.questionId;
+              const entryQuestionId = entry.questionId || entry.meta?.questionDbId || entry.meta?.questionId;
+              const isAnswerForActiveQuestion = isActiveBaseQuestion && 
+                                                activeQuestionId && 
+                                                entryQuestionId === activeQuestionId;
+              
+              if (isAnswerForActiveQuestion) {
+                console.log('[BASE_YESNO][ANSWER_DEDUPED_FROM_TRANSCRIPT]', {
+                  questionId: entryQuestionId,
+                  stableKey: entry.stableKey || entry.id,
+                  reason: 'Answer already rendered under active question card - skipping transcript copy'
+                });
+                return null; // Skip - already rendered in active lane
+              }
+              
               // PART 1: FORENSIC - Log UUID/unknown-prefix answers
               const stableKey = entry.stableKey || entry.id || '';
               const isYesOrNo = entry.text === 'Yes' || entry.text === 'No';
@@ -17289,7 +17244,7 @@ export default function CandidateInterview() {
                 console.log('[YES_BUBBLE_RENDER_TRACE]', {
                   stableKey: entry.stableKey || entry.id,
                   mt: entry.messageType || entry.type || entry.kind,
-                  questionId: entry.questionId || entry.meta?.questionId || null,
+                  questionId: entry.questionId || entry.meta?.questionId || entry.meta?.questionDbId || null,
                   packId: entry.meta?.packId || null,
                   instanceNumber: entry.meta?.instanceNumber || null,
                   answerContext: entry.meta?.answerContext || entry.answerContext || 'unknown',
@@ -17993,8 +17948,28 @@ export default function CandidateInterview() {
             if (cardKind === "base_question_yesno") {
               const safeQuestionText = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_BASE_QUESTION');
               const cardStableKey = activeCard.stableKey || `question-shown:${activeCard.questionId}`;
+              const activeQuestionId = activeCard.questionId;
+              
+              // FIX: Find most recent answer for this question in render stream
+              const answerStableKeyPrefix = `answer:${sessionId}:${activeQuestionId}:`;
+              const recentAnswer = finalTranscriptList.find(e => 
+                e.role === 'user' && 
+                e.messageType === 'ANSWER' &&
+                (e.questionId === activeQuestionId || e.meta?.questionDbId === activeQuestionId) &&
+                (e.stableKey?.startsWith(answerStableKeyPrefix) || e.stableKey === `answer:${sessionId}:${activeQuestionId}:0`)
+              );
+              
+              if (recentAnswer) {
+                console.log('[BASE_YESNO][ANSWER_PLACED_UNDER_ACTIVE]', {
+                  questionId: activeQuestionId,
+                  stableKey: recentAnswer.stableKey || recentAnswer.id,
+                  answerText: recentAnswer.text,
+                  reason: 'Active base question - rendering answer directly under active card'
+                });
+              }
               
               return (
+                <>
                  <div 
                    key={`active-${cardStableKey}`}
                    ref={activeLaneCardRef}
@@ -18024,6 +17999,24 @@ export default function CandidateInterview() {
                     </div>
                   </ContentContainer>
                 </div>
+                
+                {recentAnswer && (
+                  <div 
+                    key={`active-answer-${recentAnswer.stableKey || recentAnswer.id}`} 
+                    style={{ marginBottom: 10, marginTop: 12 }} 
+                    data-stablekey={recentAnswer.stableKey || recentAnswer.id}
+                    data-cq-active-answer="true"
+                  >
+                    <ContentContainer>
+                      <div className="flex justify-end">
+                        <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
+                          <p className="text-white text-sm">{recentAnswer.text}</p>
+                        </div>
+                      </div>
+                    </ContentContainer>
+                  </div>
+                )}
+                </>
               );
             }
 
@@ -18613,61 +18606,27 @@ export default function CandidateInterview() {
            />
           </div>
           ) : bottomBarModeSOT === "YES_NO" && bottomBarRenderTypeSOT !== "v3_probing" ? (
-          (() => {
-            // UI CONTRACT GUARD: Block any legacy YES/NO variant rendering
-            const isBaseQuestion = currentItem?.type === 'question' && 
-                                  bottomBarRenderTypeSOT === 'yes_no';
-            
-            // REGRESSION GUARD: Confirm modern YES/NO footer is being used
-            if (isBaseQuestion) {
-              logOnce(`modern_yesno_used_${sessionId}`, () => {
-                console.log('[UI_CONTRACT][MODERN_YESNO_CONFIRMED]', {
-                  currentItemType: currentItem?.type,
-                  questionId: currentItem?.id,
-                  bottomBarRenderTypeSOT,
-                  bottomBarModeSOT,
-                  renderer: 'YesNoControls_modern_neutral',
-                  reason: 'Using modern neutral YES/NO buttons (not legacy colored Y/N)'
-                });
-              });
-            }
-            
-            // UI CONTRACT: Prevent legacy variant rendering (hard block)
-            const legacyVariantDetected = false; // Would be true if old code path active
-            if (legacyVariantDetected) {
-              console.error('[UI_CONTRACT][LEGACY_YESNO_BLOCKED]', {
-                reason: 'Legacy variant attempted',
-                currentItemId: currentItem?.id,
-                currentItemType: currentItem?.type,
-                action: 'Blocked and using modern renderer instead'
-              });
-            }
-            
-            return (
-              <YesNoControls
-                renderContext="FOOTER"
-                onYes={() => {
-                  forceAutoScrollOnceRef.current = true;
-                  setIsUserTyping(false);
-                  handleYesNoClick("Yes");
-                }}
-                onNo={() => {
-                  forceAutoScrollOnceRef.current = true;
-                  setIsUserTyping(false);
-                  handleYesNoClick("No");
-                }}
-                yesLabel="Yes"
-                noLabel="No"
-                disabled={isCommitting}
-                debugMeta={{
-                  component: 'BASE_QUESTION_FOOTER',
-                  currentItemType: currentItem?.type,
-                  questionId: currentItem?.id
-                }}
-              />
-            );
-          })()
-          
+          <YesNoControls
+            renderContext="FOOTER"
+            onYes={() => {
+              forceAutoScrollOnceRef.current = true;
+              setIsUserTyping(false);
+              handleYesNoClick("Yes");
+            }}
+            onNo={() => {
+              forceAutoScrollOnceRef.current = true;
+              setIsUserTyping(false);
+              handleYesNoClick("No");
+            }}
+            yesLabel="Yes"
+            noLabel="No"
+            disabled={isCommitting}
+            debugMeta={{
+              component: 'BASE_QUESTION_FOOTER',
+              currentItemType: currentItem?.type,
+              questionId: currentItem?.id
+            }}
+          />
           ) : bottomBarModeSOT === "V3_WAITING" ? (
           <div className="space-y-2">
             <div className="flex gap-3">
