@@ -14000,21 +14000,24 @@ export default function CandidateInterview() {
     });
   }
   
+  // PACK PATH DIAGNOSTIC: Log once when entering a pack to confirm routing
   if (v3ProbingActive || currentItem?.type === 'v3_pack_opener') {
     const packId = currentItem?.packId || v3ProbingContext?.packId;
     const packConfig = packId ? FOLLOWUP_PACK_CONFIGS[packId] : null;
     const isV3Pack = packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3';
     
-    logOnce(`probing_mode_sot_${packId}`, () => {
-      console.log('[UI_CONTRACT][PROBING_MODE_SOT]', {
+    logOnce(`pack_path_sot_${packId}`, () => {
+      console.log('[UI_CONTRACT][PACK_PATH_SOT]', {
         packId,
         isV3Pack,
         engineVersion: packConfig?.engineVersion || 'unknown',
-        controller: activeUiItem?.kind || 'DEFAULT',
-        v3ProbingActive,
+        activeUiItemKind: activeUiItem?.kind || 'DEFAULT',
         currentItemType: currentItem?.type,
+        v3ProbingActive,
         bottomBarModeSOT,
-        reason: isV3Pack ? 'V3 pack using conversational probing' : 'Pack version unknown or V2'
+        reason: isV3Pack 
+          ? 'V3 pack - conversational probing only (no deterministic follow-ups)' 
+          : 'Pack version unknown or V2'
       });
     });
   }
