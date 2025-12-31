@@ -980,10 +980,104 @@ async function loadV3FactModel(base44, categoryId) {
   }
 }
 
+// ========== FOLLOWUP FIELDS LOADER (REQUIRED FIELD SOURCE OF TRUTH) ==========
+
+/**
+ * Load required fields from FollowUpPack field_config (primary source)
+ * Falls back to FactModel.required_fields if pack not found
+ * 
+ * @param {object} base44 - Base44 client
+ * @param {string} packId - Pack identifier (e.g., PACK_PRIOR_LE_APPS_STANDARD)
+ * @param {object} factModel - FactModel fallback
+ * @returns {object} { source: 'FOLLOWUP_FIELDS'|'FACTMODEL_FALLBACK', required_fields: [...] }
+ */
+async function loadRequiredFieldsForPack(base44, packId, factModel) {
+  // STRATEGY 1: Load from FollowUpPack field_config (preferred)
+  if (packId) {
+    try {
+      const packs = await base44.asServiceRole.entities.FollowUpPack.filter({
+        followup_pack_id: packId
+      });
+      
+      if (packs.length > 0) {
+        const pack = packs[0];
+        const fieldConfig = pack.field_config || [];
+        
+        // Filter to required fields and normalize
+        const requiredFields = fieldConfig
+          .filter(f => f.required === true)
+          .map(f => ({
+            field_id: f.fieldKey || f.id,
+            label: f.label || f.fieldKey,
+            type: f.inputType || f.semanticType || 'text',
+            enum_options: f.choices || [],
+            description: f.helperText || null
+          }));
+        
+        if (requiredFields.length > 0) {
+          console.log('[V3_REQUIRED_FIELDS][LOADED_FROM_PACK]', {
+            packId,
+            source: 'FOLLOWUP_FIELDS',
+            requiredCount: requiredFields.length,
+            fieldIds: requiredFields.map(f => f.field_id).join(',')
+          });
+          
+          return {
+            source: 'FOLLOWUP_FIELDS',
+            required_fields: requiredFields
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('[V3_REQUIRED_FIELDS][PACK_LOAD_FAILED]', {
+        packId,
+        error: err.message,
+        fallback: 'FACTMODEL_REQUIRED_FIELDS'
+      });
+    }
+  }
+  
+  // STRATEGY 2: Fallback to FactModel.required_fields
+  const fallbackFields = factModel?.required_fields || [];
+  
+  console.log('[V3_REQUIRED_FIELDS][FALLBACK_TO_FACTMODEL]', {
+    packId: packId || 'none',
+    source: 'FACTMODEL_FALLBACK',
+    requiredCount: fallbackFields.length,
+    fieldIds: fallbackFields.map(f => f.field_id).join(','),
+    reason: packId ? 'Pack not found or has no required fields' : 'No packId provided'
+  });
+  
+  return {
+    source: 'FACTMODEL_FALLBACK',
+    required_fields: fallbackFields
+  };
+}
+
 // ========== V3 FACT STATE HELPERS ==========
 
 function initializeV3FactState(incidentId, factModel) {
   const requiredFieldIds = (factModel?.required_fields || [])
+    .map(f => f.field_id)
+    .filter(Boolean);
+  
+  return {
+    [incidentId]: {
+      required_fields_collected: [],
+      required_fields_missing: [...requiredFieldIds],
+      optional_fields_collected: []
+    }
+  };
+}
+
+/**
+ * Initialize fact state from a normalized required fields list
+ * @param {string} incidentId - Incident identifier
+ * @param {array} requiredFieldsList - Array of { field_id, label, type }
+ * @returns {object} Initialized fact_state entry
+ */
+function initializeV3FactStateFromFields(incidentId, requiredFieldsList) {
+  const requiredFieldIds = (requiredFieldsList || [])
     .map(f => f.field_id)
     .filter(Boolean);
   
@@ -1036,6 +1130,46 @@ function updateV3FactState(factState, incidentId, factModel, newFacts) {
   };
 }
 
+/**
+ * Update fact state from a normalized required fields list
+ * @param {object} factState - Current fact_state
+ * @param {string} incidentId - Incident identifier
+ * @param {array} requiredFieldsList - Array of { field_id, label, type }
+ * @param {object} newFacts - New facts to merge
+ * @returns {object} Updated fact_state
+ */
+function updateV3FactStateFromFields(factState, incidentId, requiredFieldsList, newFacts) {
+  const incidentState = factState[incidentId] || {
+    required_fields_collected: [],
+    required_fields_missing: [],
+    optional_fields_collected: []
+  };
+  
+  const requiredFieldIdSet = new Set(
+    (requiredFieldsList || []).map(f => f.field_id).filter(Boolean)
+  );
+  
+  const collectedRequired = new Set(incidentState.required_fields_collected || []);
+  
+  for (const [fieldId, value] of Object.entries(newFacts)) {
+    const hasValue = value !== null && value !== undefined && String(value).trim() !== '';
+    if (hasValue && requiredFieldIdSet.has(fieldId)) {
+      collectedRequired.add(fieldId);
+    }
+  }
+  
+  const missingRequired = [...requiredFieldIdSet].filter(id => !collectedRequired.has(id));
+  
+  return {
+    ...factState,
+    [incidentId]: {
+      required_fields_collected: [...collectedRequired],
+      required_fields_missing: missingRequired,
+      optional_fields_collected: incidentState.optional_fields_collected || []
+    }
+  };
+}
+
 function getMissingRequiredFields(factState, incidentId, factModel) {
   const incidentState = factState?.[incidentId];
   
@@ -1057,6 +1191,37 @@ function getMissingRequiredFields(factState, incidentId, factModel) {
       label: f.label,
       type: f.type,
       enum_options: f.enum_options
+    }));
+}
+
+/**
+ * Get missing required fields from a normalized required fields list
+ * @param {object} factState - Current fact_state
+ * @param {string} incidentId - Incident identifier
+ * @param {array} requiredFieldsList - Array of { field_id, label, type }
+ * @returns {array} Array of missing required fields
+ */
+function getMissingRequiredFieldsFromList(factState, incidentId, requiredFieldsList) {
+  const incidentState = factState?.[incidentId];
+  
+  if (!incidentState) {
+    return (requiredFieldsList || []).map(f => ({
+      field_id: f.field_id,
+      label: f.label,
+      type: f.type,
+      enum_options: f.enum_options || []
+    }));
+  }
+  
+  const missingIds = new Set(incidentState.required_fields_missing || []);
+  
+  return (requiredFieldsList || [])
+    .filter(f => missingIds.has(f.field_id))
+    .map(f => ({
+      field_id: f.field_id,
+      label: f.label,
+      type: f.type,
+      enum_options: f.enum_options || []
     }));
 }
 
@@ -1294,14 +1459,30 @@ async function decisionEngineV3Probe(base44, {
     });
   }
   
-  // Initialize/get V3 fact_state
+  // LOAD REQUIRED FIELDS FROM FOLLOWUP PACK CONFIGURATION (PRIMARY SOURCE)
+  // This is the actual source of truth for required field enforcement
+  const requiredFieldsConfig = await loadRequiredFieldsForPack(base44, packId, factModel);
+  const requiredFieldsList = requiredFieldsConfig.required_fields;
+  const requiredFieldsSource = requiredFieldsConfig.source;
+  
+  console.log('[V3_REQUIRED_FIELDS][SOURCE]', {
+    packId: packId || 'none',
+    categoryId,
+    instanceNumber: instanceNumber || 1,
+    requiredCount: requiredFieldsList.length,
+    source: requiredFieldsSource,
+    requiredFieldIds: requiredFieldsList.map(f => f.field_id).slice(0, 10).join(',')
+  });
+  
+  // Initialize/get V3 fact_state (use actual required fields list)
   let factState = { ...(session.fact_state || {}) };
   if (!factState[incidentId]) {
-    factState = { ...factState, ...initializeV3FactState(incidentId, factModel) };
+    const initState = initializeV3FactStateFromFields(incidentId, requiredFieldsList);
+    factState = { ...factState, ...initState };
   }
   
-  // Get current missing fields BEFORE extraction
-  const missingFieldsBefore = getMissingRequiredFields(factState, incidentId, factModel);
+  // Get current missing fields BEFORE extraction (use actual required fields list)
+  const missingFieldsBefore = getMissingRequiredFieldsFromList(factState, incidentId, requiredFieldsList);
 
   // DIAGNOSTIC: Track selected field for logging
   let selectedFieldIdForLogging = null;
@@ -1409,11 +1590,11 @@ async function decisionEngineV3Probe(base44, {
     ...extractedFacts
   };
   
-  // Update fact_state to reflect newly written facts
-  factState = updateV3FactState(factState, incidentId, factModel, incident.facts);
+  // Update fact_state to reflect newly written facts (use actual required fields list)
+  factState = updateV3FactStateFromFields(factState, incidentId, requiredFieldsList, incident.facts);
   
-  // RECOMPUTE missing fields AFTER exact writes
-  const missingFieldsAfter = getMissingRequiredFields(factState, incidentId, factModel);
+  // RECOMPUTE missing fields AFTER exact writes (use actual required fields list)
+  const missingFieldsAfter = getMissingRequiredFieldsFromList(factState, incidentId, requiredFieldsList);
   
   // DETERMINISTIC DETECTION: Extract month/year from opener FIRST (single source of truth)
   const detectedMonthYearNormalized = isInitialCall ? extractMonthYear(latestAnswerText || '') : null;
@@ -1556,13 +1737,16 @@ async function decisionEngineV3Probe(base44, {
     }
   } else if (missingFieldsAfter.length > 0) {
   // REQUIRED FIELD AUTO-ENFORCEMENT: Dynamically enforce all required fields
-  // Uses FactModel metadata to determine mandatory completion criteria
-  console.log('[V3_REQUIRED_FIELD_ENFORCEMENT][DYNAMIC_COMPUTATION]', {
+  // Uses FollowUp Fields configuration as source of truth
+  console.log('[V3_REQUIRED_FIELD_ENFORCEMENT][GATE_CHECK]', {
+    packId: packId || 'none',
     categoryId,
     instanceNumber: instanceNumber || 1,
-    totalRequiredFields: factModel?.required_fields?.length || 0,
+    totalRequiredFields: requiredFieldsList.length,
     missingRequiredCount: missingFieldsAfter.length,
-    missingFieldIds: missingFieldsAfter.map(f => f.field_id).join(',')
+    missingFieldIds: missingFieldsAfter.map(f => f.field_id).join(','),
+    source: requiredFieldsSource,
+    gateStatus: missingFieldsAfter.length > 0 ? 'BLOCKED' : 'ALLOWED'
   });
 
   // PACK RESOLUTION SOT: Use explicit packId from request (no fabrication)
@@ -1697,14 +1881,15 @@ async function decisionEngineV3Probe(base44, {
       candidateField = field;
       selectedFieldIdForLogging = field.field_id;
       
-      // LOG: Field selected for probing
-      console.log('[V3_GENERIC_PROBING][FIELD_SELECTED]', {
-        categoryId,
+      // LOG: Field selected for probing (proves enforcement active)
+      console.log('[V3_REQUIRED_FIELDS][MISSING_SELECTED]', {
+        packId: packId || 'none',
         instanceNumber: instanceNumber || 1,
         fieldId: field.field_id,
-        fieldLabel: field.label,
-        fieldType: field.type,
-        reason: 'Required field missing - auto-enforcement active'
+        label: field.label,
+        type: field.type,
+        source: requiredFieldsSource,
+        reason: 'Required field missing from FollowUp Fields config - must probe before advancement'
       });
       
       break;
