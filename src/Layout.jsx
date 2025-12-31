@@ -1,6 +1,12 @@
 import React from "react";
+import { initAnalyticsSuppression } from "./components/lib/analyticsSuppress";
 
 export default function Layout({ children }) {
+  // ANALYTICS SUPPRESSION: Disable in preview sandbox (CORS blocked)
+  React.useEffect(() => {
+    initAnalyticsSuppression();
+  }, []);
+  
   // PREVIEW CACHE-BUST: One-time reload guard (prevents stale Vite chunk 404s)
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
