@@ -15926,15 +15926,26 @@ export default function CandidateInterview() {
 
       if (shouldFilterDeterministicFollowups) {
         const beforeLen = transcriptToRenderDeduped.length;
-        const removedTypes = [];
+        const removedSamples = [];
 
         transcriptToRenderDeduped = transcriptToRenderDeduped.filter(entry => {
-          // Detect deterministic follow-up artifacts
+          // Extract entry metadata
           const mt = entry.messageType || entry.type || entry.kind || '';
-          const entryPackId = entry.packId || entry.meta?.packId || entry.followup_pack_id;
+          const entryPackId = entry.packId || entry.meta?.packId || entry.meta?.followup_pack_id;
           const entryStableKey = entry.stableKey || entry.id || '';
+          const entryVariant = entry.variant || entry.meta?.variant;
           
-          // PACK-SCOPED: Only filter if BOTH type matches AND belongs to active pack
+          // STRICT TYPE CHECK: Exclude normal Q/A items
+          const isNormalQA = mt === 'QUESTION_SHOWN' || 
+                             mt === 'ANSWER' || 
+                             mt === 'V3_PROBE_QUESTION' || 
+                             mt === 'V3_PROBE_ANSWER';
+          
+          if (isNormalQA) {
+            return true; // NEVER filter normal Q/A (even with packId)
+          }
+          
+          // DETERMINISTIC TYPE CHECK: Explicit deterministic follow-up markers
           const matchesDeterministicType = 
             mt === 'FOLLOWUP_QUESTION' ||
             mt === 'FOLLOWUP_STEP' ||
@@ -15942,31 +15953,36 @@ export default function CandidateInterview() {
             mt === 'PACK_STEP' ||
             entry.kind === 'followup_question' ||
             entry.type === 'followup_question' ||
-            entry.variant === 'deterministic';
+            entryVariant === 'deterministic';
           
-          // Pack ownership check: entry belongs to active V3 pack
+          // PACK OWNERSHIP CHECK: Prove entry belongs to active V3 pack
           const belongsToActivePack = 
             entryPackId === activePackId ||
             entryStableKey.includes(activePackId);
           
-          const isDeterministicForActivePack = matchesDeterministicType && 
-            (belongsToActivePack || !entryPackId); // Filter if pack matches OR unknown
+          // STRICT GUARD: Only filter if BOTH type matches AND ownership proven
+          const isDeterministicForActivePack = matchesDeterministicType && belongsToActivePack;
 
           if (isDeterministicForActivePack) {
-            // Track removed type for diagnostic
-            if (removedTypes.length < 5) {
-              removedTypes.push({
+            // Track removed entry with audit trail (up to 5 samples)
+            if (removedSamples.length < 5) {
+              removedSamples.push({
                 mt,
                 kind: entry.kind,
                 type: entry.type,
-                packId: entryPackId,
-                stableKeySuffix: entryStableKey.slice(-18)
+                entryPackId,
+                stableKeySuffix: entryStableKey.slice(-18),
+                reasonFlags: {
+                  matchesDeterministicType,
+                  belongsToActivePack,
+                  variantDeterministic: entryVariant === 'deterministic'
+                }
               });
             }
-            return false; // Filter out
+            return false; // Filter out (proven deterministic artifact for active pack)
           }
 
-          return true; // Keep non-deterministic or other-pack items
+          return true; // Keep all other items
         });
 
         const afterLen = transcriptToRenderDeduped.length;
@@ -15982,7 +15998,7 @@ export default function CandidateInterview() {
             beforeLen,
             afterLen,
             removedCount,
-            removedTypesSample: removedTypes,
+            removedSampleCount: removedSamples.length,
             reason: 'V3 pack uses conversational probing - deterministic UI artifacts filtered'
           });
         });
@@ -15993,7 +16009,7 @@ export default function CandidateInterview() {
             console.log('[UI_CONTRACT][V3_PACK_DETERMINISTIC_GUARD_ACTIVE]', {
               packId: activePackId,
               removedCount,
-              removedTypesSample: removedTypes.slice(0, 3),
+              removedSamples: removedSamples.slice(0, 3),
               reason: 'Deterministic follow-ups filtered for active V3 pack'
             });
           });
