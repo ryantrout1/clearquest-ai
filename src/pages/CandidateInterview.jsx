@@ -2516,6 +2516,9 @@ export default function CandidateInterview() {
   const exitV3HandledRef = useRef(false);
   const exitV3InProgressRef = useRef(false);
   
+  // V3 ENGINE DECISION CACHE: Store last engine result per loopKey (for MI_GATE payload)
+  const lastV3DecisionByLoopKeyRef = useRef({}); // Map<loopKey, { missingFields, miGateBlocked, stopReason, packId, instanceNumber, ts }>
+  
   // PROMPT MISSING DIAGNOSTIC: Ref for de-duped logging (MUST be top-level hook)
   const promptMissingKeyRef = useRef(null);
   
@@ -4512,10 +4515,18 @@ export default function CandidateInterview() {
     // Check if we have a stored payload from last V3 submit
     const payload = lastV3SubmittedAnswerRef.current;
     
+    // METADATA PAYLOAD: Check for engine decision metadata (required for gate validation)
+    const loopKey = `${sessionId}:${multiInstanceGate?.categoryId}:${multiInstanceGate?.instanceNumber}`;
+    const enginePayload = lastV3DecisionByLoopKeyRef.current[loopKey];
+    
     if (!payload) {
       console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
         sessionId,
         hasPayload: false,
+        hasEnginePayload: !!enginePayload,
+        missingCount: enginePayload?.missingFields?.length || 'unknown',
+        miGateBlocked: enginePayload?.miGateBlocked || false,
+        stopReason: enginePayload?.stopReason || null,
         actionTaken: 'SKIP_NO_PAYLOAD'
       });
       return;
