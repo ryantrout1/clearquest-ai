@@ -1733,11 +1733,23 @@ async function decisionEngineV3Probe(base44, {
         incidentId_out: incident.incident_id
       });
     }
-  } else if (legacyFactState.probe_count >= mergedConfig.maxProbesPerIncident) {
+  } else if (missingFieldsAfter.length > 0 && legacyFactState.probe_count >= mergedConfig.maxProbesPerIncident) {
+    // EXCEPTIONAL: Max probes reached but required fields still missing
+    // This is a probe limit exhaustion scenario - allow STOP but flag as incomplete
     nextAction = "STOP";
     stopReason = "MAX_PROBES_REACHED";
     legacyFactState.completion_status = "incomplete";
     nextPrompt = getCompletionMessage("STOP", stopReason);
+    
+    console.warn('[V3_REQUIRED_FIELDS][PROBE_LIMIT_EXHAUSTED]', {
+      packId: packId || 'none',
+      instanceNumber: instanceNumber || 1,
+      missingCount: missingFieldsAfter.length,
+      missingFieldIds: missingFieldsAfter.map(f => f.field_id).join(','),
+      probeCount: legacyFactState.probe_count,
+      maxProbes: mergedConfig.maxProbesPerIncident,
+      reason: 'Max probes reached with required fields still missing - allowing STOP but flagging incomplete'
+    });
     
     // DIAGNOSTIC: Log STOP only on initial call
     if (!incidentId || isNewIncident) {
@@ -1756,11 +1768,22 @@ async function decisionEngineV3Probe(base44, {
         incidentId_out: incident.incident_id
       });
     }
-  } else if (legacyFactState.non_substantive_count >= mergedConfig.maxNonSubstantiveResponses) {
+  } else if (missingFieldsAfter.length > 0 && legacyFactState.non_substantive_count >= mergedConfig.maxNonSubstantiveResponses) {
+    // EXCEPTIONAL: Non-substantive limit reached but required fields still missing
     nextAction = "STOP";
     stopReason = "NON_SUBSTANTIVE_LIMIT";
     legacyFactState.completion_status = "blocked";
     nextPrompt = getCompletionMessage("STOP", stopReason);
+    
+    console.warn('[V3_REQUIRED_FIELDS][NON_SUBSTANTIVE_LIMIT_EXHAUSTED]', {
+      packId: packId || 'none',
+      instanceNumber: instanceNumber || 1,
+      missingCount: missingFieldsAfter.length,
+      missingFieldIds: missingFieldsAfter.map(f => f.field_id).join(','),
+      nonSubstantiveCount: legacyFactState.non_substantive_count,
+      maxNonSubstantive: mergedConfig.maxNonSubstantiveResponses,
+      reason: 'Non-substantive limit reached with required fields still missing - allowing STOP but flagging blocked'
+    });
     
     // DIAGNOSTIC: Log STOP only on initial call
     if (!incidentId || isNewIncident) {
@@ -1779,7 +1802,9 @@ async function decisionEngineV3Probe(base44, {
         incidentId_out: incident.incident_id
       });
     }
-  } else if (missingFieldsAfter.length > 0) {
+  } else {
+    // SAFETY: Should never reach here due to hard gate above, but preserve as catch-all
+    // This block handles the actual field selection when nextAction='ASK' is already set
   // REQUIRED FIELD AUTO-ENFORCEMENT: Hard gate - MUST ask until all required fields collected
   // Uses same source as "Follow-Up Fields (9 fields, Required)" admin UI
   const gateStatus = missingFieldsAfter.length > 0 ? 'BLOCKED' : 'ALLOWED';
@@ -2169,8 +2194,11 @@ async function decisionEngineV3Probe(base44, {
         promptPreview: nextPrompt?.substring(0, 60)
       });
     }
-  } else {
-    // No more missing fields
+  }
+  
+  // SAFETY CHECK: If we somehow exited field selection without setting a prompt but nextAction=ASK
+  if (nextAction === "ASK" && !nextPrompt && missingFieldsAfter.length === 0) {
+    // All required fields complete - should not be ASK
     nextAction = "RECAP";
     stopReason = "REQUIRED_FIELDS_COMPLETE";
     nextPrompt = getCompletionMessage("RECAP", null);
