@@ -15912,7 +15912,7 @@ export default function CandidateInterview() {
       // When a V3 pack is active, suppress ALL deterministic follow-up question items
       // V3 packs use conversational probing (V3ProbingLoop) - no deterministic UI cards
 
-      // Detect active V3 pack
+      // Detect active V3 pack context
       const activePackId = currentItem?.packId || v3ProbingContext?.packId || activeUiItem?.packId || null;
       const packConfig = activePackId ? FOLLOWUP_PACK_CONFIGS?.[activePackId] : null;
       const isActivePackV3 = Boolean(packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3');
@@ -15924,56 +15924,80 @@ export default function CandidateInterview() {
       // Only apply suppression when BOTH are true
       const shouldFilterDeterministicFollowups = isActivePackV3 && isV3UiActive;
 
-      let transcriptAfterV3Filter = transcriptToRenderDeduped;
-
       if (shouldFilterDeterministicFollowups) {
         const beforeLen = transcriptToRenderDeduped.length;
         const removedTypes = [];
 
-        transcriptAfterV3Filter = transcriptToRenderDeduped.filter(entry => {
+        transcriptToRenderDeduped = transcriptToRenderDeduped.filter(entry => {
           // Detect deterministic follow-up artifacts
           const mt = entry.messageType || entry.type || entry.kind || '';
-          const isDeterministicFollowup = 
+          const entryPackId = entry.packId || entry.meta?.packId || entry.followup_pack_id;
+          const entryStableKey = entry.stableKey || entry.id || '';
+          
+          // PACK-SCOPED: Only filter if BOTH type matches AND belongs to active pack
+          const matchesDeterministicType = 
             mt === 'FOLLOWUP_QUESTION' ||
             mt === 'FOLLOWUP_STEP' ||
             mt === 'FOLLOWUP_DETERMINISTIC' ||
             mt === 'PACK_STEP' ||
             entry.kind === 'followup_question' ||
             entry.type === 'followup_question' ||
-            (entry.packId === activePackId && entry.variant === 'deterministic');
+            entry.variant === 'deterministic';
+          
+          // Pack ownership check: entry belongs to active V3 pack
+          const belongsToActivePack = 
+            entryPackId === activePackId ||
+            entryStableKey.includes(activePackId);
+          
+          const isDeterministicForActivePack = matchesDeterministicType && 
+            (belongsToActivePack || !entryPackId); // Filter if pack matches OR unknown
 
-          if (isDeterministicFollowup) {
+          if (isDeterministicForActivePack) {
             // Track removed type for diagnostic
             if (removedTypes.length < 5) {
               removedTypes.push({
                 mt,
                 kind: entry.kind,
                 type: entry.type,
-                stableKeySuffix: (entry.stableKey || entry.id || '').slice(-18)
+                packId: entryPackId,
+                stableKeySuffix: entryStableKey.slice(-18)
               });
             }
             return false; // Filter out
           }
 
-          return true; // Keep all non-deterministic-followup items
+          return true; // Keep non-deterministic or other-pack items
         });
 
-        const removedCount = beforeLen - transcriptAfterV3Filter.length;
+        const afterLen = transcriptToRenderDeduped.length;
+        const removedCount = beforeLen - afterLen;
 
+        // Always log when guard is active (proof it ran)
+        logOnce(`v3_deterministic_guard_${sessionId}:${activePackId}`, () => {
+          console.log('[UI_CONTRACT][V3_PACK_DETERMINISTIC_GUARD]', {
+            packId: activePackId,
+            isActivePackV3,
+            isV3UiActive,
+            shouldFilterDeterministicFollowups: true,
+            beforeLen,
+            afterLen,
+            removedCount,
+            removedTypesSample: removedTypes,
+            reason: 'V3 pack uses conversational probing - deterministic UI artifacts filtered'
+          });
+        });
+        
+        // Active log when items removed (proof it's working)
         if (removedCount > 0) {
-          logOnce(`v3_deterministic_guard_${sessionId}:${activePackId}`, () => {
-            console.log('[UI_CONTRACT][V3_PACK_DETERMINISTIC_GUARD]', {
+          logOnce(`v3_deterministic_guard_active_${sessionId}:${activePackId}`, () => {
+            console.log('[UI_CONTRACT][V3_PACK_DETERMINISTIC_GUARD_ACTIVE]', {
               packId: activePackId,
               removedCount,
-              beforeLen,
-              afterLen: transcriptAfterV3Filter.length,
-              removedTypesSample: removedTypes,
-              reason: 'V3 pack uses conversational probing - deterministic UI artifacts filtered'
+              removedTypesSample: removedTypes.slice(0, 3),
+              reason: 'Deterministic follow-ups filtered for active V3 pack'
             });
           });
         }
-
-        transcriptToRenderDeduped = transcriptAfterV3Filter;
       }
       
       if (cqDiagEnabled) {
