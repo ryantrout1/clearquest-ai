@@ -263,6 +263,27 @@ export default function StartInterview() {
   // Terminal navigation guard (prevents re-render after navigate)
   const didNavigateToInterviewRef = React.useRef(false);
 
+  // LAYOUT SHIFT AUDIT: Compute UI snapshot for change detection (dev-only)
+  // HOOK ORDER FIX: Moved BEFORE early return to ensure consistent hook count across all renders
+  React.useEffect(() => {
+    const snapshot = {
+      deptLen: formData.departmentCode.length,
+      fileLen: formData.fileNumber.length,
+      isChecking: isValidatingCode,
+      isValidDept: isCodeValid,
+      isValidFile: formData.fileNumber.length > 0,
+      helperShown: isCodeValid === false,
+      canSubmit: !isSubmitting && isCodeValid !== false,
+      checkingExisting
+    };
+    
+    const key = JSON.stringify(snapshot);
+    if (lastLayoutSnapshotRef.current !== key) {
+      console.log('[START_INTERVIEW][LAYOUT_SOT]', snapshot);
+      lastLayoutSnapshotRef.current = key;
+    }
+  }, [formData, isValidatingCode, isCodeValid, isSubmitting, checkingExisting]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -471,26 +492,6 @@ export default function StartInterview() {
       </PublicAppShell>
     );
   }
-  
-  // LAYOUT SHIFT AUDIT: Compute UI snapshot for change detection (dev-only)
-  React.useEffect(() => {
-    const snapshot = {
-      deptLen: formData.departmentCode.length,
-      fileLen: formData.fileNumber.length,
-      isChecking: isValidatingCode,
-      isValidDept: isCodeValid,
-      isValidFile: formData.fileNumber.length > 0,
-      helperShown: isCodeValid === false,
-      canSubmit: !isSubmitting && isCodeValid !== false,
-      checkingExisting
-    };
-    
-    const key = JSON.stringify(snapshot);
-    if (lastLayoutSnapshotRef.current !== key) {
-      console.log('[START_INTERVIEW][LAYOUT_SOT]', snapshot);
-      lastLayoutSnapshotRef.current = key;
-    }
-  }, [formData, isValidatingCode, isCodeValid, isSubmitting, checkingExisting]);
   
   // NORMAL RENDER: Show StartInterview form
   return (
