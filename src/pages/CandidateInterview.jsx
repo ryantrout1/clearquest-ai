@@ -18472,13 +18472,13 @@ export default function CandidateInterview() {
                                          safePackData?.followup_multi_instance === true;
                   
                   if (isMultiIncident) {
-                    console.log('[V3_INCIDENT_COMPLETE][MULTI] Showing another instance gate');
+                    console.log('[V3_INCIDENT_COMPLETE][MULTI] Showing another instance gate with required fields check');
                     // Pass through required fields data from engine result
                     transitionToAnotherInstanceGate({
                       ...v3ProbingContext,
-                      missingFields,
-                      miGateBlocked,
-                      stopReason
+                      missingFields: missingFields || [],
+                      miGateBlocked: miGateBlocked || false,
+                      stopReason: stopReason || null
                     });
                   } else {
                     console.log('[V3_INCIDENT_COMPLETE][SINGLE] Exiting V3 and advancing');
