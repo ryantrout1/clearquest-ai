@@ -8989,23 +8989,68 @@ export default function CandidateInterview() {
     const isV3Pack = packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3';
     
     if (isV3Pack) {
-      // Read metadata ONLY if present in v3Context (no cache plumbing)
-      const missingFields = Array.isArray(v3Context?.missingFields) ? v3Context.missingFields : null;
+      // REQUIRED-FIELD AUDIT: Check incident data directly (do not trust opener merge status)
+      let missingRequired = [];
+      
+      try {
+        // Fetch current session to inspect incident facts
+        const currentSession = await base44.entities.InterviewSession.get(sessionId);
+        const incidents = currentSession?.incidents || [];
+        
+        // Find incident for this pack/instance
+        const incident = incidents.find(inc => 
+          (inc.category_id === categoryId || inc.incident_type === packId) &&
+          inc.instance_number === instanceNumber
+        );
+        
+        if (incident && incident.facts) {
+          // Get required fields from pack config
+          const requiredAnchors = packConfig?.requiredAnchors || [];
+          
+          // Check which required fields are missing
+          missingRequired = requiredAnchors.filter(fieldKey => {
+            const value = incident.facts[fieldKey];
+            return !value || (typeof value === 'string' && value.trim() === '');
+          });
+          
+          console.log('[MI_GATE][REQUIRED_FIELD_AUDIT]', {
+            packId,
+            instanceNumber,
+            requiredAnchors,
+            incidentFacts: Object.keys(incident.facts || {}),
+            missingRequired
+          });
+        } else {
+          // No incident found - treat as incomplete
+          missingRequired = packConfig?.requiredAnchors || [];
+          console.log('[MI_GATE][REQUIRED_FIELD_AUDIT_NO_INCIDENT]', {
+            packId,
+            instanceNumber,
+            reason: 'Incident not found - assuming all required fields missing'
+          });
+        }
+      } catch (err) {
+        console.warn('[MI_GATE][REQUIRED_FIELD_AUDIT_ERROR]', {
+          error: err.message,
+          fallback: 'Using engine payload metadata'
+        });
+        // Fallback to engine payload if incident fetch fails
+        missingRequired = v3Context?.missingFields || [];
+      }
+      
+      // SAFETY CHECK: Block MI_GATE if required fields incomplete
       const miGateBlocked = v3Context?.miGateBlocked === true;
       const stopReason = v3Context?.stopReason || null;
       
-      // SAFETY CHECK: Block MI_GATE if metadata missing or fields incomplete
-      const shouldBlockGate = missingFields === null || 
-                             missingFields.length > 0 || 
+      const shouldBlockGate = missingRequired.length > 0 || 
                              miGateBlocked || 
                              stopReason === 'REQUIRED_FIELDS_INCOMPLETE';
       
       if (shouldBlockGate) {
-        console.log('[MI_GATE][PROBE_FIRST_BLOCK]', {
+        console.log('[MI_GATE][REQUIRED_FIELD_AUDIT_BLOCK]', {
           packId,
           instanceNumber,
-          stableKey: `${sessionId}:${categoryId}:${instanceNumber}`,
-          missingSummary: missingFields ? `${missingFields.length} fields` : 'unknown',
+          missingRequired,
           reason: 'Required fields incomplete - V3 probing must complete first'
         });
         
@@ -9044,10 +9089,10 @@ export default function CandidateInterview() {
       }
       
       // All checks passed - log allowance
-      console.log('[MI_GATE][PROBE_FIRST_UNBLOCK]', {
+      console.log('[MI_GATE][REQUIRED_FIELD_AUDIT_PASS]', {
         packId,
         instanceNumber,
-        stableKey: `${sessionId}:${categoryId}:${instanceNumber}`,
+        requiredComplete: true,
         reason: 'All required fields complete - allowing MI_GATE'
       });
     }
