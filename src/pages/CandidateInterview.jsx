@@ -2778,7 +2778,8 @@ export default function CandidateInterview() {
     
     // Priority 1.5: V3 probing active but no prompt yet (V3_WAITING state)
     // CRITICAL FIX: Force V3_WAITING kind when effectiveItemType is v3_probing
-    if (v3ProbingActive && !hasActiveV3Prompt) {
+    // OVERRIDE: Do NOT enter V3_WAITING if fallback is active
+    if (v3ProbingActive && !hasActiveV3Prompt && !requiredAnchorFallbackActive) {
       const forcedKind = "V3_WAITING";
       console.log('[V3_CONTROLLER][FORCE_ACTIVE_KIND]', {
         effectiveItemType: currentItem?.type === 'v3_probing' ? 'v3_probing' : currentItem?.type,
@@ -2798,6 +2799,14 @@ export default function CandidateInterview() {
         currentItemType: currentItem?.type,
         currentItemId: currentItem?.id
       };
+    }
+    
+    // GUARD: Block V3_WAITING if fallback active
+    if (v3ProbingActive && !hasActiveV3Prompt && requiredAnchorFallbackActive) {
+      console.log('[REQUIRED_ANCHOR_FALLBACK][BLOCK_V3_WAITING_BRANCH]', {
+        reason: 'fallback_active'
+      });
+      // Do NOT return V3_WAITING - fall through to other priorities
     }
     
     // Priority 2: V3 pack opener (must not be superseded by MI_GATE)
@@ -11426,13 +11435,16 @@ export default function CandidateInterview() {
                           currentItem?.type || null;
   
   // Step 2: Compute footer controller (determines which UI block controls bottom bar)
-  const footerControllerLocal = activeUiItem.kind === "V3_PROMPT" ? "V3_PROMPT" :
+  const footerControllerLocal = activeUiItem.kind === "REQUIRED_ANCHOR_FALLBACK" ? "REQUIRED_ANCHOR_FALLBACK" :
+                                activeUiItem.kind === "V3_PROMPT" ? "V3_PROMPT" :
                                 activeUiItem.kind === "V3_OPENER" ? "V3_OPENER" :
                                 activeUiItem.kind === "MI_GATE" ? "MI_GATE" :
                                 "DEFAULT";
   
   // Step 3: Compute effectiveItemType (UI routing key derived from activeUiItem.kind)
-  const effectiveItemType = activeUiItem.kind === "V3_PROMPT" ? 'v3_probing' : 
+  // CRITICAL OVERRIDE: Fallback takes absolute precedence over v3_probing
+  const effectiveItemType = activeUiItem.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
+                           activeUiItem.kind === "V3_PROMPT" ? 'v3_probing' : 
                            activeUiItem.kind === "V3_OPENER" ? 'v3_pack_opener' :
                            activeUiItem.kind === "MI_GATE" ? 'multi_instance_gate' :
                            v3ProbingActive ? 'v3_probing' : 
@@ -13990,9 +14002,25 @@ export default function CandidateInterview() {
     // Get anchor label from pack config
     const packConfig = FOLLOWUP_PACK_CONFIGS?.[v3ProbingContext?.packId];
     const anchor = packConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
-    activePromptText = anchor?.label 
+    const promptText = anchor?.label 
       ? `What ${anchor.label}?`
       : `Please provide: ${requiredAnchorCurrent}`;
+    
+    activePromptText = promptText;
+    
+    // Log prompt rendering
+    console.log('[REQUIRED_ANCHOR_FALLBACK][PROMPT_RENDER]', {
+      anchor: requiredAnchorCurrent,
+      promptPreview: promptText
+    });
+    
+    // Log bottom bar ownership
+    console.log('[REQUIRED_ANCHOR_FALLBACK][OWNS_BOTTOM_BAR]', {
+      requiredAnchorCurrent,
+      promptPreview: promptText,
+      effectiveItemType,
+      note: 'Override effectiveItemType from v3_probing'
+    });
   }
   // Priority 1: V3 active prompt (from V3ProbingLoop callback)
   else if (v3ProbingActive && v3ActivePromptText) {
@@ -14267,6 +14295,8 @@ export default function CandidateInterview() {
       bottomBarRenderTypeSOT,
       packId: currentItem?.packId || v3ProbingContext?.packId,
       instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
+      requiredAnchorFallbackActive,
+      requiredAnchorCurrent,
       changed: {
         controller: footerControllerLocal !== lastFooterControllerRef.current,
         mode: bottomBarModeSOT !== lastBottomBarModeRef.current,
@@ -18719,6 +18749,16 @@ export default function CandidateInterview() {
 
             {/* V3 Probing Loop - HEADLESS (no visible cards in main transcript area) */}
             {(() => {
+            // SUPPRESS: Do not mount V3ProbingLoop when fallback is active
+            if (requiredAnchorFallbackActive) {
+              const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+              console.log('[REQUIRED_ANCHOR_FALLBACK][SUPPRESS_V3_MOUNT]', {
+                loopKey,
+                reason: 'fallback_active'
+              });
+              return null;
+            }
+            
             const shouldRenderV3Loop = v3ProbingActive && v3ProbingContext && 
               v3ProbingContext.categoryId && v3ProbingContext.packId;
             
