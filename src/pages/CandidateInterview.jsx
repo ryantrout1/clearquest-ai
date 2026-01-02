@@ -2745,8 +2745,22 @@ export default function CandidateInterview() {
 
   // CANONICAL ACTIVE UI ITEM RESOLVER - Single source of truth
   // Determines what UI should be shown based on strict precedence:
-  // V3_PROMPT > V3_WAITING > V3_OPENER > MI_GATE > DEFAULT
+  // REQUIRED_ANCHOR_FALLBACK > V3_PROMPT > V3_WAITING > V3_OPENER > MI_GATE > DEFAULT
   const resolveActiveUiItem = () => {
+    // Priority 0: Required anchor fallback (deadlock breaker)
+    if (requiredAnchorFallbackActive && requiredAnchorCurrent) {
+      return {
+        kind: "REQUIRED_ANCHOR_FALLBACK",
+        packId: v3ProbingContext?.packId || currentItem?.packId,
+        categoryId: v3ProbingContext?.categoryId || currentItem?.categoryId,
+        instanceNumber: v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1,
+        promptText: null, // Computed separately in activePromptText resolution
+        anchor: requiredAnchorCurrent,
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id
+      };
+    }
+    
     // Priority 1: V3 prompt active (multi-signal detection)
     // HARDENED: V3_PROMPT takes absolute precedence - even if MI_GATE exists in state
     if (hasActiveV3Prompt) {
@@ -3282,7 +3296,7 @@ export default function CandidateInterview() {
   // CRITICAL: Declared at top-level so ALL render code can access it
   const bottomBarRenderTypeSOT = (() => {
     // PRIORITY 0: Required anchor fallback (highest precedence - must show prompt)
-    if (requiredAnchorFallbackActive && requiredAnchorCurrent) return "required_anchor_fallback";
+    if (activeUiItem?.kind === "REQUIRED_ANCHOR_FALLBACK") return "required_anchor_fallback";
     
     // PRIORITY 1: V3 states (highest precedence)
     if (activeUiItem?.kind === "V3_PROMPT") return "v3_probing";
@@ -9074,15 +9088,15 @@ export default function CandidateInterview() {
           reason: 'Required fields incomplete - V3 probing must complete first'
         });
         
-        // DEADLOCK DETECTION: Check if V3 is in WAITING state (engine won't prompt)
-        const isV3Waiting = v3ProbingActive && !hasActiveV3Prompt && v3PromptPhase !== 'ANSWER_NEEDED';
+        // DEADLOCK DETECTION: Check if V3 is headless (engine won't prompt)
+        const isV3Headless = v3ProbingActive && !hasActiveV3Prompt && bottomBarModeSOT === 'V3_WAITING';
         
-        if (isV3Waiting && missingRequired.length > 0) {
+        if (isV3Headless && missingRequired.length > 0) {
           console.log('[REQUIRED_ANCHOR_FALLBACK][START]', {
             packId,
             instanceNumber,
             missingRequired,
-            reason: 'V3_WAITING_no_prompt'
+            reason: 'v3_headless_no_prompt'
           });
           
           // ACTIVATE FALLBACK: Ask for required anchors deterministically
@@ -9090,11 +9104,22 @@ export default function CandidateInterview() {
           setRequiredAnchorQueue([...missingRequired]);
           setRequiredAnchorCurrent(missingRequired[0]);
           
-          // CLEAR STUCK STATE
+          // CLEAR STUCK STATE + Set phase to ANSWER_NEEDED (enables Send button)
           setIsCommitting(false);
-          setV3PromptPhase('IDLE');
+          setV3PromptPhase('ANSWER_NEEDED');
+          
+          console.log('[REQUIRED_ANCHOR_FALLBACK][PROMPT]', {
+            anchor: missingRequired[0]
+          });
           
           return; // Exit - fallback will render prompt
+        } else if (!isV3Headless) {
+          console.log('[REQUIRED_ANCHOR_FALLBACK][SKIP]', {
+            reason: 'V3_has_prompt_or_not_waiting',
+            v3ProbingActive,
+            hasActiveV3Prompt,
+            bottomBarModeSOT
+          });
         }
         
         // CLEAR STUCK STATE: Prevent "Thinking..." limbo
@@ -14648,7 +14673,7 @@ export default function CandidateInterview() {
       requiredAnchorFallbackActive
     });
     
-    // ROUTE FALLBACK: Required anchor answer submission
+    // ROUTE A0: Required anchor answer submission (highest priority - deadlock breaker)
     if (requiredAnchorFallbackActive && requiredAnchorCurrent) {
       const trimmed = (input ?? "").trim();
       if (!trimmed) {
@@ -14662,7 +14687,7 @@ export default function CandidateInterview() {
       });
       
       try {
-        // Persist to incident.facts
+        // Persist to incident.facts directly
         const currentSession = await base44.entities.InterviewSession.get(sessionId);
         const incidents = currentSession?.incidents || [];
         const packId = v3ProbingContext?.packId;
@@ -14674,31 +14699,40 @@ export default function CandidateInterview() {
           inc.instance_number === instanceNumber
         );
         
-        if (incident) {
-          // Update incident.facts
-          const updatedFacts = { ...(incident.facts || {}), [requiredAnchorCurrent]: trimmed };
-          const updatedIncidents = incidents.map(inc => 
-            inc.incident_id === incident.incident_id 
-              ? { ...inc, facts: updatedFacts }
-              : inc
-          );
-          
-          await base44.entities.InterviewSession.update(sessionId, {
-            incidents: updatedIncidents
+        if (!incident) {
+          console.error('[REQUIRED_ANCHOR_FALLBACK][NO_INCIDENT]', {
+            packId,
+            categoryId,
+            instanceNumber,
+            reason: 'Cannot find incident to update facts'
           });
-          
-          console.log('[REQUIRED_ANCHOR_FALLBACK][SAVED]', {
-            anchor: requiredAnchorCurrent,
-            incidentId: incident.incident_id,
-            factsKeys: Object.keys(updatedFacts)
-          });
+          return;
         }
+        
+        // Update incident.facts with new value
+        const updatedFacts = { ...(incident.facts || {}), [requiredAnchorCurrent]: trimmed };
+        const updatedIncidents = incidents.map(inc => 
+          inc.incident_id === incident.incident_id 
+            ? { ...inc, facts: updatedFacts, updated_at: new Date().toISOString() }
+            : inc
+        );
+        
+        await base44.entities.InterviewSession.update(sessionId, {
+          incidents: updatedIncidents
+        });
+        
+        console.log('[REQUIRED_ANCHOR_FALLBACK][SAVED]', {
+          anchor: requiredAnchorCurrent,
+          incidentId: incident.incident_id,
+          factsKeys: Object.keys(updatedFacts)
+        });
         
         // Advance queue
         const nextQueue = requiredAnchorQueue.slice(1);
         setRequiredAnchorQueue(nextQueue);
         
         if (nextQueue.length > 0) {
+          // More anchors to collect
           setRequiredAnchorCurrent(nextQueue[0]);
           setInput("");
           
@@ -14706,18 +14740,33 @@ export default function CandidateInterview() {
             anchor: nextQueue[0]
           });
         } else {
-          // All required fields collected
+          // All required fields collected - deactivate fallback
           setRequiredAnchorFallbackActive(false);
           setRequiredAnchorCurrent(null);
+          setRequiredAnchorQueue([]);
           setInput("");
+          setV3PromptPhase('IDLE');
           
           console.log('[REQUIRED_ANCHOR_FALLBACK][COMPLETE]', {
             packId,
             instanceNumber
           });
           
-          // Show MI_GATE now
-          transitionToAnotherInstanceGate(v3ProbingContext);
+          // Exit V3 mode and show MI_GATE
+          setV3ProbingActive(false);
+          setV3ProbingContext(null);
+          setV3ActivePromptText(null);
+          
+          // Transition to MI_GATE (audit will pass now)
+          setTimeout(() => {
+            transitionToAnotherInstanceGate({
+              packId,
+              categoryId,
+              categoryLabel: v3ProbingContext?.categoryLabel,
+              instanceNumber,
+              packData: v3ProbingContext?.packData
+            });
+          }, 50);
         }
       } catch (err) {
         console.error('[REQUIRED_ANCHOR_FALLBACK][SAVE_ERROR]', { error: err.message });
