@@ -9005,6 +9005,46 @@ export default function CandidateInterview() {
     }
   }, [sessionId]);
 
+  // HELPER: Prioritize missing required anchors for fallback prompting
+  const prioritizeMissingRequired = (missingRequired) => {
+    if (!Array.isArray(missingRequired) || missingRequired.length <= 1) {
+      return missingRequired; // No sorting needed for 0 or 1 items
+    }
+    
+    // Priority scoring function (pack-agnostic semantic heuristics)
+    const getPriorityScore = (anchorId) => {
+      const id = String(anchorId).toLowerCase();
+      
+      // Tier 1: Position/role/title (most important - defines the context)
+      if (/position|role|title|rank/i.test(id)) return 100;
+      
+      // Tier 2: Agency/employer/organization (second most important)
+      if (/agency|department|employer|organization/i.test(id)) return 80;
+      
+      // Tier 3: Date/temporal (helpful for context)
+      if (/date|month|year|when|approx/i.test(id)) return 60;
+      
+      // Tier 4: Outcome/result/status (less critical for initial context)
+      if (/outcome|result|status/i.test(id)) return 40;
+      
+      // Default: preserve original order
+      return 0;
+    };
+    
+    // Stable sort: higher scores first, preserve relative order for ties
+    const sorted = [...missingRequired].sort((a, b) => {
+      const scoreA = getPriorityScore(a);
+      const scoreB = getPriorityScore(b);
+      
+      if (scoreA !== scoreB) return scoreB - scoreA; // Descending
+      
+      // Tie: preserve original order
+      return missingRequired.indexOf(a) - missingRequired.indexOf(b);
+    });
+    
+    return sorted;
+  };
+
   // HELPER: Transition to multi-instance "another instance?" gate (reusable)
   const transitionToAnotherInstanceGate = useCallback(async (v3Context) => {
     const { packId, categoryId, categoryLabel, instanceNumber, packData } = v3Context || v3ProbingContext;
@@ -9108,6 +9148,14 @@ export default function CandidateInterview() {
             reason: 'v3_headless_no_prompt'
           });
           
+          // PRIORITIZE: Sort missing anchors by importance
+          const sortedMissing = prioritizeMissingRequired(missingRequired);
+          
+          console.log('[REQUIRED_ANCHOR_FALLBACK][QUEUE_SORTED]', {
+            before: missingRequired,
+            after: sortedMissing
+          });
+          
           // TAKE OWNERSHIP: Disable V3 completely to prevent competition
           setV3ProbingActive(false);
           setV3ProbingContext(null);
@@ -9129,10 +9177,10 @@ export default function CandidateInterview() {
             }
           });
           
-          // ACTIVATE FALLBACK: Ask for required anchors deterministically
+          // ACTIVATE FALLBACK: Ask for required anchors deterministically (prioritized)
           setRequiredAnchorFallbackActive(true);
-          setRequiredAnchorQueue([...missingRequired]);
-          setRequiredAnchorCurrent(missingRequired[0]);
+          setRequiredAnchorQueue([...sortedMissing]);
+          setRequiredAnchorCurrent(sortedMissing[0]);
           
           // CLEAR STUCK STATE + Set phase to ANSWER_NEEDED (enables Send button)
           setIsCommitting(false);
@@ -9141,12 +9189,12 @@ export default function CandidateInterview() {
           console.log('[REQUIRED_ANCHOR_FALLBACK][TAKE_OWNERSHIP]', {
             packId,
             instanceNumber,
-            anchor: missingRequired[0],
+            anchor: sortedMissing[0],
             note: 'Set v3ProbingActive=false + cleared optimistic/failsafe + enabled input'
           });
           
           console.log('[REQUIRED_ANCHOR_FALLBACK][PROMPT]', {
-            anchor: missingRequired[0]
+            anchor: sortedMissing[0]
           });
           
           return; // Exit - fallback will render prompt
