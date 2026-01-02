@@ -9108,6 +9108,27 @@ export default function CandidateInterview() {
             reason: 'v3_headless_no_prompt'
           });
           
+          // TAKE OWNERSHIP: Disable V3 completely to prevent competition
+          setV3ProbingActive(false);
+          setV3ProbingContext(null);
+          setV3ActivePromptText(null);
+          
+          // Clear V3 optimistic markers and failsafe timers
+          if (v3OpenerFailsafeTimerRef.current) {
+            clearTimeout(v3OpenerFailsafeTimerRef.current);
+            v3OpenerFailsafeTimerRef.current = null;
+          }
+          v3OpenerSubmitTokenRef.current = null;
+          v3OpenerSubmitLoopKeyRef.current = null;
+          
+          // Clear optimistic persist markers
+          const loopKey = `${sessionId}:${categoryId}:${instanceNumber}`;
+          Object.keys(v3OptimisticPersistRef.current).forEach(key => {
+            if (key.includes(loopKey)) {
+              delete v3OptimisticPersistRef.current[key];
+            }
+          });
+          
           // ACTIVATE FALLBACK: Ask for required anchors deterministically
           setRequiredAnchorFallbackActive(true);
           setRequiredAnchorQueue([...missingRequired]);
@@ -9116,6 +9137,13 @@ export default function CandidateInterview() {
           // CLEAR STUCK STATE + Set phase to ANSWER_NEEDED (enables Send button)
           setIsCommitting(false);
           setV3PromptPhase('ANSWER_NEEDED');
+          
+          console.log('[REQUIRED_ANCHOR_FALLBACK][TAKE_OWNERSHIP]', {
+            packId,
+            instanceNumber,
+            anchor: missingRequired[0],
+            note: 'Set v3ProbingActive=false + cleared optimistic/failsafe + enabled input'
+          });
           
           console.log('[REQUIRED_ANCHOR_FALLBACK][PROMPT]', {
             anchor: missingRequired[0]
@@ -15056,7 +15084,10 @@ export default function CandidateInterview() {
   // Submit disabled logic - allows question, v2_pack_field, followup
   // IMPORTANT: Do NOT gate by currentItemType === 'question' - we want v2_pack_field to work too
   // DIAGNOSTIC: Log button disabled state for v3_pack_opener
-  const isBottomBarSubmitDisabled = !currentItem || isCommitting || !(input ?? "").trim();
+  // FALLBACK OVERRIDE: Enable submit for required anchor fallback
+  const isBottomBarSubmitDisabled = requiredAnchorFallbackActive 
+    ? (!(input ?? "").trim())
+    : (!currentItem || isCommitting || !(input ?? "").trim());
   
   if (effectiveItemType === 'v3_pack_opener' && currentItem) {
     const openerInputTrimmed = (openerDraft || "").trim();
@@ -19511,7 +19542,7 @@ export default function CandidateInterview() {
           ) : null}
 
           {/* V3 UI Contract Enforcement - Self-Check */}
-          {v3ProbingActive && (() => {
+          {v3ProbingActive && !requiredAnchorFallbackActive && (() => {
             const transcriptPromptCards = renderedTranscript.filter(e => 
               e.messageType === 'v3_probe_question' || e.type === 'v3_probe_question'
             ).length;
@@ -19540,6 +19571,14 @@ export default function CandidateInterview() {
               activeCardKind: activeCard?.kind || null,
               hasActiveV3Prompt,
               activeUiItemKind: activeUiItem?.kind
+            });
+            return null;
+          })()}
+          
+          {/* Fallback skips V3 enforcement */}
+          {requiredAnchorFallbackActive && (() => {
+            console.log('[REQUIRED_ANCHOR_FALLBACK][SKIP_V3_ENFORCED]', {
+              reason: 'fallback_active'
             });
             return null;
           })()}
