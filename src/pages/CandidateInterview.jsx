@@ -8991,6 +8991,7 @@ export default function CandidateInterview() {
     if (isV3Pack) {
       // REQUIRED-FIELD AUDIT: Check incident data directly (do not trust opener merge status)
       let missingRequired = [];
+      let existingIncidentId = null;
       
       try {
         // Fetch current session to inspect incident facts
@@ -9003,22 +9004,29 @@ export default function CandidateInterview() {
           inc.instance_number === instanceNumber
         );
         
-        if (incident && incident.facts) {
+        if (incident) {
+          // Store existing incidentId for reuse
+          existingIncidentId = incident.incident_id;
+          
           // Get required fields from pack config
           const requiredAnchors = packConfig?.requiredAnchors || [];
           
+          // FIX: Read incident.facts as OBJECT (not array)
+          const facts = incident.facts || {};
+          
           // Check which required fields are missing
-          missingRequired = requiredAnchors.filter(fieldKey => {
-            const value = incident.facts[fieldKey];
-            return !value || (typeof value === 'string' && value.trim() === '');
+          missingRequired = requiredAnchors.filter(anchor => {
+            const value = facts[anchor];
+            return value == null || String(value).trim() === '';
           });
           
           console.log('[MI_GATE][REQUIRED_FIELD_AUDIT]', {
             packId,
             instanceNumber,
             requiredAnchors,
-            incidentFacts: Object.keys(incident.facts || {}),
-            missingRequired
+            incidentFactsKeys: Object.keys(facts),
+            missingRequired,
+            existingIncidentId
           });
         } else {
           // No incident found - treat as incomplete
@@ -9035,7 +9043,10 @@ export default function CandidateInterview() {
           fallback: 'Using engine payload metadata'
         });
         // Fallback to engine payload if incident fetch fails
-        missingRequired = v3Context?.missingFields || [];
+        const payloadMissing = v3Context?.missingFields || [];
+        missingRequired = Array.isArray(payloadMissing) 
+          ? payloadMissing.map(f => f.field_id || f)
+          : [];
       }
       
       // SAFETY CHECK: Block MI_GATE if required fields incomplete
@@ -9054,36 +9065,40 @@ export default function CandidateInterview() {
           reason: 'Required fields incomplete - V3 probing must complete first'
         });
         
+        // CLEAR STUCK STATE: Prevent "Thinking..." limbo
+        setIsCommitting(false);
+        setV3PromptPhase('IDLE'); // Reset phase to allow new prompt
+        
         // RE-ACTIVATE V3 PROBING: Ensure engine continues collecting facts
-        if (!v3ProbingActive) {
-          console.log('[MI_GATE][PROBE_FIRST_REACTIVATE]', {
-            packId,
-            instanceNumber,
-            reason: 'V3 probing not active - reactivating to collect missing fields'
-          });
-          
-          setV3ProbingActive(true);
-          setV3ProbingContext({
-            packId,
-            categoryId,
-            categoryLabel,
-            baseQuestionId,
-            questionCode: engine?.QById?.[baseQuestionId]?.question_id,
-            sectionId: engine?.QById?.[baseQuestionId]?.section_id,
-            instanceNumber,
-            incidentId: null,
-            packData
-          });
-          
-          setCurrentItem({
-            id: `v3-probing-${packId}-${instanceNumber}`,
-            type: 'v3_probing',
-            packId,
-            categoryId,
-            instanceNumber,
-            baseQuestionId
-          });
-        }
+        setV3ProbingActive(true);
+        setV3ProbingContext({
+          packId,
+          categoryId,
+          categoryLabel,
+          baseQuestionId,
+          questionCode: engine?.QById?.[baseQuestionId]?.question_id,
+          sectionId: engine?.QById?.[baseQuestionId]?.section_id,
+          instanceNumber,
+          incidentId: existingIncidentId, // Reuse existing incident (prevents duplicate INCIDENT_CREATED)
+          packData
+        });
+        
+        setCurrentItem({
+          id: `v3-probing-${packId}-${instanceNumber}`,
+          type: 'v3_probing',
+          packId,
+          categoryId,
+          instanceNumber,
+          baseQuestionId
+        });
+        
+        console.log('[MI_GATE][REQUIRED_FIELD_AUDIT_KICK_PROBING]', {
+          packId,
+          instanceNumber,
+          missingRequired,
+          existingIncidentId,
+          note: 'Cleared submit state + forced V3 decide'
+        });
         
         return; // HARD BLOCK - do not activate gate
       }
