@@ -2176,6 +2176,11 @@ export default function CandidateInterview() {
   // Track V3-enabled packs: Map<packId, { isV3: boolean, factModelReady: boolean }>
   const [v3EnabledPacks, setV3EnabledPacks] = useState({});
   
+  // REQUIRED ANCHOR FALLBACK: Deterministic prompt when V3_WAITING with missing required fields
+  const [requiredAnchorFallbackActive, setRequiredAnchorFallbackActive] = useState(false);
+  const [requiredAnchorQueue, setRequiredAnchorQueue] = useState([]);
+  const [requiredAnchorCurrent, setRequiredAnchorCurrent] = useState(null);
+  
   // V3 PROMPT LIFECYCLE: Track prompt phase to prevent stale prompt rendering
   // "IDLE" = no prompt, "ANSWER_NEEDED" = prompt active waiting for answer, "PROCESSING" = answer submitted
   const [v3PromptPhase, setV3PromptPhase] = useState("IDLE");
@@ -3276,6 +3281,9 @@ export default function CandidateInterview() {
   // ============================================================================
   // CRITICAL: Declared at top-level so ALL render code can access it
   const bottomBarRenderTypeSOT = (() => {
+    // PRIORITY 0: Required anchor fallback (highest precedence - must show prompt)
+    if (requiredAnchorFallbackActive && requiredAnchorCurrent) return "required_anchor_fallback";
+    
     // PRIORITY 1: V3 states (highest precedence)
     if (activeUiItem?.kind === "V3_PROMPT") return "v3_probing";
     if (activeUiItem?.kind === "V3_WAITING") return "v3_waiting";
@@ -3311,6 +3319,7 @@ export default function CandidateInterview() {
   // Use bottomBarModeSOT above this point; do not reference bottomBarMode before its declaration.
   const bottomBarModeSOT = (() => {
     // Derive mode from early bottomBarRenderTypeSOT only (TDZ-safe)
+    if (bottomBarRenderTypeSOT === "required_anchor_fallback") return "TEXT_INPUT";
     if (bottomBarRenderTypeSOT === "multi_instance_gate") return "YES_NO";
     if (bottomBarRenderTypeSOT === "yes_no") return "YES_NO"; // FIX #1: Map yes_no render type to YES_NO mode
     if (bottomBarRenderTypeSOT === "v3_pack_opener") return "TEXT_INPUT";
@@ -9065,6 +9074,29 @@ export default function CandidateInterview() {
           reason: 'Required fields incomplete - V3 probing must complete first'
         });
         
+        // DEADLOCK DETECTION: Check if V3 is in WAITING state (engine won't prompt)
+        const isV3Waiting = v3ProbingActive && !hasActiveV3Prompt && v3PromptPhase !== 'ANSWER_NEEDED';
+        
+        if (isV3Waiting && missingRequired.length > 0) {
+          console.log('[REQUIRED_ANCHOR_FALLBACK][START]', {
+            packId,
+            instanceNumber,
+            missingRequired,
+            reason: 'V3_WAITING_no_prompt'
+          });
+          
+          // ACTIVATE FALLBACK: Ask for required anchors deterministically
+          setRequiredAnchorFallbackActive(true);
+          setRequiredAnchorQueue([...missingRequired]);
+          setRequiredAnchorCurrent(missingRequired[0]);
+          
+          // CLEAR STUCK STATE
+          setIsCommitting(false);
+          setV3PromptPhase('IDLE');
+          
+          return; // Exit - fallback will render prompt
+        }
+        
         // CLEAR STUCK STATE: Prevent "Thinking..." limbo
         setIsCommitting(false);
         setV3PromptPhase('IDLE'); // Reset phase to allow new prompt
@@ -9097,7 +9129,7 @@ export default function CandidateInterview() {
           instanceNumber,
           missingRequired,
           existingIncidentId,
-          note: 'Cleared submit state + forced V3 decide'
+          note: 'Cleared submit state + re-triggered V3 probing render/phase transition'
         });
         
         return; // HARD BLOCK - do not activate gate
@@ -13928,8 +13960,17 @@ export default function CandidateInterview() {
   // ============================================================================
   let activePromptText = null;
   
+  // Priority 0: Required anchor fallback (deterministic prompt for missing fields)
+  if (requiredAnchorFallbackActive && requiredAnchorCurrent) {
+    // Get anchor label from pack config
+    const packConfig = FOLLOWUP_PACK_CONFIGS?.[v3ProbingContext?.packId];
+    const anchor = packConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
+    activePromptText = anchor?.label 
+      ? `What ${anchor.label}?`
+      : `Please provide: ${requiredAnchorCurrent}`;
+  }
   // Priority 1: V3 active prompt (from V3ProbingLoop callback)
-  if (v3ProbingActive && v3ActivePromptText) {
+  else if (v3ProbingActive && v3ActivePromptText) {
     activePromptText = v3ActivePromptText;
   }
   // Priority 2: V2 pack field - use backend question text or field label
@@ -14603,8 +14644,87 @@ export default function CandidateInterview() {
       currentItemId: currentItem?.id,
       v3ProbingActive,
       isCommitting,
-      hasPrompt
+      hasPrompt,
+      requiredAnchorFallbackActive
     });
+    
+    // ROUTE FALLBACK: Required anchor answer submission
+    if (requiredAnchorFallbackActive && requiredAnchorCurrent) {
+      const trimmed = (input ?? "").trim();
+      if (!trimmed) {
+        console.log('[REQUIRED_ANCHOR_FALLBACK][BLOCKED_EMPTY]');
+        return;
+      }
+      
+      console.log('[REQUIRED_ANCHOR_FALLBACK][SUBMIT]', {
+        anchor: requiredAnchorCurrent,
+        answerLen: trimmed.length
+      });
+      
+      try {
+        // Persist to incident.facts
+        const currentSession = await base44.entities.InterviewSession.get(sessionId);
+        const incidents = currentSession?.incidents || [];
+        const packId = v3ProbingContext?.packId;
+        const categoryId = v3ProbingContext?.categoryId;
+        const instanceNumber = v3ProbingContext?.instanceNumber || 1;
+        
+        const incident = incidents.find(inc => 
+          (inc.category_id === categoryId || inc.incident_type === packId) &&
+          inc.instance_number === instanceNumber
+        );
+        
+        if (incident) {
+          // Update incident.facts
+          const updatedFacts = { ...(incident.facts || {}), [requiredAnchorCurrent]: trimmed };
+          const updatedIncidents = incidents.map(inc => 
+            inc.incident_id === incident.incident_id 
+              ? { ...inc, facts: updatedFacts }
+              : inc
+          );
+          
+          await base44.entities.InterviewSession.update(sessionId, {
+            incidents: updatedIncidents
+          });
+          
+          console.log('[REQUIRED_ANCHOR_FALLBACK][SAVED]', {
+            anchor: requiredAnchorCurrent,
+            incidentId: incident.incident_id,
+            factsKeys: Object.keys(updatedFacts)
+          });
+        }
+        
+        // Advance queue
+        const nextQueue = requiredAnchorQueue.slice(1);
+        setRequiredAnchorQueue(nextQueue);
+        
+        if (nextQueue.length > 0) {
+          setRequiredAnchorCurrent(nextQueue[0]);
+          setInput("");
+          
+          console.log('[REQUIRED_ANCHOR_FALLBACK][PROMPT]', {
+            anchor: nextQueue[0]
+          });
+        } else {
+          // All required fields collected
+          setRequiredAnchorFallbackActive(false);
+          setRequiredAnchorCurrent(null);
+          setInput("");
+          
+          console.log('[REQUIRED_ANCHOR_FALLBACK][COMPLETE]', {
+            packId,
+            instanceNumber
+          });
+          
+          // Show MI_GATE now
+          transitionToAnotherInstanceGate(v3ProbingContext);
+        }
+      } catch (err) {
+        console.error('[REQUIRED_ANCHOR_FALLBACK][SAVE_ERROR]', { error: err.message });
+      }
+      
+      return;
+    }
     
     // PART C: Force one-time scroll bypass on explicit submit
     forceAutoScrollOnceRef.current = true;
