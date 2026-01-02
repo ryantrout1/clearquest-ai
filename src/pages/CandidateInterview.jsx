@@ -17204,6 +17204,19 @@ export default function CandidateInterview() {
                      // STEP 2: Sanitize MI gate prompt text
                      const safeGatePrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_MI_GATE');
 
+                     // SUPPRESS: Skip rendering if this is just "Instance X" preview (not the actual gate question)
+                     const isInstancePreviewOnly = /^Instance\s+\d+$/i.test((safeGatePrompt || '').trim());
+                     if (isInstancePreviewOnly) {
+                       console.log('[MI_GATE][MAIN_PANE_SUPPRESS_INSTANCE_PREVIEW]', {
+                         stableKey: gateStableKey,
+                         packId: gatePackId,
+                         instanceNumber: gateInstanceNumber,
+                         promptPreview: safeGatePrompt,
+                         reason: 'Instance preview card suppressed - footer owns actual gate question'
+                       });
+                       return null; // Skip rendering preview card
+                     }
+
                      // AUDIT: Confirm main pane render with canonical keys
                      console.log('[MI_GATE][MAIN_PANE_RENDER_OK]', {
                        stableKey: gateStableKey,
@@ -17590,6 +17603,19 @@ export default function CandidateInterview() {
               
               // PART B: Deterministic stableKey
               const cardStableKey = entry.stableKey || entry.id || `mi-gate:${entryPackId}:${entryInstanceNumber}:q`;
+              
+              // SUPPRESS: Skip rendering if this is just "Instance X" preview
+              const isInstancePreviewOnly = /^Instance\s+\d+$/i.test((safeMiGateTranscript || '').trim());
+              if (isInstancePreviewOnly) {
+                console.log('[MI_GATE][MAIN_PANE_SUPPRESS_INSTANCE_PREVIEW]', {
+                  stableKey: cardStableKey,
+                  packId: entry.meta?.packId || entry.packId,
+                  instanceNumber: entry.meta?.instanceNumber || entry.instanceNumber,
+                  promptPreview: safeMiGateTranscript,
+                  reason: 'Transcript instance preview suppressed'
+                });
+                return null; // Skip rendering preview card
+              }
               
               // AUDIT: Confirm main pane render
               console.log('[MI_GATE][MAIN_PANE_RENDER_OK]', {
@@ -18173,6 +18199,19 @@ export default function CandidateInterview() {
             if (cardKind === "multi_instance_gate") {
               const safeMiGatePrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_MI_GATE');
               const cardStableKey = activeCard.stableKey || `mi-gate:${activeCard.packId}:${activeCard.instanceNumber}:q`;
+              
+              // SUPPRESS: Skip rendering if this is just "Instance X" preview
+              const isInstancePreviewOnly = /^Instance\s+\d+$/i.test((safeMiGatePrompt || '').trim());
+              if (isInstancePreviewOnly) {
+                console.log('[MI_GATE][MAIN_PANE_SUPPRESS_INSTANCE_PREVIEW]', {
+                  stableKey: cardStableKey,
+                  packId: activeCard.packId,
+                  instanceNumber: activeCard.instanceNumber,
+                  promptPreview: safeMiGatePrompt,
+                  reason: 'Active lane instance preview suppressed'
+                });
+                return null; // Skip rendering preview card
+              }
               
               return (
                 <div 
