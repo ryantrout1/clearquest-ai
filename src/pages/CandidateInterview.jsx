@@ -7042,9 +7042,9 @@ export default function CandidateInterview() {
             return;
           }
           
-          // GUARD: Verify context still matches
-          const currentPackId = v3ProbingContextRef.current?.packId;
-          const currentInstanceNumber = v3ProbingContextRef.current?.instanceNumber;
+          // GUARD: Verify context still matches (use stable fallback from currentItem)
+          const currentPackId = v3ProbingContextRef.current?.packId || currentItem?.packId;
+          const currentInstanceNumber = v3ProbingContextRef.current?.instanceNumber || currentItem?.instanceNumber;
           
           if (currentPackId !== capturedPackId || currentInstanceNumber !== capturedInstanceNumber) {
             console.log('[V3_FAILSAFE][CANCELLED_OR_STALE]', {
@@ -9001,23 +9001,54 @@ export default function CandidateInterview() {
                              stopReason === 'REQUIRED_FIELDS_INCOMPLETE';
       
       if (shouldBlockGate) {
-        console.error('[UI_CONTRACT][MI_GATE_BLOCKED_REQUIRED_FIELDS]', {
+        console.log('[MI_GATE][PROBE_FIRST_BLOCK]', {
           packId,
           instanceNumber,
-          missingCount: missingFields ? missingFields.length : 'unknown',
-          miGateBlocked,
-          stopReason,
-          reason: 'Required fields incomplete or metadata missing - blocking MI_GATE'
+          stableKey: `${sessionId}:${categoryId}:${instanceNumber}`,
+          missingSummary: missingFields ? `${missingFields.length} fields` : 'unknown',
+          reason: 'Required fields incomplete - V3 probing must complete first'
         });
+        
+        // RE-ACTIVATE V3 PROBING: Ensure engine continues collecting facts
+        if (!v3ProbingActive) {
+          console.log('[MI_GATE][PROBE_FIRST_REACTIVATE]', {
+            packId,
+            instanceNumber,
+            reason: 'V3 probing not active - reactivating to collect missing fields'
+          });
+          
+          setV3ProbingActive(true);
+          setV3ProbingContext({
+            packId,
+            categoryId,
+            categoryLabel,
+            baseQuestionId,
+            questionCode: engine?.QById?.[baseQuestionId]?.question_id,
+            sectionId: engine?.QById?.[baseQuestionId]?.section_id,
+            instanceNumber,
+            incidentId: null,
+            packData
+          });
+          
+          setCurrentItem({
+            id: `v3-probing-${packId}-${instanceNumber}`,
+            type: 'v3_probing',
+            packId,
+            categoryId,
+            instanceNumber,
+            baseQuestionId
+          });
+        }
+        
         return; // HARD BLOCK - do not activate gate
       }
       
       // All checks passed - log allowance
-      console.log('[UI_CONTRACT][MI_GATE_ALLOWED]', {
+      console.log('[MI_GATE][PROBE_FIRST_UNBLOCK]', {
         packId,
         instanceNumber,
-        missingCount: 0,
-        reason: 'All required fields complete'
+        stableKey: `${sessionId}:${categoryId}:${instanceNumber}`,
+        reason: 'All required fields complete - allowing MI_GATE'
       });
     }
     
