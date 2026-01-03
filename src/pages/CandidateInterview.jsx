@@ -3180,7 +3180,18 @@ export default function CandidateInterview() {
     }
     
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
-    const stableKey = loopKey ? `fallback-prompt:${loopKey}:${requiredAnchorCurrent}` : null;
+    
+    // DETERMINISTIC STABLEKEY: Always non-null (use packId + instanceNumber + anchor)
+    const categoryId = v3ProbingContext?.categoryId || currentItem?.categoryId || 'unknown';
+    const instanceNumber = v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1;
+    const stableKey = `fallback-prompt:${categoryId}:${instanceNumber}:${requiredAnchorCurrent}`;
+    
+    console.log('[REQUIRED_ANCHOR_FALLBACK][STABLEKEY_SET]', {
+      stableKey,
+      anchor: requiredAnchorCurrent,
+      categoryId,
+      instanceNumber
+    });
     
     activeCard = {
       __activeCard: true,
@@ -3189,7 +3200,7 @@ export default function CandidateInterview() {
       stableKey,
       text: questionText,
       packId: v3ProbingContext?.packId,
-      instanceNumber: v3ProbingContext?.instanceNumber || 1,
+      instanceNumber: instanceNumber,
       anchor: requiredAnchorCurrent,
       source: 'prompt_lane_temporary'
     };
@@ -17606,33 +17617,15 @@ export default function CandidateInterview() {
                         </div>
                       );
                     } else if (cardKind === "required_anchor_fallback_prompt") {
-                      // REQUIRED_ANCHOR_FALLBACK: Main pane prompt (ephemeral, not transcript)
-                      console.log('[UI_CONTRACT][BLOCK_FALLBACK_TRANSCRIPT_PROMPT]', {
-                        reason: 'fallback prompt must not enter transcript',
-                        anchor: entry.anchor,
-                        promptPreview: entry.text?.substring(0, 60)
-                      });
-                      
-                      const safePrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_FALLBACK');
-                      
-                      return (
-                        <div key={entryKey} data-stablekey={entry.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
-                          <ContentContainer>
-                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
-                                {entry.instanceNumber > 1 && (
-                                  <>
-                                    <span className="text-xs text-slate-500">•</span>
-                                    <span className="text-xs text-slate-400">Instance {entry.instanceNumber}</span>
-                                  </>
-                                )}
-                              </div>
-                              <p className="text-white text-sm leading-relaxed">{safePrompt}</p>
-                            </div>
-                          </ContentContainer>
-                        </div>
-                      );
+                     // REQUIRED_ANCHOR_FALLBACK: BLOCK non-active renders (active lane owns it)
+                     console.log('[UI_CONTRACT][BLOCK_FALLBACK_NON_ACTIVE_RENDER]', {
+                       stableKey: entry.stableKey,
+                       anchor: entry.anchor,
+                       promptPreview: entry.text?.substring(0, 60),
+                       reason: 'fallback prompt renders in active lane only'
+                     });
+
+                     return null; // BLOCK - active lane is single owner
                     } else if (cardKind === "v3_pack_opener") {
                       // STEP 2: Sanitize opener card text
                       const safeOpenerPrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_V3_OPENER');
@@ -18638,12 +18631,28 @@ export default function CandidateInterview() {
             if (cardKind === "required_anchor_fallback_prompt") {
               const safeCardPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_FALLBACK_PROMPT');
               
+              // DEDUPE GUARD: Track last rendered fallback to prevent double-render
+              const lastRenderedFallbackStableKeyRef = React.useRef(null);
+              const currentStableKey = activeCard.stableKey;
+              
+              if (lastRenderedFallbackStableKeyRef.current === currentStableKey) {
+                console.log('[REQUIRED_ANCHOR_FALLBACK][DEDUPED_ACTIVE_LANE_RENDER]', {
+                  stableKey: currentStableKey,
+                  reason: 'prevent double-render'
+                });
+                return null; // Skip duplicate
+              }
+              
+              // Mark as rendered
+              lastRenderedFallbackStableKeyRef.current = currentStableKey;
+              
               console.log('[REQUIRED_ANCHOR_FALLBACK][ACTIVE_LANE_RENDER_OVERRIDE]', {
                 reason: 'ignore_currentItemType_gate',
                 kind: 'required_anchor_fallback_prompt',
                 promptPreview: safeCardPrompt?.substring(0, 60),
                 currentItemType: currentItem?.type,
-                activeUiItemKind: activeUiItem?.kind
+                activeUiItemKind: activeUiItem?.kind,
+                stableKey: currentStableKey
               });
               
               return (
