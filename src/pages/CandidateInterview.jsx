@@ -3157,6 +3157,48 @@ export default function CandidateInterview() {
       questionNumber: question?.question_number,
       activeUiItemKind: activeUiItem.kind
     });
+  } else if (activeUiItem.kind === "REQUIRED_ANCHOR_FALLBACK") {
+    // REQUIRED_ANCHOR_FALLBACK: Render prompt card in main pane (not footer)
+    const packConfig = FOLLOWUP_PACK_CONFIGS?.[v3ProbingContext?.packId];
+    const anchor = packConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
+    
+    // Derive human-readable question from anchor
+    let questionText;
+    if (anchor?.label) {
+      // Use pack-configured label
+      questionText = `What ${anchor.label}?`;
+    } else if (requiredAnchorCurrent && /position|role|title|rank/i.test(requiredAnchorCurrent)) {
+      questionText = "What position did you apply for?";
+    } else if (requiredAnchorCurrent && /agency|department|employer/i.test(requiredAnchorCurrent)) {
+      questionText = "What agency did you apply to?";
+    } else if (requiredAnchorCurrent && /date|month|year|when/i.test(requiredAnchorCurrent)) {
+      questionText = "When did this happen? (approximate month and year is fine)";
+    } else if (requiredAnchorCurrent && /outcome|result|status/i.test(requiredAnchorCurrent)) {
+      questionText = "What was the outcome?";
+    } else {
+      questionText = `Please provide: ${requiredAnchorCurrent}`;
+    }
+    
+    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+    const stableKey = loopKey ? `fallback-prompt:${loopKey}:${requiredAnchorCurrent}` : null;
+    
+    activeCard = {
+      __activeCard: true,
+      isEphemeralPromptLaneCard: true,
+      kind: "required_anchor_fallback_prompt",
+      stableKey,
+      text: questionText,
+      packId: v3ProbingContext?.packId,
+      instanceNumber: v3ProbingContext?.instanceNumber || 1,
+      anchor: requiredAnchorCurrent,
+      source: 'prompt_lane_temporary'
+    };
+    
+    console.log('[REQUIRED_ANCHOR_FALLBACK][MAIN_PANE_PROMPT_RENDERED]', {
+      anchor: requiredAnchorCurrent,
+      promptPreview: questionText,
+      stableKey
+    });
   } else if (activeUiItem.kind === "MI_GATE") {
     // FIX: Use currentItem directly when activeUiItem.kind is MI_GATE
     // activeUiItem resolver already handles V3 blocking precedence correctly
@@ -17543,6 +17585,34 @@ export default function CandidateInterview() {
                           </ContentContainer>
                         </div>
                       );
+                    } else if (cardKind === "required_anchor_fallback_prompt") {
+                      // REQUIRED_ANCHOR_FALLBACK: Main pane prompt (ephemeral, not transcript)
+                      console.log('[UI_CONTRACT][BLOCK_FALLBACK_TRANSCRIPT_PROMPT]', {
+                        reason: 'fallback prompt must not enter transcript',
+                        anchor: entry.anchor,
+                        promptPreview: entry.text?.substring(0, 60)
+                      });
+                      
+                      const safePrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_FALLBACK');
+                      
+                      return (
+                        <div key={entryKey} data-stablekey={entry.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
+                          <ContentContainer>
+                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
+                                {entry.instanceNumber > 1 && (
+                                  <>
+                                    <span className="text-xs text-slate-500">•</span>
+                                    <span className="text-xs text-slate-400">Instance {entry.instanceNumber}</span>
+                                  </>
+                                )}
+                              </div>
+                              <p className="text-white text-sm leading-relaxed">{safePrompt}</p>
+                            </div>
+                          </ContentContainer>
+                        </div>
+                      );
                     } else if (cardKind === "v3_pack_opener") {
                       // STEP 2: Sanitize opener card text
                       const safeOpenerPrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_V3_OPENER');
@@ -17634,22 +17704,42 @@ export default function CandidateInterview() {
                          </ContentContainer>
                        </div>
                      );
-                    } else if (cardKind === "v3_thinking") {
+                     } else if (cardKind === "required_anchor_fallback_prompt") {
+                     // REQUIRED_ANCHOR_FALLBACK: Main pane prompt card (UI contract)
+                     return (
+                      <div key={entryKey} data-stablekey={entry.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
+                        <ContentContainer>
+                          <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
+                              {entry.instanceNumber > 1 && (
+                                <>
+                                  <span className="text-xs text-slate-500">•</span>
+                                  <span className="text-xs text-slate-400">Instance {entry.instanceNumber}</span>
+                                </>
+                              )}
+                            </div>
+                            <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                          </div>
+                        </ContentContainer>
+                      </div>
+                     );
+                     } else if (cardKind === "v3_thinking") {
                      // TASK B: V3 thinking placeholder during initial decide
                      return (
-                       <div key={entryKey} data-stablekey={entry.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
-                         <ContentContainer>
-                           <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                             <div className="flex items-center gap-2">
-                               <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-                               <span className="text-sm text-purple-300">{entry.text}</span>
-                             </div>
-                           </div>
-                         </ContentContainer>
-                       </div>
+                      <div key={entryKey} data-stablekey={entry.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
+                        <ContentContainer>
+                          <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                              <span className="text-sm text-purple-300">{entry.text}</span>
+                            </div>
+                          </div>
+                        </ContentContainer>
+                      </div>
                      );
-                    }
-                    return null;
+                     }
+                     return null;
                   }
                   
                   // V3 transcript entries (from DB - legal record)
@@ -18524,6 +18614,37 @@ export default function CandidateInterview() {
             });
 
             const cardKind = activeCard.kind;
+
+            if (cardKind === "required_anchor_fallback_prompt") {
+              const safeCardPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_FALLBACK_PROMPT');
+              return (
+                <div 
+                  key={`active-${activeCard.stableKey}`}
+                  ref={activeLaneCardRef}
+                  data-stablekey={activeCard.stableKey}
+                  data-cq-active-card="true"
+                  data-ui-contract-card="true"
+                  style={{
+                    scrollMarginBottom: `${activeCardScrollMarginBottomPx}px`
+                  }}
+                >
+                  <ContentContainer>
+                    <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
+                        {activeCard.instanceNumber > 1 && (
+                          <>
+                            <span className="text-xs text-slate-500">•</span>
+                            <span className="text-xs text-slate-400">Instance {activeCard.instanceNumber}</span>
+                          </>
+                        )}
+                      </div>
+                      <p className="text-white text-sm leading-relaxed">{safeCardPrompt}</p>
+                    </div>
+                  </ContentContainer>
+                </div>
+              );
+            }
 
             if (cardKind === "v3_probe_q") {
               const safeCardPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_V3_PROBE');
@@ -19451,21 +19572,15 @@ export default function CandidateInterview() {
             </div>
           ) : bottomBarModeSOT === "TEXT_INPUT" ? (
           <div className="space-y-2">
-          {/* FALLBACK FOOTER-ONLY PROMPT: Simple inline label (no card/bubble) */}
-          {requiredAnchorFallbackActive && activePromptText && (() => {
-            console.log('[REQUIRED_ANCHOR_FALLBACK][FOOTER_ONLY_PROMPT]', {
-              promptPreview: activePromptText
-            });
-            
-            return (
-              <div className="mb-2">
-                <p className="text-sm text-slate-300">{activePromptText}</p>
-              </div>
-            );
-          })()}
-          
-          {/* V3_PROMPT UI CONTRACT: Footer shows input + send only (no prompt text duplication) */}
+          {/* UI CONTRACT: Footer shows input + send only (no prompt text) */}
           {(() => {
+            // NEUTRALIZED: Footer must not show question text (prompt renders in main pane)
+            if (requiredAnchorFallbackActive) {
+              console.log('[UI_CONTRACT][FOOTER_NEUTRALIZED_FOR_FALLBACK]', {
+                note: 'No question text in footer per contract'
+              });
+            }
+            
             const isV3PromptActive = activeUiItem?.kind === "V3_PROMPT" && bottomBarModeSOT === "TEXT_INPUT";
             if (isV3PromptActive) {
               console.log("[V3_PROMPT][FOOTER_INPUT_ONLY]", { 
@@ -19474,7 +19589,7 @@ export default function CandidateInterview() {
                 note: 'Footer shows input + send only - question renders in main pane'
               });
             }
-            return null; // No prompt banner in footer - input only
+            return null; // No prompt text in footer - input only (contract)
             })()}
 
             {/* STEP 3: Placeholder sanitization (only if dynamic) - currently constant so simplified */}
@@ -19570,8 +19685,8 @@ export default function CandidateInterview() {
               }
             }}
             onKeyDown={handleInputKeyDown}
-            placeholder={requiredAnchorFallbackActive && activePromptText ? activePromptText : "Type your response here…"}
-            aria-label={requiredAnchorFallbackActive && activePromptText ? activePromptText : "Answer input"}
+            placeholder="Type your response here…"
+            aria-label="Answer input"
             className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
             style={{ maxHeight: '120px', overflowY: 'auto' }}
             disabled={effectiveItemType === 'v3_pack_opener' ? v3OpenerTextareaDisabled : isCommitting}
@@ -19676,14 +19791,9 @@ export default function CandidateInterview() {
             // PAYLOAD LOG: What footer actually receives for prompt/label/placeholder
             const promptTextUsed = activePromptText || safeActivePromptText || '';
             
-            // CORRECTED: Compute placeholderUsed to match ACTUAL textarea prop logic
-            const placeholderUsedActual = requiredAnchorFallbackActive && activePromptText 
-              ? activePromptText 
-              : "Type your response here…";
-            
-            const labelUsed = requiredAnchorFallbackActive && activePromptText 
-              ? activePromptText 
-              : safeActivePromptText || '';
+            // UI CONTRACT: Footer placeholder is ALWAYS generic (question renders in main pane)
+            const placeholderUsedActual = "Type your response here…";
+            const labelUsed = ''; // No label in footer (question in main pane)
             
             console.log('[BOTTOM_BAR_FOOTER]', {
               shouldRenderFooter,
@@ -19700,7 +19810,8 @@ export default function CandidateInterview() {
               promptTextUsed,
               placeholderUsed: placeholderUsedActual,
               labelUsed,
-              requiredAnchorCurrent: requiredAnchorCurrent || null
+              requiredAnchorCurrent: requiredAnchorCurrent || null,
+              contractCompliant: true
             });
 
             return shouldRenderFooter ? (
