@@ -15360,10 +15360,24 @@ export default function CandidateInterview() {
             return true; // Always keep real transcript items
           }
           
+          // EPHEMERAL FILTER GUARD: Keep required anchor fallback prompts while active
+          const isFallbackPrompt = e.kind === 'required_anchor_fallback_prompt';
+          
+          if (isFallbackPrompt && activeUiItem?.kind === 'REQUIRED_ANCHOR_FALLBACK') {
+            console.log('[CQ_TRANSCRIPT][EPHEMERAL_FILTER_GUARD_KEEP_FALLBACK]', {
+              stableKey,
+              kind: e.kind,
+              activeUiItemKind: 'REQUIRED_ANCHOR_FALLBACK',
+              reason: 'Fallback prompt must remain visible during active fallback'
+            });
+            return true; // KEEP - do not filter out
+          }
+          
           // Filter out ephemeral-only items (V3 prompts, etc.)
           const isEphemeral = e.__activeCard === true || 
             e.kind === 'v3_probe_q' || 
             e.kind === 'v3_probe_a' ||
+            e.kind === 'required_anchor_fallback_prompt' || // Fallback prompts are ephemeral when NOT active
             e.source === 'ephemeral' ||
             e.source === 'prompt_lane_temporary';
           
@@ -15374,7 +15388,8 @@ export default function CandidateInterview() {
               kind: e.kind,
               isV3ProbeQ,
               isV3ProbeA,
-              hasStableKey
+              hasStableKey,
+              isFallbackPrompt
             });
           }
           
