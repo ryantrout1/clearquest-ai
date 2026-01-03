@@ -14874,13 +14874,36 @@ export default function CandidateInterview() {
       requiredAnchorFallbackActive
     });
     
-    // ROUTE A0: Required anchor answer submission (highest priority - deadlock breaker)
-    if (requiredAnchorFallbackActive && requiredAnchorCurrent) {
+    // ROUTE A0: Required anchor answer submission (HIGHEST PRIORITY - triple-gate routing)
+    // Routes by: effectiveItemType OR activeUiItemKind OR requiredAnchorFallbackActive flag
+    // CRITICAL: Does NOT depend on currentItemType, v3ProbingActive, or currentItem.packId
+    if (effectiveItemType === 'required_anchor_fallback' || 
+        activeUiItem?.kind === 'REQUIRED_ANCHOR_FALLBACK' || 
+        requiredAnchorFallbackActive === true) {
+      
+      // GUARD: Validate requiredAnchorCurrent exists
+      if (!requiredAnchorCurrent) {
+        console.error('[REQUIRED_ANCHOR_FALLBACK][SUBMIT_BLOCKED_NO_CURRENT]', {
+          requiredAnchorFallbackActive,
+          effectiveItemType,
+          activeUiItemKind: activeUiItem?.kind,
+          reason: 'requiredAnchorCurrent is null/undefined'
+        });
+        return;
+      }
       const trimmed = (input ?? "").trim();
       if (!trimmed) {
         console.log('[REQUIRED_ANCHOR_FALLBACK][BLOCKED_EMPTY]');
         return;
       }
+      
+      console.log('[REQUIRED_ANCHOR_FALLBACK][SUBMIT_ROUTED]', {
+        effectiveItemType,
+        activeUiItemKind: activeUiItem?.kind,
+        currentItemType: currentItem?.type,
+        anchor: requiredAnchorCurrent,
+        answerLen: trimmed.length
+      });
       
       console.log('[REQUIRED_ANCHOR_FALLBACK][SUBMIT]', {
         anchor: requiredAnchorCurrent,
@@ -14892,7 +14915,7 @@ export default function CandidateInterview() {
         const ctx = requiredAnchorFallbackContextRef.current;
         
         if (!ctx.incidentId && !ctx.categoryId) {
-          console.error('[REQUIRED_ANCHOR_FALLBACK][NO_CONTEXT]', {
+          console.error('[REQUIRED_ANCHOR_FALLBACK][CONTEXT_MISSING_ON_SUBMIT]', {
             ctx,
             reason: 'Context not set at activation - cannot route'
           });
@@ -14902,9 +14925,9 @@ export default function CandidateInterview() {
           setRequiredAnchorCurrent(null);
           setRequiredAnchorQueue([]);
           setV3PromptPhase('IDLE');
+          setInput("");
           return;
         }
-        
         // Fetch session and find incident (use persisted incidentId if available)
         const currentSession = await base44.entities.InterviewSession.get(sessionId);
         const incidents = currentSession?.incidents || [];
@@ -19848,9 +19871,22 @@ export default function CandidateInterview() {
                  effectiveItemType,
                  openerInputLen: openerInputValue?.length || 0
                });
+               
+               console.log('[BOTTOM_BAR][SEND_DISPATCH]', {
+                 bottomBarModeSOT,
+                 effectiveItemType,
+                 activeUiItemKind: activeUiItem?.kind
+               });
+               
                handleBottomBarSubmit();
              }}
-             disabled={effectiveItemType === 'v3_pack_opener' ? v3OpenerSubmitDisabled : (isBottomBarSubmitDisabled || !hasPrompt)}
+             disabled={
+               effectiveItemType === 'required_anchor_fallback' 
+                 ? !(input ?? "").trim()
+                 : effectiveItemType === 'v3_pack_opener' 
+                   ? v3OpenerSubmitDisabled 
+                   : (isBottomBarSubmitDisabled || !hasPrompt)
+             }
              className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5 disabled:opacity-50"
            >
              {(currentItem?.type !== 'v3_pack_opener' && !hasPrompt) ? (
