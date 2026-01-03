@@ -1205,6 +1205,10 @@ export default function CandidateInterview() {
     timestamp: Date.now()
   });
   
+  console.log('[CANDIDATE_INTERVIEW][BOOT_OK_AFTER_REVERT]', {
+    timestamp: Date.now()
+  });
+  
   // HARD ROUTE GUARD: Redirect if no sessionId (BEFORE any hooks/state)
   if (!sessionId) {
     console.error('[UI_CONTRACT][CANDIDATE_INTERVIEW_NO_SESSION]', {
@@ -3180,18 +3184,7 @@ export default function CandidateInterview() {
     }
     
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
-    
-    // DETERMINISTIC STABLEKEY: Always non-null (use packId + instanceNumber + anchor)
-    const categoryId = v3ProbingContext?.categoryId || currentItem?.categoryId || 'unknown';
-    const instanceNumber = v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1;
-    const stableKey = `fallback-prompt:${categoryId}:${instanceNumber}:${requiredAnchorCurrent}`;
-    
-    console.log('[REQUIRED_ANCHOR_FALLBACK][STABLEKEY_SET]', {
-      stableKey,
-      anchor: requiredAnchorCurrent,
-      categoryId,
-      instanceNumber
-    });
+    const stableKey = loopKey ? `fallback-prompt:${loopKey}:${requiredAnchorCurrent}` : null;
     
     activeCard = {
       __activeCard: true,
@@ -3200,7 +3193,7 @@ export default function CandidateInterview() {
       stableKey,
       text: questionText,
       packId: v3ProbingContext?.packId,
-      instanceNumber: instanceNumber,
+      instanceNumber: v3ProbingContext?.instanceNumber || 1,
       anchor: requiredAnchorCurrent,
       source: 'prompt_lane_temporary'
     };
@@ -17617,15 +17610,14 @@ export default function CandidateInterview() {
                         </div>
                       );
                     } else if (cardKind === "required_anchor_fallback_prompt") {
-                     // REQUIRED_ANCHOR_FALLBACK: BLOCK non-active renders (active lane owns it)
-                     console.log('[UI_CONTRACT][BLOCK_FALLBACK_NON_ACTIVE_RENDER]', {
-                       stableKey: entry.stableKey,
+                     // REQUIRED_ANCHOR_FALLBACK: Main pane prompt (ephemeral, not transcript)
+                     console.log('[UI_CONTRACT][BLOCK_FALLBACK_TRANSCRIPT_PROMPT]', {
+                       reason: 'fallback prompt must not enter transcript',
                        anchor: entry.anchor,
-                       promptPreview: entry.text?.substring(0, 60),
-                       reason: 'fallback prompt renders in active lane only'
+                       promptPreview: entry.text?.substring(0, 60)
                      });
 
-                     return null; // BLOCK - active lane is single owner
+                     return null; // Active lane owns rendering
                     } else if (cardKind === "v3_pack_opener") {
                       // STEP 2: Sanitize opener card text
                       const safeOpenerPrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_V3_OPENER');
@@ -18631,28 +18623,12 @@ export default function CandidateInterview() {
             if (cardKind === "required_anchor_fallback_prompt") {
               const safeCardPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_FALLBACK_PROMPT');
               
-              // DEDUPE GUARD: Track last rendered fallback to prevent double-render
-              const lastRenderedFallbackStableKeyRef = React.useRef(null);
-              const currentStableKey = activeCard.stableKey;
-              
-              if (lastRenderedFallbackStableKeyRef.current === currentStableKey) {
-                console.log('[REQUIRED_ANCHOR_FALLBACK][DEDUPED_ACTIVE_LANE_RENDER]', {
-                  stableKey: currentStableKey,
-                  reason: 'prevent double-render'
-                });
-                return null; // Skip duplicate
-              }
-              
-              // Mark as rendered
-              lastRenderedFallbackStableKeyRef.current = currentStableKey;
-              
               console.log('[REQUIRED_ANCHOR_FALLBACK][ACTIVE_LANE_RENDER_OVERRIDE]', {
                 reason: 'ignore_currentItemType_gate',
                 kind: 'required_anchor_fallback_prompt',
                 promptPreview: safeCardPrompt?.substring(0, 60),
                 currentItemType: currentItem?.type,
-                activeUiItemKind: activeUiItem?.kind,
-                stableKey: currentStableKey
+                activeUiItemKind: activeUiItem?.kind
               });
               
               return (
