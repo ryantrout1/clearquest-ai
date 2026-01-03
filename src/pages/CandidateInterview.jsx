@@ -2185,6 +2185,9 @@ export default function CandidateInterview() {
   const [requiredAnchorQueue, setRequiredAnchorQueue] = useState([]);
   const [requiredAnchorCurrent, setRequiredAnchorCurrent] = useState(null);
   
+  // REQUIRED ANCHOR FALLBACK CONTEXT: Persist routing context for submit
+  const requiredAnchorFallbackContextRef = useRef({ packId: null, categoryId: null, instanceNumber: null, incidentId: null });
+  
   // V3 PROMPT LIFECYCLE: Track prompt phase to prevent stale prompt rendering
   // "IDLE" = no prompt, "ANSWER_NEEDED" = prompt active waiting for answer, "PROCESSING" = answer submitted
   const [v3PromptPhase, setV3PromptPhase] = useState("IDLE");
@@ -9207,6 +9210,21 @@ export default function CandidateInterview() {
             after: sortedMissing
           });
           
+          // PERSIST FALLBACK CONTEXT: Store for submit routing (use existing incident)
+          requiredAnchorFallbackContextRef.current = {
+            packId,
+            categoryId,
+            instanceNumber,
+            incidentId: existingIncidentId // Already found in audit
+          };
+          
+          console.log('[REQUIRED_ANCHOR_FALLBACK][CONTEXT_SET]', {
+            packId,
+            categoryId,
+            instanceNumber,
+            incidentId: existingIncidentId
+          });
+          
           // TAKE OWNERSHIP: Disable V3 completely to prevent competition
           setV3ProbingActive(false);
           setV3ProbingContext(null);
@@ -14870,25 +14888,63 @@ export default function CandidateInterview() {
       });
       
       try {
-        // Persist to incident.facts directly
+        // USE PERSISTED CONTEXT: Read from ref (set at fallback activation)
+        const ctx = requiredAnchorFallbackContextRef.current;
+        
+        if (!ctx.incidentId && !ctx.categoryId) {
+          console.error('[REQUIRED_ANCHOR_FALLBACK][NO_CONTEXT]', {
+            ctx,
+            reason: 'Context not set at activation - cannot route'
+          });
+          
+          // FAIL-OPEN: Deactivate fallback to prevent stuck state
+          setRequiredAnchorFallbackActive(false);
+          setRequiredAnchorCurrent(null);
+          setRequiredAnchorQueue([]);
+          setV3PromptPhase('IDLE');
+          return;
+        }
+        
+        // Fetch session and find incident (use persisted incidentId if available)
         const currentSession = await base44.entities.InterviewSession.get(sessionId);
         const incidents = currentSession?.incidents || [];
-        const packId = v3ProbingContext?.packId;
-        const categoryId = v3ProbingContext?.categoryId;
-        const instanceNumber = v3ProbingContext?.instanceNumber || 1;
         
-        const incident = incidents.find(inc => 
-          (inc.category_id === categoryId || inc.incident_type === packId) &&
-          inc.instance_number === instanceNumber
-        );
+        let incident = null;
+        
+        // PRIORITY 1: Use persisted incidentId (fastest)
+        if (ctx.incidentId) {
+          incident = incidents.find(inc => inc.incident_id === ctx.incidentId);
+          console.log('[REQUIRED_ANCHOR_FALLBACK][INCIDENT_BY_ID]', {
+            incidentId: ctx.incidentId,
+            found: !!incident
+          });
+        }
+        
+        // PRIORITY 2: Fallback to categoryId+instanceNumber search
+        if (!incident && ctx.categoryId) {
+          incident = incidents.find(inc => 
+            (inc.category_id === ctx.categoryId || inc.incident_type === ctx.packId) &&
+            inc.instance_number === ctx.instanceNumber
+          );
+          console.log('[REQUIRED_ANCHOR_FALLBACK][INCIDENT_BY_CATEGORY]', {
+            categoryId: ctx.categoryId,
+            packId: ctx.packId,
+            instanceNumber: ctx.instanceNumber,
+            found: !!incident
+          });
+        }
         
         if (!incident) {
           console.error('[REQUIRED_ANCHOR_FALLBACK][NO_INCIDENT]', {
-            packId,
-            categoryId,
-            instanceNumber,
+            ctx,
             reason: 'Cannot find incident to update facts'
           });
+          
+          // FAIL-OPEN: Deactivate fallback to prevent stuck state
+          setRequiredAnchorFallbackActive(false);
+          setRequiredAnchorCurrent(null);
+          setRequiredAnchorQueue([]);
+          setV3PromptPhase('IDLE');
           return;
         }
         
