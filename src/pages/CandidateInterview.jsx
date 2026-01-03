@@ -18623,7 +18623,7 @@ export default function CandidateInterview() {
           })}
 
           {/* ACTIVE CARD LANE: Render active prompt card at bottom (after transcript) */}
-          {activeCard && (activeUiItem.kind === "V3_OPENER" || activeUiItem.kind === "V3_PROMPT" || activeUiItem.kind === "MI_GATE" || activeCard.kind === "base_question_yesno") && (() => {
+          {activeCard && (activeUiItem.kind === "REQUIRED_ANCHOR_FALLBACK" || activeUiItem.kind === "V3_OPENER" || activeUiItem.kind === "V3_PROMPT" || activeUiItem.kind === "MI_GATE" || activeCard.kind === "base_question_yesno") && (() => {
             console.log('[UI_CONTRACT][ACTIVE_LANE_POSITION_SOT]', {
               activeUiItemKind: activeUiItem?.kind,
               placedAfterTranscript: true,
@@ -18638,9 +18638,12 @@ export default function CandidateInterview() {
             if (cardKind === "required_anchor_fallback_prompt") {
               const safeCardPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_FALLBACK_PROMPT');
               
-              console.log('[REQUIRED_ANCHOR_FALLBACK][ACTIVE_LANE_RENDER_OK]', {
+              console.log('[REQUIRED_ANCHOR_FALLBACK][ACTIVE_LANE_RENDER_OVERRIDE]', {
+                reason: 'ignore_currentItemType_gate',
                 kind: 'required_anchor_fallback_prompt',
-                promptPreview: safeCardPrompt?.substring(0, 60)
+                promptPreview: safeCardPrompt?.substring(0, 60),
+                currentItemType: currentItem?.type,
+                activeUiItemKind: activeUiItem?.kind
               });
               
               return (
