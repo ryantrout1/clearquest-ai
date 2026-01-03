@@ -19451,6 +19451,20 @@ export default function CandidateInterview() {
             </div>
           ) : bottomBarModeSOT === "TEXT_INPUT" ? (
           <div className="space-y-2">
+          {/* FALLBACK VISIBLE PROMPT: Show question text above input when fallback active */}
+          {requiredAnchorFallbackActive && activePromptText && (() => {
+            console.log('[REQUIRED_ANCHOR_FALLBACK][VISIBLE_PROMPT_RENDERED]', {
+              promptPreview: activePromptText
+            });
+            
+            return (
+              <div className="bg-purple-900/30 border border-purple-700/50 rounded-lg px-4 py-3">
+                <p className="text-sm font-medium text-purple-400 mb-1">AI Follow-Up</p>
+                <p className="text-white text-sm leading-relaxed">{activePromptText}</p>
+              </div>
+            );
+          })()}
+          
           {/* V3_PROMPT UI CONTRACT: Footer shows input + send only (no prompt text duplication) */}
           {(() => {
             const isV3PromptActive = activeUiItem?.kind === "V3_PROMPT" && bottomBarModeSOT === "TEXT_INPUT";
@@ -19662,8 +19676,15 @@ export default function CandidateInterview() {
             // Use pre-computed shouldRenderFooter from derived block
             // PAYLOAD LOG: What footer actually receives for prompt/label/placeholder
             const promptTextUsed = activePromptText || safeActivePromptText || '';
-            const placeholderUsed = currentItem?.type === 'v3_pack_opener' ? safeActivePromptText : 'Type your response here…';
-            const labelUsed = safeActivePromptText || '';
+            
+            // CORRECTED: Compute placeholderUsed to match ACTUAL textarea prop logic
+            const placeholderUsedActual = requiredAnchorFallbackActive && activePromptText 
+              ? activePromptText 
+              : "Type your response here…";
+            
+            const labelUsed = requiredAnchorFallbackActive && activePromptText 
+              ? activePromptText 
+              : safeActivePromptText || '';
             
             console.log('[BOTTOM_BAR_FOOTER]', {
               shouldRenderFooter,
@@ -19678,7 +19699,7 @@ export default function CandidateInterview() {
               effectiveItemType,
               bottomBarModeSOT,
               promptTextUsed,
-              placeholderUsed,
+              placeholderUsed: placeholderUsedActual,
               labelUsed,
               requiredAnchorCurrent: requiredAnchorCurrent || null
             });
