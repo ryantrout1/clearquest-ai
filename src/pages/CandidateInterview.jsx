@@ -14075,12 +14075,38 @@ export default function CandidateInterview() {
   
   // Priority 0: Required anchor fallback (deterministic prompt for missing fields)
   if (requiredAnchorFallbackActive && requiredAnchorCurrent) {
+    // GUARD: Validate requiredAnchorCurrent is not null/undefined
+    if (!requiredAnchorCurrent) {
+      const queueLen = requiredAnchorQueue?.length || 0;
+      console.error('[REQUIRED_ANCHOR_FALLBACK][ERROR_NO_CURRENT_ANCHOR]', {
+        queueLen,
+        note: 'fallback active but no current anchor'
+      });
+      
+      // FAIL-OPEN: Deactivate fallback immediately to prevent deadlock
+      setRequiredAnchorFallbackActive(false);
+      setRequiredAnchorCurrent(null);
+      setRequiredAnchorQueue([]);
+      setV3PromptPhase('IDLE');
+      
+      // Continue normal flow instead of deadlock
+      return;
+    }
+    
     // Get anchor label from pack config
     const packConfig = FOLLOWUP_PACK_CONFIGS?.[v3ProbingContext?.packId];
     const anchor = packConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
-    const promptText = anchor?.label 
+    let promptText = anchor?.label 
       ? `What ${anchor.label}?`
       : `Please provide: ${requiredAnchorCurrent}`;
+    
+    // MUST-HAVE ASSERTION: Ensure promptText is never empty
+    if (!promptText || promptText.trim() === '') {
+      promptText = `Please provide: ${requiredAnchorCurrent}`;
+      console.log('[REQUIRED_ANCHOR_FALLBACK][PROMPT_TEXT_FORCED_NONEMPTY]', {
+        anchor: requiredAnchorCurrent
+      });
+    }
     
     activePromptText = promptText;
     
@@ -19531,8 +19557,8 @@ export default function CandidateInterview() {
               }
             }}
             onKeyDown={handleInputKeyDown}
-            placeholder="Type your response here…"
-            aria-label="Answer input"
+            placeholder={requiredAnchorFallbackActive && activePromptText ? activePromptText : "Type your response here…"}
+            aria-label={requiredAnchorFallbackActive && activePromptText ? activePromptText : "Answer input"}
             className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
             style={{ maxHeight: '120px', overflowY: 'auto' }}
             disabled={effectiveItemType === 'v3_pack_opener' ? v3OpenerTextareaDisabled : isCommitting}
@@ -19634,12 +19660,27 @@ export default function CandidateInterview() {
           {/* Footer disclaimer - show during all active interview Q&A states */}
           {(() => {
             // Use pre-computed shouldRenderFooter from derived block
+            // PAYLOAD LOG: What footer actually receives for prompt/label/placeholder
+            const promptTextUsed = activePromptText || safeActivePromptText || '';
+            const placeholderUsed = currentItem?.type === 'v3_pack_opener' ? safeActivePromptText : 'Type your response here…';
+            const labelUsed = safeActivePromptText || '';
+            
             console.log('[BOTTOM_BAR_FOOTER]', {
               shouldRenderFooter,
               screenMode,
               bottomBarModeSOT,
               effectiveItemType,
               v3ProbingActive
+            });
+            
+            // LOG: Footer prompt payload (what gets wired into textarea)
+            console.log('[REQUIRED_ANCHOR_FALLBACK][FOOTER_PROMPT_PAYLOAD]', {
+              effectiveItemType,
+              bottomBarModeSOT,
+              promptTextUsed,
+              placeholderUsed,
+              labelUsed,
+              requiredAnchorCurrent: requiredAnchorCurrent || null
             });
 
             return shouldRenderFooter ? (
