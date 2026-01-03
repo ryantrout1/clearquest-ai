@@ -14966,20 +14966,53 @@ export default function CandidateInterview() {
           factsKeys: Object.keys(updatedFacts)
         });
         
-        // Advance queue
-        const nextQueue = requiredAnchorQueue.slice(1);
-        setRequiredAnchorQueue(nextQueue);
+        // POST-SAVE AUDIT: Recompute missing required from source of truth (incident.facts)
+        let missingRequired = [];
         
-        if (nextQueue.length > 0) {
-          // More anchors to collect
-          setRequiredAnchorCurrent(nextQueue[0]);
-          setInput("");
+        try {
+          // Fetch updated session to get latest incident.facts
+          const auditSession = await base44.entities.InterviewSession.get(sessionId);
+          const auditIncidents = auditSession?.incidents || [];
+          const auditIncident = auditIncidents.find(inc => inc.incident_id === incident.incident_id);
           
-          console.log('[REQUIRED_ANCHOR_FALLBACK][PROMPT]', {
-            anchor: nextQueue[0]
+          if (auditIncident) {
+            // Get required anchors from pack config
+            const packConfig = FOLLOWUP_PACK_CONFIGS?.[ctx.packId];
+            const requiredAnchors = packConfig?.requiredAnchors || [];
+            
+            // Recompute missing (same normalization as activation)
+            const facts = auditIncident.facts || {};
+            missingRequired = requiredAnchors.filter(anchor => {
+              const value = facts[anchor];
+              return value == null || String(value).trim() === '';
+            });
+            
+            console.log('[REQUIRED_ANCHOR_FALLBACK][POST_SAVE_AUDIT]', {
+              incidentId: incident.incident_id,
+              requiredAnchorsCount: requiredAnchors.length,
+              missingRequired
+            });
+          } else {
+            console.warn('[REQUIRED_ANCHOR_FALLBACK][POST_SAVE_AUDIT_ERROR]', {
+              incidentId: incident.incident_id,
+              reason: 'Incident not found after save - fallback to queue shift'
+            });
+            // Fallback to old queue logic
+            missingRequired = requiredAnchorQueue.slice(1);
+          }
+        } catch (err) {
+          console.error('[REQUIRED_ANCHOR_FALLBACK][POST_SAVE_AUDIT_ERROR]', {
+            incidentId: incident.incident_id,
+            error: err.message,
+            reason: 'Audit fetch failed - fallback to queue shift'
           });
-        } else {
-          // All required fields collected - deactivate fallback
+          // Fallback to old queue logic
+          missingRequired = requiredAnchorQueue.slice(1);
+        }
+        
+        // AUDIT-DRIVEN LOOP: Rebuild queue from facts, or complete if none missing
+        if (missingRequired.length === 0) {
+          // All required anchors satisfied - deactivate fallback
           setRequiredAnchorFallbackActive(false);
           setRequiredAnchorCurrent(null);
           setRequiredAnchorQueue([]);
@@ -14987,25 +15020,43 @@ export default function CandidateInterview() {
           setV3PromptPhase('IDLE');
           
           console.log('[REQUIRED_ANCHOR_FALLBACK][COMPLETE]', {
-            packId,
-            instanceNumber
+            incidentId: incident.incident_id,
+            note: 'All required anchors satisfied'
           });
           
-          // Exit V3 mode and show MI_GATE
+          // Exit V3 mode and advance to MI_GATE
           setV3ProbingActive(false);
           setV3ProbingContext(null);
           setV3ActivePromptText(null);
           
-          // Transition to MI_GATE (audit will pass now)
+          console.log('[MI_GATE][ADVANCE_AFTER_FALLBACK_COMPLETE]', {
+            packId: ctx.packId,
+            categoryId: ctx.categoryId,
+            instanceNumber: ctx.instanceNumber
+          });
+          
+          // Transition to MI_GATE deterministically
           setTimeout(() => {
             transitionToAnotherInstanceGate({
-              packId,
-              categoryId,
-              categoryLabel: v3ProbingContext?.categoryLabel,
-              instanceNumber,
+              packId: ctx.packId,
+              categoryId: ctx.categoryId,
+              categoryLabel: v3ProbingContext?.categoryLabel || ctx.categoryId,
+              instanceNumber: ctx.instanceNumber,
               packData: v3ProbingContext?.packData
             });
           }, 50);
+        } else {
+          // Still have missing anchors - rebuild queue with prioritization
+          const sortedMissing = prioritizeMissingRequired(missingRequired);
+          
+          setRequiredAnchorQueue(sortedMissing);
+          setRequiredAnchorCurrent(sortedMissing[0]);
+          setInput("");
+          
+          console.log('[REQUIRED_ANCHOR_FALLBACK][NEXT]', {
+            nextAnchor: sortedMissing[0],
+            remaining: sortedMissing
+          });
         }
       } catch (err) {
         console.error('[REQUIRED_ANCHOR_FALLBACK][SAVE_ERROR]', { error: err.message });
