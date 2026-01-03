@@ -19451,16 +19451,15 @@ export default function CandidateInterview() {
             </div>
           ) : bottomBarModeSOT === "TEXT_INPUT" ? (
           <div className="space-y-2">
-          {/* FALLBACK VISIBLE PROMPT: Show question text above input when fallback active */}
+          {/* FALLBACK FOOTER-ONLY PROMPT: Simple inline label (no card/bubble) */}
           {requiredAnchorFallbackActive && activePromptText && (() => {
-            console.log('[REQUIRED_ANCHOR_FALLBACK][VISIBLE_PROMPT_RENDERED]', {
+            console.log('[REQUIRED_ANCHOR_FALLBACK][FOOTER_ONLY_PROMPT]', {
               promptPreview: activePromptText
             });
             
             return (
-              <div className="bg-purple-900/30 border border-purple-700/50 rounded-lg px-4 py-3">
-                <p className="text-sm font-medium text-purple-400 mb-1">AI Follow-Up</p>
-                <p className="text-white text-sm leading-relaxed">{activePromptText}</p>
+              <div className="mb-2">
+                <p className="text-sm text-slate-300">{activePromptText}</p>
               </div>
             );
           })()}
