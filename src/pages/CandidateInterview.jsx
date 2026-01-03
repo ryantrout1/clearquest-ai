@@ -2536,6 +2536,9 @@ export default function CandidateInterview() {
   // PROMPT MISSING DIAGNOSTIC: Ref for de-duped logging (MUST be top-level hook)
   const promptMissingKeyRef = useRef(null);
   
+  // PROMPT NULL GUARD: Track seen keys to prevent spam (log-once per unique state)
+  const promptNullGuardSeenRef = useRef(new Set());
+  
   // V3 PROMPT WATCHDOG: Snapshot-based state verification
   const lastV3PromptSnapshotRef = useRef(null);
   const handledPromptIdsRef = useRef(new Set());
@@ -14115,20 +14118,32 @@ export default function CandidateInterview() {
   // Layout control: center WELCOME, top-align QUESTION/V3 modes
   const isWelcomeScreen = screenMode === "WELCOME";
 
-  // RENDER GUARD: Prevent null prompt crashes
+  // RENDER GUARD: Prevent null prompt crashes (log-once per stable key)
   if (currentItem && !currentPrompt && !v3ProbingActive && !activeBlocker && !pendingSectionTransition && screenMode !== 'WELCOME') {
-    const snapshot = {
-      currentItemType: currentItem?.type,
-      currentItemId: currentItem?.id,
-      packId: currentItem?.packId,
-      instanceNumber: currentItem?.instanceNumber,
-      screenMode,
-      v3ProbingActive,
-      activeBlocker: activeBlocker?.type,
-      canonicalLen: dbTranscript?.length || 0,
-      renderLen: renderedTranscript?.length || 0
-    };
-    console.error('[FORENSIC][PROMPT_NULL_GUARD]', snapshot);
+    // Compute stable key for deduplication
+    const guardKey = `${currentItem?.type || 'none'}:${currentItem?.id || 'none'}:${currentItem?.packId || 'none'}:${currentItem?.instanceNumber || 'none'}:${screenMode || 'none'}`;
+    
+    // Log once per unique state combination
+    if (!promptNullGuardSeenRef.current.has(guardKey)) {
+      promptNullGuardSeenRef.current.add(guardKey);
+      
+      const snapshot = {
+        key: guardKey,
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+        screenMode,
+        note: 'V3 probing item without active prompt text; expected during fallback/mismatch states'
+      };
+      
+      // Only include stack trace if debug flag enabled
+      if (typeof window !== 'undefined' && window.__CQ_TRACE_PROMPT_NULL_GUARD === true) {
+        snapshot.stack = new Error().stack?.split('\n').slice(1, 4).join(' | ');
+      }
+      
+      console.log('[FORENSIC][PROMPT_NULL_GUARD_ONCE]', snapshot);
+    }
   }
 
   // Treat v2_pack_field and v3_pack_opener the same as a normal question for bottom-bar input
