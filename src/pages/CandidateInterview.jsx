@@ -3184,7 +3184,7 @@ export default function CandidateInterview() {
     
     activeCard = {
       __activeCard: true,
-      isEphemeralPromptLaneCard: true,
+      isEphemeralPromptLaneCard: false,
       kind: "required_anchor_fallback_prompt",
       stableKey,
       text: questionText,
@@ -3193,6 +3193,11 @@ export default function CandidateInterview() {
       anchor: requiredAnchorCurrent,
       source: 'prompt_lane_temporary'
     };
+    
+    console.log('[REQUIRED_ANCHOR_FALLBACK][CARD_EPHEMERAL_FLAG]', {
+      kind: 'required_anchor_fallback_prompt',
+      isEphemeral: false
+    });
     
     console.log('[REQUIRED_ANCHOR_FALLBACK][MAIN_PANE_PROMPT_RENDERED]', {
       anchor: requiredAnchorCurrent,
@@ -18617,6 +18622,12 @@ export default function CandidateInterview() {
 
             if (cardKind === "required_anchor_fallback_prompt") {
               const safeCardPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_FALLBACK_PROMPT');
+              
+              console.log('[REQUIRED_ANCHOR_FALLBACK][ACTIVE_LANE_RENDER_OK]', {
+                kind: 'required_anchor_fallback_prompt',
+                promptPreview: safeCardPrompt?.substring(0, 60)
+              });
+              
               return (
                 <div 
                   key={`active-${activeCard.stableKey}`}
