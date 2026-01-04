@@ -3350,25 +3350,8 @@ export default function CandidateInterview() {
     });
   } else if (activeUiItem.kind === "REQUIRED_ANCHOR_FALLBACK") {
     // REQUIRED_ANCHOR_FALLBACK: Render prompt card in main pane (not footer)
-    const packConfig = FOLLOWUP_PACK_CONFIGS?.[v3ProbingContext?.packId];
-    const anchor = packConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
-    
-    // Derive human-readable question from anchor
-    let questionText;
-    if (anchor?.label) {
-      // Use pack-configured label
-      questionText = `What ${anchor.label}?`;
-    } else if (requiredAnchorCurrent && /position|role|title|rank/i.test(requiredAnchorCurrent)) {
-      questionText = "What position did you apply for?";
-    } else if (requiredAnchorCurrent && /agency|department|employer/i.test(requiredAnchorCurrent)) {
-      questionText = "What agency did you apply to?";
-    } else if (requiredAnchorCurrent && /date|month|year|when/i.test(requiredAnchorCurrent)) {
-      questionText = "When did this happen? (approximate month and year is fine)";
-    } else if (requiredAnchorCurrent && /outcome|result|status/i.test(requiredAnchorCurrent)) {
-      questionText = "What was the outcome?";
-    } else {
-      questionText = `Please provide: ${requiredAnchorCurrent}`;
-    }
+    // QUESTION TEXT SOT: Reuse activePromptText (single source of truth computed above)
+    const questionText = activePromptText || `Please provide: ${requiredAnchorCurrent}`;
     
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
     const stableKey = loopKey ? `fallback-prompt:${loopKey}:${requiredAnchorCurrent}` : null;
@@ -14652,33 +14635,34 @@ export default function CandidateInterview() {
       return;
     }
     
-    // Get anchor label from pack config
-    const packConfig = FOLLOWUP_PACK_CONFIGS?.[v3ProbingContext?.packId];
-    const anchor = packConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
-    let promptText = anchor?.label 
-      ? `What ${anchor.label}?`
+    // QUESTION TEXT SOT: Single source of truth for all fallback question text
+    const sotPackConfig = FOLLOWUP_PACK_CONFIGS?.[v3ProbingContext?.packId];
+    const sotAnchor = sotPackConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
+    let promptTextSOT = sotAnchor?.label 
+      ? `What ${sotAnchor.label}?`
       : `Please provide: ${requiredAnchorCurrent}`;
     
     // MUST-HAVE ASSERTION: Ensure promptText is never empty
-    if (!promptText || promptText.trim() === '') {
-      promptText = `Please provide: ${requiredAnchorCurrent}`;
+    if (!promptTextSOT || promptTextSOT.trim() === '') {
+      promptTextSOT = `Please provide: ${requiredAnchorCurrent}`;
       console.log('[REQUIRED_ANCHOR_FALLBACK][PROMPT_TEXT_FORCED_NONEMPTY]', {
         anchor: requiredAnchorCurrent
       });
     }
     
-    activePromptText = promptText;
+    activePromptText = promptTextSOT;
     
-    // Log prompt rendering
-    console.log('[REQUIRED_ANCHOR_FALLBACK][PROMPT_RENDER]', {
+    // QUESTION TEXT SOT LOG
+    console.log('[REQUIRED_ANCHOR_FALLBACK][QUESTION_TEXT_SOT]', {
       anchor: requiredAnchorCurrent,
-      promptPreview: promptText
+      textPreview: promptTextSOT,
+      usedBy: 'active_lane + transcript + footer'
     });
     
     // Log bottom bar ownership
     console.log('[REQUIRED_ANCHOR_FALLBACK][OWNS_BOTTOM_BAR]', {
       requiredAnchorCurrent,
-      promptPreview: promptText,
+      promptPreview: promptTextSOT,
       effectiveItemType,
       note: 'Override effectiveItemType from v3_probing'
     });
@@ -19396,13 +19380,28 @@ export default function CandidateInterview() {
                   });
                 }
                 
+                // SINGLE-ACTIVE-QUESTION RULE: Suppress transcript copy while fallback is active for this anchor
+                const isCurrentlyActiveAnchor = requiredAnchorFallbackActive && 
+                                               anchor === requiredAnchorCurrent;
+                
+                if (isCurrentlyActiveAnchor) {
+                  console.log('[REQUIRED_ANCHOR_FALLBACK][SINGLE_ACTIVE_Q_ENFORCED]', {
+                    anchor,
+                    stableKey: questionStableKey,
+                    action: 'suppress_during_active',
+                    reason: 'Active lane owns rendering - transcript copy suppressed to prevent duplicate'
+                  });
+                  return null; // Suppress during active - will render normally after fallback completes
+                }
+                
                 console.log('[CQ_TRANSCRIPT][REQUIRED_ANCHOR_Q_RENDERED]', {
                   stableKey: questionStableKey,
                   anchor,
-                  textPreview: entry.text?.substring(0, 60)
+                  textPreview: entry.text?.substring(0, 60),
+                  isHistory: !isCurrentlyActiveAnchor
                 });
                 
-                // Render as purple AI follow-up question card (same as V3 probes)
+                // Render as purple AI follow-up question card (history mode - fallback completed)
                 return (
                   <ContentContainer>
                     <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
