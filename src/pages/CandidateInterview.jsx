@@ -11837,19 +11837,23 @@ export default function CandidateInterview() {
     
     // Try to attach immediately
     if (!attachObserver()) {
-      // Ref not ready - start polling loop
-      let attempts = 0;
-      const maxAttempts = 10; // 500ms max
+      // Ref not ready - use RAF retry instead of polling
+      let rafRetryCount = 0;
+      const maxRafRetries = 8;
       
-      const poll = () => {
-        attempts++;
-        if (attachObserver() || attempts >= maxAttempts) {
+      const retryAttach = () => {
+        rafRetryCount++;
+        if (attachObserver() || rafRetryCount >= maxRafRetries) {
+          console.log('[PERF][POLLING_DISABLED]', {
+            replacedWith: 'RAF',
+            reason: 'setInterval violation'
+          });
           return;
         }
-        pollingTimers.push(setTimeout(poll, 50));
+        requestAnimationFrame(retryAttach);
       };
       
-      pollingTimers.push(setTimeout(poll, 50));
+      requestAnimationFrame(retryAttach);
     }
     
     return () => {
@@ -15389,8 +15393,14 @@ export default function CandidateInterview() {
         let dateExtracted = false;
         let extractedDate = null;
         
-        const fallbackPackConfig = FOLLOWUP_PACK_CONFIGS?.[ctx.packId];
-        const requiredAnchors = fallbackPackConfig?.requiredAnchors || [];
+        const determinExtractPackConfig = FOLLOWUP_PACK_CONFIGS?.[ctx.packId];
+        const requiredAnchors = determinExtractPackConfig?.requiredAnchors || [];
+        
+        console.log('[FORENSIC][TDZ_FIX_APPLIED]', {
+          name: 'fallbackPackConfig',
+          locationHint: 'required_anchor_submit_handler',
+          renamed: 'determinExtractPackConfig'
+        });
         
         // Check if next anchor would be prior_le_agency or prior_le_approx_date
         const wouldAskAgency = requiredAnchorQueue.includes('prior_le_agency');
@@ -15756,7 +15766,7 @@ export default function CandidateInterview() {
           
           // Persist next fallback question to transcript using helper
           const nextAnchor = sortedMissing[0];
-          const nextAnchorConfig = fallbackPackConfig?.factAnchors?.find(a => a.key === nextAnchor);
+          const nextAnchorConfig = determinExtractPackConfig?.factAnchors?.find(a => a.key === nextAnchor);
           const nextFallbackQuestionText = nextAnchorConfig?.label 
             ? `What ${nextAnchorConfig.label}?`
             : `Please provide: ${nextAnchor}`;
