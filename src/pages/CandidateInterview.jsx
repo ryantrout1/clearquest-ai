@@ -15054,18 +15054,21 @@ export default function CandidateInterview() {
           transcriptLenAfter: canonicalTranscriptRef.current.length
         });
         
-        // STEP 3: Deterministic extraction for prior_le_agency (prevent redundant ask)
+        // STEP 3: Deterministic extraction for prior_le_agency and prior_le_approx_date (prevent redundant asks)
         let agencyExtracted = false;
         let extractedAgency = null;
+        let dateExtracted = false;
+        let extractedDate = null;
         
         const packConfig = FOLLOWUP_PACK_CONFIGS?.[ctx.packId];
         const requiredAnchors = packConfig?.requiredAnchors || [];
         
-        // Check if next anchor would be prior_le_agency
+        // Check if next anchor would be prior_le_agency or prior_le_approx_date
         const wouldAskAgency = requiredAnchorQueue.includes('prior_le_agency');
+        const wouldAskDate = requiredAnchorQueue.includes('prior_le_approx_date');
         
-        if (ctx.packId === 'PACK_PRIOR_LE_APPS_STANDARD' && wouldAskAgency) {
-          // Try to extract agency from opener narrative
+        if (ctx.packId === 'PACK_PRIOR_LE_APPS_STANDARD' && (wouldAskAgency || wouldAskDate)) {
+          // Try to extract agency and/or date from opener narrative
           const openerResponse = await base44.entities.Response.filter({
             session_id: sessionId,
             pack_id: ctx.packId,
@@ -15082,28 +15085,78 @@ export default function CandidateInterview() {
           
           if (openerNarrative.length > 20) {
             // Pattern: "applied to <Agency>"
-            const patterns = [
-              /applied\s+(?:to|with)\s+([A-Z][A-Za-z\s&.-]{2,60}?)(?:\s+in\s|\s+for\s|,|\.|$)/i,
-              /applied\s+(?:to|with)\s+the\s+([A-Z][A-Za-z\s&.-]{2,60}?)(?:\s+in\s|\s+for\s|,|\.|$)/i,
-              /application\s+(?:to|with)\s+([A-Z][A-Za-z\s&.-]{2,60}?)(?:\s+in\s|\s+for\s|,|\.|$)/i
-            ];
-            
-            for (const pattern of patterns) {
-              const match = openerNarrative.match(pattern);
-              if (match && match[1]) {
-                extractedAgency = match[1].trim();
-                
-                // Validate: must contain at least one letter and be reasonable length
-                if (extractedAgency.length >= 3 && extractedAgency.length <= 60 && /[A-Za-z]/.test(extractedAgency)) {
-                  agencyExtracted = true;
+            if (wouldAskAgency) {
+              const patterns = [
+                /applied\s+(?:to|with)\s+([A-Z][A-Za-z\s&.-]{2,60}?)(?:\s+in\s|\s+for\s|,|\.|$)/i,
+                /applied\s+(?:to|with)\s+the\s+([A-Z][A-Za-z\s&.-]{2,60}?)(?:\s+in\s|\s+for\s|,|\.|$)/i,
+                /application\s+(?:to|with)\s+([A-Z][A-Za-z\s&.-]{2,60}?)(?:\s+in\s|\s+for\s|,|\.|$)/i
+              ];
+              
+              for (const pattern of patterns) {
+                const match = openerNarrative.match(pattern);
+                if (match && match[1]) {
+                  extractedAgency = match[1].trim();
                   
-                  console.log('[REQUIRED_ANCHOR_FALLBACK][AGENCY_DETERMINISTIC_EXTRACT_SAVED]', {
-                    incidentId: ctx.incidentId,
-                    valuePreview: extractedAgency
-                  });
-                  
-                  break;
+                  // Validate: must contain at least one letter and be reasonable length
+                  if (extractedAgency.length >= 3 && extractedAgency.length <= 60 && /[A-Za-z]/.test(extractedAgency)) {
+                    agencyExtracted = true;
+                    
+                    console.log('[REQUIRED_ANCHOR_FALLBACK][AGENCY_DETERMINISTIC_EXTRACT_SAVED]', {
+                      incidentId: ctx.incidentId,
+                      valuePreview: extractedAgency
+                    });
+                    
+                    break;
+                  }
                 }
+              }
+            }
+            
+            // Pattern: "In <Month> <Year>" or "<Month> <Year>"
+            if (wouldAskDate) {
+              const datePatterns = [
+                /\b(?:in|around|about)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(20\d{2})\b/i,
+                /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(20\d{2})\b/i,
+                /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+(20\d{2})\b/i
+              ];
+              
+              console.log('[REQUIRED_ANCHOR_FALLBACK][DATE_DETERMINISTIC_EXTRACT_ATTEMPT]', {
+                found: false,
+                preview: openerNarrative.substring(0, 100)
+              });
+              
+              for (const pattern of datePatterns) {
+                const match = openerNarrative.match(pattern);
+                if (match && match[1] && match[2]) {
+                  const month = match[1];
+                  const year = match[2];
+                  extractedDate = `${month} ${year}`;
+                  
+                  // Validate: year must be reasonable (2000-2030)
+                  const yearNum = parseInt(year);
+                  if (yearNum >= 2000 && yearNum <= 2030) {
+                    dateExtracted = true;
+                    
+                    console.log('[REQUIRED_ANCHOR_FALLBACK][DATE_DETERMINISTIC_EXTRACT_ATTEMPT]', {
+                      found: true,
+                      preview: extractedDate
+                    });
+                    
+                    console.log('[REQUIRED_ANCHOR_FALLBACK][DATE_DETERMINISTIC_EXTRACT_SAVED]', {
+                      incidentId: ctx.incidentId,
+                      valuePreview: extractedDate
+                    });
+                    
+                    break;
+                  }
+                }
+              }
+              
+              if (!dateExtracted) {
+                console.log('[REQUIRED_ANCHOR_FALLBACK][DATE_DETERMINISTIC_EXTRACT_ATTEMPT]', {
+                  found: false,
+                  preview: openerNarrative.substring(0, 100)
+                });
               }
             }
           }
@@ -15170,6 +15223,11 @@ export default function CandidateInterview() {
           updatedFacts['prior_le_agency'] = extractedAgency;
         }
         
+        // If date was extracted, add it now
+        if (dateExtracted && extractedDate) {
+          updatedFacts['prior_le_approx_date'] = extractedDate;
+        }
+        
         const updatedIncidents = incidents.map(inc => 
           inc.incident_id === incident.incident_id 
             ? { ...inc, facts: updatedFacts, updated_at: new Date().toISOString() }
@@ -15184,7 +15242,8 @@ export default function CandidateInterview() {
           anchor: requiredAnchorCurrent,
           incidentId: incident.incident_id,
           factsKeys: Object.keys(updatedFacts),
-          agencyExtracted
+          agencyExtracted,
+          dateExtracted
         });
         
         // Track answered anchor in memory (fast check for re-ask prevention)
@@ -15192,12 +15251,25 @@ export default function CandidateInterview() {
         if (agencyExtracted) {
           fallbackAnsweredRef.current['prior_le_agency'] = true;
         }
+        if (dateExtracted) {
+          fallbackAnsweredRef.current['prior_le_approx_date'] = true;
+        }
         
         console.log('[REQUIRED_ANCHOR_FALLBACK][ANSWERED_TRACKED]', {
           anchor: requiredAnchorCurrent,
           agencyExtracted,
+          dateExtracted,
           allAnsweredAnchors: Object.keys(fallbackAnsweredRef.current)
         });
+        
+        // POST-EXTRACT AUDIT: Re-check missing after deterministic extracts
+        if (agencyExtracted || dateExtracted) {
+          console.log('[REQUIRED_ANCHOR_FALLBACK][POST_EXTRACT_AUDIT]', {
+            agencyExtracted,
+            dateExtracted,
+            beforeMissingCount: requiredAnchorQueue.length
+          });
+        }
         
         // POST-SAVE AUDIT: Recompute missing required from source of truth (incident.facts)
         let missingRequired = [];
@@ -15273,10 +15345,20 @@ export default function CandidateInterview() {
         
         // AUDIT-DRIVEN LOOP: Rebuild queue from facts, or complete if none missing
         if (missingRequired.length === 0) {
-          // All required anchors satisfied - deactivate fallback
-          setRequiredAnchorFallbackActive(false);
-          setRequiredAnchorCurrent(null);
-          setRequiredAnchorQueue([]);
+          // All required anchors satisfied - hold last prompt visible until MI_GATE ready
+          console.log('[REQUIRED_ANCHOR_FALLBACK][PROMPT_LANE_HOLD_LAST_QUESTION]', {
+            anchor: requiredAnchorCurrent,
+            promptPreview: `What ${requiredAnchorCurrent}?`,
+            reason: 'Completing - keep last question visible until MI_GATE'
+          });
+          
+          // Deactivate fallback after brief hold
+          setTimeout(() => {
+            setRequiredAnchorFallbackActive(false);
+            setRequiredAnchorCurrent(null);
+            setRequiredAnchorQueue([]);
+          }, 100);
+          
           setInput("");
           setV3PromptPhase('IDLE');
           
