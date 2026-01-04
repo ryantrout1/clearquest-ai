@@ -14943,9 +14943,39 @@ export default function CandidateInterview() {
           setInput("");
           return;
         }
-        // Fetch session and find incident (use persisted incidentId if available)
-        const currentSession = await base44.entities.InterviewSession.get(sessionId);
-        const incidents = currentSession?.incidents || [];
+        
+        // STEP 1: Append candidate's answer to history FIRST (before persist)
+        // This ensures the answer is visible immediately, even if persist fails
+        const answerStableKey = `fallback-answer:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}:${Date.now()}`;
+        
+        const appendUserMessage = appendUserMessageImport;
+        const freshSession = await base44.entities.InterviewSession.get(sessionId);
+        const currentTranscript = freshSession.transcript_snapshot || [];
+        
+        await appendUserMessage(sessionId, currentTranscript, trimmed, {
+          id: `fallback-answer-${sessionId}-${ctx.categoryId}-${ctx.instanceNumber}-${requiredAnchorCurrent}`,
+          stableKey: answerStableKey,
+          messageType: 'ANSWER',
+          packId: ctx.packId,
+          categoryId: ctx.categoryId,
+          instanceNumber: ctx.instanceNumber,
+          anchor: requiredAnchorCurrent,
+          answerContext: 'REQUIRED_ANCHOR_FALLBACK'
+        });
+        
+        console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_APPENDED]', {
+          anchor: requiredAnchorCurrent,
+          answerLen: trimmed.length,
+          stableKey: answerStableKey,
+          reason: 'Candidate answer recorded to history before persist'
+        });
+        
+        // STEP 2: Refresh transcript to show answer immediately
+        await refreshTranscriptFromDB('fallback_answer_appended');
+        
+        // STEP 3: Fetch session and find incident (use persisted incidentId if available)
+        const updatedSession = await base44.entities.InterviewSession.get(sessionId);
+        const incidents = updatedSession?.incidents || [];
         
         let incident = null;
         
@@ -14975,18 +15005,25 @@ export default function CandidateInterview() {
         if (!incident) {
           console.error('[REQUIRED_ANCHOR_FALLBACK][NO_INCIDENT]', {
             ctx,
-            reason: 'Cannot find incident to update facts'
+            reason: 'Cannot find incident to update facts - answer recorded but fact not saved'
           });
           
-          // FAIL-OPEN: Deactivate fallback to prevent stuck state
+          // FAIL-OPEN: Deactivate fallback but keep answer visible
           setRequiredAnchorFallbackActive(false);
           setRequiredAnchorCurrent(null);
           setRequiredAnchorQueue([]);
           setV3PromptPhase('IDLE');
+          setInput("");
           return;
         }
         
-        // Update incident.facts with new value
+        // STEP 4: Persist fact to incident (persist-first before advance)
+        console.log('[REQUIRED_ANCHOR_FALLBACK][SAVE_BEGIN]', {
+          anchor: requiredAnchorCurrent,
+          incidentId: incident.incident_id,
+          answerLen: trimmed.length
+        });
+        
         const updatedFacts = { ...(incident.facts || {}), [requiredAnchorCurrent]: trimmed };
         const updatedIncidents = incidents.map(inc => 
           inc.incident_id === incident.incident_id 
@@ -14998,7 +15035,7 @@ export default function CandidateInterview() {
           incidents: updatedIncidents
         });
         
-        console.log('[REQUIRED_ANCHOR_FALLBACK][SAVED]', {
+        console.log('[REQUIRED_ANCHOR_FALLBACK][SAVE_OK]', {
           anchor: requiredAnchorCurrent,
           incidentId: incident.incident_id,
           factsKeys: Object.keys(updatedFacts)
