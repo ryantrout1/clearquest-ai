@@ -1708,6 +1708,51 @@ export default function CandidateInterview() {
   // Footer overlap guardrail: Track max overlap seen for regression detection
   const maxOverlapSeenRef = React.useRef({ maxOverlapPx: 0, lastModeSeen: null });
 
+  // TDZ_FIX: HELPER HOISTED - ensureRequiredAnchorQuestionInTranscript must be declared BEFORE repair pass useEffect
+  // HELPER: Ensure required anchor question exists in transcript (idempotent)
+  const ensureRequiredAnchorQuestionInTranscript = useCallback(async ({ sessionId, categoryId, instanceNumber, anchorKey, questionText, packId }) => {
+    const stableKeyQ = `required-anchor:q:${sessionId}:${categoryId}:${instanceNumber}:${anchorKey}`;
+    
+    // Check if already in DB transcript
+    const currentSession = await base44.entities.InterviewSession.get(sessionId);
+    const dbTranscript = currentSession.transcript_snapshot || [];
+    const existsInDb = dbTranscript.some(e => e.stableKey === stableKeyQ);
+    
+    // Check if already in local rendered list
+    const existsInLocal = canonicalTranscriptRef.current.some(e => e.stableKey === stableKeyQ);
+    
+    if (existsInDb && existsInLocal) {
+      return; // Already exists everywhere
+    }
+    
+    // Missing - append now
+    const appendAssistantMessage = appendAssistantMessageImport;
+    
+    const updated = await appendAssistantMessage(sessionId, dbTranscript, questionText, {
+      id: `required-anchor-q-${sessionId}-${categoryId}-${instanceNumber}-${anchorKey}`,
+      stableKey: stableKeyQ,
+      messageType: 'REQUIRED_ANCHOR_QUESTION',
+      packId,
+      categoryId,
+      instanceNumber,
+      anchor: anchorKey,
+      kind: 'REQUIRED_ANCHOR_FALLBACK',
+      visibleToCandidate: true
+    });
+    
+    // Update local state immediately
+    const merged = upsertTranscriptMonotonic(canonicalTranscriptRef.current, updated, 'required_anchor_q_ensure');
+    upsertTranscriptState(merged, 'required_anchor_q_ensure');
+    
+    console.log('[REQUIRED_ANCHOR_FALLBACK][Q_ENSURE_APPEND]', {
+      stableKeyQ,
+      anchorKey,
+      preview: questionText,
+      existedInDb: existsInDb,
+      existedInLocal: existsInLocal
+    });
+  }, [sessionId, upsertTranscriptState]);
+
   // MOVED UP: screenMode and uiBlocker now declared before forensicCheck (prevents TDZ)
   const introLoggedRef = useRef(false);
   const [isDismissingWelcome, setIsDismissingWelcome] = useState(false);
@@ -5004,6 +5049,11 @@ export default function CandidateInterview() {
       mountCount: candidateInterviewMountCount,
       sessionId,
       WARNING: candidateInterviewMountCount > 1 ? '⚠️ REMOUNT DETECTED - This should only mount ONCE per session' : '✓ First mount'
+    });
+    
+    console.log('[FORENSIC][TDZ_FIX_OK]', {
+      fixedSymbol: 'ensureRequiredAnchorQuestionInTranscript',
+      note: 'helper declaration moved above repair pass useEffect (line 1712)'
     });
     
     // ABANDONMENT SAFETY: Flush retry queue on unload/visibility change
@@ -9179,49 +9229,7 @@ export default function CandidateInterview() {
     }
   }, [sessionId]);
 
-  // HELPER: Ensure required anchor question exists in transcript (idempotent)
-  const ensureRequiredAnchorQuestionInTranscript = useCallback(async ({ sessionId, categoryId, instanceNumber, anchorKey, questionText, packId }) => {
-    const stableKeyQ = `required-anchor:q:${sessionId}:${categoryId}:${instanceNumber}:${anchorKey}`;
-    
-    // Check if already in DB transcript
-    const currentSession = await base44.entities.InterviewSession.get(sessionId);
-    const dbTranscript = currentSession.transcript_snapshot || [];
-    const existsInDb = dbTranscript.some(e => e.stableKey === stableKeyQ);
-    
-    // Check if already in local rendered list
-    const existsInLocal = canonicalTranscriptRef.current.some(e => e.stableKey === stableKeyQ);
-    
-    if (existsInDb && existsInLocal) {
-      return; // Already exists everywhere
-    }
-    
-    // Missing - append now
-    const appendAssistantMessage = appendAssistantMessageImport;
-    
-    const updated = await appendAssistantMessage(sessionId, dbTranscript, questionText, {
-      id: `required-anchor-q-${sessionId}-${categoryId}-${instanceNumber}-${anchorKey}`,
-      stableKey: stableKeyQ,
-      messageType: 'REQUIRED_ANCHOR_QUESTION',
-      packId,
-      categoryId,
-      instanceNumber,
-      anchor: anchorKey,
-      kind: 'REQUIRED_ANCHOR_FALLBACK',
-      visibleToCandidate: true
-    });
-    
-    // Update local state immediately
-    const merged = upsertTranscriptMonotonic(canonicalTranscriptRef.current, updated, 'required_anchor_q_ensure');
-    upsertTranscriptState(merged, 'required_anchor_q_ensure');
-    
-    console.log('[REQUIRED_ANCHOR_FALLBACK][Q_ENSURE_APPEND]', {
-      stableKeyQ,
-      anchorKey,
-      preview: questionText,
-      existedInDb: existsInDb,
-      existedInLocal: existsInLocal
-    });
-  }, [sessionId, upsertTranscriptState]);
+  // TDZ_FIX: Duplicate removed - helper now declared at line 1712 (before repair pass useEffect)
 
   // HELPER: Prioritize missing required anchors for fallback prompting
   const prioritizeMissingRequired = (missingRequired) => {
