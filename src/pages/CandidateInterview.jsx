@@ -15408,11 +15408,22 @@ export default function CandidateInterview() {
             });
           }, 50);
         } else {
-          // Still have missing anchors - rebuild queue with prioritization
+          // Still have missing anchors - hold last prompt briefly, then show next
+          console.log('[REQUIRED_ANCHOR_FALLBACK][PROMPT_LANE_HOLD_LAST_QUESTION]', {
+            anchor: requiredAnchorCurrent,
+            promptPreview: `What ${requiredAnchorCurrent}?`,
+            reason: 'Transitioning to next question - hold current briefly'
+          });
+          
+          // Rebuild queue with prioritization
           const sortedMissing = prioritizeMissingRequired(missingRequired);
           
-          setRequiredAnchorQueue(sortedMissing);
-          setRequiredAnchorCurrent(sortedMissing[0]);
+          // Update queue and next anchor after brief hold
+          setTimeout(() => {
+            setRequiredAnchorQueue(sortedMissing);
+            setRequiredAnchorCurrent(sortedMissing[0]);
+          }, 100);
+          
           setInput("");
           
           console.log('[REQUIRED_ANCHOR_FALLBACK][NEXT_FROM_AUDIT]', {
