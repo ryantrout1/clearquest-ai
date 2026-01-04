@@ -16068,13 +16068,13 @@ export default function CandidateInterview() {
           
           // PROMPT_LANE_CONTEXT PROTECTION: Always keep non-chat context rows (hard exception)
           const isPromptLaneContext = mt === 'PROMPT_LANE_CONTEXT' && 
-                                      (entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK' || entry.contextKind === 'REQUIRED_ANCHOR_FALLBACK');
+                                      (e.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK' || e.contextKind === 'REQUIRED_ANCHOR_FALLBACK');
           
           if (isPromptLaneContext) {
             console.log('[CQ_TRANSCRIPT][EPHEMERAL_ALLOWLIST_PROMPT_CONTEXT]', {
               stableKey,
-              anchor: entry.meta?.anchor || entry.anchor,
-              textPreview: (entry.text || '').substring(0, 60),
+              anchor: e.meta?.anchor || e.anchor,
+              textPreview: (e.text || '').substring(0, 60),
               reason: 'Non-chat context - always preserved'
             });
             return true; // ALWAYS keep prompt context (non-chat annotation)
