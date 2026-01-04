@@ -15187,8 +15187,29 @@ export default function CandidateInterview() {
       });
 
       try {
+        // USE PERSISTED CONTEXT: Read from ref (set at fallback activation)
+        const ctx = requiredAnchorFallbackContextRef.current;
+
+        if (!ctx.incidentId && !ctx.categoryId) {
+          console.error('[REQUIRED_ANCHOR_FALLBACK][CONTEXT_MISSING_ON_SUBMIT]', {
+            ctx,
+            reason: 'Context not set at activation - cannot route'
+          });
+
+          // FAIL-OPEN: Deactivate fallback to prevent stuck state
+          setRequiredAnchorFallbackActive(false);
+          setRequiredAnchorCurrent(null);
+          setRequiredAnchorQueue([]);
+          setV3PromptPhase('IDLE');
+          setInput("");
+          return;
+        }
+
+        // Build deterministic stable keys for Q+A pairing (ONCE - used by both Q and A appends)
+        const questionStableKey = `required-anchor:q:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}`;
+        const answerStableKey = `fallback-answer:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}:${Date.now()}`;
+
         // ENSURE QUESTION EXISTS: Append fallback question before answer if missing
-        const questionStableKey = `required-anchor:q:${sessionId}:${requiredAnchorFallbackContextRef.current.categoryId}:${requiredAnchorFallbackContextRef.current.instanceNumber}:${requiredAnchorCurrent}`;
         const answerSession = await base44.entities.InterviewSession.get(sessionId);
         const answerTranscript = answerSession.transcript_snapshot || [];
 
@@ -15202,7 +15223,7 @@ export default function CandidateInterview() {
           });
 
           // Get question text from activePromptText or derive
-          const packConfig = FOLLOWUP_PACK_CONFIGS?.[requiredAnchorFallbackContextRef.current.packId];
+          const packConfig = FOLLOWUP_PACK_CONFIGS?.[ctx.packId];
           const anchorConfig = packConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
           const questionText = anchorConfig?.label 
             ? `What ${anchorConfig.label}?`
@@ -15211,12 +15232,12 @@ export default function CandidateInterview() {
           const appendAssistantMessage = appendAssistantMessageImport;
 
           await appendAssistantMessage(sessionId, answerTranscript, questionText, {
-            id: `required-anchor-q-${sessionId}-${requiredAnchorFallbackContextRef.current.categoryId}-${requiredAnchorFallbackContextRef.current.instanceNumber}-${requiredAnchorCurrent}`,
+            id: `required-anchor-q-${sessionId}-${ctx.categoryId}-${ctx.instanceNumber}-${requiredAnchorCurrent}`,
             stableKey: questionStableKey,
             messageType: 'REQUIRED_ANCHOR_QUESTION',
-            packId: requiredAnchorFallbackContextRef.current.packId,
-            categoryId: requiredAnchorFallbackContextRef.current.categoryId,
-            instanceNumber: requiredAnchorFallbackContextRef.current.instanceNumber,
+            packId: ctx.packId,
+            categoryId: ctx.categoryId,
+            instanceNumber: ctx.instanceNumber,
             anchor: requiredAnchorCurrent,
             kind: 'REQUIRED_ANCHOR_FALLBACK',
             visibleToCandidate: true
@@ -15235,40 +15256,16 @@ export default function CandidateInterview() {
           });
         }
 
-        // USE PERSISTED CONTEXT: Read from ref (set at fallback activation)
-        const ctx = requiredAnchorFallbackContextRef.current;
-        
-        if (!ctx.incidentId && !ctx.categoryId) {
-          console.error('[REQUIRED_ANCHOR_FALLBACK][CONTEXT_MISSING_ON_SUBMIT]', {
-            ctx,
-            reason: 'Context not set at activation - cannot route'
-          });
-          
-          // FAIL-OPEN: Deactivate fallback to prevent stuck state
-          setRequiredAnchorFallbackActive(false);
-          setRequiredAnchorCurrent(null);
-          setRequiredAnchorQueue([]);
-          setV3PromptPhase('IDLE');
-          setInput("");
-          return;
-        }
-        
         // STEP 1: Append candidate's answer to history FIRST (before persist)
-        // This ensures the answer is visible immediately, even if persist fails
-        const answerStableKey = `fallback-answer:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}:${Date.now()}`;
-        
         console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_DB_WRITE_BEGIN]', {
           anchor: requiredAnchorCurrent,
           stableKey: answerStableKey
         });
-        
+
         const appendUserMessage = appendUserMessageImport;
         const freshSession = await base44.entities.InterviewSession.get(sessionId);
         const currentTranscript = freshSession.transcript_snapshot || [];
-        
-        // Build deterministic stable keys for Q+A pairing
-        const questionStableKey = `required-anchor:q:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}`;
-        
+
         const transcriptAfterAnswer = await appendUserMessage(sessionId, currentTranscript, trimmed, {
           id: `fallback-answer-${sessionId}-${ctx.categoryId}-${ctx.instanceNumber}-${requiredAnchorCurrent}`,
           stableKey: answerStableKey,
