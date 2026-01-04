@@ -2188,6 +2188,9 @@ export default function CandidateInterview() {
   // REQUIRED ANCHOR FALLBACK CONTEXT: Persist routing context for submit
   const requiredAnchorFallbackContextRef = useRef({ packId: null, categoryId: null, instanceNumber: null, incidentId: null });
   
+  // REQUIRED ANCHOR FALLBACK ANSWERED: Track anchors answered via fallback (in-memory fast check)
+  const fallbackAnsweredRef = useRef({});
+  
   // V3 PROMPT LIFECYCLE: Track prompt phase to prevent stale prompt rendering
   // "IDLE" = no prompt, "ANSWER_NEEDED" = prompt active waiting for answer, "PROCESSING" = answer submitted
   const [v3PromptPhase, setV3PromptPhase] = useState("IDLE");
@@ -9196,7 +9199,7 @@ export default function CandidateInterview() {
         
         // DEADLOCK DETECTION: Check if V3 is headless (engine won't prompt)
         const isV3Headless = v3ProbingActive && !hasActiveV3Prompt && bottomBarModeSOT === 'V3_WAITING';
-        
+
         if (isV3Headless && missingRequired.length > 0) {
           console.log('[REQUIRED_ANCHOR_FALLBACK][START]', {
             packId,
@@ -9204,10 +9207,51 @@ export default function CandidateInterview() {
             missingRequired,
             reason: 'v3_headless_no_prompt'
           });
-          
+
+          // COMBINED SATISFACTION: Recompute with fallback answers included
+          const facts = existingIncidentId && incidents.find(inc => inc.incident_id === existingIncidentId)?.facts || {};
+          const satisfiedByFacts = missingRequired.filter(anchor => {
+            const value = facts[anchor];
+            return value != null && String(value).trim() !== '';
+          });
+
+          const satisfiedByFallback = missingRequired.filter(anchor => 
+            fallbackAnsweredRef.current[anchor] === true
+          );
+
+          // Recompute missing: exclude BOTH facts-satisfied AND fallback-answered
+          const recomputedMissing = missingRequired.filter(anchor => {
+            const inFacts = facts[anchor] != null && String(facts[anchor]).trim() !== '';
+            const inFallback = fallbackAnsweredRef.current[anchor] === true;
+            return !inFacts && !inFallback;
+          });
+
+          console.log('[REQUIRED_ANCHOR_FALLBACK][MISSING_REQUIRED_COMPUTE]', {
+            initialMissingCount: missingRequired.length,
+            satisfiedByFactsCount: satisfiedByFacts.length,
+            satisfiedByFallbackCount: satisfiedByFallback.length,
+            recomputedMissingCount: recomputedMissing.length,
+            missingRequired: recomputedMissing,
+            satisfiedByFacts,
+            satisfiedByFallback
+          });
+
+          // Use recomputed list
+          missingRequired = recomputedMissing;
+
+          // If all satisfied, exit fallback immediately
+          if (missingRequired.length === 0) {
+            console.log('[REQUIRED_ANCHOR_FALLBACK][SKIP_ALL_SATISFIED]', {
+              packId,
+              instanceNumber,
+              reason: 'All required anchors satisfied by facts or fallback - no need to activate'
+            });
+            return; // Exit - don't activate fallback
+          }
+
           // PRIORITIZE: Sort missing anchors by importance
           const sortedMissing = prioritizeMissingRequired(missingRequired);
-          
+
           console.log('[REQUIRED_ANCHOR_FALLBACK][QUEUE_SORTED]', {
             before: missingRequired,
             after: sortedMissing
@@ -15124,6 +15168,18 @@ export default function CandidateInterview() {
           agencyExtracted
         });
         
+        // Track answered anchor in memory (fast check for re-ask prevention)
+        fallbackAnsweredRef.current[requiredAnchorCurrent] = true;
+        if (agencyExtracted) {
+          fallbackAnsweredRef.current['prior_le_agency'] = true;
+        }
+        
+        console.log('[REQUIRED_ANCHOR_FALLBACK][ANSWERED_TRACKED]', {
+          anchor: requiredAnchorCurrent,
+          agencyExtracted,
+          allAnsweredAnchors: Object.keys(fallbackAnsweredRef.current)
+        });
+        
         // POST-SAVE AUDIT: Recompute missing required from source of truth (incident.facts)
         let missingRequired = [];
         
@@ -15143,6 +15199,32 @@ export default function CandidateInterview() {
             missingRequired = requiredAnchors.filter(anchor => {
               const value = facts[anchor];
               return value == null || String(value).trim() === '';
+            });
+            
+            // COMBINED SATISFACTION: Check both incident.facts AND fallbackAnsweredRef
+            const satisfiedByFacts = requiredAnchors.filter(anchor => {
+              const value = facts[anchor];
+              return value != null && String(value).trim() !== '';
+            });
+            
+            const satisfiedByFallback = requiredAnchors.filter(anchor => 
+              fallbackAnsweredRef.current[anchor] === true
+            );
+            
+            // Recompute missing: exclude BOTH facts-satisfied AND fallback-answered
+            missingRequired = requiredAnchors.filter(anchor => {
+              const inFacts = facts[anchor] != null && String(facts[anchor]).trim() !== '';
+              const inFallback = fallbackAnsweredRef.current[anchor] === true;
+              return !inFacts && !inFallback;
+            });
+            
+            console.log('[REQUIRED_ANCHOR_FALLBACK][MISSING_REQUIRED_COMPUTE]', {
+              requiredAnchorsCount: requiredAnchors.length,
+              satisfiedByFactsCount: satisfiedByFacts.length,
+              satisfiedByFallbackCount: satisfiedByFallback.length,
+              missingRequired,
+              satisfiedByFacts,
+              satisfiedByFallback
             });
             
             console.log('[REQUIRED_ANCHOR_FALLBACK][POST_SAVE_AUDIT]', {
@@ -15189,6 +15271,12 @@ export default function CandidateInterview() {
             note: 'All required anchors satisfied'
           });
           
+          console.log('[REQUIRED_ANCHOR_FALLBACK][POST_SUBMIT_DECISION]', {
+            nextAction: 'MI_GATE',
+            nextAnchor: null,
+            reason: 'All required anchors satisfied'
+          });
+          
           // Exit V3 mode and advance to MI_GATE
           setV3ProbingActive(false);
           setV3ProbingContext(null);
@@ -15227,6 +15315,12 @@ export default function CandidateInterview() {
           setInput("");
           
           console.log('[REQUIRED_ANCHOR_FALLBACK][NEXT_FROM_AUDIT]', {
+            nextAnchor: sortedMissing[0],
+            remaining: sortedMissing
+          });
+          
+          console.log('[REQUIRED_ANCHOR_FALLBACK][POST_SUBMIT_DECISION]', {
+            nextAction: 'NEXT',
             nextAnchor: sortedMissing[0],
             remaining: sortedMissing
           });
