@@ -15389,8 +15389,8 @@ export default function CandidateInterview() {
         let dateExtracted = false;
         let extractedDate = null;
         
-        const packConfig = FOLLOWUP_PACK_CONFIGS?.[ctx.packId];
-        const requiredAnchors = packConfig?.requiredAnchors || [];
+        const fallbackPackConfig = FOLLOWUP_PACK_CONFIGS?.[ctx.packId];
+        const requiredAnchors = fallbackPackConfig?.requiredAnchors || [];
         
         // Check if next anchor would be prior_le_agency or prior_le_approx_date
         const wouldAskAgency = requiredAnchorQueue.includes('prior_le_agency');
@@ -15756,7 +15756,7 @@ export default function CandidateInterview() {
           
           // Persist next fallback question to transcript using helper
           const nextAnchor = sortedMissing[0];
-          const nextAnchorConfig = packConfig?.factAnchors?.find(a => a.key === nextAnchor);
+          const nextAnchorConfig = fallbackPackConfig?.factAnchors?.find(a => a.key === nextAnchor);
           const nextFallbackQuestionText = nextAnchorConfig?.label 
             ? `What ${nextAnchorConfig.label}?`
             : `Please provide: ${nextAnchor}`;
