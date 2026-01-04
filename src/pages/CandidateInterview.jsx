@@ -1223,11 +1223,12 @@ export default function CandidateInterview() {
   const inFlightEnsuresRef = useRef({});
   
   /**
-   * Safe required anchor question persistence (TDZ-proof, crash-proof)
+   * Required anchor question persistence (TDZ-proof, crash-proof)
+   * RENAMED: From safeEnsureRequiredAnchorQuestion to match legacy call sites
    * @param {Object} params - All data passed as parameters (no closure captures)
    * @returns {Promise<{ok: boolean, didAppend: boolean, stableKeyQ: string}>}
    */
-  async function safeEnsureRequiredAnchorQuestion({
+  async function ensureRequiredAnchorQuestionInTranscript({
     sessionId,
     categoryId,
     instanceNumber,
@@ -3915,8 +3916,9 @@ export default function CandidateInterview() {
               ? `What ${repairAnchorConfig.label}?`
               : `Please provide: ${anchorKey}`;
             
-            // Call hoisted-safe function
-            await safeEnsureRequiredAnchorQuestion({
+            // DEFENSIVE: Check function exists before calling
+            if (typeof ensureRequiredAnchorQuestionInTranscript === "function") {
+              await ensureRequiredAnchorQuestionInTranscript({
               sessionId,
               categoryId: answer.meta?.categoryId,
               instanceNumber: answer.meta?.instanceNumber,
@@ -3925,9 +3927,17 @@ export default function CandidateInterview() {
               appendFn: appendAssistantMessageImport,
               existingTranscript: canonicalTranscriptRef.current,
               packId: answer.meta?.packId,
-              canonicalRef: canonicalTranscriptRef,
-              syncStateFn: upsertTranscriptState
-            });
+                canonicalRef: canonicalTranscriptRef,
+                syncStateFn: upsertTranscriptState
+              });
+            } else {
+              console.error('[REQUIRED_ANCHOR_FALLBACK][ENSURE_HELPER_MISSING]', {
+                anchor: anchorKey,
+                phase: 'REPAIR',
+                stability: 'NON_FATAL',
+                note: 'Helper not in scope - skipping'
+              });
+            }
           } catch (err) {
             // Already logged by safe function - no-op
           }
@@ -5132,8 +5142,8 @@ export default function CandidateInterview() {
     });
     
     console.log('[FORENSIC][TDZ_FIX_OK]', {
-      fixedSymbol: 'safeEnsureRequiredAnchorQuestion',
-      note: 'hoisted-safe plain function with zero closure deps (line ~1220)'
+      fixedSymbol: 'ensureRequiredAnchorQuestionInTranscript',
+      note: 'hoisted-safe plain function with zero closure deps + defensive guards (line ~1220)'
     });
     
     // ABANDONMENT SAFETY: Flush retry queue on unload/visibility change
@@ -15413,18 +15423,28 @@ export default function CandidateInterview() {
           const currentSession = await base44.entities.InterviewSession.get(sessionId);
           const currentTranscript = currentSession.transcript_snapshot || [];
 
-          await safeEnsureRequiredAnchorQuestion({
-            sessionId,
-            categoryId: ctx.categoryId,
-            instanceNumber: ctx.instanceNumber,
-            anchor: requiredAnchorCurrent,
-            questionText: submitQuestionText,
-            appendFn: appendAssistantMessageImport,
-            existingTranscript: currentTranscript,
-            packId: ctx.packId,
-            canonicalRef: canonicalTranscriptRef,
-            syncStateFn: upsertTranscriptState
-          });
+          // DEFENSIVE: Check function exists before calling
+          if (typeof ensureRequiredAnchorQuestionInTranscript === "function") {
+            await ensureRequiredAnchorQuestionInTranscript({
+              sessionId,
+              categoryId: ctx.categoryId,
+              instanceNumber: ctx.instanceNumber,
+              anchor: requiredAnchorCurrent,
+              questionText: submitQuestionText,
+              appendFn: appendAssistantMessageImport,
+              existingTranscript: currentTranscript,
+              packId: ctx.packId,
+              canonicalRef: canonicalTranscriptRef,
+              syncStateFn: upsertTranscriptState
+            });
+          } else {
+            console.error('[REQUIRED_ANCHOR_FALLBACK][ENSURE_HELPER_MISSING]', {
+              anchor: requiredAnchorCurrent,
+              phase: 'SUBMIT',
+              stability: 'NON_FATAL',
+              note: 'Helper not in scope - continuing without Q persist'
+            });
+          }
         } catch (ensureErr) {
           // NO-CRASH: Already logged by safe function - continue anyway
           console.error('[REQUIRED_ANCHOR_FALLBACK][ENSURE_Q_OUTER_CATCH]', {
@@ -15890,18 +15910,28 @@ export default function CandidateInterview() {
             const nextSession = await base44.entities.InterviewSession.get(sessionId);
             const nextTranscript = nextSession.transcript_snapshot || [];
             
-            await safeEnsureRequiredAnchorQuestion({
-              sessionId,
-              categoryId: ctx.categoryId,
-              instanceNumber: ctx.instanceNumber,
-              anchor: nextAnchor,
-              questionText: nextFallbackQuestionText,
-              appendFn: appendAssistantMessageImport,
-              existingTranscript: nextTranscript,
-              packId: ctx.packId,
-              canonicalRef: canonicalTranscriptRef,
-              syncStateFn: upsertTranscriptState
-            });
+            // DEFENSIVE: Check function exists before calling
+            if (typeof ensureRequiredAnchorQuestionInTranscript === "function") {
+              await ensureRequiredAnchorQuestionInTranscript({
+                sessionId,
+                categoryId: ctx.categoryId,
+                instanceNumber: ctx.instanceNumber,
+                anchor: nextAnchor,
+                questionText: nextFallbackQuestionText,
+                appendFn: appendAssistantMessageImport,
+                existingTranscript: nextTranscript,
+                packId: ctx.packId,
+                canonicalRef: canonicalTranscriptRef,
+                syncStateFn: upsertTranscriptState
+              });
+            } else {
+              console.error('[REQUIRED_ANCHOR_FALLBACK][ENSURE_HELPER_MISSING]', {
+                anchor: nextAnchor,
+                phase: 'TRANSITION',
+                stability: 'NON_FATAL',
+                note: 'Helper not in scope - continuing without next Q persist'
+              });
+            }
           } catch (nextErr) {
             // NO-CRASH: Already logged by safe function
             console.error('[REQUIRED_ANCHOR_FALLBACK][NEXT_Q_OUTER_CATCH]', {
