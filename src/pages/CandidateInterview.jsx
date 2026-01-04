@@ -9383,6 +9383,59 @@ export default function CandidateInterview() {
             }
           });
           
+          // Derive fallback question text for context persistence
+          const packConfig = FOLLOWUP_PACK_CONFIGS?.[packId];
+          const anchor = packConfig?.factAnchors?.find(a => a.key === sortedMissing[0]);
+          let fallbackQuestionText = anchor?.label 
+            ? `What ${anchor.label}?`
+            : `Please provide: ${sortedMissing[0]}`;
+          
+          // MUST-HAVE ASSERTION: Ensure promptText is never empty
+          if (!fallbackQuestionText || fallbackQuestionText.trim() === '') {
+            fallbackQuestionText = `Please provide: ${sortedMissing[0]}`;
+          }
+          
+          // PERSIST PROMPT LANE CONTEXT: Non-chat context item for UI rendering
+          const contextStableKey = `fallback-prompt:${sessionId}:${categoryId}:${instanceNumber}:${sortedMissing[0]}`;
+          
+          console.log('[CQ_TRANSCRIPT][FALLBACK_PROMPT_CONTEXT_PERSIST_BEGIN]', {
+            stableKey: contextStableKey,
+            anchor: sortedMissing[0]
+          });
+          
+          try {
+            const appendAssistantMessage = appendAssistantMessageImport;
+            const contextSession = await base44.entities.InterviewSession.get(sessionId);
+            const contextTranscript = contextSession.transcript_snapshot || [];
+            
+            await appendAssistantMessage(sessionId, contextTranscript, fallbackQuestionText, {
+              id: `fallback-context-${sessionId}-${categoryId}-${instanceNumber}-${sortedMissing[0]}`,
+              stableKey: contextStableKey,
+              messageType: 'PROMPT_LANE_CONTEXT',
+              packId,
+              categoryId,
+              instanceNumber,
+              anchor: sortedMissing[0],
+              contextKind: 'REQUIRED_ANCHOR_FALLBACK',
+              isNonChat: true,
+              visibleToCandidate: true
+            });
+            
+            console.log('[CQ_TRANSCRIPT][FALLBACK_PROMPT_CONTEXT_PERSIST_OK]', {
+              stableKey: contextStableKey,
+              anchor: sortedMissing[0]
+            });
+            
+            // Refresh to pull context into local state
+            await refreshTranscriptFromDB('fallback_context_persisted');
+          } catch (err) {
+            console.error('[CQ_TRANSCRIPT][FALLBACK_PROMPT_CONTEXT_ERROR]', {
+              error: err.message,
+              anchor: sortedMissing[0]
+            });
+            // Non-blocking - continue without context if persist fails
+          }
+          
           // ACTIVATE FALLBACK: Ask for required anchors deterministically (prioritized)
           setRequiredAnchorFallbackActive(true);
           setRequiredAnchorQueue([...sortedMissing]);
@@ -15454,6 +15507,13 @@ export default function CandidateInterview() {
           setInput("");
           setV3PromptPhase('IDLE');
           
+          console.log('[CQ_TRANSCRIPT][PROMPT_CONTEXT_FINALIZED_FOR_INSTANCE]', {
+            instanceNumber: ctx.instanceNumber,
+            packId: ctx.packId,
+            lastAnchor: requiredAnchorCurrent,
+            note: 'Fallback complete - context rows remain for this instance'
+          });
+          
           console.log('[REQUIRED_ANCHOR_FALLBACK][COMPLETE_FROM_AUDIT]', {
             incidentId: incident.incident_id,
             note: 'All required anchors satisfied'
@@ -15509,6 +15569,55 @@ export default function CandidateInterview() {
           
           // Rebuild queue with prioritization
           const sortedMissing = prioritizeMissingRequired(missingRequired);
+          
+          // Persist new context for next anchor
+          const nextAnchor = sortedMissing[0];
+          const nextAnchorConfig = packConfig?.factAnchors?.find(a => a.key === nextAnchor);
+          let nextFallbackQuestionText = nextAnchorConfig?.label 
+            ? `What ${nextAnchorConfig.label}?`
+            : `Please provide: ${nextAnchor}`;
+          
+          if (!nextFallbackQuestionText || nextFallbackQuestionText.trim() === '') {
+            nextFallbackQuestionText = `Please provide: ${nextAnchor}`;
+          }
+          
+          const nextContextStableKey = `fallback-prompt:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${nextAnchor}`;
+          
+          console.log('[CQ_TRANSCRIPT][PROMPT_CONTEXT_UPDATED]', {
+            fromAnchor: requiredAnchorCurrent,
+            toAnchor: nextAnchor
+          });
+          
+          try {
+            const appendAssistantMessage = appendAssistantMessageImport;
+            const nextContextSession = await base44.entities.InterviewSession.get(sessionId);
+            const nextContextTranscript = nextContextSession.transcript_snapshot || [];
+            
+            await appendAssistantMessage(sessionId, nextContextTranscript, nextFallbackQuestionText, {
+              id: `fallback-context-${sessionId}-${ctx.categoryId}-${ctx.instanceNumber}-${nextAnchor}`,
+              stableKey: nextContextStableKey,
+              messageType: 'PROMPT_LANE_CONTEXT',
+              packId: ctx.packId,
+              categoryId: ctx.categoryId,
+              instanceNumber: ctx.instanceNumber,
+              anchor: nextAnchor,
+              contextKind: 'REQUIRED_ANCHOR_FALLBACK',
+              isNonChat: true,
+              visibleToCandidate: true
+            });
+            
+            console.log('[CQ_TRANSCRIPT][FALLBACK_PROMPT_CONTEXT_PERSIST_OK]', {
+              stableKey: nextContextStableKey,
+              anchor: nextAnchor
+            });
+            
+            await refreshTranscriptFromDB('fallback_next_context_persisted');
+          } catch (err) {
+            console.error('[CQ_TRANSCRIPT][FALLBACK_PROMPT_CONTEXT_ERROR]', {
+              error: err.message,
+              anchor: nextAnchor
+            });
+          }
           
           // Update queue and next anchor after brief hold
           setTimeout(() => {
@@ -18924,6 +19033,31 @@ export default function CandidateInterview() {
                   </ContentContainer>
                 </div>
               )}
+
+              {/* Prompt Lane Context - Non-chat context rows (e.g., fallback questions) */}
+              {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'PROMPT_LANE_CONTEXT' && entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK' && (() => {
+                const contextStableKey = entry.stableKey || entry.id;
+                const contextAnchor = entry.meta?.anchor || entry.anchor;
+                
+                console.log('[CQ_TRANSCRIPT][PROMPT_CONTEXT_RENDERED]', {
+                  stableKey: contextStableKey,
+                  anchor: contextAnchor,
+                  textPreview: entry.text?.substring(0, 60)
+                });
+                
+                // Render as subtle context row (NOT a chat bubble)
+                return (
+                  <ContentContainer>
+                    <div className="w-full bg-purple-900/20 border border-purple-700/30 rounded-lg px-4 py-2 opacity-90">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-purple-400">AI Follow-Up</span>
+                        <span className="text-xs text-slate-500">•</span>
+                        <span className="text-xs text-slate-300">{entry.text}</span>
+                      </div>
+                    </div>
+                  </ContentContainer>
+                );
+              })()}
 
               {/* V3 probe question and answer now render from transcript (legal record) */}
               {/* Moved to transcript stream above (lines ~9166-9194) - renders with proper styling */}
