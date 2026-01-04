@@ -1422,8 +1422,47 @@ export default function CandidateInterview() {
         return canonicalTranscriptRef.current; // Return current, do NOT update
       }
       
-      // STEP 2: Upsert into canonical ref (monotonic merge)
-      const merged = upsertTranscriptMonotonic(canonicalTranscriptRef.current, freshTranscript, `refresh_${reason}`);
+      // FALLBACK ANSWER PROTECTION: Preserve recently-submitted fallback answers during merge
+      const fallbackAnswersInCurrent = canonicalTranscriptRef.current.filter(e => 
+        (e.meta?.answerContext === 'REQUIRED_ANCHOR_FALLBACK' || 
+         e.answerContext === 'REQUIRED_ANCHOR_FALLBACK' ||
+         (e.stableKey && e.stableKey.startsWith('fallback-answer:'))) &&
+        e.role === 'user' &&
+        e.messageType === 'ANSWER'
+      );
+      
+      const fallbackAnswersInFresh = freshTranscript.filter(e => 
+        e.stableKey && e.stableKey.startsWith('fallback-answer:')
+      );
+      
+      // Protect fallback answers: merge fresh with current fallbacks
+      let protectedTranscript = freshTranscript;
+      let keptCount = 0;
+      
+      if (fallbackAnswersInCurrent.length > 0) {
+        const freshKeys = new Set(freshTranscript.map(e => e.stableKey || e.id).filter(Boolean));
+        const missingFallbacks = fallbackAnswersInCurrent.filter(fb => {
+          const key = fb.stableKey || fb.id;
+          return key && !freshKeys.has(key);
+        });
+        
+        if (missingFallbacks.length > 0) {
+          // Add missing fallback answers to fresh transcript (preserves them)
+          protectedTranscript = [...freshTranscript, ...missingFallbacks];
+          keptCount = missingFallbacks.length;
+          
+          console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_PROTECT_MERGE]', {
+            keptCount,
+            totalFallbacksInCurrent: fallbackAnswersInCurrent.length,
+            fallbacksInFresh: fallbackAnswersInFresh.length,
+            note: 'Prevented fallback answers from being dropped during bulk transcript refresh',
+            keptKeys: missingFallbacks.map(fb => fb.stableKey || fb.id)
+          });
+        }
+      }
+      
+      // STEP 2: Upsert into canonical ref (monotonic merge) - use protected transcript
+      const merged = upsertTranscriptMonotonic(canonicalTranscriptRef.current, protectedTranscript, `refresh_${reason}`);
       
       // ATOMIC SYNC: Use unified helper
       upsertTranscriptState(merged, `refresh_${reason}`);
@@ -9116,6 +9155,38 @@ export default function CandidateInterview() {
       loopKey: `${sessionId}:${categoryId}:${instanceNumber || 1}`
     });
     
+    // HUMAN LABEL RESOLUTION: Ensure categoryLabel is human-friendly
+    let humanCategoryLabel = categoryLabel;
+    
+    // Try pack config first
+    const packConfig = FOLLOWUP_PACK_CONFIGS?.[packId];
+    if (packConfig?.instancesLabel) {
+      humanCategoryLabel = packConfig.instancesLabel;
+    } else if (packData?.pack_name) {
+      // Try pack metadata
+      humanCategoryLabel = packData.pack_name;
+    } else if (categoryId) {
+      // Fallback: Convert categoryId to title case
+      humanCategoryLabel = categoryId
+        .replace(/_/g, ' ')
+        .toLowerCase()
+        .replace(/\b\w/g, c => c.toUpperCase());
+    }
+    
+    // Default fallback if all else fails
+    if (!humanCategoryLabel || humanCategoryLabel.trim() === '' || /^[A-Z_]+$/.test(humanCategoryLabel)) {
+      humanCategoryLabel = 'incident';
+    }
+    
+    console.log('[MI_GATE][HUMAN_LABEL_RESOLVED]', {
+      packId,
+      categoryId,
+      labelPreview: humanCategoryLabel,
+      source: packConfig?.instancesLabel ? 'packConfig' : 
+              packData?.pack_name ? 'packData' : 
+              categoryId ? 'categoryId_formatted' : 'fallback'
+    });
+    
     // MINIMAL MI_GATE GUARD: Block if required fields incomplete (V3 packs only)
     const packConfig = FOLLOWUP_PACK_CONFIGS?.[packId];
     const isV3Pack = packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3';
@@ -9389,7 +9460,7 @@ export default function CandidateInterview() {
       });
     }
     
-    const gatePromptText = `Do you have another ${categoryLabel || 'incident'} to report?`;
+    const gatePromptText = `Do you have another ${humanCategoryLabel || 'incident'} to report?`;
     const gateItemId = `multi-instance-gate-${packId}-${instanceNumber}`;
     const gateStableKey = `mi-gate:${packId}:${instanceNumber}`;
     
@@ -9492,13 +9563,27 @@ export default function CandidateInterview() {
         active: true,
         packId,
         categoryId,
-        categoryLabel,
+        categoryLabel: humanCategoryLabel,
         promptText: gatePromptText,
         instanceNumber,
         baseQuestionId,
         packData
       });
       setCurrentItem(gateItem);
+    });
+    
+    // POST-MI_GATE VERIFICATION: Check fallback answers survived
+    requestAnimationFrame(() => {
+      const fallbackAnswerCount = canonicalTranscriptRef.current.filter(e => 
+        e.stableKey && e.stableKey.startsWith('fallback-answer:')
+      ).length;
+      
+      console.log('[CQ_TRANSCRIPT][POST_MIGATE_VERIFY_FALLBACK_ANSWERS]', {
+        fallbackAnswerCount,
+        transcriptLen: canonicalTranscriptRef.current.length,
+        packId,
+        instanceNumber
+      });
     });
     
     // PART A: DO NOT append gate to transcript while active (prevents flicker)
@@ -9508,7 +9593,8 @@ export default function CandidateInterview() {
       source: 'PROMPT_LANE',
       stableKey: gateStableKey,
       packId,
-      instanceNumber
+      instanceNumber,
+      humanLabel: humanCategoryLabel
     });
     
     // State is set - gate will render from currentItem, not transcript
