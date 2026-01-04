@@ -14948,11 +14948,16 @@ export default function CandidateInterview() {
         // This ensures the answer is visible immediately, even if persist fails
         const answerStableKey = `fallback-answer:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}:${Date.now()}`;
         
+        console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_PERSIST_BEGIN]', {
+          anchor: requiredAnchorCurrent,
+          stableKey: answerStableKey
+        });
+        
         const appendUserMessage = appendUserMessageImport;
         const freshSession = await base44.entities.InterviewSession.get(sessionId);
         const currentTranscript = freshSession.transcript_snapshot || [];
         
-        await appendUserMessage(sessionId, currentTranscript, trimmed, {
+        const transcriptAfterAnswer = await appendUserMessage(sessionId, currentTranscript, trimmed, {
           id: `fallback-answer-${sessionId}-${ctx.categoryId}-${ctx.instanceNumber}-${requiredAnchorCurrent}`,
           stableKey: answerStableKey,
           messageType: 'ANSWER',
@@ -14960,7 +14965,14 @@ export default function CandidateInterview() {
           categoryId: ctx.categoryId,
           instanceNumber: ctx.instanceNumber,
           anchor: requiredAnchorCurrent,
-          answerContext: 'REQUIRED_ANCHOR_FALLBACK'
+          answerContext: 'REQUIRED_ANCHOR_FALLBACK',
+          visibleToCandidate: true
+        });
+        
+        console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_PERSIST_OK]', {
+          anchor: requiredAnchorCurrent,
+          stableKey: answerStableKey,
+          transcriptLenAfter: transcriptAfterAnswer?.length || 0
         });
         
         console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_APPENDED]', {
@@ -14970,10 +14982,71 @@ export default function CandidateInterview() {
           reason: 'Candidate answer recorded to history before persist'
         });
         
-        // STEP 2: Refresh transcript to show answer immediately
+        // STEP 2: Force transcript rehydrate from DB (ensures answer survives re-renders)
+        console.log('[CQ_TRANSCRIPT][FALLBACK_TRANSCRIPT_REHYDRATE_BEGIN]', { sessionId });
+        
         await refreshTranscriptFromDB('fallback_answer_appended');
         
-        // STEP 3: Fetch session and find incident (use persisted incidentId if available)
+        console.log('[CQ_TRANSCRIPT][FALLBACK_TRANSCRIPT_REHYDRATE_OK]', {
+          transcriptLenAfter: canonicalTranscriptRef.current.length
+        });
+        
+        // STEP 3: Deterministic extraction for prior_le_agency (prevent redundant ask)
+        let agencyExtracted = false;
+        let extractedAgency = null;
+        
+        const packConfig = FOLLOWUP_PACK_CONFIGS?.[ctx.packId];
+        const requiredAnchors = packConfig?.requiredAnchors || [];
+        
+        // Check if next anchor would be prior_le_agency
+        const wouldAskAgency = requiredAnchorQueue.includes('prior_le_agency');
+        
+        if (ctx.packId === 'PACK_PRIOR_LE_APPS_STANDARD' && wouldAskAgency) {
+          // Try to extract agency from opener narrative
+          const openerResponse = await base44.entities.Response.filter({
+            session_id: sessionId,
+            pack_id: ctx.packId,
+            field_key: 'v3_opener_narrative',
+            instance_number: ctx.instanceNumber
+          });
+          
+          const openerNarrative = openerResponse?.[0]?.answer || '';
+          
+          console.log('[REQUIRED_ANCHOR_FALLBACK][AGENCY_DETERMINISTIC_EXTRACT_ATTEMPT]', {
+            found: openerNarrative.length > 0,
+            preview: openerNarrative.substring(0, 100)
+          });
+          
+          if (openerNarrative.length > 20) {
+            // Pattern: "applied to <Agency>"
+            const patterns = [
+              /applied\s+(?:to|with)\s+([A-Z][A-Za-z\s&.-]{2,60}?)(?:\s+in\s|\s+for\s|,|\.|$)/i,
+              /applied\s+(?:to|with)\s+the\s+([A-Z][A-Za-z\s&.-]{2,60}?)(?:\s+in\s|\s+for\s|,|\.|$)/i,
+              /application\s+(?:to|with)\s+([A-Z][A-Za-z\s&.-]{2,60}?)(?:\s+in\s|\s+for\s|,|\.|$)/i
+            ];
+            
+            for (const pattern of patterns) {
+              const match = openerNarrative.match(pattern);
+              if (match && match[1]) {
+                extractedAgency = match[1].trim();
+                
+                // Validate: must contain at least one letter and be reasonable length
+                if (extractedAgency.length >= 3 && extractedAgency.length <= 60 && /[A-Za-z]/.test(extractedAgency)) {
+                  agencyExtracted = true;
+                  
+                  console.log('[REQUIRED_ANCHOR_FALLBACK][AGENCY_DETERMINISTIC_EXTRACT_SAVED]', {
+                    incidentId: ctx.incidentId,
+                    valuePreview: extractedAgency
+                  });
+                  
+                  break;
+                }
+              }
+            }
+          }
+        }
+        
+        // STEP 4: Fetch session and find incident (use persisted incidentId if available)
         const updatedSession = await base44.entities.InterviewSession.get(sessionId);
         const incidents = updatedSession?.incidents || [];
         
@@ -15017,14 +15090,23 @@ export default function CandidateInterview() {
           return;
         }
         
-        // STEP 4: Persist fact to incident (persist-first before advance)
+        // STEP 5: Persist fact to incident (persist-first before advance)
         console.log('[REQUIRED_ANCHOR_FALLBACK][SAVE_BEGIN]', {
           anchor: requiredAnchorCurrent,
           incidentId: incident.incident_id,
           answerLen: trimmed.length
         });
         
-        const updatedFacts = { ...(incident.facts || {}), [requiredAnchorCurrent]: trimmed };
+        const updatedFacts = { 
+          ...(incident.facts || {}), 
+          [requiredAnchorCurrent]: trimmed
+        };
+        
+        // If agency was extracted, add it now
+        if (agencyExtracted && extractedAgency) {
+          updatedFacts['prior_le_agency'] = extractedAgency;
+        }
+        
         const updatedIncidents = incidents.map(inc => 
           inc.incident_id === incident.incident_id 
             ? { ...inc, facts: updatedFacts, updated_at: new Date().toISOString() }
@@ -15038,7 +15120,8 @@ export default function CandidateInterview() {
         console.log('[REQUIRED_ANCHOR_FALLBACK][SAVE_OK]', {
           anchor: requiredAnchorCurrent,
           incidentId: incident.incident_id,
-          factsKeys: Object.keys(updatedFacts)
+          factsKeys: Object.keys(updatedFacts),
+          agencyExtracted
         });
         
         // POST-SAVE AUDIT: Recompute missing required from source of truth (incident.facts)
@@ -15063,8 +15146,10 @@ export default function CandidateInterview() {
             });
             
             console.log('[REQUIRED_ANCHOR_FALLBACK][POST_SAVE_AUDIT]', {
+              anchorJustSaved: requiredAnchorCurrent,
               incidentId: incident.incident_id,
               requiredAnchorsCount: requiredAnchors.length,
+              factsCollected: Object.keys(facts),
               missingRequired
             });
           } else {
@@ -15094,6 +15179,11 @@ export default function CandidateInterview() {
           setInput("");
           setV3PromptPhase('IDLE');
           
+          console.log('[REQUIRED_ANCHOR_FALLBACK][COMPLETE_FROM_AUDIT]', {
+            incidentId: incident.incident_id,
+            note: 'All required anchors satisfied'
+          });
+          
           console.log('[REQUIRED_ANCHOR_FALLBACK][COMPLETE]', {
             incidentId: incident.incident_id,
             note: 'All required anchors satisfied'
@@ -15108,6 +15198,14 @@ export default function CandidateInterview() {
             packId: ctx.packId,
             categoryId: ctx.categoryId,
             instanceNumber: ctx.instanceNumber
+          });
+          
+          // CONSOLIDATED TRACE: Prove success path
+          console.log('[REQUIRED_ANCHOR_FALLBACK][TRACE_END]', {
+            answerPersisted: true,
+            transcriptRehydrated: true,
+            savedFactAnchor: requiredAnchorCurrent,
+            nextDecision: 'MI_GATE'
           });
           
           // Transition to MI_GATE deterministically
@@ -15128,9 +15226,22 @@ export default function CandidateInterview() {
           setRequiredAnchorCurrent(sortedMissing[0]);
           setInput("");
           
+          console.log('[REQUIRED_ANCHOR_FALLBACK][NEXT_FROM_AUDIT]', {
+            nextAnchor: sortedMissing[0],
+            remaining: sortedMissing
+          });
+          
           console.log('[REQUIRED_ANCHOR_FALLBACK][NEXT]', {
             nextAnchor: sortedMissing[0],
             remaining: sortedMissing
+          });
+          
+          // CONSOLIDATED TRACE: Prove success path
+          console.log('[REQUIRED_ANCHOR_FALLBACK][TRACE_END]', {
+            answerPersisted: true,
+            transcriptRehydrated: true,
+            savedFactAnchor: requiredAnchorCurrent,
+            nextDecision: sortedMissing[0]
           });
         }
       } catch (err) {
