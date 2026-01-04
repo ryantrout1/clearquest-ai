@@ -9587,9 +9587,21 @@ export default function CandidateInterview() {
             
             // Dedupe: Check if already persisted
             if (!currentTranscript.some(e => e.stableKey === questionStableKey)) {
+              // TDZ FIX: Compute fallback question text INLINE (no closure reference)
+              const transitionPackConfig = FOLLOWUP_PACK_CONFIGS?.[packId];
+              const transitionAnchor = transitionPackConfig?.factAnchors?.find(a => a.key === sortedMissing[0]);
+              let transitionQuestionText = transitionAnchor?.label 
+                ? `What ${transitionAnchor.label}?`
+                : `Please provide: ${sortedMissing[0]}`;
+              
+              // MUST-HAVE ASSERTION: Ensure questionText is never empty
+              if (!transitionQuestionText || transitionQuestionText.trim() === '') {
+                transitionQuestionText = `Please provide: ${sortedMissing[0]}`;
+              }
+              
               const appendAssistantMessage = appendAssistantMessageImport;
               
-              await appendAssistantMessage(sessionId, currentTranscript, fallbackQuestionText, {
+              await appendAssistantMessage(sessionId, currentTranscript, transitionQuestionText, {
                 id: `required-anchor-q-${sessionId}-${categoryId}-${instanceNumber}-${sortedMissing[0]}`,
                 stableKey: questionStableKey,
                 messageType: 'REQUIRED_ANCHOR_QUESTION',
@@ -9604,7 +9616,7 @@ export default function CandidateInterview() {
               console.log('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_APPEND_OK]', {
                 stableKey: questionStableKey,
                 anchor: sortedMissing[0],
-                preview: fallbackQuestionText
+                preview: transitionQuestionText
               });
             } else {
               console.log('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_EXISTS]', {
@@ -9640,16 +9652,16 @@ export default function CandidateInterview() {
             }
           });
           
-          // Derive fallback question text for context persistence
-          const packConfig = FOLLOWUP_PACK_CONFIGS?.[packId];
-          const anchor = packConfig?.factAnchors?.find(a => a.key === sortedMissing[0]);
-          let fallbackQuestionText = anchor?.label 
-            ? `What ${anchor.label}?`
+          // TDZ FIX: Compute fallback question text INLINE (renamed to prevent closure TDZ)
+          const contextPackConfig = FOLLOWUP_PACK_CONFIGS?.[packId];
+          const contextAnchor = contextPackConfig?.factAnchors?.find(a => a.key === sortedMissing[0]);
+          let contextFallbackQuestionText = contextAnchor?.label 
+            ? `What ${contextAnchor.label}?`
             : `Please provide: ${sortedMissing[0]}`;
           
           // MUST-HAVE ASSERTION: Ensure promptText is never empty
-          if (!fallbackQuestionText || fallbackQuestionText.trim() === '') {
-            fallbackQuestionText = `Please provide: ${sortedMissing[0]}`;
+          if (!contextFallbackQuestionText || contextFallbackQuestionText.trim() === '') {
+            contextFallbackQuestionText = `Please provide: ${sortedMissing[0]}`;
           }
           
           // PERSIST PROMPT LANE CONTEXT: Non-chat context item for UI rendering
@@ -9665,7 +9677,7 @@ export default function CandidateInterview() {
             const contextSession = await base44.entities.InterviewSession.get(sessionId);
             const contextTranscript = contextSession.transcript_snapshot || [];
             
-            await appendAssistantMessage(sessionId, contextTranscript, fallbackQuestionText, {
+            await appendAssistantMessage(sessionId, contextTranscript, contextFallbackQuestionText, {
               id: `fallback-context-${sessionId}-${categoryId}-${instanceNumber}-${sortedMissing[0]}`,
               stableKey: contextStableKey,
               messageType: 'PROMPT_LANE_CONTEXT',
