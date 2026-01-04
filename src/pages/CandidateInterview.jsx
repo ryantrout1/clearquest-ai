@@ -3755,6 +3755,62 @@ export default function CandidateInterview() {
   // Loading watchdog state
   const [showLoadingRetry, setShowLoadingRetry] = useState(false);
   
+  // REPAIR PASS: Ensure orphaned required anchor answers have their questions
+  useEffect(() => {
+    if (!Array.isArray(canonicalTranscriptRef.current)) return;
+    
+    const orphanAnswers = canonicalTranscriptRef.current.filter(e => 
+      (e.stableKey || e.id || '').startsWith('required-anchor:a:') &&
+      e.messageType === 'ANSWER' &&
+      e.meta?.answerContext === 'REQUIRED_ANCHOR_FALLBACK'
+    );
+    
+    if (orphanAnswers.length === 0) return;
+    
+    for (const answer of orphanAnswers) {
+      const answerKey = answer.stableKey || answer.id;
+      const anchorKey = answer.meta?.anchor || answer.anchor;
+      
+      if (!anchorKey) continue;
+      
+      // Build expected question key
+      const questionKey = `required-anchor:q:${sessionId}:${answer.meta?.categoryId || ''}:${answer.meta?.instanceNumber || 1}:${anchorKey}`;
+      
+      // Check if question exists
+      const questionExists = canonicalTranscriptRef.current.some(e => e.stableKey === questionKey);
+      
+      if (!questionExists) {
+        console.log('[REQUIRED_ANCHOR_FALLBACK][REPAIR_INSERT_Q]', {
+          anchorKey,
+          stableKeyQ: questionKey,
+          reason: 'Orphan answer found - inserting missing question'
+        });
+        
+        // Derive question text
+        const packConfig = FOLLOWUP_PACK_CONFIGS?.[answer.meta?.packId];
+        const anchorConfig = packConfig?.factAnchors?.find(a => a.key === anchorKey);
+        const questionText = anchorConfig?.label 
+          ? `What ${anchorConfig.label}?`
+          : `Please provide: ${anchorKey}`;
+        
+        // Ensure question via helper (async but fire-and-forget for repair)
+        ensureRequiredAnchorQuestionInTranscript({
+          sessionId,
+          categoryId: answer.meta?.categoryId,
+          instanceNumber: answer.meta?.instanceNumber,
+          anchorKey,
+          questionText,
+          packId: answer.meta?.packId
+        }).catch(err => {
+          console.error('[REQUIRED_ANCHOR_FALLBACK][REPAIR_ERROR]', {
+            anchorKey,
+            error: err.message
+          });
+        });
+      }
+    }
+  }, [canonicalTranscriptRef.current.length, sessionId, ensureRequiredAnchorQuestionInTranscript]);
+
   // STABLE RENDER LIST: Pure deterministic filtering (no UI-state-dependent shrink/grow)
   const renderedTranscript = useMemo(() => {
     const base = Array.isArray(transcriptSOT) ? transcriptSOT : [];
@@ -9122,6 +9178,50 @@ export default function CandidateInterview() {
       return null;
     }
   }, [sessionId]);
+
+  // HELPER: Ensure required anchor question exists in transcript (idempotent)
+  const ensureRequiredAnchorQuestionInTranscript = useCallback(async ({ sessionId, categoryId, instanceNumber, anchorKey, questionText, packId }) => {
+    const stableKeyQ = `required-anchor:q:${sessionId}:${categoryId}:${instanceNumber}:${anchorKey}`;
+    
+    // Check if already in DB transcript
+    const currentSession = await base44.entities.InterviewSession.get(sessionId);
+    const dbTranscript = currentSession.transcript_snapshot || [];
+    const existsInDb = dbTranscript.some(e => e.stableKey === stableKeyQ);
+    
+    // Check if already in local rendered list
+    const existsInLocal = canonicalTranscriptRef.current.some(e => e.stableKey === stableKeyQ);
+    
+    if (existsInDb && existsInLocal) {
+      return; // Already exists everywhere
+    }
+    
+    // Missing - append now
+    const appendAssistantMessage = appendAssistantMessageImport;
+    
+    const updated = await appendAssistantMessage(sessionId, dbTranscript, questionText, {
+      id: `required-anchor-q-${sessionId}-${categoryId}-${instanceNumber}-${anchorKey}`,
+      stableKey: stableKeyQ,
+      messageType: 'REQUIRED_ANCHOR_QUESTION',
+      packId,
+      categoryId,
+      instanceNumber,
+      anchor: anchorKey,
+      kind: 'REQUIRED_ANCHOR_FALLBACK',
+      visibleToCandidate: true
+    });
+    
+    // Update local state immediately
+    const merged = upsertTranscriptMonotonic(canonicalTranscriptRef.current, updated, 'required_anchor_q_ensure');
+    upsertTranscriptState(merged, 'required_anchor_q_ensure');
+    
+    console.log('[REQUIRED_ANCHOR_FALLBACK][Q_ENSURE_APPEND]', {
+      stableKeyQ,
+      anchorKey,
+      preview: questionText,
+      existedInDb: existsInDb,
+      existedInLocal: existsInLocal
+    });
+  }, [sessionId, upsertTranscriptState]);
 
   // HELPER: Prioritize missing required anchors for fallback prompting
   const prioritizeMissingRequired = (missingRequired) => {
@@ -15206,57 +15306,25 @@ export default function CandidateInterview() {
         }
 
         // Build deterministic stable keys for Q+A pairing (ONCE - used by both Q and A appends)
-        const questionStableKey = `required-anchor:q:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}`;
-        const answerStableKey = `fallback-answer:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}:${Date.now()}`;
+        const answerStableKey = `required-anchor:a:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}`;
 
-        // ENSURE QUESTION EXISTS: Append fallback question before answer if missing
-        const answerSession = await base44.entities.InterviewSession.get(sessionId);
-        const answerTranscript = answerSession.transcript_snapshot || [];
+        // ENSURE QUESTION EXISTS: Append fallback question before answer
+        const packConfig = FOLLOWUP_PACK_CONFIGS?.[ctx.packId];
+        const anchorConfig = packConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
+        const questionText = anchorConfig?.label 
+          ? `What ${anchorConfig.label}?`
+          : activePromptText || `Please provide: ${requiredAnchorCurrent}`;
 
-        const questionExists = answerTranscript.some(e => e.stableKey === questionStableKey);
+        await ensureRequiredAnchorQuestionInTranscript({
+          sessionId,
+          categoryId: ctx.categoryId,
+          instanceNumber: ctx.instanceNumber,
+          anchorKey: requiredAnchorCurrent,
+          questionText,
+          packId: ctx.packId
+        });
 
-        if (!questionExists) {
-          console.log('[REQUIRED_ANCHOR_FALLBACK][ENSURE_Q_BEFORE_A]', {
-            anchor: requiredAnchorCurrent,
-            ensured: false,
-            reason: 'Question missing - appending before answer'
-          });
-
-          // Get question text from activePromptText or derive
-          const packConfig = FOLLOWUP_PACK_CONFIGS?.[ctx.packId];
-          const anchorConfig = packConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
-          const questionText = anchorConfig?.label 
-            ? `What ${anchorConfig.label}?`
-            : `Please provide: ${requiredAnchorCurrent}`;
-
-          const appendAssistantMessage = appendAssistantMessageImport;
-
-          await appendAssistantMessage(sessionId, answerTranscript, questionText, {
-            id: `required-anchor-q-${sessionId}-${ctx.categoryId}-${ctx.instanceNumber}-${requiredAnchorCurrent}`,
-            stableKey: questionStableKey,
-            messageType: 'REQUIRED_ANCHOR_QUESTION',
-            packId: ctx.packId,
-            categoryId: ctx.categoryId,
-            instanceNumber: ctx.instanceNumber,
-            anchor: requiredAnchorCurrent,
-            kind: 'REQUIRED_ANCHOR_FALLBACK',
-            visibleToCandidate: true
-          });
-
-          console.log('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_APPEND_OK]', {
-            stableKey: questionStableKey,
-            anchor: requiredAnchorCurrent,
-            preview: questionText
-          });
-        } else {
-          console.log('[REQUIRED_ANCHOR_FALLBACK][ENSURE_Q_BEFORE_A]', {
-            anchor: requiredAnchorCurrent,
-            ensured: true,
-            reason: 'Question already exists'
-          });
-        }
-
-        // STEP 1: Append candidate's answer to history FIRST (before persist)
+        // STEP 1: Append candidate's answer to history (after question ensured)
         console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_DB_WRITE_BEGIN]', {
           anchor: requiredAnchorCurrent,
           stableKey: answerStableKey
@@ -15266,8 +15334,11 @@ export default function CandidateInterview() {
         const freshSession = await base44.entities.InterviewSession.get(sessionId);
         const currentTranscript = freshSession.transcript_snapshot || [];
 
+        // Build parent key for Q+A pairing
+        const questionStableKey = `required-anchor:q:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}`;
+
         const transcriptAfterAnswer = await appendUserMessage(sessionId, currentTranscript, trimmed, {
-          id: `fallback-answer-${sessionId}-${ctx.categoryId}-${ctx.instanceNumber}-${requiredAnchorCurrent}`,
+          id: `required-anchor-a-${sessionId}-${ctx.categoryId}-${ctx.instanceNumber}-${requiredAnchorCurrent}`,
           stableKey: answerStableKey,
           messageType: 'ANSWER',
           packId: ctx.packId,
@@ -15277,6 +15348,11 @@ export default function CandidateInterview() {
           answerContext: 'REQUIRED_ANCHOR_FALLBACK',
           parentStableKey: questionStableKey,
           visibleToCandidate: true
+        });
+
+        console.log('[REQUIRED_ANCHOR_FALLBACK][A_APPEND_AFTER_Q]', {
+          anchorKey: requiredAnchorCurrent,
+          stableKeyA: answerStableKey
         });
         
         console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_DB_WRITE_OK]', {
@@ -15678,57 +15754,26 @@ export default function CandidateInterview() {
           // Rebuild queue with prioritization
           const sortedMissing = prioritizeMissingRequired(missingRequired);
           
-          // Persist next fallback question to transcript (deterministic assistant message)
+          // Persist next fallback question to transcript using helper
           const nextAnchor = sortedMissing[0];
           const nextAnchorConfig = packConfig?.factAnchors?.find(a => a.key === nextAnchor);
-          let nextFallbackQuestionText = nextAnchorConfig?.label 
+          const nextFallbackQuestionText = nextAnchorConfig?.label 
             ? `What ${nextAnchorConfig.label}?`
             : `Please provide: ${nextAnchor}`;
-          
-          if (!nextFallbackQuestionText || nextFallbackQuestionText.trim() === '') {
-            nextFallbackQuestionText = `Please provide: ${nextAnchor}`;
-          }
-          
-          const nextQuestionStableKey = `required-anchor:q:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${nextAnchor}`;
           
           console.log('[CQ_TRANSCRIPT][PROMPT_CONTEXT_UPDATED]', {
             fromAnchor: requiredAnchorCurrent,
             toAnchor: nextAnchor
           });
           
-          try {
-            const appendAssistantMessage = appendAssistantMessageImport;
-            const nextContextSession = await base44.entities.InterviewSession.get(sessionId);
-            const nextContextTranscript = nextContextSession.transcript_snapshot || [];
-            
-            // Dedupe: Check if question already persisted
-            if (!nextContextTranscript.some(e => e.stableKey === nextQuestionStableKey)) {
-              await appendAssistantMessage(sessionId, nextContextTranscript, nextFallbackQuestionText, {
-                id: `required-anchor-q-${sessionId}-${ctx.categoryId}-${ctx.instanceNumber}-${nextAnchor}`,
-                stableKey: nextQuestionStableKey,
-                messageType: 'REQUIRED_ANCHOR_QUESTION',
-                packId: ctx.packId,
-                categoryId: ctx.categoryId,
-                instanceNumber: ctx.instanceNumber,
-                anchor: nextAnchor,
-                kind: 'REQUIRED_ANCHOR_FALLBACK',
-                visibleToCandidate: true
-              });
-              
-              console.log('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_APPEND_OK]', {
-                stableKey: nextQuestionStableKey,
-                anchor: nextAnchor,
-                preview: nextFallbackQuestionText
-              });
-            }
-            
-            await refreshTranscriptFromDB('fallback_next_question_persisted');
-          } catch (err) {
-            console.error('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_ERROR]', {
-              error: err.message,
-              anchor: nextAnchor
-            });
-          }
+          await ensureRequiredAnchorQuestionInTranscript({
+            sessionId,
+            categoryId: ctx.categoryId,
+            instanceNumber: ctx.instanceNumber,
+            anchorKey: nextAnchor,
+            questionText: nextFallbackQuestionText,
+            packId: ctx.packId
+          });
           
           // Update queue and next anchor after brief hold
           setTimeout(() => {
@@ -19164,13 +19209,22 @@ export default function CandidateInterview() {
                 const questionStableKey = entry.stableKey || entry.id;
                 const anchor = entry.meta?.anchor || entry.anchor;
                 
+                // Regression guard: Detect if filter blocked this type
+                if (!entry.visibleToCandidate) {
+                  console.error('[REQUIRED_ANCHOR_FALLBACK][FILTER_BLOCKED]', {
+                    stableKey: questionStableKey,
+                    messageType: 'REQUIRED_ANCHOR_QUESTION',
+                    reason: 'visibleToCandidate=false - should be true'
+                  });
+                }
+                
                 console.log('[CQ_TRANSCRIPT][REQUIRED_ANCHOR_Q_RENDERED]', {
                   stableKey: questionStableKey,
                   anchor,
                   textPreview: entry.text?.substring(0, 60)
                 });
                 
-                // Render as purple AI follow-up question card
+                // Render as purple AI follow-up question card (same as V3 probes)
                 return (
                   <ContentContainer>
                     <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
