@@ -204,7 +204,16 @@ const isMiGateItem = (item, packId, instanceNumber) => {
     // PRIORITY 0: QUESTION_SHOWN always renders (base Q/A contract - never filter)
     if (mt === 'QUESTION_SHOWN') return true;
     
-    // PRIORITY 0.5: PROMPT_LANE_CONTEXT always renders (non-chat annotation)
+    // PRIORITY 0.5: REQUIRED_ANCHOR_QUESTION always renders (deterministic fallback)
+    if (mt === 'REQUIRED_ANCHOR_QUESTION') {
+      console.log('[CQ_RENDER_SOT][REQUIRED_ANCHOR_Q_INCLUDED]', {
+        stableKey: t.stableKey || t.id,
+        anchor: t.meta?.anchor || t.anchor
+      });
+      return true;
+    }
+    
+    // PRIORITY 0.6: PROMPT_LANE_CONTEXT always renders (non-chat annotation)
     if (mt === 'PROMPT_LANE_CONTEXT') {
       console.log('[CQ_RENDER_SOT][PROMPT_CONTEXT_INCLUDED]', {
         stableKey: t.stableKey || t.id,
@@ -9372,6 +9381,46 @@ export default function CandidateInterview() {
             incidentId: existingIncidentId
           });
           
+          // PERSIST FALLBACK QUESTION: Append assistant question to transcript (once per anchor)
+          try {
+            const questionStableKey = `required-anchor:q:${sessionId}:${categoryId}:${instanceNumber}:${sortedMissing[0]}`;
+            const currentSession = await base44.entities.InterviewSession.get(sessionId);
+            const currentTranscript = currentSession.transcript_snapshot || [];
+            
+            // Dedupe: Check if already persisted
+            if (!currentTranscript.some(e => e.stableKey === questionStableKey)) {
+              const appendAssistantMessage = appendAssistantMessageImport;
+              
+              await appendAssistantMessage(sessionId, currentTranscript, fallbackQuestionText, {
+                id: `required-anchor-q-${sessionId}-${categoryId}-${instanceNumber}-${sortedMissing[0]}`,
+                stableKey: questionStableKey,
+                messageType: 'REQUIRED_ANCHOR_QUESTION',
+                packId,
+                categoryId,
+                instanceNumber,
+                anchor: sortedMissing[0],
+                kind: 'REQUIRED_ANCHOR_FALLBACK',
+                visibleToCandidate: true
+              });
+              
+              console.log('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_APPEND_OK]', {
+                stableKey: questionStableKey,
+                anchor: sortedMissing[0],
+                preview: fallbackQuestionText
+              });
+            } else {
+              console.log('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_EXISTS]', {
+                stableKey: questionStableKey,
+                anchor: sortedMissing[0]
+              });
+            }
+          } catch (err) {
+            console.error('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_ERROR]', {
+              error: err.message,
+              anchor: sortedMissing[0]
+            });
+          }
+          
           // TAKE OWNERSHIP: Disable V3 completely to prevent competition
           setV3ProbingActive(false);
           setV3ProbingContext(null);
@@ -15136,8 +15185,56 @@ export default function CandidateInterview() {
         anchor: requiredAnchorCurrent,
         answerLen: trimmed.length
       });
-      
+
       try {
+        // ENSURE QUESTION EXISTS: Append fallback question before answer if missing
+        const questionStableKey = `required-anchor:q:${sessionId}:${requiredAnchorFallbackContextRef.current.categoryId}:${requiredAnchorFallbackContextRef.current.instanceNumber}:${requiredAnchorCurrent}`;
+        const answerSession = await base44.entities.InterviewSession.get(sessionId);
+        const answerTranscript = answerSession.transcript_snapshot || [];
+
+        const questionExists = answerTranscript.some(e => e.stableKey === questionStableKey);
+
+        if (!questionExists) {
+          console.log('[REQUIRED_ANCHOR_FALLBACK][ENSURE_Q_BEFORE_A]', {
+            anchor: requiredAnchorCurrent,
+            ensured: false,
+            reason: 'Question missing - appending before answer'
+          });
+
+          // Get question text from activePromptText or derive
+          const packConfig = FOLLOWUP_PACK_CONFIGS?.[requiredAnchorFallbackContextRef.current.packId];
+          const anchorConfig = packConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
+          const questionText = anchorConfig?.label 
+            ? `What ${anchorConfig.label}?`
+            : `Please provide: ${requiredAnchorCurrent}`;
+
+          const appendAssistantMessage = appendAssistantMessageImport;
+
+          await appendAssistantMessage(sessionId, answerTranscript, questionText, {
+            id: `required-anchor-q-${sessionId}-${requiredAnchorFallbackContextRef.current.categoryId}-${requiredAnchorFallbackContextRef.current.instanceNumber}-${requiredAnchorCurrent}`,
+            stableKey: questionStableKey,
+            messageType: 'REQUIRED_ANCHOR_QUESTION',
+            packId: requiredAnchorFallbackContextRef.current.packId,
+            categoryId: requiredAnchorFallbackContextRef.current.categoryId,
+            instanceNumber: requiredAnchorFallbackContextRef.current.instanceNumber,
+            anchor: requiredAnchorCurrent,
+            kind: 'REQUIRED_ANCHOR_FALLBACK',
+            visibleToCandidate: true
+          });
+
+          console.log('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_APPEND_OK]', {
+            stableKey: questionStableKey,
+            anchor: requiredAnchorCurrent,
+            preview: questionText
+          });
+        } else {
+          console.log('[REQUIRED_ANCHOR_FALLBACK][ENSURE_Q_BEFORE_A]', {
+            anchor: requiredAnchorCurrent,
+            ensured: true,
+            reason: 'Question already exists'
+          });
+        }
+
         // USE PERSISTED CONTEXT: Read from ref (set at fallback activation)
         const ctx = requiredAnchorFallbackContextRef.current;
         
@@ -15169,6 +15266,9 @@ export default function CandidateInterview() {
         const freshSession = await base44.entities.InterviewSession.get(sessionId);
         const currentTranscript = freshSession.transcript_snapshot || [];
         
+        // Build deterministic stable keys for Q+A pairing
+        const questionStableKey = `required-anchor:q:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}`;
+        
         const transcriptAfterAnswer = await appendUserMessage(sessionId, currentTranscript, trimmed, {
           id: `fallback-answer-${sessionId}-${ctx.categoryId}-${ctx.instanceNumber}-${requiredAnchorCurrent}`,
           stableKey: answerStableKey,
@@ -15178,6 +15278,7 @@ export default function CandidateInterview() {
           instanceNumber: ctx.instanceNumber,
           anchor: requiredAnchorCurrent,
           answerContext: 'REQUIRED_ANCHOR_FALLBACK',
+          parentStableKey: questionStableKey,
           visibleToCandidate: true
         });
         
@@ -15580,7 +15681,7 @@ export default function CandidateInterview() {
           // Rebuild queue with prioritization
           const sortedMissing = prioritizeMissingRequired(missingRequired);
           
-          // Persist new context for next anchor
+          // Persist next fallback question to transcript (deterministic assistant message)
           const nextAnchor = sortedMissing[0];
           const nextAnchorConfig = packConfig?.factAnchors?.find(a => a.key === nextAnchor);
           let nextFallbackQuestionText = nextAnchorConfig?.label 
@@ -15591,7 +15692,7 @@ export default function CandidateInterview() {
             nextFallbackQuestionText = `Please provide: ${nextAnchor}`;
           }
           
-          const nextContextStableKey = `fallback-prompt:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${nextAnchor}`;
+          const nextQuestionStableKey = `required-anchor:q:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${nextAnchor}`;
           
           console.log('[CQ_TRANSCRIPT][PROMPT_CONTEXT_UPDATED]', {
             fromAnchor: requiredAnchorCurrent,
@@ -15603,27 +15704,30 @@ export default function CandidateInterview() {
             const nextContextSession = await base44.entities.InterviewSession.get(sessionId);
             const nextContextTranscript = nextContextSession.transcript_snapshot || [];
             
-            await appendAssistantMessage(sessionId, nextContextTranscript, nextFallbackQuestionText, {
-              id: `fallback-context-${sessionId}-${ctx.categoryId}-${ctx.instanceNumber}-${nextAnchor}`,
-              stableKey: nextContextStableKey,
-              messageType: 'PROMPT_LANE_CONTEXT',
-              packId: ctx.packId,
-              categoryId: ctx.categoryId,
-              instanceNumber: ctx.instanceNumber,
-              anchor: nextAnchor,
-              contextKind: 'REQUIRED_ANCHOR_FALLBACK',
-              isNonChat: true,
-              visibleToCandidate: true
-            });
+            // Dedupe: Check if question already persisted
+            if (!nextContextTranscript.some(e => e.stableKey === nextQuestionStableKey)) {
+              await appendAssistantMessage(sessionId, nextContextTranscript, nextFallbackQuestionText, {
+                id: `required-anchor-q-${sessionId}-${ctx.categoryId}-${ctx.instanceNumber}-${nextAnchor}`,
+                stableKey: nextQuestionStableKey,
+                messageType: 'REQUIRED_ANCHOR_QUESTION',
+                packId: ctx.packId,
+                categoryId: ctx.categoryId,
+                instanceNumber: ctx.instanceNumber,
+                anchor: nextAnchor,
+                kind: 'REQUIRED_ANCHOR_FALLBACK',
+                visibleToCandidate: true
+              });
+              
+              console.log('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_APPEND_OK]', {
+                stableKey: nextQuestionStableKey,
+                anchor: nextAnchor,
+                preview: nextFallbackQuestionText
+              });
+            }
             
-            console.log('[CQ_TRANSCRIPT][FALLBACK_PROMPT_CONTEXT_PERSIST_OK]', {
-              stableKey: nextContextStableKey,
-              anchor: nextAnchor
-            });
-            
-            await refreshTranscriptFromDB('fallback_next_context_persisted');
+            await refreshTranscriptFromDB('fallback_next_question_persisted');
           } catch (err) {
-            console.error('[CQ_TRANSCRIPT][FALLBACK_PROMPT_CONTEXT_ERROR]', {
+            console.error('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_ERROR]', {
               error: err.message,
               anchor: nextAnchor
             });
@@ -16082,7 +16186,7 @@ export default function CandidateInterview() {
           
           // CRITICAL: Never filter items with real DB stableKeys and real types
           const hasStableKey = !!stableKey;
-          const isRealTranscriptType = ['QUESTION_SHOWN', 'ANSWER', 'MULTI_INSTANCE_GATE_SHOWN', 'MULTI_INSTANCE_GATE_ANSWER', 'V3_PROBE_QUESTION', 'V3_PROBE_ANSWER', 'FOLLOWUP_CARD_SHOWN', 'V3_OPENER_ANSWER', 'PROMPT_LANE_CONTEXT'].includes(mt);
+          const isRealTranscriptType = ['QUESTION_SHOWN', 'ANSWER', 'MULTI_INSTANCE_GATE_SHOWN', 'MULTI_INSTANCE_GATE_ANSWER', 'V3_PROBE_QUESTION', 'V3_PROBE_ANSWER', 'FOLLOWUP_CARD_SHOWN', 'V3_OPENER_ANSWER', 'PROMPT_LANE_CONTEXT', 'REQUIRED_ANCHOR_QUESTION'].includes(mt);
           
           if (hasStableKey && isRealTranscriptType) {
             return true; // Always keep real transcript items
@@ -19057,6 +19161,36 @@ export default function CandidateInterview() {
                   </ContentContainer>
                 </div>
               )}
+
+              {/* Required Anchor Question - Deterministic fallback question */}
+              {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'REQUIRED_ANCHOR_QUESTION' && (() => {
+                const questionStableKey = entry.stableKey || entry.id;
+                const anchor = entry.meta?.anchor || entry.anchor;
+                
+                console.log('[CQ_TRANSCRIPT][REQUIRED_ANCHOR_Q_RENDERED]', {
+                  stableKey: questionStableKey,
+                  anchor,
+                  textPreview: entry.text?.substring(0, 60)
+                });
+                
+                // Render as purple AI follow-up question card
+                return (
+                  <ContentContainer>
+                    <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
+                        {entry.meta?.instanceNumber > 1 && (
+                          <>
+                            <span className="text-xs text-slate-500">•</span>
+                            <span className="text-xs text-slate-400">Instance {entry.meta.instanceNumber}</span>
+                          </>
+                        )}
+                      </div>
+                      <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                    </div>
+                  </ContentContainer>
+                );
+              })()}
 
               {/* Prompt Lane Context - Non-chat context rows (e.g., fallback questions) */}
               {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'PROMPT_LANE_CONTEXT' && entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK' && (() => {
