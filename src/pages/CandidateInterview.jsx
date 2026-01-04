@@ -1709,48 +1709,81 @@ export default function CandidateInterview() {
   const maxOverlapSeenRef = React.useRef({ maxOverlapPx: 0, lastModeSeen: null });
 
   // TDZ_FIX: HELPER HOISTED - ensureRequiredAnchorQuestionInTranscript must be declared BEFORE repair pass useEffect
-  // HELPER: Ensure required anchor question exists in transcript (idempotent)
+  // IN-FLIGHT GUARD: Track active ensures to prevent race conditions
+  const ensureQuestionInFlightRef = useRef(new Set());
+  
+  // HELPER: Ensure required anchor question exists in transcript (idempotent, crash-safe)
   const ensureRequiredAnchorQuestionInTranscript = useCallback(async ({ sessionId, categoryId, instanceNumber, anchorKey, questionText, packId }) => {
     const stableKeyQ = `required-anchor:q:${sessionId}:${categoryId}:${instanceNumber}:${anchorKey}`;
     
-    // Check if already in DB transcript
-    const currentSession = await base44.entities.InterviewSession.get(sessionId);
-    const dbTranscript = currentSession.transcript_snapshot || [];
-    const existsInDb = dbTranscript.some(e => e.stableKey === stableKeyQ);
-    
-    // Check if already in local rendered list
-    const existsInLocal = canonicalTranscriptRef.current.some(e => e.stableKey === stableKeyQ);
-    
-    if (existsInDb && existsInLocal) {
-      return; // Already exists everywhere
+    // IN-FLIGHT GUARD: Skip if already processing this exact question
+    if (ensureQuestionInFlightRef.current.has(stableKeyQ)) {
+      console.log('[REQUIRED_ANCHOR_FALLBACK][ENSURE_SKIP_INFLIGHT]', {
+        stableKeyQ,
+        anchorKey,
+        reason: 'Already in flight - preventing duplicate'
+      });
+      return;
     }
     
-    // Missing - append now
-    const appendAssistantMessage = appendAssistantMessageImport;
-    
-    const updated = await appendAssistantMessage(sessionId, dbTranscript, questionText, {
-      id: `required-anchor-q-${sessionId}-${categoryId}-${instanceNumber}-${anchorKey}`,
-      stableKey: stableKeyQ,
-      messageType: 'REQUIRED_ANCHOR_QUESTION',
-      packId,
-      categoryId,
-      instanceNumber,
-      anchor: anchorKey,
-      kind: 'REQUIRED_ANCHOR_FALLBACK',
-      visibleToCandidate: true
-    });
-    
-    // Update local state immediately
-    const merged = upsertTranscriptMonotonic(canonicalTranscriptRef.current, updated, 'required_anchor_q_ensure');
-    upsertTranscriptState(merged, 'required_anchor_q_ensure');
-    
-    console.log('[REQUIRED_ANCHOR_FALLBACK][Q_ENSURE_APPEND]', {
-      stableKeyQ,
-      anchorKey,
-      preview: questionText,
-      existedInDb: existsInDb,
-      existedInLocal: existsInLocal
-    });
+    // NO-CRASH WRAPPER: All logic in try/catch to prevent interview stall
+    try {
+      // Mark in-flight
+      ensureQuestionInFlightRef.current.add(stableKeyQ);
+      
+      // Check if already in DB transcript
+      const currentSession = await base44.entities.InterviewSession.get(sessionId);
+      const dbTranscript = currentSession.transcript_snapshot || [];
+      const existsInDb = dbTranscript.some(e => e.stableKey === stableKeyQ);
+      
+      // Check if already in local rendered list
+      const existsInLocal = canonicalTranscriptRef.current.some(e => e.stableKey === stableKeyQ);
+      
+      if (existsInDb && existsInLocal) {
+        return; // Already exists everywhere
+      }
+      
+      // Missing - append now
+      const appendAssistantMessage = appendAssistantMessageImport;
+      
+      const updated = await appendAssistantMessage(sessionId, dbTranscript, questionText, {
+        id: `required-anchor-q-${sessionId}-${categoryId}-${instanceNumber}-${anchorKey}`,
+        stableKey: stableKeyQ,
+        messageType: 'REQUIRED_ANCHOR_QUESTION',
+        packId,
+        categoryId,
+        instanceNumber,
+        anchor: anchorKey,
+        kind: 'REQUIRED_ANCHOR_FALLBACK',
+        visibleToCandidate: true
+      });
+      
+      // Update local state immediately
+      const merged = upsertTranscriptMonotonic(canonicalTranscriptRef.current, updated, 'required_anchor_q_ensure');
+      upsertTranscriptState(merged, 'required_anchor_q_ensure');
+      
+      console.log('[REQUIRED_ANCHOR_FALLBACK][Q_ENSURE_APPEND]', {
+        stableKeyQ,
+        anchorKey,
+        preview: questionText,
+        existedInDb: existsInDb,
+        existedInLocal: existsInLocal
+      });
+    } catch (err) {
+      // NO-CRASH: Log error but NEVER throw - UI must continue
+      console.error('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_ERROR]', {
+        error: err.message,
+        anchor: anchorKey,
+        phase: 'ENSURE_Q',
+        stability: 'NON_FATAL',
+        stableKeyQ,
+        stack: err.stack?.substring(0, 200)
+      });
+      // Fail gracefully - interview continues even if transcript persistence fails
+    } finally {
+      // ALWAYS clear in-flight marker
+      ensureQuestionInFlightRef.current.delete(stableKeyQ);
+    }
   }, [sessionId, upsertTranscriptState]);
 
   // MOVED UP: screenMode and uiBlocker now declared before forensicCheck (prevents TDZ)
@@ -3831,27 +3864,39 @@ export default function CandidateInterview() {
           reason: 'Orphan answer found - inserting missing question'
         });
         
-        // Derive question text
-        const packConfig = FOLLOWUP_PACK_CONFIGS?.[answer.meta?.packId];
-        const anchorConfig = packConfig?.factAnchors?.find(a => a.key === anchorKey);
-        const questionText = anchorConfig?.label 
-          ? `What ${anchorConfig.label}?`
-          : `Please provide: ${anchorKey}`;
-        
-        // Ensure question via helper (async but fire-and-forget for repair)
-        ensureRequiredAnchorQuestionInTranscript({
-          sessionId,
-          categoryId: answer.meta?.categoryId,
-          instanceNumber: answer.meta?.instanceNumber,
-          anchorKey,
-          questionText,
-          packId: answer.meta?.packId
-        }).catch(err => {
+        // NO-CRASH WRAPPER: Fire-and-forget repair with inline safety
+        try {
+          // Derive question text (inline to avoid TDZ)
+          const repairPackConfig = FOLLOWUP_PACK_CONFIGS?.[answer.meta?.packId];
+          const repairAnchorConfig = repairPackConfig?.factAnchors?.find(a => a.key === anchorKey);
+          const repairQuestionText = repairAnchorConfig?.label 
+            ? `What ${repairAnchorConfig.label}?`
+            : `Please provide: ${anchorKey}`;
+          
+          // Fire-and-forget with double-safe wrapper
+          ensureRequiredAnchorQuestionInTranscript({
+            sessionId,
+            categoryId: answer.meta?.categoryId,
+            instanceNumber: answer.meta?.instanceNumber,
+            anchorKey,
+            questionText: repairQuestionText,
+            packId: answer.meta?.packId
+          }).catch(err => {
+            // Double-safe: catch promise rejection
+            console.error('[REQUIRED_ANCHOR_FALLBACK][REPAIR_ERROR]', {
+              anchorKey,
+              error: err.message,
+              phase: 'REPAIR_CATCH'
+            });
+          });
+        } catch (syncErr) {
+          // Triple-safe: catch synchronous errors
           console.error('[REQUIRED_ANCHOR_FALLBACK][REPAIR_ERROR]', {
             anchorKey,
-            error: err.message
+            error: syncErr.message,
+            phase: 'REPAIR_SYNC'
           });
-        });
+        }
       }
     }
   }, [canonicalTranscriptRef.current.length, sessionId, ensureRequiredAnchorQuestionInTranscript]);
@@ -15320,21 +15365,34 @@ export default function CandidateInterview() {
         // Build deterministic stable keys for Q+A pairing (ONCE - used by both Q and A appends)
         const answerStableKey = `required-anchor:a:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}`;
 
-        // ENSURE QUESTION EXISTS: Append fallback question before answer
-        const packConfig = FOLLOWUP_PACK_CONFIGS?.[ctx.packId];
-        const anchorConfig = packConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
-        const questionText = anchorConfig?.label 
-          ? `What ${anchorConfig.label}?`
-          : activePromptText || `Please provide: ${requiredAnchorCurrent}`;
+        // ENSURE QUESTION EXISTS: Append fallback question before answer (crash-safe)
+        try {
+          // TDZ_FIX: Inline all variable declarations to prevent reference-before-declare
+          const submitPackConfig = FOLLOWUP_PACK_CONFIGS?.[ctx.packId];
+          const submitAnchorConfig = submitPackConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
+          const submitQuestionText = submitAnchorConfig?.label 
+            ? `What ${submitAnchorConfig.label}?`
+            : activePromptText || `Please provide: ${requiredAnchorCurrent}`;
 
-        await ensureRequiredAnchorQuestionInTranscript({
-          sessionId,
-          categoryId: ctx.categoryId,
-          instanceNumber: ctx.instanceNumber,
-          anchorKey: requiredAnchorCurrent,
-          questionText,
-          packId: ctx.packId
-        });
+          await ensureRequiredAnchorQuestionInTranscript({
+            sessionId,
+            categoryId: ctx.categoryId,
+            instanceNumber: ctx.instanceNumber,
+            anchorKey: requiredAnchorCurrent,
+            questionText: submitQuestionText,
+            packId: ctx.packId
+          });
+        } catch (ensureErr) {
+          // NO-CRASH: Log but continue - answer submission must not fail
+          console.error('[REQUIRED_ANCHOR_FALLBACK][ENSURE_Q_ERROR]', {
+            error: ensureErr.message,
+            anchor: requiredAnchorCurrent,
+            phase: 'SUBMIT_ENSURE_Q',
+            stability: 'NON_FATAL',
+            stack: ensureErr.stack?.substring(0, 200)
+          });
+          // Continue to answer submission even if question persist failed
+        }
 
         // STEP 1: Append candidate's answer to history (after question ensured)
         console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_DB_WRITE_BEGIN]', {
@@ -15772,26 +15830,39 @@ export default function CandidateInterview() {
           // Rebuild queue with prioritization
           const sortedMissing = prioritizeMissingRequired(missingRequired);
           
-          // Persist next fallback question to transcript using helper
-          const nextAnchor = sortedMissing[0];
-          const nextAnchorConfig = determinExtractPackConfig?.factAnchors?.find(a => a.key === nextAnchor);
-          const nextFallbackQuestionText = nextAnchorConfig?.label 
-            ? `What ${nextAnchorConfig.label}?`
-            : `Please provide: ${nextAnchor}`;
-          
-          console.log('[CQ_TRANSCRIPT][PROMPT_CONTEXT_UPDATED]', {
-            fromAnchor: requiredAnchorCurrent,
-            toAnchor: nextAnchor
-          });
-          
-          await ensureRequiredAnchorQuestionInTranscript({
-            sessionId,
-            categoryId: ctx.categoryId,
-            instanceNumber: ctx.instanceNumber,
-            anchorKey: nextAnchor,
-            questionText: nextFallbackQuestionText,
-            packId: ctx.packId
-          });
+          // Persist next fallback question to transcript using helper (crash-safe)
+          try {
+            // TDZ_FIX: Inline all variable declarations to prevent reference-before-declare
+            const nextAnchor = sortedMissing[0];
+            const nextPackConfig = FOLLOWUP_PACK_CONFIGS?.[ctx.packId];
+            const nextAnchorConfig = nextPackConfig?.factAnchors?.find(a => a.key === nextAnchor);
+            const nextFallbackQuestionText = nextAnchorConfig?.label 
+              ? `What ${nextAnchorConfig.label}?`
+              : `Please provide: ${nextAnchor}`;
+            
+            console.log('[CQ_TRANSCRIPT][PROMPT_CONTEXT_UPDATED]', {
+              fromAnchor: requiredAnchorCurrent,
+              toAnchor: nextAnchor
+            });
+            
+            await ensureRequiredAnchorQuestionInTranscript({
+              sessionId,
+              categoryId: ctx.categoryId,
+              instanceNumber: ctx.instanceNumber,
+              anchorKey: nextAnchor,
+              questionText: nextFallbackQuestionText,
+              packId: ctx.packId
+            });
+          } catch (nextErr) {
+            // NO-CRASH: Log but continue - transition must not fail
+            console.error('[REQUIRED_ANCHOR_FALLBACK][NEXT_Q_ERROR]', {
+              error: nextErr.message,
+              anchor: sortedMissing[0],
+              phase: 'TRANSITION_NEXT',
+              stability: 'NON_FATAL'
+            });
+            // Continue transition even if question persist failed
+          }
           
           // Update queue and next anchor after brief hold
           setTimeout(() => {
