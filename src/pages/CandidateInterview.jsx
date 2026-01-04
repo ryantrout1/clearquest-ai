@@ -9159,9 +9159,9 @@ export default function CandidateInterview() {
     let humanCategoryLabel = categoryLabel;
     
     // Try pack config first
-    const packConfig = FOLLOWUP_PACK_CONFIGS?.[packId];
-    if (packConfig?.instancesLabel) {
-      humanCategoryLabel = packConfig.instancesLabel;
+    const packConfigForLabel = FOLLOWUP_PACK_CONFIGS?.[packId];
+    if (packConfigForLabel?.instancesLabel) {
+      humanCategoryLabel = packConfigForLabel.instancesLabel;
     } else if (packData?.pack_name) {
       // Try pack metadata
       humanCategoryLabel = packData.pack_name;
@@ -9182,7 +9182,7 @@ export default function CandidateInterview() {
       packId,
       categoryId,
       labelPreview: humanCategoryLabel,
-      source: packConfig?.instancesLabel ? 'packConfig' : 
+      source: packConfigForLabel?.instancesLabel ? 'packConfig' : 
               packData?.pack_name ? 'packData' : 
               categoryId ? 'categoryId_formatted' : 'fallback'
     });
