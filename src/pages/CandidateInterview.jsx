@@ -15097,7 +15097,7 @@ export default function CandidateInterview() {
         // This ensures the answer is visible immediately, even if persist fails
         const answerStableKey = `fallback-answer:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}:${Date.now()}`;
         
-        console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_PERSIST_BEGIN]', {
+        console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_DB_WRITE_BEGIN]', {
           anchor: requiredAnchorCurrent,
           stableKey: answerStableKey
         });
@@ -15118,7 +15118,7 @@ export default function CandidateInterview() {
           visibleToCandidate: true
         });
         
-        console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_PERSIST_OK]', {
+        console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_DB_WRITE_OK]', {
           anchor: requiredAnchorCurrent,
           stableKey: answerStableKey,
           transcriptLenAfter: transcriptAfterAnswer?.length || 0
@@ -15132,12 +15132,18 @@ export default function CandidateInterview() {
         });
         
         // STEP 2: Force transcript rehydrate from DB (ensures answer survives re-renders)
-        console.log('[CQ_TRANSCRIPT][FALLBACK_TRANSCRIPT_REHYDRATE_BEGIN]', { sessionId });
+        console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_REHYDRATE_BEGIN]', { sessionId });
         
-        await refreshTranscriptFromDB('fallback_answer_appended');
+        const refreshedTranscript = await refreshTranscriptFromDB('fallback_answer_appended');
         
-        console.log('[CQ_TRANSCRIPT][FALLBACK_TRANSCRIPT_REHYDRATE_OK]', {
-          transcriptLenAfter: canonicalTranscriptRef.current.length
+        // Verify answer persisted and rehydrated successfully
+        const containsStableKey = (refreshedTranscript || canonicalTranscriptRef.current).some(e => 
+          e.stableKey === answerStableKey
+        );
+        
+        console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_REHYDRATE_OK]', {
+          transcriptLenAfter: canonicalTranscriptRef.current.length,
+          containsStableKey
         });
         
         // STEP 3: Deterministic extraction for prior_le_agency and prior_le_approx_date (prevent redundant asks)
