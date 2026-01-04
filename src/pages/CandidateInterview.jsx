@@ -145,20 +145,21 @@ const isMiGateItem = (item, packId, instanceNumber) => {
 
   // TRANSCRIPT DENYLIST: System events and internal markers (NOT user-visible Q/A)
   // V3 UPDATE: V3_PROBE_QUESTION and V3_PROBE_ANSWER now ALLOWED (legal record)
+  // PROMPT_LANE_CONTEXT: ALLOWED (non-chat annotation, provides Q/A context)
   const TRANSCRIPT_DENYLIST = new Set([
-    'SYSTEM_EVENT',             // All system events
-    'SESSION_CREATED',          // Session lifecycle
-    'SESSION_RESUMED',
-    'ANSWER_SUBMITTED',         // Answer submitted event (audit only)
-    'PACK_ENTERED',             // Pack lifecycle
-    'PACK_EXITED',
-    'SECTION_STARTED',          // Section lifecycle
-    'AI_PROBING_CALLED',        // AI probing events
-    'AI_PROBING_RESPONSE',
-    'V3_PROBE_ASKED',           // V3 probe system events (visibleToCandidate=false)
-    'PROCESSING',               // No processing bubbles
-    'REVIEWING',                // No reviewing bubbles
-    'AI_THINKING',              // No thinking bubbles
+  'SYSTEM_EVENT',             // All system events
+  'SESSION_CREATED',          // Session lifecycle
+  'SESSION_RESUMED',
+  'ANSWER_SUBMITTED',         // Answer submitted event (audit only)
+  'PACK_ENTERED',             // Pack lifecycle
+  'PACK_EXITED',
+  'SECTION_STARTED',          // Section lifecycle
+  'AI_PROBING_CALLED',        // AI probing events
+  'AI_PROBING_RESPONSE',
+  'V3_PROBE_ASKED',           // V3 probe system events (visibleToCandidate=false)
+  'PROCESSING',               // No processing bubbles
+  'REVIEWING',                // No reviewing bubbles
+  'AI_THINKING',              // No thinking bubbles
   ]);
 
   // V3 FILTER REMOVED: V3 probe Q/A now in transcript (legal record)
@@ -202,6 +203,15 @@ const isMiGateItem = (item, packId, instanceNumber) => {
     
     // PRIORITY 0: QUESTION_SHOWN always renders (base Q/A contract - never filter)
     if (mt === 'QUESTION_SHOWN') return true;
+    
+    // PRIORITY 0.5: PROMPT_LANE_CONTEXT always renders (non-chat annotation)
+    if (mt === 'PROMPT_LANE_CONTEXT') {
+      console.log('[CQ_RENDER_SOT][PROMPT_CONTEXT_INCLUDED]', {
+        stableKey: t.stableKey || t.id,
+        anchor: t.meta?.anchor || t.anchor
+      });
+      return true;
+    }
     
     // PRIORITY 1: LEGAL RECORD - visibleToCandidate=true ALWAYS renders
     // This ensures all candidate-visible entries appear in UI (no drops)
@@ -16056,9 +16066,23 @@ export default function CandidateInterview() {
             return true; // ALWAYS keep MI_GATE active cards
           }
           
+          // PROMPT_LANE_CONTEXT PROTECTION: Always keep non-chat context rows (hard exception)
+          const isPromptLaneContext = mt === 'PROMPT_LANE_CONTEXT' && 
+                                      (entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK' || entry.contextKind === 'REQUIRED_ANCHOR_FALLBACK');
+          
+          if (isPromptLaneContext) {
+            console.log('[CQ_TRANSCRIPT][EPHEMERAL_ALLOWLIST_PROMPT_CONTEXT]', {
+              stableKey,
+              anchor: entry.meta?.anchor || entry.anchor,
+              textPreview: (entry.text || '').substring(0, 60),
+              reason: 'Non-chat context - always preserved'
+            });
+            return true; // ALWAYS keep prompt context (non-chat annotation)
+          }
+          
           // CRITICAL: Never filter items with real DB stableKeys and real types
           const hasStableKey = !!stableKey;
-          const isRealTranscriptType = ['QUESTION_SHOWN', 'ANSWER', 'MULTI_INSTANCE_GATE_SHOWN', 'MULTI_INSTANCE_GATE_ANSWER', 'V3_PROBE_QUESTION', 'V3_PROBE_ANSWER', 'FOLLOWUP_CARD_SHOWN', 'V3_OPENER_ANSWER'].includes(mt);
+          const isRealTranscriptType = ['QUESTION_SHOWN', 'ANSWER', 'MULTI_INSTANCE_GATE_SHOWN', 'MULTI_INSTANCE_GATE_ANSWER', 'V3_PROBE_QUESTION', 'V3_PROBE_ANSWER', 'FOLLOWUP_CARD_SHOWN', 'V3_OPENER_ANSWER', 'PROMPT_LANE_CONTEXT'].includes(mt);
           
           if (hasStableKey && isRealTranscriptType) {
             return true; // Always keep real transcript items
