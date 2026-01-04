@@ -9208,6 +9208,25 @@ export default function CandidateInterview() {
             reason: 'v3_headless_no_prompt'
           });
 
+          // DEFENSIVE GUARD: Define incidents from session (prevent ReferenceError)
+          let incidents = [];
+          try {
+            const currentSession = await base44.entities.InterviewSession.get(sessionId);
+            incidents = (currentSession?.incidents || []).filter(Boolean);
+
+            console.log('[FORENSIC][CRASH_GUARD_INCIDENTS_DEFINED]', {
+              hasSession: !!currentSession,
+              incidentsCount: incidents.length
+            });
+          } catch (err) {
+            console.error('[REQUIRED_ANCHOR_FALLBACK][INCIDENTS_NOT_READY]', {
+              screenMode,
+              note: 'session/incidents unavailable; skipping incident lookup',
+              error: err.message
+            });
+            // incidents remains empty array - continue with fallback-only logic
+          }
+
           // COMBINED SATISFACTION: Recompute with fallback answers included
           const facts = existingIncidentId && incidents.find(inc => inc.incident_id === existingIncidentId)?.facts || {};
           const satisfiedByFacts = missingRequired.filter(anchor => {
