@@ -1330,6 +1330,12 @@ export default function CandidateInterview() {
     return null;
   }
   
+  // ============================================================================
+  // HOOK ORDER GUARD: showRedirectFallback must stay above NO_SESSION early return (TDZ prevention)
+  // ============================================================================
+  // CRITICAL: This hook MUST be declared before the no-session guard (line ~1463)
+  // Moving it below the early return will cause: "Cannot access 'showRedirectFallback' before initialization"
+  // 
   // FORENSIC: TDZ FIX - showRedirectFallback state MUST be before early return
   const [showRedirectFallback, setShowRedirectFallback] = useState(false);
   
@@ -1462,8 +1468,19 @@ export default function CandidateInterview() {
     timestamp: Date.now()
   });
   
+  // FORENSIC: No-session early return guard (prints once per mount)
+  const noSessionEarlyReturnLoggedRef = useRef(false);
+  
   // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
   if (!sessionId) {
+    // FORENSIC: Mount-only log confirming TDZ fix for showRedirectFallback
+    if (!noSessionEarlyReturnLoggedRef.current) {
+      noSessionEarlyReturnLoggedRef.current = true;
+      console.log('[FORENSIC][NO_SESSION_EARLY_RETURN_OK]', {
+        showRedirectFallback: typeof showRedirectFallback !== 'undefined'
+      });
+    }
+    
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center space-y-4">
