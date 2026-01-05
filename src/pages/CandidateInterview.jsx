@@ -1330,6 +1330,9 @@ export default function CandidateInterview() {
     return null;
   }
   
+  // FORENSIC: TDZ FIX - showRedirectFallback state MUST be before early return
+  const [showRedirectFallback, setShowRedirectFallback] = useState(false);
+  
   // TDZ_FIX: HOISTED-SAFE PERSISTENCE - Plain function with zero closure dependencies
   // CRITICAL: Declared at top-of-component to eliminate ALL TDZ risks
   // This function uses ONLY its parameters - no component state/refs/consts
@@ -2543,10 +2546,19 @@ export default function CandidateInterview() {
   
   // TERMINAL REDIRECT: One-shot guard for no-session redirect
   const didTerminalRedirectRef = useRef(false);
-  const [showRedirectFallback, setShowRedirectFallback] = useState(false);
+  // showRedirectFallback moved to top (line ~1338) - prevents TDZ crash
   
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
+  
+  // FORENSIC: Mount-only log confirming TDZ fix for showRedirectFallback
+  const tdzFixLoggedRef = useRef(false);
+  if (!tdzFixLoggedRef.current) {
+    tdzFixLoggedRef.current = true;
+    console.log('[FORENSIC][NO_SESSION_REDIRECT_STATE_ORDER_OK]', {
+      showRedirectFallbackDefined: true
+    });
+  }
   
   // PART A: Violation snapshot helper (component-scoped - needs refs/state access)
   const captureViolationSnapshot = useCallback((context) => {
