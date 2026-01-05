@@ -1221,6 +1221,60 @@ export default function CandidateInterview() {
   // PROMPT TEXT SOT (HOIST-SAFE) - Must be ABOVE all usages
   // ============================================================================
   /**
+   * Resolve anchor key to human-readable question (TDZ-proof, pure)
+   * CRITICAL: No closure dependencies - only uses arguments
+   * @param {string} anchor - Anchor key (e.g., "prior_le_position")
+   * @param {string|null} packId - Pack ID for label lookup
+   * @returns {string} Human-readable question text
+   */
+  function resolveAnchorToHumanQuestion(anchor, packId = null) {
+    if (!anchor) return "Please answer the following question.";
+    
+    // Priority 1: Pack config anchor label
+    if (packId) {
+      const packConfig = FOLLOWUP_PACK_CONFIGS?.[packId];
+      const anchorConfig = packConfig?.factAnchors?.find(a => a.key === anchor);
+      if (anchorConfig?.label) {
+        return `What ${anchorConfig.label}?`;
+      }
+    }
+    
+    // Priority 2: Known anchor mappings (hardcoded for common cases)
+    const ANCHOR_QUESTION_MAP = {
+      'prior_le_position': 'What position did you apply for?',
+      'prior_le_agency': 'What law enforcement agency did you apply to?',
+      'prior_le_approx_date': 'When did you apply? (approximate month and year is fine)',
+      'application_outcome': 'What was the outcome of your application?',
+      'month_year': 'When did this happen? (approximate month and year is fine)',
+      'location': 'Where did this happen?',
+      'agency': 'What agency was this with?',
+      'position': 'What position or role?',
+      'outcome': 'What was the outcome?'
+    };
+    
+    if (ANCHOR_QUESTION_MAP[anchor]) {
+      return ANCHOR_QUESTION_MAP[anchor];
+    }
+    
+    // Priority 3: Generic semantic derivation
+    if (/position|role|title|rank/i.test(anchor)) {
+      return "What position did you apply for?";
+    }
+    if (/agency|department|employer/i.test(anchor)) {
+      return "What agency did you apply to?";
+    }
+    if (/date|month|year|when|approx/i.test(anchor)) {
+      return "When did this happen? (approximate month and year is fine)";
+    }
+    if (/outcome|result|status/i.test(anchor)) {
+      return "What was the outcome?";
+    }
+    
+    // Priority 4: Safe fallback (never expose raw anchor key)
+    return "Please answer the following question.";
+  }
+  
+  /**
    * Compute active prompt text from UI state (TDZ-proof, pure function)
    * CRITICAL: Function declaration (hoisted) - safe to call from any code path
    * @returns {string|null} The prompt text to show, or null if none
@@ -1240,17 +1294,7 @@ export default function CandidateInterview() {
     
     // Priority 0: Required anchor fallback
     if (requiredAnchorFallbackActive && requiredAnchorCurrent) {
-      const sotPackConfig = FOLLOWUP_PACK_CONFIGS?.[v3ProbingContext?.packId];
-      const sotAnchor = sotPackConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
-      let promptTextSOT = sotAnchor?.label 
-        ? `What ${sotAnchor.label}?`
-        : `Please provide: ${requiredAnchorCurrent}`;
-      
-      if (!promptTextSOT || promptTextSOT.trim() === '') {
-        promptTextSOT = `Please provide: ${requiredAnchorCurrent}`;
-      }
-      
-      return promptTextSOT;
+      return resolveAnchorToHumanQuestion(requiredAnchorCurrent, v3ProbingContext?.packId);
     }
     
     // Priority 1: V3 active prompt
@@ -3419,12 +3463,11 @@ export default function CandidateInterview() {
     });
   } else if (activeUiItem.kind === "REQUIRED_ANCHOR_FALLBACK") {
     // REQUIRED_ANCHOR_FALLBACK: Render prompt card in main pane (not footer)
-    // TDZ-SAFE: Compute question text inline (no forward reference to activePromptText)
-    const inlinePackConfig = FOLLOWUP_PACK_CONFIGS?.[v3ProbingContext?.packId];
-    const inlineAnchor = inlinePackConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
-    const questionText = inlineAnchor?.label 
-      ? `What ${inlineAnchor.label}?`
-      : `Please provide: ${requiredAnchorCurrent}`;
+    // TDZ-SAFE: Use hoisted resolver (single source of truth)
+    const questionText = resolveAnchorToHumanQuestion(
+      requiredAnchorCurrent, 
+      v3ProbingContext?.packId
+    );
     
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
     const stableKey = loopKey ? `fallback-prompt:${loopKey}:${requiredAnchorCurrent}` : null;
@@ -3972,6 +4015,12 @@ export default function CandidateInterview() {
               ? `What ${repairAnchorConfig.label}?`
               : `Please provide: ${anchorKey}`;
             
+            // QUESTION TEXT SOT: Use resolver for repair
+            const repairQuestionText = resolveAnchorToHumanQuestion(
+              anchorKey,
+              answer.meta?.packId
+            );
+
             // DEFENSIVE: Check function exists before calling
             if (typeof ensureRequiredAnchorQuestionInTranscript === "function") {
               await ensureRequiredAnchorQuestionInTranscript({
@@ -9708,17 +9757,16 @@ export default function CandidateInterview() {
             }
           });
           
-          // TDZ FIX: Compute fallback question text INLINE (renamed to prevent closure TDZ)
-          const contextPackConfig = FOLLOWUP_PACK_CONFIGS?.[packId];
-          const contextAnchor = contextPackConfig?.factAnchors?.find(a => a.key === sortedMissing[0]);
-          let contextFallbackQuestionText = contextAnchor?.label 
-            ? `What ${contextAnchor.label}?`
-            : `Please provide: ${sortedMissing[0]}`;
+          // QUESTION TEXT SOT: Use resolver for human-readable question
+          const contextFallbackQuestionText = resolveAnchorToHumanQuestion(
+            sortedMissing[0],
+            packId
+          );
           
-          // MUST-HAVE ASSERTION: Ensure promptText is never empty
-          if (!contextFallbackQuestionText || contextFallbackQuestionText.trim() === '') {
-            contextFallbackQuestionText = `Please provide: ${sortedMissing[0]}`;
-          }
+          console.log('[REQUIRED_ANCHOR_FALLBACK][QUESTION_TEXT_RESOLVED]', {
+            anchor: sortedMissing[0],
+            textPreview: contextFallbackQuestionText
+          });
           
           // PERSIST PROMPT LANE CONTEXT: Non-chat context item for UI rendering
           const contextStableKey = `fallback-prompt:${sessionId}:${categoryId}:${instanceNumber}:${sortedMissing[0]}`;
@@ -9769,6 +9817,12 @@ export default function CandidateInterview() {
           // CLEAR STUCK STATE + Set phase to ANSWER_NEEDED (enables Send button)
           setIsCommitting(false);
           setV3PromptPhase('ANSWER_NEEDED');
+          
+          // TRANSCRIPT CONTEXT PRESERVED
+          console.log('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_CONTEXT_PRESERVED]', {
+            transcriptLen: canonicalTranscriptRef.current.length,
+            reason: 'Fallback activated - existing transcript preserved'
+          });
           
           console.log('[REQUIRED_ANCHOR_FALLBACK][TAKE_OWNERSHIP]', {
             packId,
@@ -14700,10 +14754,14 @@ export default function CandidateInterview() {
   });
   
   // FORENSIC: Regression proof (mount-only)
-  if (activePromptText && !introLoggedRef.current) {
-    console.log('[FORENSIC][ACTIVE_PROMPT_TEXT_SOT_OK]', {
-      activeUiItemKind: activeUiItem?.kind,
-      preview: activePromptText?.slice(0, 60) || null
+  if (activePromptText) {
+    logOnce(`active_prompt_sot_${sessionId}`, () => {
+      console.log('[FORENSIC][ACTIVE_PROMPT_TEXT_SOT_OK]', {
+        activeUiItemKind: activeUiItem?.kind,
+        preview: activePromptText?.slice(0, 60) || null,
+        isResolved: !activePromptText.includes('Please provide:'),
+        usesResolver: requiredAnchorFallbackActive
+      });
     });
   }
   
@@ -15421,12 +15479,11 @@ export default function CandidateInterview() {
 
         // ENSURE QUESTION EXISTS: Append fallback question before answer (TDZ-proof)
         try {
-          // TDZ_FIX: Inline variable declarations + use hoisted-safe function
-          const submitPackConfig = FOLLOWUP_PACK_CONFIGS?.[ctx.packId];
-          const submitAnchorConfig = submitPackConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
-          const submitQuestionText = submitAnchorConfig?.label 
-            ? `What ${submitAnchorConfig.label}?`
-            : activePromptText || `Please provide: ${requiredAnchorCurrent}`;
+          // QUESTION TEXT SOT: Use resolver for consistent human-readable question
+          const submitQuestionText = resolveAnchorToHumanQuestion(
+            requiredAnchorCurrent,
+            ctx.packId
+          );
 
           // Fetch current transcript for safe function
           const currentSession = await base44.entities.InterviewSession.get(sessionId);
@@ -15902,13 +15959,12 @@ export default function CandidateInterview() {
           
           // Persist next fallback question to transcript (TDZ-proof)
           try {
-            // TDZ_FIX: Inline + use hoisted-safe function
+            // QUESTION TEXT SOT: Use resolver for consistent human-readable question
             const nextAnchor = sortedMissing[0];
-            const nextPackConfig = FOLLOWUP_PACK_CONFIGS?.[ctx.packId];
-            const nextAnchorConfig = nextPackConfig?.factAnchors?.find(a => a.key === nextAnchor);
-            const nextFallbackQuestionText = nextAnchorConfig?.label 
-              ? `What ${nextAnchorConfig.label}?`
-              : `Please provide: ${nextAnchor}`;
+            const nextFallbackQuestionText = resolveAnchorToHumanQuestion(
+              nextAnchor,
+              ctx.packId
+            );
             
             console.log('[CQ_TRANSCRIPT][PROMPT_CONTEXT_UPDATED]', {
               fromAnchor: requiredAnchorCurrent,
