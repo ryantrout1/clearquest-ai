@@ -280,17 +280,14 @@ export default function StartInterview() {
           if (didNavigateToInterviewRef.current) return;
           didNavigateToInterviewRef.current = true;
 
-          // BRIDGE REDIRECT: Route via InterviewBridge to preserve session param
-          const params = new URLSearchParams(window.location.search || "");
-          params.set("sid", activeSession.id);
-          params.set("session", activeSession.id);
-          const to = `/interviewbridge?${params.toString()}`;
+          // SESSION PATH ROUTE: Use path segment for session (bypasses query param stripping)
+          const preservedSearch = window.location.search || "";
+          const to = `/candidateinterviewsession/${activeSession.id}${preservedSearch}`;
 
-          console.log('[START_INTERVIEW][HARD_REDIRECT_TO_BRIDGE]', {
+          console.log('[START_INTERVIEW][HARD_REDIRECT_TO_SESSION_ROUTE]', {
             sessionId: activeSession.id,
             to,
-            containsSession: to.includes('session='),
-            containsSid: to.includes('sid=')
+            preservedSearch
           });
 
           window.location.replace(to);
@@ -341,17 +338,14 @@ export default function StartInterview() {
       if (didNavigateToInterviewRef.current) return;
       didNavigateToInterviewRef.current = true;
 
-      // BRIDGE REDIRECT: Route via InterviewBridge to preserve session param
-      const params = new URLSearchParams(window.location.search || "");
-      params.set("sid", newSession.id);
-      params.set("session", newSession.id);
-      const to = `/interviewbridge?${params.toString()}`;
+      // SESSION PATH ROUTE: Use path segment for session (bypasses query param stripping)
+      const preservedSearch = window.location.search || "";
+      const to = `/candidateinterviewsession/${newSession.id}${preservedSearch}`;
 
-      console.log('[START_INTERVIEW][HARD_REDIRECT_TO_BRIDGE]', {
+      console.log('[START_INTERVIEW][HARD_REDIRECT_TO_SESSION_ROUTE]', {
         sessionId: newSession.id,
         to,
-        containsSession: to.includes('session='),
-        containsSid: to.includes('sid=')
+        preservedSearch
       });
 
       window.location.replace(to);

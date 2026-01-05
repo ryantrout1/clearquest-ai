@@ -30,6 +30,7 @@ import SystemConfiguration from './pages/SystemConfiguration';
 import TrialSignup from './pages/TrialSignup';
 import startinterviewSentinel from './pages/_STARTINTERVIEW_SENTINEL';
 import InterviewBridge from './pages/InterviewBridge';
+import CandidateInterviewSession from './pages/CandidateInterviewSession';
 import __Layout from './Layout.jsx';
 
 
@@ -66,6 +67,7 @@ export const PAGES = {
     "TrialSignup": TrialSignup,
     "_STARTINTERVIEW_SENTINEL": startinterviewSentinel,
     "InterviewBridge": InterviewBridge,
+    "CandidateInterviewSession": CandidateInterviewSession,
 }
 
 export const pagesConfig = {

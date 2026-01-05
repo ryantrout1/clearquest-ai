@@ -1215,38 +1215,15 @@ export default function CandidateInterview() {
   
   const navigate = useNavigate();
   
-  // SESSION PARAM PARSING: Accept both 'session' and 'sessionId' (defensive)
+  // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
   const urlParams = new URLSearchParams(window.location.search || "");
   const sessionFromSession = urlParams.get('session');
   const sessionFromSessionId = urlParams.get('sessionId');
-  const sessionId = sessionFromSession || sessionFromSessionId || null;
+  const sessionFromGlobal = typeof window !== 'undefined' ? (window.__CQ_SESSION__ || null) : null;
+  const sessionId = sessionFromSession || sessionFromSessionId || sessionFromGlobal || null;
   
   // SESSION STICKY REF: Persist sessionId across mounts (memory-safe)
   const resolvedSessionRef = useRef(null);
-  
-  // SID REPAIR: If session missing but sid exists, repair URL immediately
-  const didSidRepairRef = useRef(false);
-  if (!sessionId && !didSidRepairRef.current) {
-    const sid = urlParams.get('sid');
-    if (sid) {
-      didSidRepairRef.current = true;
-      
-      // Build repaired URL with session param
-      const params = new URLSearchParams(window.location.search || "");
-      params.set("session", sid);
-      params.delete("sid");
-      const repairedUrl = `/candidateinterview?${params.toString()}`;
-      
-      console.log('[CANDIDATE_INTERVIEW][SID_REPAIR]', {
-        sid,
-        from: window.location.search,
-        to: repairedUrl
-      });
-      
-      // Hard replace to repaired URL
-      window.location.replace(repairedUrl);
-    }
-  }
   
   // FORENSIC: Mount-only log showing what session params we received
   const sessionParamLoggedRef = useRef(false);
@@ -1255,8 +1232,16 @@ export default function CandidateInterview() {
     console.log('[CANDIDATE_INTERVIEW][SESSION_PARAM_SOT]', {
       sessionFromSession,
       sessionFromSessionId,
+      sessionFromGlobal,
       resolved: sessionId,
       search: window.location.search
+    });
+  }
+  
+  // Log when global is used
+  if (sessionFromGlobal && !sessionFromSession && !sessionFromSessionId) {
+    console.log('[CANDIDATE_INTERVIEW][SESSION_FROM_GLOBAL]', {
+      sessionId: sessionFromGlobal
     });
   }
   

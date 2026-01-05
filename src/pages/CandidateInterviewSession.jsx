@@ -1,22 +1,23 @@
 /**
  * ============================================================================
- * INTERVIEW BRIDGE - Session ID Routing Proxy
+ * CANDIDATE INTERVIEW SESSION - Path-Based Session ID Router
  * ============================================================================
  * 
- * Purpose: Bypass platform query param stripping on direct CandidateInterview navigation
+ * Purpose: Bypass Base44 preview query param stripping on /candidateinterview
  * 
  * Flow:
- * 1. StartInterview → InterviewBridge (with sid + session params)
- * 2. InterviewBridge → CandidateInterview (session param restored)
+ * 1. StartInterview → /candidateinterviewsession/<sessionId>?...
+ * 2. Extract sessionId from path, store in window.__CQ_SESSION__
+ * 3. Forward to /candidateinterview?... (CandidateInterview reads from global)
  * 
- * This page exists ONLY to forward session IDs reliably. It renders no UI.
+ * This page exists ONLY to forward session IDs reliably via path segment.
  */
 
 import React, { useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import PublicAppShell from "../components/PublicAppShell";
 
-export default function InterviewBridge() {
+export default function CandidateInterviewSession() {
   const didForwardRef = useRef(false);
   
   useEffect(() => {
@@ -24,28 +25,36 @@ export default function InterviewBridge() {
     if (didForwardRef.current) return;
     didForwardRef.current = true;
     
-    // Parse session ID from URL (both formats)
-    const urlParams = new URLSearchParams(window.location.search || "");
-    const sessionId = urlParams.get('session') || urlParams.get('sid') || null;
+    // Parse sessionId from pathname: /candidateinterviewsession/<sessionId>
+    const pathname = window.location.pathname;
+    const segments = pathname.split('/').filter(Boolean);
     
-    if (sessionId) {
-      // Forward to session path route (bypasses query param stripping)
-      const preservedSearch = window.location.search || "";
-      const to = `/candidateinterviewsession/${sessionId}${preservedSearch}`;
+    // Extract sessionId from last path segment
+    const sessionId = segments[segments.length - 1] || null;
+    
+    if (sessionId && sessionId !== 'candidateinterviewsession') {
+      // Store in global for CandidateInterview to read
+      window.__CQ_SESSION__ = sessionId;
       
-      console.log('[INTERVIEW_BRIDGE][FORWARD_TO_SESSION_ROUTE]', {
+      // Forward to CandidateInterview with preserved query params
+      const preservedSearch = window.location.search || "";
+      const to = `/candidateinterview${preservedSearch}`;
+      
+      console.log('[CANDIDATE_INTERVIEW_SESSION][FORWARD]', {
         sessionId,
         to,
+        fromPathname: pathname,
         preservedSearch
       });
       
-      // Forward to session path route
+      // Forward to CandidateInterview
       window.location.replace(to);
     } else {
       // No session - return to StartInterview
       const redirectUrl = `/startinterview${window.location.search || ""}`;
       
-      console.log('[INTERVIEW_BRIDGE][MISSING_SESSION]', {
+      console.log('[CANDIDATE_INTERVIEW_SESSION][MISSING_SESSION]', {
+        pathname,
         search: window.location.search,
         redirectTo: redirectUrl
       });
