@@ -2536,6 +2536,10 @@ export default function CandidateInterview() {
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [isNewSession, setIsNewSession] = useState(true);
   
+  // TERMINAL REDIRECT: One-shot guard for no-session redirect
+  const didTerminalRedirectRef = useRef(false);
+  const [showRedirectFallback, setShowRedirectFallback] = useState(false);
+  
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
   
@@ -5183,14 +5187,35 @@ export default function CandidateInterview() {
   // SESSION GUARD: Redirect to StartInterview if no sessionId in URL
   useEffect(() => {
     if (!sessionId) {
-      console.log('[CANDIDATE_INTERVIEW][NO_SESSION_REDIRECT]', {
-        from: window.location.pathname,
-        to: 'StartInterview',
-        reason: 'sessionId missing from URL params'
+      // ONE-SHOT GUARD: Only redirect once (prevent loops)
+      if (didTerminalRedirectRef.current) {
+        return; // Already redirected - no-op
+      }
+      
+      // Mark redirect as executed
+      didTerminalRedirectRef.current = true;
+      
+      // Preserve ALL query params (hide_badge, server_url, etc.)
+      const currentSearch = window.location.search || '';
+      const redirectUrl = `/StartInterview${currentSearch}`;
+      
+      console.log('[UI_CONTRACT][CANDIDATE_INTERVIEW_NO_SESSION_REDIRECT_EFFECT]', {
+        to: redirectUrl,
+        preservedParams: currentSearch,
+        reason: 'SessionId missing from URL - one-shot redirect in useEffect'
       });
       
-      navigate(createPageUrl("StartInterview"));
-      return;
+      // Prevent redirect loops: only redirect if not already on StartInterview
+      if (window.location.pathname !== '/StartInterview') {
+        navigate(redirectUrl, { replace: true });
+      }
+      
+      // FAILSAFE: Show manual link after 1500ms if redirect doesn't complete
+      const failsafeTimer = setTimeout(() => {
+        setShowRedirectFallback(true);
+      }, 1500);
+      
+      return () => clearTimeout(failsafeTimer);
     }
     
     // CRITICAL: Only initialize once per sessionId (even if component remounts)
