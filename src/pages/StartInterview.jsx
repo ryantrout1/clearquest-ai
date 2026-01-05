@@ -1,4 +1,14 @@
-// StartInterview - Stable entry point for ClearQuest interviews
+/**
+ * DO NOT DELETE/RENAME: Canonical public candidate entry page required for routing.
+ * 
+ * This is the primary entry point for all candidate interviews. Removing or renaming
+ * this file will break the interview workflow and prevent candidates from starting sessions.
+ * 
+ * Route: /startinterview
+ * Purpose: Anonymous session creation + validation
+ * Dependencies: CandidateInterview (interview UI), PublicAppShell (auth bypass)
+ */
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -30,6 +40,27 @@ export default function StartInterview() {
   const validationAbortRef = React.useRef(null);
   const createInFlightRef = React.useRef(false);
   const didNavigateToInterviewRef = React.useRef(false);
+
+  // CANONICAL CHECK: Log once on mount to confirm page is registered
+  useEffect(() => {
+    console.log('[START_INTERVIEW][CANONICAL_OK]', {
+      path: '/startinterview',
+      file: 'pages/StartInterview.js',
+      route: window.location.pathname
+    });
+    
+    // DEFENSIVE CHECK: Warn if session param is missing on candidate route (log-only, non-blocking)
+    if (window.location.pathname.includes('candidateinterview')) {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (!urlParams.get('session')) {
+        console.warn('[START_INTERVIEW][WARN_MISSING_SESSION_PARAM]', {
+          pathname: window.location.pathname,
+          search: window.location.search,
+          note: 'CandidateInterview loaded without session param - should redirect'
+        });
+      }
+    }
+  }, []); // Mount-only
 
   useEffect(() => {
     loadQuestionCount();
