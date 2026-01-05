@@ -47,6 +47,18 @@ export default function StartInterview() {
   const validationAbortRef = React.useRef(null);
   const createInFlightRef = React.useRef(false);
   const didNavigateToInterviewRef = React.useRef(false);
+  
+  // URL BUILDER: Deterministic CandidateInterview URL with preserved query params
+  function buildCandidateInterviewUrl(sessionId) {
+    // Start with current query params (preserves hide_badge, server_url, etc.)
+    const params = new URLSearchParams(window.location.search || "");
+    
+    // Set session param (overwrite if it exists)
+    params.set("session", sessionId);
+    
+    // Build canonical URL
+    return `/candidateinterview?${params.toString()}`;
+  }
 
   // CANONICAL CHECK: Log once on mount to confirm page is registered
   useEffect(() => {
@@ -268,9 +280,13 @@ export default function StartInterview() {
           if (didNavigateToInterviewRef.current) return;
           didNavigateToInterviewRef.current = true;
           
-          const preserved = window.location.search || "";
-          const sep = preserved && preserved.startsWith("?") ? "&" : "?";
-          const to = `/candidateinterview?session=${activeSession.id}${preserved ? sep + preserved.slice(1) : ""}`;
+          const to = buildCandidateInterviewUrl(activeSession.id);
+          
+          console.log('[START_INTERVIEW][HARD_REDIRECT_TO_CANDIDATEINTERVIEW]', {
+            sessionId: activeSession.id,
+            to,
+            containsSession: to.includes('session=')
+          });
 
           window.location.replace(to);
           return;
@@ -320,9 +336,13 @@ export default function StartInterview() {
       if (didNavigateToInterviewRef.current) return;
       didNavigateToInterviewRef.current = true;
       
-      const preserved = window.location.search || "";
-      const sep = preserved && preserved.startsWith("?") ? "&" : "?";
-      const to = `/candidateinterview?session=${newSession.id}${preserved ? sep + preserved.slice(1) : ""}`;
+      const to = buildCandidateInterviewUrl(newSession.id);
+      
+      console.log('[START_INTERVIEW][HARD_REDIRECT_TO_CANDIDATEINTERVIEW]', {
+        sessionId: newSession.id,
+        to,
+        containsSession: to.includes('session=')
+      });
 
       window.location.replace(to);
 

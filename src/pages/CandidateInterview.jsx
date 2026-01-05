@@ -1214,8 +1214,24 @@ export default function CandidateInterview() {
   console.log('[BUILD_OK][CandidateInterview]');
   
   const navigate = useNavigate();
-  const urlParams = new URLSearchParams(window.location.search);
-  const sessionId = urlParams.get('session');
+  
+  // SESSION PARAM PARSING: Accept both 'session' and 'sessionId' (defensive)
+  const urlParams = new URLSearchParams(window.location.search || "");
+  const sessionFromSession = urlParams.get('session');
+  const sessionFromSessionId = urlParams.get('sessionId');
+  const sessionId = sessionFromSession || sessionFromSessionId || null;
+  
+  // FORENSIC: Mount-only log showing what session params we received
+  const sessionParamLoggedRef = useRef(false);
+  if (!sessionParamLoggedRef.current) {
+    sessionParamLoggedRef.current = true;
+    console.log('[CANDIDATE_INTERVIEW][SESSION_PARAM_SOT]', {
+      sessionFromSession,
+      sessionFromSessionId,
+      resolved: sessionId,
+      search: window.location.search
+    });
+  }
   
   // ============================================================================
   // PROMPT TEXT SOT (HOIST-SAFE) - Must be ABOVE all usages
