@@ -1489,6 +1489,12 @@ export default function CandidateInterview() {
   
   // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
   if (!sessionId) {
+    // LOG: No session - preventing mount
+    console.log('[CANDIDATE_INTERVIEW][NO_SESSION_BLOCK]', {
+      search: window.location.search,
+      action: 'render_link_and_redirect'
+    });
+    
     // FORENSIC: Mount-only log confirming TDZ fix for showRedirectFallback
     if (!noSessionEarlyReturnLoggedRef.current) {
       noSessionEarlyReturnLoggedRef.current = true;
@@ -1497,22 +1503,24 @@ export default function CandidateInterview() {
       });
     }
     
+    // Build redirect URL preserving query params
+    const redirectParams = new URLSearchParams(window.location.search || "");
+    const redirectUrl = `/startinterview?${redirectParams.toString()}`;
+    
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center space-y-4">
           <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
           <p className="text-slate-300">Redirecting to start interview...</p>
-          {showRedirectFallback && (
-            <div className="mt-6">
-              <p className="text-slate-400 text-sm mb-2">If you are not redirected:</p>
-              <a 
-                href={`/StartInterview${window.location.search || ''}`}
-                className="text-blue-400 underline hover:text-blue-300"
-              >
-                Click here to start interview
-              </a>
-            </div>
-          )}
+          <div className="mt-6">
+            <p className="text-slate-400 text-sm mb-2">If you are not redirected:</p>
+            <a 
+              href={redirectUrl}
+              className="text-blue-400 underline hover:text-blue-300"
+            >
+              Click here to start interview
+            </a>
+          </div>
         </div>
       </div>
     );
