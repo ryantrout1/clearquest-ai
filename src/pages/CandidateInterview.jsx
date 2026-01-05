@@ -15470,21 +15470,25 @@ export default function CandidateInterview() {
         // Build deterministic stable keys for Q+A pairing (ONCE - used by both Q and A appends)
         const answerStableKey = `required-anchor:a:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}`;
 
+        // STEP 1: PERSIST Q+A PAIR - Ensure question first, then append answer
+        const questionStableKey = `required-anchor:q:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}`;
+        const answerStableKey = `required-anchor:a:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}`;
+        
+        // QUESTION TEXT SOT: Use resolver for consistent human-readable question
+        const submitQuestionText = resolveAnchorToHumanQuestion(
+          requiredAnchorCurrent,
+          ctx.packId
+        );
+        
+        // Fetch current transcript for safe function
+        const currentSession = await base44.entities.InterviewSession.get(sessionId);
+        const currentTranscript = currentSession.transcript_snapshot || [];
+        
         // ENSURE QUESTION EXISTS: Append fallback question before answer (TDZ-proof)
         try {
-          // QUESTION TEXT SOT: Use resolver for consistent human-readable question
-          const submitQuestionText = resolveAnchorToHumanQuestion(
-            requiredAnchorCurrent,
-            ctx.packId
-          );
-
-          // Fetch current transcript for safe function
-          const currentSession = await base44.entities.InterviewSession.get(sessionId);
-          const currentTranscript = currentSession.transcript_snapshot || [];
-
           // DEFENSIVE: Check function exists before calling
           if (typeof ensureRequiredAnchorQuestionInTranscript === "function") {
-            await ensureRequiredAnchorQuestionInTranscript({
+            const ensureResult = await ensureRequiredAnchorQuestionInTranscript({
               sessionId,
               categoryId: ctx.categoryId,
               instanceNumber: ctx.instanceNumber,
@@ -15496,6 +15500,14 @@ export default function CandidateInterview() {
               canonicalRef: canonicalTranscriptRef,
               syncStateFn: upsertTranscriptState
             });
+            
+            if (ensureResult?.didAppend) {
+              console.log('[REQUIRED_ANCHOR_FALLBACK][Q_PERSISTED_ONCE_OK]', {
+                stableKeyQ: questionStableKey,
+                anchor: requiredAnchorCurrent,
+                textPreview: submitQuestionText
+              });
+            }
           } else {
             console.error('[REQUIRED_ANCHOR_FALLBACK][ENSURE_HELPER_MISSING]', {
               anchor: requiredAnchorCurrent,
@@ -15514,20 +15526,18 @@ export default function CandidateInterview() {
           });
         }
 
-        // STEP 1: Append candidate's answer to history (after question ensured)
-        console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_DB_WRITE_BEGIN]', {
+        // STEP 2: Append candidate's answer to history (after question ensured)
+        console.log('[REQUIRED_ANCHOR_FALLBACK][A_PERSIST_BEGIN]', {
           anchor: requiredAnchorCurrent,
-          stableKey: answerStableKey
+          stableKeyA: answerStableKey,
+          textPreview: trimmed.substring(0, 60)
         });
 
         const appendUserMessage = appendUserMessageImport;
         const freshSession = await base44.entities.InterviewSession.get(sessionId);
-        const currentTranscript = freshSession.transcript_snapshot || [];
+        const freshTranscript = freshSession.transcript_snapshot || [];
 
-        // Build parent key for Q+A pairing
-        const questionStableKey = `required-anchor:q:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}`;
-
-        const transcriptAfterAnswer = await appendUserMessage(sessionId, currentTranscript, trimmed, {
+        const transcriptAfterAnswer = await appendUserMessage(sessionId, freshTranscript, trimmed, {
           id: `required-anchor-a-${sessionId}-${ctx.categoryId}-${ctx.instanceNumber}-${requiredAnchorCurrent}`,
           stableKey: answerStableKey,
           messageType: 'ANSWER',
@@ -15538,6 +15548,12 @@ export default function CandidateInterview() {
           answerContext: 'REQUIRED_ANCHOR_FALLBACK',
           parentStableKey: questionStableKey,
           visibleToCandidate: true
+        });
+        
+        console.log('[REQUIRED_ANCHOR_FALLBACK][A_PERSIST_OK]', {
+          anchor: requiredAnchorCurrent,
+          stableKeyA: answerStableKey,
+          transcriptLenAfter: transcriptAfterAnswer.length
         });
 
         console.log('[REQUIRED_ANCHOR_FALLBACK][A_APPEND_AFTER_Q]', {
@@ -16391,6 +16407,22 @@ export default function CandidateInterview() {
             return true; // ALWAYS keep V3 probe Q/A
           }
           
+          // CRITICAL: Required anchor Q/A are ALWAYS canonical (never filter)
+          const isRequiredAnchorQ = (stableKey && stableKey.startsWith('required-anchor:q:')) || mt === 'REQUIRED_ANCHOR_QUESTION';
+          const isRequiredAnchorA = (stableKey && stableKey.startsWith('required-anchor:a:')) || 
+                                    (mt === 'ANSWER' && (e.meta?.answerContext === 'REQUIRED_ANCHOR_FALLBACK' || e.answerContext === 'REQUIRED_ANCHOR_FALLBACK'));
+          
+          if (isRequiredAnchorQ || isRequiredAnchorA) {
+            console.log('[REQUIRED_ANCHOR_FALLBACK][ANSWER_FILTER_GUARD_KEEP]', {
+              stableKey,
+              mt,
+              isQ: isRequiredAnchorQ,
+              isA: isRequiredAnchorA,
+              reason: 'Required-anchor Q/A must remain visible'
+            });
+            return true; // ALWAYS keep required-anchor Q/A
+          }
+          
           // CRITICAL: Opener cards MUST be preserved in transcript (unless actively being asked)
           const isOpenerCard = mt === 'FOLLOWUP_CARD_SHOWN' && 
                                (e.meta?.variant === 'opener' || e.variant === 'opener');
@@ -17101,6 +17133,18 @@ export default function CandidateInterview() {
                            mt === 'MULTI_INSTANCE_GATE_SHOWN' ||
                            mt === 'MULTI_INSTANCE_GATE_ANSWER';
       
+      // GUARD: Never dedupe required-anchor entries
+      const isRequiredAnchorEntry = stableKey && stableKey.startsWith('required-anchor:');
+      
+      if (isRequiredAnchorEntry) {
+        console.log('[MI_GATE][DEDUPE_SKIP_REQUIRED_ANCHOR]', {
+          stableKey,
+          reason: 'Required-anchor entries must not be deduped by MI gate logic'
+        });
+        transcriptWithMiGateDedupe.push(entry);
+        continue; // Skip MI gate dedupe for required-anchor entries
+      }
+      
       if (isMiGateEntry && stableKey) {
         if (miGateDedupeMap.has(stableKey)) {
           miGateRemovedCount++;
@@ -17126,6 +17170,75 @@ export default function CandidateInterview() {
     
     // Use MI-gate-deduped list
     transcriptToRenderDeduped = transcriptWithMiGateDedupe;
+    
+    // REQUIRED_ANCHOR REPAIR INJECTION: Ensure answers follow their questions
+    const transcriptWithRequiredAnchorRepair = [];
+    const requiredAnchorQToA = new Map(); // Map question stableKey to answer entry
+    let repairInjectedCount = 0;
+    
+    // Build map of required-anchor Q/A from DB transcript
+    for (const entry of transcriptSOT) {
+      const stableKey = entry.stableKey || entry.id || '';
+      
+      if (stableKey.startsWith('required-anchor:q:')) {
+        // Track question for repair
+        if (!requiredAnchorQToA.has(stableKey)) {
+          requiredAnchorQToA.set(stableKey, null);
+        }
+      }
+      
+      if (stableKey.startsWith('required-anchor:a:')) {
+        // Find matching question key
+        const qKey = stableKey.replace(':a:', ':q:');
+        if (requiredAnchorQToA.has(qKey)) {
+          requiredAnchorQToA.set(qKey, entry);
+        }
+      }
+    }
+    
+    // Inject missing answers after their questions
+    for (let i = 0; i < transcriptToRenderDeduped.length; i++) {
+      const entry = transcriptToRenderDeduped[i];
+      transcriptWithRequiredAnchorRepair.push(entry);
+      
+      const stableKey = entry.stableKey || entry.id || '';
+      
+      // Check if this is a required-anchor question
+      if (stableKey.startsWith('required-anchor:q:')) {
+        const answerEntry = requiredAnchorQToA.get(stableKey);
+        
+        if (answerEntry) {
+          // Check if answer already in render stream
+          const answerAlreadyPresent = transcriptToRenderDeduped.some(e => 
+            (e.stableKey || e.id) === (answerEntry.stableKey || answerEntry.id)
+          );
+          
+          if (!answerAlreadyPresent) {
+            // Inject answer after question
+            transcriptWithRequiredAnchorRepair.push(answerEntry);
+            repairInjectedCount++;
+            
+            const anchor = answerEntry.meta?.anchor || answerEntry.anchor;
+            console.log('[REQUIRED_ANCHOR_FALLBACK][REPAIR_INJECT_ANSWER]', {
+              anchor,
+              stableKeyA: answerEntry.stableKey || answerEntry.id,
+              insertedAfter: stableKey,
+              reason: 'Answer in DB but missing from render stream'
+            });
+          }
+        }
+      }
+    }
+    
+    if (repairInjectedCount > 0) {
+      console.log('[REQUIRED_ANCHOR_FALLBACK][REPAIR_INJECTION_SUMMARY]', {
+        injectedCount: repairInjectedCount,
+        reason: 'Restored missing required-anchor answers to render stream'
+      });
+    }
+    
+    // Use repair-injected list
+    transcriptToRenderDeduped = transcriptWithRequiredAnchorRepair;
     
     // PART 2: ADJACENCY-BASED QUESTIONID INFERENCE (orphan Yes/No answers)
     // Infer questionId for answers that have no questionId/meta by finding nearby QUESTION_SHOWN
@@ -19504,6 +19617,30 @@ export default function CandidateInterview() {
                       </div>
                     </div>
                   </ContentContainer>
+                );
+              })()}
+              
+              {/* Required Anchor Answer - Candidate's answer to fallback question */}
+              {entry.role === 'user' && entry.stableKey?.startsWith('required-anchor:a:') && (() => {
+                const answerStableKey = entry.stableKey || entry.id;
+                const anchor = entry.meta?.anchor || entry.anchor;
+                
+                console.log('[CQ_TRANSCRIPT][REQUIRED_ANCHOR_A_RENDERED]', {
+                  stableKey: answerStableKey,
+                  anchor,
+                  textPreview: entry.text?.substring(0, 60)
+                });
+                
+                return (
+                  <div style={{ marginBottom: 10 }} data-stablekey={answerStableKey}>
+                    <ContentContainer>
+                      <div className="flex justify-end">
+                        <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                          <p className="text-white text-sm">{entry.text}</p>
+                        </div>
+                      </div>
+                    </ContentContainer>
+                  </div>
                 );
               })()}
 
