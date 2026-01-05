@@ -48,16 +48,16 @@ export default function StartInterview() {
   const createInFlightRef = React.useRef(false);
   const didNavigateToInterviewRef = React.useRef(false);
   
-  // URL BUILDER: Deterministic CandidateInterview URL with preserved query params
-  function buildCandidateInterviewUrl(sessionId) {
+  // URL BUILDER: Deterministic CandidateInterviewSession URL with preserved query params
+  function buildCandidateInterviewSessionUrl(sessionId) {
     // Start with current query params (preserves hide_badge, server_url, etc.)
     const params = new URLSearchParams(window.location.search || "");
     
-    // Set session param (overwrite if it exists)
-    params.set("session", sessionId);
+    // Set sid param for session route
+    params.set("sid", sessionId);
     
-    // Build canonical URL
-    return `/candidateinterview?${params.toString()}`;
+    // Build canonical URL to session route
+    return `/candidateinterviewsession?${params.toString()}`;
   }
 
   // CANONICAL CHECK: Log once on mount to confirm page is registered
@@ -280,18 +280,25 @@ export default function StartInterview() {
           if (didNavigateToInterviewRef.current) return;
           didNavigateToInterviewRef.current = true;
 
-          // SESSION QUERY ROUTE: Use sid query param (static route, no 404)
-          const params = new URLSearchParams(window.location.search || "");
-          params.set("sid", activeSession.id);
-          const to = `/candidateinterviewsession?${params.toString()}`;
+          // RESUME: Route to session bridge
+          const to = buildCandidateInterviewSessionUrl(activeSession.id);
 
-          console.log('[START_INTERVIEW][HARD_REDIRECT_TO_SESSION_QUERY_ROUTE]', {
+          console.log('[START_INTERVIEW][RESUME_CLICK_SESSION_ROUTE]', {
             sessionId: activeSession.id,
             to,
-            containsSid: to.includes('sid=')
+            searchBefore: window.location.search
           });
 
           window.location.replace(to);
+          
+          // POST-REPLACE VERIFICATION: Log location after replace (async)
+          setTimeout(() => {
+            console.log('[START_INTERVIEW][POST_REPLACE_LOCATION]', { 
+              href: window.location.href,
+              pathname: window.location.pathname 
+            });
+          }, 0);
+          
           return;
         }
 
@@ -339,18 +346,26 @@ export default function StartInterview() {
       if (didNavigateToInterviewRef.current) return;
       didNavigateToInterviewRef.current = true;
 
-      // SESSION QUERY ROUTE: Use sid query param (static route, no 404)
-      const params = new URLSearchParams(window.location.search || "");
-      params.set("sid", newSession.id);
-      const to = `/candidateinterviewsession?${params.toString()}`;
+      // BEGIN: Route to session bridge
+      const to = buildCandidateInterviewSessionUrl(newSession.id);
 
-      console.log('[START_INTERVIEW][HARD_REDIRECT_TO_SESSION_QUERY_ROUTE]', {
+      console.log('[START_INTERVIEW][BEGIN_CLICK_SESSION_ROUTE]', {
         sessionId: newSession.id,
         to,
-        containsSid: to.includes('sid=')
+        searchBefore: window.location.search
       });
 
       window.location.replace(to);
+      
+      // POST-REPLACE VERIFICATION: Log location after replace (async)
+      setTimeout(() => {
+        console.log('[START_INTERVIEW][POST_REPLACE_LOCATION]', { 
+          href: window.location.href,
+          pathname: window.location.pathname 
+        });
+      }, 0);
+      
+      return;
 
     } catch (err) {
       requestCompletedRef.value = true;

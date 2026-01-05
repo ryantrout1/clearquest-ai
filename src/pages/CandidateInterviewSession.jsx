@@ -20,6 +20,14 @@ import PublicAppShell from "../components/PublicAppShell";
 export default function CandidateInterviewSession() {
   const didForwardRef = useRef(false);
   
+  // MOUNT LOG: Proof that this page loaded
+  React.useEffect(() => {
+    console.log('[CANDIDATE_INTERVIEW_SESSION][MOUNT]', {
+      search: window.location.search,
+      pathname: window.location.pathname
+    });
+  }, []);
+  
   useEffect(() => {
     // ONE-SHOT GUARD: Only forward once per mount
     if (didForwardRef.current) return;
