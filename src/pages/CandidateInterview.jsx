@@ -1221,6 +1221,9 @@ export default function CandidateInterview() {
   const sessionFromSessionId = urlParams.get('sessionId');
   const sessionId = sessionFromSession || sessionFromSessionId || null;
   
+  // SESSION STICKY REF: Persist sessionId across mounts (memory-safe)
+  const resolvedSessionRef = useRef(null);
+  
   // FORENSIC: Mount-only log showing what session params we received
   const sessionParamLoggedRef = useRef(false);
   if (!sessionParamLoggedRef.current) {
@@ -1231,6 +1234,12 @@ export default function CandidateInterview() {
       resolved: sessionId,
       search: window.location.search
     });
+  }
+  
+  // STICKY SET: Store resolved session if truthy (mount-only)
+  if (sessionId && !resolvedSessionRef.current) {
+    resolvedSessionRef.current = sessionId;
+    console.log('[CANDIDATE_INTERVIEW][SESSION_STICKY_SET]', { sessionId });
   }
   
   // ============================================================================
@@ -1486,41 +1495,57 @@ export default function CandidateInterview() {
   
   // FORENSIC: No-session early return guard (prints once per mount)
   const noSessionEarlyReturnLoggedRef = useRef(false);
+  const didSessionRepairRef = useRef(false);
+  
+  // ============================================================================
+  // SESSION URL REPAIR: Auto-fix stripped session param before redirect
+  // ============================================================================
+  // If session is missing from URL BUT we have it in ref, repair URL automatically
+  if (!sessionId && resolvedSessionRef.current && !didSessionRepairRef.current) {
+    didSessionRepairRef.current = true;
+    
+    // Build repaired URL with session param
+    const params = new URLSearchParams(window.location.search || "");
+    params.set("session", resolvedSessionRef.current);
+    const repairedUrl = `/candidateinterview?${params.toString()}`;
+    
+    console.log('[CANDIDATE_INTERVIEW][SESSION_URL_REPAIR]', {
+      from: window.location.search,
+      to: repairedUrl,
+      repairedSession: resolvedSessionRef.current
+    });
+    
+    // Hard replace to repaired URL (preserves all query params)
+    window.location.replace(repairedUrl);
+    
+    // Render minimal placeholder during repair
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
+          <p className="text-slate-300">Restoring session...</p>
+        </div>
+      </div>
+    );
+  }
   
   // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
   if (!sessionId) {
-    // LOG: No session - preventing mount
-    console.log('[CANDIDATE_INTERVIEW][NO_SESSION_BLOCK]', {
-      search: window.location.search,
-      action: 'render_link_and_redirect'
-    });
-    
-    // FORENSIC: Mount-only log confirming TDZ fix for showRedirectFallback
+    // LOG: No session and no repair possible - unrecoverable
     if (!noSessionEarlyReturnLoggedRef.current) {
       noSessionEarlyReturnLoggedRef.current = true;
-      console.log('[FORENSIC][NO_SESSION_EARLY_RETURN_OK]', {
-        showRedirectFallback: typeof showRedirectFallback !== 'undefined'
+      console.log('[CANDIDATE_INTERVIEW][NO_SESSION_UNRECOVERABLE]', {
+        search: window.location.search,
+        hadRefSession: !!resolvedSessionRef.current,
+        action: 'redirect_to_startinterview'
       });
     }
-    
-    // Build redirect URL preserving query params
-    const redirectParams = new URLSearchParams(window.location.search || "");
-    const redirectUrl = `/startinterview?${redirectParams.toString()}`;
     
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center space-y-4">
           <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
           <p className="text-slate-300">Redirecting to start interview...</p>
-          <div className="mt-6">
-            <p className="text-slate-400 text-sm mb-2">If you are not redirected:</p>
-            <a 
-              href={redirectUrl}
-              className="text-blue-400 underline hover:text-blue-300"
-            >
-              Click here to start interview
-            </a>
-          </div>
         </div>
       </div>
     );
