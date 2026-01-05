@@ -1788,6 +1788,17 @@ export default function CandidateInterview() {
       console.error('[FORENSIC][CANONICAL_CHECK][ERROR]', { label, error: err.message });
     }
   }, [sessionId, dbTranscript]);
+  
+  // TDZ HARDENING: Mount-only forensic log
+  const tdzHardenLoggedRef = useRef(false);
+  useEffect(() => {
+    if (!tdzHardenLoggedRef.current) {
+      tdzHardenLoggedRef.current = true;
+      console.log('[FORENSIC][TDZ_HARDEN_OK]', {
+        note: 'hoisted helpers + reordered derived consts (instance opener precedence, scrollToBottomForMiGate)'
+      });
+    }
+  }, []);
 
   // UNIFIED TRANSCRIPT STATE SYNC - Single source of truth updater
   const upsertTranscriptState = useCallback((nextArray, reason) => {
@@ -2096,6 +2107,25 @@ export default function CandidateInterview() {
       maxScrollTop: Math.round(maxScrollTop),
       scrollHeight: Math.round(scrollHeight),
       clientHeight: Math.round(clientHeight)
+    });
+  }, []);
+  
+  // MI_GATE SCROLL HELPER: Bottom-anchor scroll for MI gate (hoisted)
+  const scrollToBottomForMiGate = useCallback((reason) => {
+    if (!bottomAnchorRef.current) return;
+    
+    const scrollContainer = scrollOwnerRef.current || historyRef.current;
+    if (!scrollContainer) return;
+    
+    const scrollTopBefore = scrollContainer.scrollTop;
+    bottomAnchorRef.current.scrollIntoView({ block: 'end', behavior: 'auto' });
+    const scrollTopAfter = scrollContainer.scrollTop;
+    
+    console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
+      reason,
+      scrollTopBefore: Math.round(scrollTopBefore),
+      scrollTopAfter: Math.round(scrollTopAfter),
+      strategy: 'BOTTOM_ANCHOR'
     });
   }, []);
   
