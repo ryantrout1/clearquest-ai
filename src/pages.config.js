@@ -26,6 +26,8 @@ import SessionDetails from './pages/SessionDetails';
 import SystemAdminDashboard from './pages/SystemAdminDashboard';
 import SystemConfiguration from './pages/SystemConfiguration';
 import TrialSignup from './pages/TrialSignup';
+import StartInterview from './pages/StartInterview';
+import StartInterviewTest from './pages/StartInterviewTest';
 import __Layout from './Layout.jsx';
 
 
@@ -58,6 +60,8 @@ export const PAGES = {
     "SystemAdminDashboard": SystemAdminDashboard,
     "SystemConfiguration": SystemConfiguration,
     "TrialSignup": TrialSignup,
+    "StartInterview": StartInterview,
+    "StartInterviewTest": StartInterviewTest,
 }
 
 export const pagesConfig = {
