@@ -1,4 +1,9 @@
 /**
+ * ============================================================================
+ * BASE44: Do not auto-fix other files when editing this file.
+ *         Limit changes to this file only.
+ * ============================================================================
+ * 
  * DO NOT DELETE/RENAME: Canonical public candidate entry page required for routing.
  * 
  * This is the primary entry point for all candidate interviews. Removing or renaming
@@ -7,6 +12,8 @@
  * Route: /startinterview
  * Purpose: Anonymous session creation + validation
  * Dependencies: CandidateInterview (interview UI), PublicAppShell (auth bypass)
+ * 
+ * Protected by: pages/_STARTINTERVIEW_SENTINEL.js
  */
 
 import React, { useState, useEffect } from "react";
