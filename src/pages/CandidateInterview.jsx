@@ -1224,6 +1224,30 @@ export default function CandidateInterview() {
   // SESSION STICKY REF: Persist sessionId across mounts (memory-safe)
   const resolvedSessionRef = useRef(null);
   
+  // SID REPAIR: If session missing but sid exists, repair URL immediately
+  const didSidRepairRef = useRef(false);
+  if (!sessionId && !didSidRepairRef.current) {
+    const sid = urlParams.get('sid');
+    if (sid) {
+      didSidRepairRef.current = true;
+      
+      // Build repaired URL with session param
+      const params = new URLSearchParams(window.location.search || "");
+      params.set("session", sid);
+      params.delete("sid");
+      const repairedUrl = `/candidateinterview?${params.toString()}`;
+      
+      console.log('[CANDIDATE_INTERVIEW][SID_REPAIR]', {
+        sid,
+        from: window.location.search,
+        to: repairedUrl
+      });
+      
+      // Hard replace to repaired URL
+      window.location.replace(repairedUrl);
+    }
+  }
+  
   // FORENSIC: Mount-only log showing what session params we received
   const sessionParamLoggedRef = useRef(false);
   if (!sessionParamLoggedRef.current) {

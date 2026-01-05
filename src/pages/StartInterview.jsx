@@ -279,13 +279,18 @@ export default function StartInterview() {
         if (activeSession) {
           if (didNavigateToInterviewRef.current) return;
           didNavigateToInterviewRef.current = true;
-          
-          const to = buildCandidateInterviewUrl(activeSession.id);
-          
-          console.log('[START_INTERVIEW][HARD_REDIRECT_TO_CANDIDATEINTERVIEW]', {
+
+          // BRIDGE REDIRECT: Route via InterviewBridge to preserve session param
+          const params = new URLSearchParams(window.location.search || "");
+          params.set("sid", activeSession.id);
+          params.set("session", activeSession.id);
+          const to = `/interviewbridge?${params.toString()}`;
+
+          console.log('[START_INTERVIEW][HARD_REDIRECT_TO_BRIDGE]', {
             sessionId: activeSession.id,
             to,
-            containsSession: to.includes('session=')
+            containsSession: to.includes('session='),
+            containsSid: to.includes('sid=')
           });
 
           window.location.replace(to);
@@ -335,13 +340,18 @@ export default function StartInterview() {
       
       if (didNavigateToInterviewRef.current) return;
       didNavigateToInterviewRef.current = true;
-      
-      const to = buildCandidateInterviewUrl(newSession.id);
-      
-      console.log('[START_INTERVIEW][HARD_REDIRECT_TO_CANDIDATEINTERVIEW]', {
+
+      // BRIDGE REDIRECT: Route via InterviewBridge to preserve session param
+      const params = new URLSearchParams(window.location.search || "");
+      params.set("sid", newSession.id);
+      params.set("session", newSession.id);
+      const to = `/interviewbridge?${params.toString()}`;
+
+      console.log('[START_INTERVIEW][HARD_REDIRECT_TO_BRIDGE]', {
         sessionId: newSession.id,
         to,
-        containsSession: to.includes('session=')
+        containsSession: to.includes('session='),
+        containsSid: to.includes('sid=')
       });
 
       window.location.replace(to);

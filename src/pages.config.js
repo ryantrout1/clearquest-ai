@@ -29,6 +29,7 @@ import SystemAdminDashboard from './pages/SystemAdminDashboard';
 import SystemConfiguration from './pages/SystemConfiguration';
 import TrialSignup from './pages/TrialSignup';
 import startinterviewSentinel from './pages/_STARTINTERVIEW_SENTINEL';
+import InterviewBridge from './pages/InterviewBridge';
 import __Layout from './Layout.jsx';
 
 
@@ -64,6 +65,7 @@ export const PAGES = {
     "SystemConfiguration": SystemConfiguration,
     "TrialSignup": TrialSignup,
     "_STARTINTERVIEW_SENTINEL": startinterviewSentinel,
+    "InterviewBridge": InterviewBridge,
 }
 
 export const pagesConfig = {
