@@ -11412,27 +11412,12 @@ export default function CandidateInterview() {
       }
       
       // Check UI stability using ONLY refs (no stale closures)
-      const isReady = 
+      let isReady = 
         v3ProbingActiveRef.current === true &&
         bottomBarModeSOTRef.current === 'TEXT_INPUT' &&
         v3ActivePromptTextRef.current &&
         v3ActivePromptTextRef.current.trim().length > 0 &&
         promptMatch;
-      
-      // CONSOLIDATED DECISION LOG (ref-based, no stale closure)
-      const decisionPayload = {
-        packId: snapshot.packId,
-        instanceNumber: snapshot.instanceNumber,
-        loopKey: snapshot.loopKey,
-        promptId,
-        bottomBarModeSOT: bottomBarModeSOTRef.current,
-        v3ProbingActive: v3ProbingActiveRef.current,
-        hasPrompt: !!v3ActivePromptTextRef.current,
-        promptMatch,
-        decision: isReady ? 'OK' : 'FAILED'
-      };
-      console.log('[V3_PROMPT_WATCHDOG][DECISION]', decisionPayload);
-      lastWatchdogDecisionRef.current = decisionPayload; // DEV: Capture for debug bundle
       
       // RUNTIME ASSERT: Verify OK decision is correct (TDZ-safe via ref)
       if (isReady) {
@@ -11451,6 +11436,21 @@ export default function CandidateInterview() {
           isReady = false;
         }
       }
+      
+      // CONSOLIDATED DECISION LOG (ref-based, no stale closure)
+      const decisionPayload = {
+        packId: snapshot.packId,
+        instanceNumber: snapshot.instanceNumber,
+        loopKey: snapshot.loopKey,
+        promptId,
+        bottomBarModeSOT: bottomBarModeSOTRef.current,
+        v3ProbingActive: v3ProbingActiveRef.current,
+        hasPrompt: !!v3ActivePromptTextRef.current,
+        promptMatch,
+        decision: isReady ? 'OK' : 'FAILED'
+      };
+      console.log('[V3_PROMPT_WATCHDOG][DECISION]', decisionPayload);
+      lastWatchdogDecisionRef.current = decisionPayload; // DEV: Capture for debug bundle
       
       if (isReady) {
         const okPayload = {
@@ -15104,7 +15104,7 @@ export default function CandidateInterview() {
   }
   
   // UI CONTRACT: CTA mode is ONLY valid during WELCOME screen
-  // Force override to prevent CTA leaking during interview progression
+  // Log warning but do not mutate const (use bottomBarModeSOTSafe fallback instead)
   if (bottomBarModeSOT === "CTA" && screenMode !== "WELCOME") {
     if (effectiveItemType === 'section_transition') {
       console.log("[UI_CONTRACT] CTA_SECTION_TRANSITION_ALLOWED", { effectiveItemType, screenMode });
@@ -15115,9 +15115,9 @@ export default function CandidateInterview() {
         currentItemType, 
         effectiveItemType, 
         v3ProbingActive,
-        action: 'forcing HIDDEN'
+        note: 'Invalid state - bottomBarModeSOTSafe will use DEFAULT fallback'
       });
-      bottomBarModeSOT = "HIDDEN";
+      // Do not mutate const - bottomBarModeSOTSafe already handles fallback
     }
   }
   

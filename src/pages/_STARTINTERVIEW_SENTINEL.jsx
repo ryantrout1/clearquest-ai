@@ -1,4 +1,3 @@
-
 /**
  * SENTINEL FILE - DO NOT DELETE
  * 
@@ -6,11 +5,13 @@
  * StartInterview is a critical entry point for the application and must
  * remain registered in the routing system.
  * 
- * WARNING: This is NOT a routable page - exports only, no default component.
- * It exists solely to provide cross-references to StartInterview artifacts.
+ * This page exists solely to provide cross-references to StartInterview artifacts
+ * and should not be used by end users.
  */
 
-// Named exports only - prevents this file from appearing in route registration
+import React from "react";
+
+// Named exports - cross-reference metadata
 export const START_INTERVIEW_CANONICAL = {
   name: 'StartInterview',
   path: '/startinterview',
@@ -43,5 +44,33 @@ export const SENTINEL_STATUS = {
   lastVerified: new Date().toISOString()
 };
 
-// NO default export - this file must NOT be routed
-// Base44: Do not register this as a page route
+// Default export required by Base44 build system
+// This page should not be used by end users - for metadata only
+export default function StartInterviewSentinel() {
+  return (
+    <div style={{ 
+      minHeight: '100vh', 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center',
+      padding: '20px',
+      background: 'linear-gradient(to bottom right, #0f172a, #1e3a8a)'
+    }}>
+      <div style={{ 
+        textAlign: 'center', 
+        color: '#e2e8f0',
+        maxWidth: '500px'
+      }}>
+        <h1 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>
+          Sentinel Page
+        </h1>
+        <p style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '8px' }}>
+          This page exists to protect StartInterview from auto-cleanup.
+        </p>
+        <p style={{ fontSize: '12px', color: '#64748b' }}>
+          Protected routes: {PROTECTED_ROUTES.map(r => r.name).join(', ')}
+        </p>
+      </div>
+    </div>
+  );
+}
