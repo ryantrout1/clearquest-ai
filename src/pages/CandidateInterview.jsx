@@ -1448,9 +1448,6 @@ export default function CandidateInterview() {
     }
   }
   
-  // TERMINAL REDIRECT GUARD: One-shot ref to prevent redirect loops
-  const didTerminalRedirectRef = useRef(false);
-  
   // DIAGNOSTIC: Component mount entry point
   console.log("[CANDIDATE_INTERVIEW][MOUNT]", {
     sessionId,
@@ -1462,46 +1459,24 @@ export default function CandidateInterview() {
     timestamp: Date.now()
   });
   
-  // HARD ROUTE GUARD: Redirect if no sessionId (BEFORE any hooks/state)
+  // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
   if (!sessionId) {
-    // ONE-SHOT GUARD: Only redirect once (prevent loops)
-    if (didTerminalRedirectRef.current) {
-      // Already redirected - render safe fallback
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-          <div className="text-center space-y-4">
-            <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
-            <p className="text-slate-300">Redirecting to start interview...</p>
-          </div>
-        </div>
-      );
-    }
-    
-    // Mark redirect as executed
-    didTerminalRedirectRef.current = true;
-    
-    // Preserve ALL query params (hide_badge, server_url, etc.)
-    const currentSearch = window.location.search || '';
-    const redirectUrl = `/StartInterview${currentSearch}`;
-    
-    console.log('[UI_CONTRACT][CANDIDATE_INTERVIEW_NO_SESSION_REDIRECT_ONCE]', {
-      didRedirect: true,
-      to: redirectUrl,
-      preservedParams: currentSearch,
-      reason: 'SessionId missing from URL - one-shot redirect'
-    });
-    
-    // Prevent redirect loops: only redirect if not already on StartInterview
-    if (window.location.pathname !== '/StartInterview') {
-      navigate(redirectUrl, { replace: true });
-    }
-    
-    // Return safe fallback immediately - STOPS all subsequent hooks from executing
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center space-y-4">
           <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
           <p className="text-slate-300">Redirecting to start interview...</p>
+          {showRedirectFallback && (
+            <div className="mt-6">
+              <p className="text-slate-400 text-sm mb-2">If you are not redirected:</p>
+              <a 
+                href={`/StartInterview${window.location.search || ''}`}
+                className="text-blue-400 underline hover:text-blue-300"
+              >
+                Click here to start interview
+              </a>
+            </div>
+          )}
         </div>
       </div>
     );
