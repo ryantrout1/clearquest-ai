@@ -98,15 +98,14 @@ export default function StartInterview() {
       
       console.log("[START_INTERVIEW][NAVIGATE_TO_CANDIDATEINTERVIEW]", {
         sessionId: existingSessionId,
-        to,
-        mode: 'HARD_REDIRECT'
+        to
       });
       
       didNavigateRef.current = true;
       didNavigateToInterviewRef.current = true;
-      window.location.replace(to);
+      navigate(to, { replace: true });
     }
-  }, [shouldTerminalRedirect, existingSessionId]);
+  }, [shouldTerminalRedirect, existingSessionId, navigate]);
   
   // DIAGNOSTIC: Component unmount tracker
   React.useEffect(() => {
@@ -407,11 +406,10 @@ export default function StartInterview() {
           
           console.log("[START_INTERVIEW][NAVIGATE_TO_CANDIDATEINTERVIEW]", {
             sessionId: activeSession.id,
-            to,
-            mode: 'HARD_REDIRECT'
+            to
           });
           
-          window.location.replace(to);
+          navigate(to, { replace: true });
           return;
         }
 
@@ -493,11 +491,10 @@ export default function StartInterview() {
       
       console.log("[START_INTERVIEW][NAVIGATE_TO_CANDIDATEINTERVIEW]", {
         sessionId: newSession.id,
-        to,
-        mode: 'HARD_REDIRECT'
+        to
       });
 
-      window.location.replace(to);
+      navigate(to, { replace: true });
 
     } catch (err) {
       requestCompletedRef.value = true;
