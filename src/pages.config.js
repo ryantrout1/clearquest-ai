@@ -23,10 +23,10 @@ import InterviewV2 from './pages/InterviewV2';
 import ManageDepartmentUsers from './pages/ManageDepartmentUsers';
 import QuestionsManager from './pages/QuestionsManager';
 import SessionDetails from './pages/SessionDetails';
-import StartInterview from './pages/StartInterview';
 import SystemAdminDashboard from './pages/SystemAdminDashboard';
 import SystemConfiguration from './pages/SystemConfiguration';
 import TrialSignup from './pages/TrialSignup';
+import StartInterview from './pages/StartInterview';
 import __Layout from './Layout.jsx';
 
 
@@ -56,10 +56,10 @@ export const PAGES = {
     "ManageDepartmentUsers": ManageDepartmentUsers,
     "QuestionsManager": QuestionsManager,
     "SessionDetails": SessionDetails,
-    "StartInterview": StartInterview,
     "SystemAdminDashboard": SystemAdminDashboard,
     "SystemConfiguration": SystemConfiguration,
     "TrialSignup": TrialSignup,
+    "StartInterview": StartInterview,
 }
 
 export const pagesConfig = {

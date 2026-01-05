@@ -98,12 +98,15 @@ export default function StartInterview() {
       
       console.log("[START_INTERVIEW][NAVIGATE_TO_CANDIDATEINTERVIEW]", {
         sessionId: existingSessionId,
-        to
+        to,
+        mode: 'HARD_REDIRECT'
       });
       
       didNavigateRef.current = true;
       didNavigateToInterviewRef.current = true;
-      navigate(to, { replace: true });
+      
+      // RESILIENT: Hard redirect (survives preview reloads)
+      window.location.replace(to);
     }
   }, [shouldTerminalRedirect, existingSessionId, navigate]);
   
@@ -406,10 +409,12 @@ export default function StartInterview() {
           
           console.log("[START_INTERVIEW][NAVIGATE_TO_CANDIDATEINTERVIEW]", {
             sessionId: activeSession.id,
-            to
+            to,
+            mode: 'HARD_REDIRECT'
           });
           
-          navigate(to, { replace: true });
+          // RESILIENT: Hard redirect (survives preview reloads)
+          window.location.replace(to);
           return;
         }
 
@@ -491,10 +496,12 @@ export default function StartInterview() {
       
       console.log("[START_INTERVIEW][NAVIGATE_TO_CANDIDATEINTERVIEW]", {
         sessionId: newSession.id,
-        to
+        to,
+        mode: 'HARD_REDIRECT'
       });
 
-      navigate(to, { replace: true });
+      // RESILIENT: Hard redirect (survives preview reloads)
+      window.location.replace(to);
 
     } catch (err) {
       requestCompletedRef.value = true;
