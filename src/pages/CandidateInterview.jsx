@@ -4008,13 +4008,6 @@ export default function CandidateInterview() {
         // NO-CRASH WRAPPER: Fire-and-forget repair using hoisted-safe function
         (async () => {
           try {
-            // Inline question text derivation (TDZ-proof)
-            const repairPackConfig = FOLLOWUP_PACK_CONFIGS?.[answer.meta?.packId];
-            const repairAnchorConfig = repairPackConfig?.factAnchors?.find(a => a.key === anchorKey);
-            const repairQuestionText = repairAnchorConfig?.label 
-              ? `What ${repairAnchorConfig.label}?`
-              : `Please provide: ${anchorKey}`;
-            
             // QUESTION TEXT SOT: Use resolver for repair
             const repairQuestionText = resolveAnchorToHumanQuestion(
               anchorKey,
