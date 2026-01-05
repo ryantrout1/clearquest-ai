@@ -1,3 +1,4 @@
+// StartInterview - Stable entry point for ClearQuest interviews
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";

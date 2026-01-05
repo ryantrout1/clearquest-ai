@@ -2,7 +2,6 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminLogin from './pages/AdminLogin';
 import AiSettings from './pages/AiSettings';
 import BackfillSummaries from './pages/BackfillSummaries';
-import CandidateInterview from './pages/CandidateInterview';
 import candidateinterviewClean from './pages/CandidateInterview_CLEAN';
 import CreateDepartment from './pages/CreateDepartment';
 import DepartmentDashboard from './pages/DepartmentDashboard';
@@ -23,11 +22,13 @@ import InterviewV2 from './pages/InterviewV2';
 import ManageDepartmentUsers from './pages/ManageDepartmentUsers';
 import QuestionsManager from './pages/QuestionsManager';
 import SessionDetails from './pages/SessionDetails';
+import StartInterview from './pages/StartInterview';
+import StartInterviewTest from './pages/StartInterviewTest';
 import SystemAdminDashboard from './pages/SystemAdminDashboard';
 import SystemConfiguration from './pages/SystemConfiguration';
 import TrialSignup from './pages/TrialSignup';
-import StartInterview from './pages/StartInterview';
-import StartInterviewTest from './pages/StartInterviewTest';
+import CandidateInterview from './pages/CandidateInterview';
+import startinterviewSentinel from './pages/_STARTINTERVIEW_SENTINEL';
 import __Layout from './Layout.jsx';
 
 
@@ -36,7 +37,6 @@ export const PAGES = {
     "AdminLogin": AdminLogin,
     "AiSettings": AiSettings,
     "BackfillSummaries": BackfillSummaries,
-    "CandidateInterview": CandidateInterview,
     "CandidateInterview_CLEAN": candidateinterviewClean,
     "CreateDepartment": CreateDepartment,
     "DepartmentDashboard": DepartmentDashboard,
@@ -57,11 +57,13 @@ export const PAGES = {
     "ManageDepartmentUsers": ManageDepartmentUsers,
     "QuestionsManager": QuestionsManager,
     "SessionDetails": SessionDetails,
+    "StartInterview": StartInterview,
+    "StartInterviewTest": StartInterviewTest,
     "SystemAdminDashboard": SystemAdminDashboard,
     "SystemConfiguration": SystemConfiguration,
     "TrialSignup": TrialSignup,
-    "StartInterview": StartInterview,
-    "StartInterviewTest": StartInterviewTest,
+    "CandidateInterview": CandidateInterview,
+    "_STARTINTERVIEW_SENTINEL": startinterviewSentinel,
 }
 
 export const pagesConfig = {
