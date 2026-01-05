@@ -3113,8 +3113,34 @@ export default function CandidateInterview() {
       // Do NOT return V3_WAITING - fall through to other priorities
     }
     
-    // Priority 2: V3 pack opener (must not be superseded by MI_GATE)
+    // Priority 2: V3 pack opener (must not be superseded by MI_GATE or REQUIRED_ANCHOR_FALLBACK)
+    // INSTANCE START RULE: For multi-instance packs, ALWAYS show opener first for new instances
     if (currentItem?.type === 'v3_pack_opener') {
+      const isMultiInstancePack = currentItem?.packId === 'PACK_PRIOR_LE_APPS_STANDARD';
+      const isInstance2OrHigher = (currentItem?.instanceNumber || 1) > 1;
+      
+      if (isMultiInstancePack && isInstance2OrHigher) {
+        // Check if opener has been answered for this instance
+        const openerAnswerStableKey = `v3-opener-a:${sessionId}:${currentItem.packId}:${currentItem.instanceNumber}`;
+        const openerAnswered = transcriptSOT.some(e => e.stableKey === openerAnswerStableKey);
+        
+        if (!openerAnswered) {
+          console.log('[INSTANCE_START][FORCE_DETERMINISTIC_OPENER]', {
+            packId: currentItem.packId,
+            instanceNumber: currentItem.instanceNumber,
+            reason: 'opener_not_answered'
+          });
+          
+          // SUPPRESS any competing UI (fallback, V3 prompt, etc.)
+          if (requiredAnchorFallbackActive) {
+            console.log('[INSTANCE_START][SUPPRESS_FOLLOWUPS_UNTIL_OPENER]', {
+              instanceNumber: currentItem.instanceNumber,
+              suppressedKind: 'REQUIRED_ANCHOR_FALLBACK'
+            });
+          }
+        }
+      }
+      
       return {
         kind: "V3_OPENER",
         packId: currentItem.packId,
@@ -18826,6 +18852,16 @@ export default function CandidateInterview() {
                       // STEP 2: Sanitize opener card text
                       const safeOpenerPrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_V3_OPENER');
                       
+                      const instanceTitle = entry.categoryLabel && entry.instanceNumber > 1 
+                        ? `${entry.categoryLabel} — Instance ${entry.instanceNumber}` 
+                        : entry.categoryLabel;
+                      
+                      console.log('[INSTANCE_TITLE][OPENER_TITLE_OK]', {
+                        packId: entry.packId,
+                        instanceNumber: entry.instanceNumber,
+                        titlePreview: instanceTitle
+                      });
+                      
                       return (
                         <div key={entryKey} data-stablekey={entry.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
                           <ContentContainer>
@@ -18833,7 +18869,7 @@ export default function CandidateInterview() {
                               {entry.categoryLabel && (
                                 <div className="flex items-center gap-2 mb-2">
                                   <span className="text-sm font-medium text-purple-400">
-                                    {entry.categoryLabel}{entry.instanceNumber > 1 ? ` — Instance ${entry.instanceNumber}` : ''}
+                                    {instanceTitle}
                                   </span>
                                 </div>
                               )}
@@ -19998,6 +20034,16 @@ export default function CandidateInterview() {
               const safeOpenerPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_V3_OPENER');
               const cardStableKey = activeCard.stableKey || `followup-card:${activeCard.packId}:opener:${activeCard.instanceNumber}`;
               
+              const instanceTitle = activeCard.categoryLabel && activeCard.instanceNumber > 1 
+                ? `${activeCard.categoryLabel} — Instance ${activeCard.instanceNumber}` 
+                : activeCard.categoryLabel;
+              
+              console.log('[INSTANCE_TITLE][OPENER_TITLE_OK]', {
+                packId: activeCard.packId,
+                instanceNumber: activeCard.instanceNumber,
+                titlePreview: instanceTitle
+              });
+              
               return (
                 <div 
                   key={`active-${cardStableKey}`}
@@ -20016,7 +20062,7 @@ export default function CandidateInterview() {
                       {activeCard.categoryLabel && (
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-sm font-medium text-purple-400">
-                            {activeCard.categoryLabel}{activeCard.instanceNumber > 1 ? ` — Instance ${activeCard.instanceNumber}` : ''}
+                            {instanceTitle}
                           </span>
                         </div>
                       )}
