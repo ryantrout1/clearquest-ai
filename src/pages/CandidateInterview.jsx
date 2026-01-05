@@ -2541,23 +2541,12 @@ export default function CandidateInterview() {
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [isNewSession, setIsNewSession] = useState(true);
   
-  // TDZ FIX: didTerminalRedirectRef and showRedirectFallback moved earlier (line ~2549) to prevent early-return crash
-  
-  // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
-  console.log('[CQ_HOOKS_OK]', { sessionId });
-  
-  // TDZ FIX: Move redirect fallback state BEFORE early return (prevents "Cannot access before initialization")
+  // TERMINAL REDIRECT: One-shot guard for no-session redirect
   const didTerminalRedirectRef = useRef(false);
   const [showRedirectFallback, setShowRedirectFallback] = useState(false);
   
-  // FORENSIC: Confirm TDZ fix applied (mount-only)
-  const noSessionRedirectTdzFixedRef = useRef(false);
-  useEffect(() => {
-    if (!noSessionRedirectTdzFixedRef.current) {
-      noSessionRedirectTdzFixedRef.current = true;
-      console.log('[FORENSIC][NO_SESSION_REDIRECT_TDZ_FIXED]', { showRedirectFallbackInit: true });
-    }
-  }, []);
+  // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
+  console.log('[CQ_HOOKS_OK]', { sessionId });
   
   // PART A: Violation snapshot helper (component-scoped - needs refs/state access)
   const captureViolationSnapshot = useCallback((context) => {
