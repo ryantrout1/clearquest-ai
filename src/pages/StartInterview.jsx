@@ -50,6 +50,10 @@ export default function StartInterview() {
   // Layout shift audit (dev-only, change detection)
   const lastLayoutSnapshotRef = React.useRef(null);
   
+  // ONE-SHOT GUARDS: Prevent duplicate create/navigate
+  const createInFlightRef = React.useRef(false);
+  const didNavigateToInterviewRef = React.useRef(false);
+  
   // Terminal redirect flag (computed after hooks)
   const shouldTerminalRedirect = Boolean(existingSessionId);
   
@@ -69,11 +73,15 @@ export default function StartInterview() {
   const didNavigateRef = React.useRef(false);
   
   React.useEffect(() => {
-    if (shouldTerminalRedirect && !didNavigateRef.current) {
+    if (shouldTerminalRedirect && !didNavigateRef.current && !didNavigateToInterviewRef.current) {
+      const preserved = window.location.search || "";
+      const sep = preserved && preserved.startsWith("?") ? "&" : "?";
+      const to = `/candidateinterview?session=${existingSessionId}${preserved ? sep + preserved.slice(1) : ""}`;
+      
       console.log("[START_INTERVIEW][TERMINAL_REDIRECT_INTENT]", {
         reason: "SESSION_ID_PRESENT",
         sessionId: existingSessionId,
-        destination: `CandidateInterview?session=${existingSessionId}`,
+        destination: to,
         timestamp: Date.now()
       });
       
@@ -88,15 +96,14 @@ export default function StartInterview() {
         action: 'TERMINAL_REDIRECT'
       });
       
-      console.log("[START_INTERVIEW][NAVIGATE_CALL]", {
-        to: `CandidateInterview?session=${existingSessionId}`,
+      console.log("[START_INTERVIEW][NAVIGATE_TO_CANDIDATEINTERVIEW]", {
         sessionId: existingSessionId,
-        replace: true,
-        timestamp: Date.now()
+        to
       });
       
       didNavigateRef.current = true;
-      navigate(createPageUrl(`CandidateInterview?session=${existingSessionId}`), { replace: true });
+      didNavigateToInterviewRef.current = true;
+      navigate(to, { replace: true });
     }
   }, [shouldTerminalRedirect, existingSessionId, navigate]);
   
@@ -260,8 +267,7 @@ export default function StartInterview() {
     }
   };
 
-  // Terminal navigation guard (prevents re-render after navigate)
-  const didNavigateToInterviewRef = React.useRef(false);
+
 
   // LAYOUT SHIFT AUDIT: Compute UI snapshot for change detection (dev-only)
   // HOOK ORDER FIX: Moved BEFORE early return to ensure consistent hook count across all renders
@@ -287,6 +293,15 @@ export default function StartInterview() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // ONE-SHOT GUARD: Prevent duplicate creates
+    if (createInFlightRef.current) {
+      console.log('[START_INTERVIEW][CREATE_IN_FLIGHT]', {
+        reason: 'Create already in progress',
+        action: 'SKIP_DUPLICATE_SUBMIT'
+      });
+      return;
+    }
+    
     // TERMINAL NAVIGATION GUARD: Prevent duplicate navigation
     if (didNavigateToInterviewRef.current) {
       console.log('[UI_CONTRACT][START_INTERVIEW_SUBMIT_BLOCKED]', {
@@ -296,6 +311,7 @@ export default function StartInterview() {
       return;
     }
     
+    createInFlightRef.current = true;
     setError(null);
     setIsSubmitting(true);
 
@@ -368,6 +384,14 @@ export default function StartInterview() {
         if (activeSession) {
           console.log("📍 Found active session - navigating to interview");
 
+          // ONE-SHOT GUARD: Prevent duplicate navigation
+          if (didNavigateToInterviewRef.current) return;
+          didNavigateToInterviewRef.current = true;
+          
+          const preserved = window.location.search || "";
+          const sep = preserved && preserved.startsWith("?") ? "&" : "?";
+          const to = `/candidateinterview?session=${activeSession.id}${preserved ? sep + preserved.slice(1) : ""}`;
+
           console.log("[START_INTERVIEW][NAVIGATE]", { 
             sessionId: activeSession.id, 
             status: activeSession.status,
@@ -380,8 +404,12 @@ export default function StartInterview() {
             action: 'TERMINAL_REDIRECT'
           });
           
-          didNavigateToInterviewRef.current = true;
-          navigate(createPageUrl(`CandidateInterview?session=${activeSession.id}`), { replace: true });
+          console.log("[START_INTERVIEW][NAVIGATE_TO_CANDIDATEINTERVIEW]", {
+            sessionId: activeSession.id,
+            to
+          });
+          
+          navigate(to, { replace: true });
           return;
         }
 
@@ -429,6 +457,18 @@ export default function StartInterview() {
 
       console.log("✅ Session created:", newSession.id);
 
+      // Mark request complete BEFORE navigate (prevents timeout race)
+      requestCompletedRef.value = true;
+      clearTimeout(sessionTimeout);
+      
+      // ONE-SHOT GUARD: Prevent duplicate navigation
+      if (didNavigateToInterviewRef.current) return;
+      didNavigateToInterviewRef.current = true;
+      
+      const preserved = window.location.search || "";
+      const sep = preserved && preserved.startsWith("?") ? "&" : "?";
+      const to = `/candidateinterview?session=${newSession.id}${preserved ? sep + preserved.slice(1) : ""}`;
+
       console.log("[START_INTERVIEW][NAVIGATE]", { 
         sessionId: newSession.id, 
         departmentCode: deptCode,
@@ -445,25 +485,16 @@ export default function StartInterview() {
       console.log("[START_INTERVIEW][TERMINAL_REDIRECT_INTENT]", {
         reason: "NEW_SESSION_CREATED",
         sessionId: newSession.id,
-        destination: `CandidateInterview?session=${newSession.id}`,
+        destination: to,
         timestamp: Date.now()
       });
       
-      console.log("[START_INTERVIEW][NAVIGATE_CALL]", {
-        to: `CandidateInterview?session=${newSession.id}`,
+      console.log("[START_INTERVIEW][NAVIGATE_TO_CANDIDATEINTERVIEW]", {
         sessionId: newSession.id,
-        replace: true,
-        timestamp: Date.now()
+        to
       });
 
-      // Mark request complete BEFORE navigate (prevents timeout race)
-      requestCompletedRef.value = true;
-      clearTimeout(sessionTimeout);
-      
-      // TERMINAL NAVIGATION: Mark as navigated before redirect
-      didNavigateToInterviewRef.current = true;
-
-      navigate(createPageUrl(`CandidateInterview?session=${newSession.id}`), { replace: true });
+      navigate(to, { replace: true });
 
     } catch (err) {
       requestCompletedRef.value = true;
@@ -474,6 +505,7 @@ export default function StartInterview() {
     } finally {
       requestCompletedRef.value = true;
       clearTimeout(sessionTimeout);
+      createInFlightRef.current = false;
       setIsSubmitting(false);
       setCheckingExisting(false);
     }
