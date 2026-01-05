@@ -1520,6 +1520,18 @@ export default function CandidateInterview() {
   
   // TODO: REMOVE CQDIAG after PASS validation
   const cqDiagEnabled = urlParams.get('cqdiag') === '1';
+  
+  // FORENSIC: Mount-only bootstrap confirmation (proves session param routing worked)
+  const bootstrapOkLoggedRef = useRef(false);
+  if (!bootstrapOkLoggedRef.current && sessionId) {
+    bootstrapOkLoggedRef.current = true;
+    console.log('[CANDIDATE_INTERVIEW][BOOTSTRAP_OK]', {
+      sessionId,
+      hasSession: !!sessionId,
+      search: window.location.search,
+      note: 'Session param received - no redirect loop'
+    });
+  }
 
   // CTA CONSTANTS: Top-level scope (referenced by effects and handlers)
   const CTA_GAP_PX = 12;
