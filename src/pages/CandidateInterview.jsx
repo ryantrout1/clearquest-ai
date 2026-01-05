@@ -1217,6 +1217,75 @@ export default function CandidateInterview() {
   const urlParams = new URLSearchParams(window.location.search);
   const sessionId = urlParams.get('session');
   
+  // ============================================================================
+  // PROMPT TEXT SOT (HOIST-SAFE) - Must be ABOVE all usages
+  // ============================================================================
+  /**
+   * Compute active prompt text from UI state (TDZ-proof, pure function)
+   * CRITICAL: Function declaration (hoisted) - safe to call from any code path
+   * @returns {string|null} The prompt text to show, or null if none
+   */
+  function computeActivePromptText(params) {
+    const {
+      requiredAnchorFallbackActive,
+      requiredAnchorCurrent,
+      v3ProbingContext,
+      v3ProbingActive,
+      v3ActivePromptText,
+      effectiveItemType,
+      currentItem,
+      v2ClarifierState,
+      currentPrompt
+    } = params;
+    
+    // Priority 0: Required anchor fallback
+    if (requiredAnchorFallbackActive && requiredAnchorCurrent) {
+      const sotPackConfig = FOLLOWUP_PACK_CONFIGS?.[v3ProbingContext?.packId];
+      const sotAnchor = sotPackConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
+      let promptTextSOT = sotAnchor?.label 
+        ? `What ${sotAnchor.label}?`
+        : `Please provide: ${requiredAnchorCurrent}`;
+      
+      if (!promptTextSOT || promptTextSOT.trim() === '') {
+        promptTextSOT = `Please provide: ${requiredAnchorCurrent}`;
+      }
+      
+      return promptTextSOT;
+    }
+    
+    // Priority 1: V3 active prompt
+    if (v3ProbingActive && v3ActivePromptText) {
+      return v3ActivePromptText;
+    }
+    
+    // Priority 2: V2 pack field
+    if (effectiveItemType === 'v2_pack_field' && currentItem) {
+      const backendText = currentItem.backendQuestionText;
+      const clarifierText = v2ClarifierState?.packId === currentItem.packId && 
+                           v2ClarifierState?.fieldKey === currentItem.fieldKey && 
+                           v2ClarifierState?.instanceNumber === currentItem.instanceNumber
+                           ? v2ClarifierState.clarifierQuestion
+                           : null;
+      return clarifierText || backendText || currentItem.fieldConfig?.label || null;
+    }
+    
+    // Priority 3: V3 pack opener
+    if (effectiveItemType === 'v3_pack_opener' && currentItem) {
+      const openerText = currentItem.openerText;
+      const usingFallback = !openerText || openerText.trim() === '';
+      return usingFallback 
+        ? "Please describe the details for this section in your own words."
+        : openerText;
+    }
+    
+    // Priority 4: Current prompt
+    if (currentPrompt?.text) {
+      return currentPrompt.text;
+    }
+    
+    return null;
+  }
+  
   // TDZ_FIX: HOISTED-SAFE PERSISTENCE - Plain function with zero closure dependencies
   // CRITICAL: Declared at top-of-component to eliminate ALL TDZ risks
   // This function uses ONLY its parameters - no component state/refs/consts
@@ -3350,8 +3419,12 @@ export default function CandidateInterview() {
     });
   } else if (activeUiItem.kind === "REQUIRED_ANCHOR_FALLBACK") {
     // REQUIRED_ANCHOR_FALLBACK: Render prompt card in main pane (not footer)
-    // QUESTION TEXT SOT: Reuse activePromptText (single source of truth computed above)
-    const questionText = activePromptText || `Please provide: ${requiredAnchorCurrent}`;
+    // TDZ-SAFE: Compute question text inline (no forward reference to activePromptText)
+    const inlinePackConfig = FOLLOWUP_PACK_CONFIGS?.[v3ProbingContext?.packId];
+    const inlineAnchor = inlinePackConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
+    const questionText = inlineAnchor?.label 
+      ? `What ${inlineAnchor.label}?`
+      : `Please provide: ${requiredAnchorCurrent}`;
     
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
     const stableKey = loopKey ? `fallback-prompt:${loopKey}:${requiredAnchorCurrent}` : null;
@@ -14611,87 +14684,27 @@ export default function CandidateInterview() {
   };
 
   // ============================================================================
-  // ACTIVE PROMPT TEXT RESOLUTION - Single source of truth for what user sees
+  // ACTIVE PROMPT TEXT RESOLUTION - Single source of truth (TDZ-SAFE)
   // ============================================================================
-  let activePromptText = null;
+  // CRITICAL: Compute EARLY using hoisted function to prevent TDZ
+  const activePromptText = computeActivePromptText({
+    requiredAnchorFallbackActive,
+    requiredAnchorCurrent,
+    v3ProbingContext,
+    v3ProbingActive,
+    v3ActivePromptText,
+    effectiveItemType,
+    currentItem,
+    v2ClarifierState,
+    currentPrompt
+  });
   
-  // Priority 0: Required anchor fallback (deterministic prompt for missing fields)
-  if (requiredAnchorFallbackActive && requiredAnchorCurrent) {
-    // GUARD: Validate requiredAnchorCurrent is not null/undefined
-    if (!requiredAnchorCurrent) {
-      const queueLen = requiredAnchorQueue?.length || 0;
-      console.error('[REQUIRED_ANCHOR_FALLBACK][ERROR_NO_CURRENT_ANCHOR]', {
-        queueLen,
-        note: 'fallback active but no current anchor'
-      });
-      
-      // FAIL-OPEN: Deactivate fallback immediately to prevent deadlock
-      setRequiredAnchorFallbackActive(false);
-      setRequiredAnchorCurrent(null);
-      setRequiredAnchorQueue([]);
-      setV3PromptPhase('IDLE');
-      
-      // Continue normal flow instead of deadlock
-      return;
-    }
-    
-    // QUESTION TEXT SOT: Single source of truth for all fallback question text
-    const sotPackConfig = FOLLOWUP_PACK_CONFIGS?.[v3ProbingContext?.packId];
-    const sotAnchor = sotPackConfig?.factAnchors?.find(a => a.key === requiredAnchorCurrent);
-    let promptTextSOT = sotAnchor?.label 
-      ? `What ${sotAnchor.label}?`
-      : `Please provide: ${requiredAnchorCurrent}`;
-    
-    // MUST-HAVE ASSERTION: Ensure promptText is never empty
-    if (!promptTextSOT || promptTextSOT.trim() === '') {
-      promptTextSOT = `Please provide: ${requiredAnchorCurrent}`;
-      console.log('[REQUIRED_ANCHOR_FALLBACK][PROMPT_TEXT_FORCED_NONEMPTY]', {
-        anchor: requiredAnchorCurrent
-      });
-    }
-    
-    activePromptText = promptTextSOT;
-    
-    // QUESTION TEXT SOT LOG
-    console.log('[REQUIRED_ANCHOR_FALLBACK][QUESTION_TEXT_SOT]', {
-      anchor: requiredAnchorCurrent,
-      textPreview: promptTextSOT,
-      usedBy: 'active_lane + transcript + footer'
+  // FORENSIC: Regression proof (mount-only)
+  if (activePromptText && !introLoggedRef.current) {
+    console.log('[FORENSIC][ACTIVE_PROMPT_TEXT_SOT_OK]', {
+      activeUiItemKind: activeUiItem?.kind,
+      preview: activePromptText?.slice(0, 60) || null
     });
-    
-    // Log bottom bar ownership
-    console.log('[REQUIRED_ANCHOR_FALLBACK][OWNS_BOTTOM_BAR]', {
-      requiredAnchorCurrent,
-      promptPreview: promptTextSOT,
-      effectiveItemType,
-      note: 'Override effectiveItemType from v3_probing'
-    });
-  }
-  // Priority 1: V3 active prompt (from V3ProbingLoop callback)
-  else if (v3ProbingActive && v3ActivePromptText) {
-    activePromptText = v3ActivePromptText;
-  }
-  // Priority 2: V2 pack field - use backend question text or field label
-  else if (effectiveItemType === 'v2_pack_field' && currentItem) {
-    const backendText = currentItem.backendQuestionText;
-    const clarifierText = v2ClarifierState?.packId === currentItem.packId && 
-                         v2ClarifierState?.fieldKey === currentItem.fieldKey && 
-                         v2ClarifierState?.instanceNumber === currentItem.instanceNumber
-                         ? v2ClarifierState.clarifierQuestion
-                         : null;
-    activePromptText = clarifierText || backendText || currentItem.fieldConfig?.label || null;
-  }
-  // Priority 3: V3 pack opener (with fallback)
-  else if (effectiveItemType === 'v3_pack_opener' && currentItem) {
-    const openerText = currentItem.openerText;
-    const usingFallback = !openerText || openerText.trim() === '';
-    activePromptText = usingFallback 
-      ? "Please describe the details for this section in your own words."
-      : openerText;
-  }
-  // Priority 4: Current prompt from getCurrentPrompt()
-  else if (currentPrompt?.text) {
-    activePromptText = currentPrompt.text;
   }
   
   // STEP 2: Sanitize active prompt text (prevents dev instructions from showing to candidate)
