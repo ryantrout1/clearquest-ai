@@ -25,26 +25,24 @@ export default function CandidateInterviewSession() {
     if (didForwardRef.current) return;
     didForwardRef.current = true;
     
-    // Parse sessionId from pathname: /candidateinterviewsession/<sessionId>
-    const pathname = window.location.pathname;
-    const segments = pathname.split('/').filter(Boolean);
+    // Parse sid from query params (static route, not path segment)
+    const urlParams = new URLSearchParams(window.location.search || "");
+    const sid = urlParams.get('sid') || urlParams.get('session') || null;
     
-    // Extract sessionId from last path segment
-    const sessionId = segments[segments.length - 1] || null;
-    
-    if (sessionId && sessionId !== 'candidateinterviewsession') {
+    if (sid) {
       // Store in global for CandidateInterview to read
-      window.__CQ_SESSION__ = sessionId;
+      window.__CQ_SESSION__ = sid;
       
-      // Forward to CandidateInterview with preserved query params
-      const preservedSearch = window.location.search || "";
-      const to = `/candidateinterview${preservedSearch}`;
+      // Build forwarding URL without sid/session in query (will use global)
+      const params = new URLSearchParams(window.location.search || "");
+      params.delete("sid");
+      params.delete("session");
+      const to = `/candidateinterview?${params.toString()}`;
       
-      console.log('[CANDIDATE_INTERVIEW_SESSION][FORWARD]', {
-        sessionId,
+      console.log('[CANDIDATE_INTERVIEW_SESSION][FORWARD_QUERY]', {
+        sid,
         to,
-        fromPathname: pathname,
-        preservedSearch
+        fromSearch: window.location.search
       });
       
       // Forward to CandidateInterview
@@ -53,8 +51,7 @@ export default function CandidateInterviewSession() {
       // No session - return to StartInterview
       const redirectUrl = `/startinterview${window.location.search || ""}`;
       
-      console.log('[CANDIDATE_INTERVIEW_SESSION][MISSING_SESSION]', {
-        pathname,
+      console.log('[CANDIDATE_INTERVIEW_SESSION][MISSING_SID]', {
         search: window.location.search,
         redirectTo: redirectUrl
       });

@@ -280,14 +280,15 @@ export default function StartInterview() {
           if (didNavigateToInterviewRef.current) return;
           didNavigateToInterviewRef.current = true;
 
-          // SESSION PATH ROUTE: Use path segment for session (bypasses query param stripping)
-          const preservedSearch = window.location.search || "";
-          const to = `/candidateinterviewsession/${activeSession.id}${preservedSearch}`;
+          // SESSION QUERY ROUTE: Use sid query param (static route, no 404)
+          const params = new URLSearchParams(window.location.search || "");
+          params.set("sid", activeSession.id);
+          const to = `/candidateinterviewsession?${params.toString()}`;
 
-          console.log('[START_INTERVIEW][HARD_REDIRECT_TO_SESSION_ROUTE]', {
+          console.log('[START_INTERVIEW][HARD_REDIRECT_TO_SESSION_QUERY_ROUTE]', {
             sessionId: activeSession.id,
             to,
-            preservedSearch
+            containsSid: to.includes('sid=')
           });
 
           window.location.replace(to);
@@ -338,14 +339,15 @@ export default function StartInterview() {
       if (didNavigateToInterviewRef.current) return;
       didNavigateToInterviewRef.current = true;
 
-      // SESSION PATH ROUTE: Use path segment for session (bypasses query param stripping)
-      const preservedSearch = window.location.search || "";
-      const to = `/candidateinterviewsession/${newSession.id}${preservedSearch}`;
+      // SESSION QUERY ROUTE: Use sid query param (static route, no 404)
+      const params = new URLSearchParams(window.location.search || "");
+      params.set("sid", newSession.id);
+      const to = `/candidateinterviewsession?${params.toString()}`;
 
-      console.log('[START_INTERVIEW][HARD_REDIRECT_TO_SESSION_ROUTE]', {
+      console.log('[START_INTERVIEW][HARD_REDIRECT_TO_SESSION_QUERY_ROUTE]', {
         sessionId: newSession.id,
         to,
-        preservedSearch
+        containsSid: to.includes('sid=')
       });
 
       window.location.replace(to);

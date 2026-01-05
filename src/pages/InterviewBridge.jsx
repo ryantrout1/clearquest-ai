@@ -29,17 +29,17 @@ export default function InterviewBridge() {
     const sessionId = urlParams.get('session') || urlParams.get('sid') || null;
     
     if (sessionId) {
-      // Forward to session path route (bypasses query param stripping)
-      const preservedSearch = window.location.search || "";
-      const to = `/candidateinterviewsession/${sessionId}${preservedSearch}`;
+      // Forward to session query route (static route, no 404)
+      const params = new URLSearchParams(window.location.search || "");
+      params.set("sid", sessionId);
+      const to = `/candidateinterviewsession?${params.toString()}`;
       
-      console.log('[INTERVIEW_BRIDGE][FORWARD_TO_SESSION_ROUTE]', {
+      console.log('[INTERVIEW_BRIDGE][FORWARD_TO_SESSION_QUERY_ROUTE]', {
         sessionId,
-        to,
-        preservedSearch
+        to
       });
       
-      // Forward to session path route
+      // Forward to session query route
       window.location.replace(to);
     } else {
       // No session - return to StartInterview
