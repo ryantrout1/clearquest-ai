@@ -15467,9 +15467,6 @@ export default function CandidateInterview() {
           return;
         }
 
-        // Build deterministic stable keys for Q+A pairing (ONCE - used by both Q and A appends)
-        const answerStableKey = `required-anchor:a:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}`;
-
         // STEP 1: PERSIST Q+A PAIR - Ensure question first, then append answer
         const questionStableKey = `required-anchor:q:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}`;
         const answerStableKey = `required-anchor:a:${sessionId}:${ctx.categoryId}:${ctx.instanceNumber}:${requiredAnchorCurrent}`;
