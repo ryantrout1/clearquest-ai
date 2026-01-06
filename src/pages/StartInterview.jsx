@@ -303,6 +303,11 @@ export default function StartInterview() {
             handoff: 'window.__CQ_SESSION__ set'
           });
 
+          console.log('[START_INTERVIEW][NAV_MECHANISM_SOT]', {
+            mechanism: 'SPA_NAVIGATE_CREATEPAGEURL',
+            to
+          });
+
           navigate(createPageUrl(`CandidateInterview?${params.toString()}`));
           
           return;
@@ -374,6 +379,11 @@ export default function StartInterview() {
         sessionId: newSession.id,
         to,
         handoff: 'window.__CQ_SESSION__ set'
+      });
+
+      console.log('[START_INTERVIEW][NAV_MECHANISM_SOT]', {
+        mechanism: 'SPA_NAVIGATE_CREATEPAGEURL',
+        to
       });
 
       navigate(createPageUrl(`CandidateInterview?${params.toString()}`));
