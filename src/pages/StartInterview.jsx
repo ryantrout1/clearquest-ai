@@ -279,7 +279,7 @@ export default function StartInterview() {
           if (didNavigateToInterviewRef.current) return;
           didNavigateToInterviewRef.current = true;
 
-          // RESUME: Direct route to CandidateInterview (known-good)
+          // RESUME: SPA navigation to CandidateInterview
           const params = new URLSearchParams(window.location.search || "");
           params.set("session", activeSession.id);
           const to = `/candidateinterview?${params.toString()}`;
@@ -294,15 +294,16 @@ export default function StartInterview() {
             reason: 'known_good_restore'
           });
 
-          window.location.replace(to);
-          
-          // POST-REPLACE VERIFICATION: Log location after replace (async)
-          setTimeout(() => {
-            console.log('[START_INTERVIEW][POST_REPLACE_LOCATION]', { 
-              href: window.location.href,
-              pathname: window.location.pathname 
-            });
-          }, 0);
+          // Set in-memory handoff for SPA navigation
+          window.__CQ_SESSION__ = activeSession.id;
+
+          console.log('[START_INTERVIEW][RESUME_NAVIGATE_SPA]', {
+            sessionId: activeSession.id,
+            to,
+            handoff: 'window.__CQ_SESSION__ set'
+          });
+
+          navigate(createPageUrl(`CandidateInterview?${params.toString()}`));
           
           return;
         }
@@ -351,7 +352,7 @@ export default function StartInterview() {
       if (didNavigateToInterviewRef.current) return;
       didNavigateToInterviewRef.current = true;
 
-      // BEGIN: Direct route to CandidateInterview (known-good)
+      // BEGIN: SPA navigation to CandidateInterview
       const params = new URLSearchParams(window.location.search || "");
       params.set("session", newSession.id);
       const to = `/candidateinterview?${params.toString()}`;
@@ -366,15 +367,16 @@ export default function StartInterview() {
         reason: 'known_good_restore'
       });
 
-      window.location.replace(to);
-      
-      // POST-REPLACE VERIFICATION: Log location after replace (async)
-      setTimeout(() => {
-        console.log('[START_INTERVIEW][POST_REPLACE_LOCATION]', { 
-          href: window.location.href,
-          pathname: window.location.pathname 
-        });
-      }, 0);
+      // Set in-memory handoff for SPA navigation
+      window.__CQ_SESSION__ = newSession.id;
+
+      console.log('[START_INTERVIEW][BEGIN_NAVIGATE_SPA]', {
+        sessionId: newSession.id,
+        to,
+        handoff: 'window.__CQ_SESSION__ set'
+      });
+
+      navigate(createPageUrl(`CandidateInterview?${params.toString()}`));
       
       return;
 
