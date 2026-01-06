@@ -279,22 +279,19 @@ export default function StartInterview() {
           if (didNavigateToInterviewRef.current) return;
           didNavigateToInterviewRef.current = true;
 
-          // RESUME: Route to session bridge
-          const to = buildCandidateInterviewSessionUrl(activeSession.id);
+          // RESUME: Direct route to CandidateInterview (known-good)
+          const params = new URLSearchParams(window.location.search || "");
+          params.set("session", activeSession.id);
+          const to = `/candidateinterview?${params.toString()}`;
 
-          console.log('[START_INTERVIEW][RESUME_CLICK_SESSION_ROUTE]', {
+          console.log('[START_INTERVIEW][RESUME_DIRECT_ROUTE]', {
             sessionId: activeSession.id,
-            to,
-            searchBefore: window.location.search
+            to
           });
 
-          // Set durable bridge values
-          window.__CQ_INTERVIEW_SID__ = activeSession.id;
-          window.name = `CQ_SID:${activeSession.id}`;
-
-          console.log('[START_INTERVIEW][SID_BRIDGE_SET]', {
-            sessionId: activeSession.id,
-            windowName: window.name
+          console.log('[START_INTERVIEW][NAV_TARGET_SOT]', {
+            to,
+            reason: 'known_good_restore'
           });
 
           window.location.replace(to);
@@ -354,22 +351,19 @@ export default function StartInterview() {
       if (didNavigateToInterviewRef.current) return;
       didNavigateToInterviewRef.current = true;
 
-      // BEGIN: Route to session bridge
-      const to = buildCandidateInterviewSessionUrl(newSession.id);
+      // BEGIN: Direct route to CandidateInterview (known-good)
+      const params = new URLSearchParams(window.location.search || "");
+      params.set("session", newSession.id);
+      const to = `/candidateinterview?${params.toString()}`;
 
-      console.log('[START_INTERVIEW][BEGIN_CLICK_SESSION_ROUTE]', {
+      console.log('[START_INTERVIEW][BEGIN_DIRECT_ROUTE]', {
         sessionId: newSession.id,
-        to,
-        searchBefore: window.location.search
+        to
       });
 
-      // Set durable bridge values
-      window.__CQ_INTERVIEW_SID__ = newSession.id;
-      window.name = `CQ_SID:${newSession.id}`;
-
-      console.log('[START_INTERVIEW][SID_BRIDGE_SET]', {
-        sessionId: newSession.id,
-        windowName: window.name
+      console.log('[START_INTERVIEW][NAV_TARGET_SOT]', {
+        to,
+        reason: 'known_good_restore'
       });
 
       window.location.replace(to);
