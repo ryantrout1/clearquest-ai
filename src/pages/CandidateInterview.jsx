@@ -1538,6 +1538,57 @@ export default function CandidateInterview() {
     );
   }
   
+  // SESSION RECOVERY: Attempt to find session by dept+file if sessionId missing
+  const sessionRecoveryAttemptedRef = useRef(false);
+  
+  if (!sessionId && !resolvedSessionRef.current && !didSessionRepairRef.current && !sessionRecoveryAttemptedRef.current) {
+    sessionRecoveryAttemptedRef.current = true;
+    
+    const deptParam = urlParams.get('dept');
+    const fileParam = urlParams.get('file');
+    
+    if (deptParam && fileParam) {
+      console.log('[CANDIDATE_INTERVIEW][SESSION_RECOVERY_ATTEMPT]', { dept: deptParam, file: fileParam });
+      
+      (async () => {
+        try {
+          const sessionCode = `${deptParam}_${fileParam}`;
+          const existingSessions = await base44.entities.InterviewSession.filter({ session_code: sessionCode });
+          
+          if (existingSessions.length > 0) {
+            const activeSession = existingSessions.find(s => 
+              s.status === 'active' || s.status === 'in_progress' || s.status === 'paused'
+            ) || existingSessions[0];
+            
+            console.log('[CANDIDATE_INTERVIEW][SESSION_RECOVERY_FOUND]', { sessionId: activeSession.id });
+            
+            // Set recovered session
+            resolvedSessionRef.current = activeSession.id;
+            window.__CQ_SESSION__ = activeSession.id;
+            didSessionRepairRef.current = true;
+            
+            // Repair URL with session param
+            const params = new URLSearchParams(window.location.search || "");
+            params.set("session", activeSession.id);
+            const repairedUrl = `/candidateinterview?${params.toString()}`;
+            
+            console.log('[CANDIDATE_INTERVIEW][SESSION_URL_REPAIR_FROM_RECOVERY]', {
+              from: window.location.search,
+              to: repairedUrl,
+              recoveredSession: activeSession.id
+            });
+            
+            window.location.replace(repairedUrl);
+          } else {
+            console.log('[CANDIDATE_INTERVIEW][SESSION_RECOVERY_NOT_FOUND]', { dept: deptParam, file: fileParam });
+          }
+        } catch (err) {
+          console.error('[CANDIDATE_INTERVIEW][SESSION_RECOVERY_ERROR]', { error: err.message });
+        }
+      })();
+    }
+  }
+  
   // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
   if (!sessionId) {
     // LOG: No session and no repair possible - unrecoverable
@@ -1546,6 +1597,9 @@ export default function CandidateInterview() {
       console.log('[CANDIDATE_INTERVIEW][NO_SESSION_UNRECOVERABLE]', {
         search: window.location.search,
         hadRefSession: !!resolvedSessionRef.current,
+        deptParam: urlParams.get('dept'),
+        fileParam: urlParams.get('file'),
+        recoveryAttempted: sessionRecoveryAttemptedRef.current,
         action: 'redirect_to_startinterview'
       });
     }

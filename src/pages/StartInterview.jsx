@@ -308,6 +308,10 @@ export default function StartInterview() {
             to
           });
 
+          // Add dept+file for recovery fallback
+          params.set("dept", activeSession.department_code);
+          params.set("file", activeSession.file_number);
+
           navigate(createPageUrl(`CandidateInterview?${params.toString()}`));
           
           return;
@@ -385,6 +389,10 @@ export default function StartInterview() {
         mechanism: 'SPA_NAVIGATE_CREATEPAGEURL',
         to
       });
+
+      // Add dept+file for recovery fallback
+      params.set("dept", deptCode);
+      params.set("file", fileNum);
 
       navigate(createPageUrl(`CandidateInterview?${params.toString()}`));
       
