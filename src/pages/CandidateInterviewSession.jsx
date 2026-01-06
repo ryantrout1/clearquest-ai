@@ -34,13 +34,38 @@ export default function CandidateInterviewSession() {
     if (didForwardRef.current) return;
     didForwardRef.current = true;
     
-    // Parse sid from hash first, then query params
+    // Priority 1: window.name bridge
+    let fromName = null;
+    if (window.name && window.name.startsWith("CQ_SID:")) {
+      fromName = window.name.substring(7); // Remove "CQ_SID:" prefix
+    }
+
+    // Priority 2: window global bridge
+    const fromGlobal = window.__CQ_INTERVIEW_SID__ || null;
+
+    // Priority 3: hash
     const hashRaw = (window.location.hash || "").startsWith("#") ? window.location.hash.slice(1) : (window.location.hash || "");
     const hashParams = new URLSearchParams(hashRaw);
     const hashSid = hashParams.get("sid");
-    
+
+    // Priority 4: query params
     const urlParams = new URLSearchParams(window.location.search || "");
-    const sid = hashSid || urlParams.get('sid') || urlParams.get('session') || null;
+    const querySid = urlParams.get('sid') || urlParams.get('session') || null;
+
+    const sid = fromName || fromGlobal || hashSid || querySid;
+
+    console.log('[CANDIDATE_INTERVIEW_SESSION][SID_BRIDGE_READ]', {
+      fromName,
+      fromGlobal,
+      hash: window.location.hash || "",
+      search: window.location.search
+    });
+
+    // Clear window.name after successful read to avoid interference
+    if (fromName && window.name.startsWith("CQ_SID:")) {
+      window.name = "";
+      console.log('[CANDIDATE_INTERVIEW_SESSION][SID_BRIDGE_CLEARED]');
+    }
     
     if (sid) {
       // Store in global for CandidateInterview to read

@@ -288,6 +288,15 @@ export default function StartInterview() {
             searchBefore: window.location.search
           });
 
+          // Set durable bridge values
+          window.__CQ_INTERVIEW_SID__ = activeSession.id;
+          window.name = `CQ_SID:${activeSession.id}`;
+
+          console.log('[START_INTERVIEW][SID_BRIDGE_SET]', {
+            sessionId: activeSession.id,
+            windowName: window.name
+          });
+
           window.location.replace(to);
           
           // POST-REPLACE VERIFICATION: Log location after replace (async)
@@ -352,6 +361,15 @@ export default function StartInterview() {
         sessionId: newSession.id,
         to,
         searchBefore: window.location.search
+      });
+
+      // Set durable bridge values
+      window.__CQ_INTERVIEW_SID__ = newSession.id;
+      window.name = `CQ_SID:${newSession.id}`;
+
+      console.log('[START_INTERVIEW][SID_BRIDGE_SET]', {
+        sessionId: newSession.id,
+        windowName: window.name
       });
 
       window.location.replace(to);
