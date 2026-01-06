@@ -53,11 +53,10 @@ export default function StartInterview() {
     // Start with current query params (preserves hide_badge, server_url, etc.)
     const params = new URLSearchParams(window.location.search || "");
     
-    // Set sid param for session route
-    params.set("sid", sessionId);
-    
-    // Build canonical URL to session route
-    return `/candidateinterviewsession?${params.toString()}`;
+    // Build canonical URL to session route with sid in hash
+    const queryString = params.toString();
+    const base = queryString ? `/candidateinterviewsession?${queryString}` : '/candidateinterviewsession';
+    return `${base}#sid=${sessionId}`;
   }
 
   // CANONICAL CHECK: Log once on mount to confirm page is registered

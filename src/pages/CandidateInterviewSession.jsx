@@ -24,7 +24,8 @@ export default function CandidateInterviewSession() {
   React.useEffect(() => {
     console.log('[CANDIDATE_INTERVIEW_SESSION][MOUNT]', {
       search: window.location.search,
-      pathname: window.location.pathname
+      pathname: window.location.pathname,
+      hash: window.location.hash || ""
     });
   }, []);
   
@@ -33,9 +34,13 @@ export default function CandidateInterviewSession() {
     if (didForwardRef.current) return;
     didForwardRef.current = true;
     
-    // Parse sid from query params (static route, not path segment)
+    // Parse sid from hash first, then query params
+    const hashRaw = (window.location.hash || "").startsWith("#") ? window.location.hash.slice(1) : (window.location.hash || "");
+    const hashParams = new URLSearchParams(hashRaw);
+    const hashSid = hashParams.get("sid");
+    
     const urlParams = new URLSearchParams(window.location.search || "");
-    const sid = urlParams.get('sid') || urlParams.get('session') || null;
+    const sid = hashSid || urlParams.get('sid') || urlParams.get('session') || null;
     
     if (sid) {
       // Store in global for CandidateInterview to read

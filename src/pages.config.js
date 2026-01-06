@@ -3,6 +3,7 @@ import AdminLogin from './pages/AdminLogin';
 import AiSettings from './pages/AiSettings';
 import BackfillSummaries from './pages/BackfillSummaries';
 import CandidateInterview from './pages/CandidateInterview';
+import CandidateInterviewSession from './pages/CandidateInterviewSession';
 import candidateinterviewClean from './pages/CandidateInterview_CLEAN';
 import CreateDepartment from './pages/CreateDepartment';
 import DepartmentDashboard from './pages/DepartmentDashboard';
@@ -16,6 +17,7 @@ import FollowupPackManager from './pages/FollowupPackManager';
 import Home from './pages/Home';
 import HomeHub from './pages/HomeHub';
 import Interview from './pages/Interview';
+import InterviewBridge from './pages/InterviewBridge';
 import InterviewDashboard from './pages/InterviewDashboard';
 import InterviewStructureManager from './pages/InterviewStructureManager';
 import interviewv2StableDoNotEditAiProbingTranscriptsVerified from './pages/InterviewV2 – STABLE - DO NOT EDIT (AI probing + transcripts verified)';
@@ -29,8 +31,6 @@ import SystemAdminDashboard from './pages/SystemAdminDashboard';
 import SystemConfiguration from './pages/SystemConfiguration';
 import TrialSignup from './pages/TrialSignup';
 import startinterviewSentinel from './pages/_STARTINTERVIEW_SENTINEL';
-import InterviewBridge from './pages/InterviewBridge';
-import CandidateInterviewSession from './pages/CandidateInterviewSession';
 import __Layout from './Layout.jsx';
 
 
@@ -40,6 +40,7 @@ export const PAGES = {
     "AiSettings": AiSettings,
     "BackfillSummaries": BackfillSummaries,
     "CandidateInterview": CandidateInterview,
+    "CandidateInterviewSession": CandidateInterviewSession,
     "CandidateInterview_CLEAN": candidateinterviewClean,
     "CreateDepartment": CreateDepartment,
     "DepartmentDashboard": DepartmentDashboard,
@@ -53,6 +54,7 @@ export const PAGES = {
     "Home": Home,
     "HomeHub": HomeHub,
     "Interview": Interview,
+    "InterviewBridge": InterviewBridge,
     "InterviewDashboard": InterviewDashboard,
     "InterviewStructureManager": InterviewStructureManager,
     "InterviewV2 – STABLE - DO NOT EDIT (AI probing + transcripts verified)": interviewv2StableDoNotEditAiProbingTranscriptsVerified,
@@ -66,8 +68,6 @@ export const PAGES = {
     "SystemConfiguration": SystemConfiguration,
     "TrialSignup": TrialSignup,
     "_STARTINTERVIEW_SENTINEL": startinterviewSentinel,
-    "InterviewBridge": InterviewBridge,
-    "CandidateInterviewSession": CandidateInterviewSession,
 }
 
 export const pagesConfig = {
