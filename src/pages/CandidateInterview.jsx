@@ -1326,6 +1326,25 @@ export default function CandidateInterview() {
       currentPrompt
     } = params;
     
+    // OPENER OVERRIDE: v3_pack_opener must never use fallback priority
+    if (effectiveItemType === 'v3_pack_opener') {
+      const openerText = (currentItem?.openerText || '').trim();
+      if (openerText) {
+        console.log('[ACTIVE_PROMPT_TEXT][OPENER_OVERRIDE]', {
+          effectiveItemType,
+          hasOpenerText: true,
+          openerPreview: openerText.slice(0, 80),
+        });
+        return openerText;
+      }
+      console.log('[ACTIVE_PROMPT_TEXT][OPENER_OVERRIDE]', {
+        effectiveItemType,
+        hasOpenerText: false,
+        reason: 'blank_openerText_using_safe_fallback',
+      });
+      return 'Please describe the details for this section in your own words.';
+    }
+    
     // Priority 0: Required anchor fallback
     if (requiredAnchorFallbackActive && requiredAnchorCurrent) {
       return resolveAnchorToHumanQuestion(requiredAnchorCurrent, v3ProbingContext?.packId);
@@ -13865,6 +13884,36 @@ export default function CandidateInterview() {
     hasActiveCardSOT,
     dynamicBottomPaddingPx
   ]);
+  
+  // FOOTER OVERLAP CLAMP: Ensure active card never behind footer (unconditional)
+  React.useLayoutEffect(() => {
+    if (!shouldRenderFooter || !hasActiveCardSOT) return;
+    
+    requestAnimationFrame(() => {
+      const scroller = scrollOwnerRef.current || historyRef.current;
+      const activeCardEl = scroller?.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+      const composerEl = footerShellRef.current;
+      
+      if (!activeCardEl || !composerEl) return;
+      
+      const activeRect = activeCardEl.getBoundingClientRect();
+      const composerRect = composerEl.getBoundingClientRect();
+      const overlapPx = Math.max(0, activeRect.bottom - (composerRect.top - 8));
+      
+      if (overlapPx > 4) {
+        const scrollTopBefore = scroller.scrollTop;
+        scroller.scrollTop += overlapPx + 8;
+        const scrollTopAfter = scroller.scrollTop;
+        
+        console.log('[SCROLL][FOOTER_OVERLAP_CLAMP]', {
+          overlapPx: Math.round(overlapPx),
+          scrollTopBefore: Math.round(scrollTopBefore),
+          scrollTopAfter: Math.round(scrollTopAfter),
+          reason: 'Active card behind footer - unconditional clamp applied'
+        });
+      }
+    });
+  }, [shouldRenderFooter, hasActiveCardSOT, activeCardKeySOT, dynamicFooterHeightPx]);
   
   // ACTIVE CARD OVERLAP NUDGE: Ensure active card never hides behind footer when footer changes
   React.useLayoutEffect(() => {
