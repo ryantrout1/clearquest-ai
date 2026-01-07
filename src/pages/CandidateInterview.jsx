@@ -6547,7 +6547,19 @@ export default function CandidateInterview() {
         packId: gate.packId
       });
 
+      console.log('[INSTANCE_START][OPENER_SET]', { 
+        packId: gate.packId, 
+        instanceNumber: nextInstanceNumber, 
+        type: openerItem.type 
+      });
+
       setCurrentItem(openerItem);
+
+      console.log('[INSTANCE_START][OPENER_SET_OK]', { 
+        packId: gate.packId, 
+        instanceNumber: nextInstanceNumber 
+      });
+
       await persistStateToDatabase(null, [], openerItem);
       
       // REGRESSION CHECK
@@ -20885,121 +20897,6 @@ export default function CandidateInterview() {
                     firstQuestionCode: firstQuestion.question_id,
                     firstQuestionText: firstQuestion.question_text?.substring(0, 50)
                   });
-                  
-                  // PACK DETECTION: Check if first question triggers V2/V3 pack
-                  const followUpResult = checkFollowUpTrigger(engine, firstQuestionId, 'Yes', interviewMode);
-                  let v3PackDetected = false;
-                  
-                  if (followUpResult) {
-                    const { packId, isV3Pack } = followUpResult;
-                    
-                    const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-                    const isV3PackExplicit = packConfig?.isV3Pack === true;
-                    const isV2PackExplicit = packConfig?.isV2Pack === true;
-                    
-                    let isV3PackFinal = isV3PackExplicit || (isV3Pack && !isV2PackExplicit);
-                    
-                    if (isV3PackFinal) {
-                      v3PackDetected = true;
-                      
-                      console.log('[WELCOME][BEGIN][V3_PACK_DETECTED]', {
-                        packId,
-                        firstQuestionId,
-                        firstQuestionCode: firstQuestion.question_id,
-                        reason: 'Starting with V3 pack opener instead of legacy question'
-                      });
-                      
-                      // Enter V3 pack mode with opener as first item
-                      const categoryId = mapPackIdToCategory(packId);
-                      
-                      if (!categoryId) {
-                        console.error('[WELCOME][BEGIN][NO_CATEGORY_MAPPING]', {
-                          packId,
-                          reason: 'No categoryId mapping - falling back to legacy'
-                        });
-                        // Fall through to legacy path
-                      } else {
-                        // Load pack metadata for opener
-                        let packMetadata = null;
-                        try {
-                          const packs = await base44.entities.FollowUpPack.filter({ followup_pack_id: packId });
-                          packMetadata = packs[0] || null;
-                        } catch (err) {
-                          console.warn('[WELCOME][BEGIN][PACK_LOAD_ERROR]', err.message);
-                        }
-                        
-                        const categoryLabel = packMetadata?.pack_name || 
-                                             packMetadata?.category_label ||
-                                             FOLLOWUP_PACK_CONFIGS[packId]?.instancesLabel ||
-                                             categoryId?.replace(/_/g, ' ').toLowerCase() ||
-                                             'this topic';
-                        
-                        const opener = getV3DeterministicOpener(packMetadata, categoryId, categoryLabel);
-                        
-                        // Log pack entered
-                        await logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: true });
-                        
-                        const openerItem = {
-                          id: `v3-opener-${packId}-1`,
-                          type: 'v3_pack_opener',
-                          packId,
-                          categoryId,
-                          categoryLabel,
-                          openerText: opener.text,
-                          exampleNarrative: opener.example,
-                          baseQuestionId: firstQuestionId,
-                          questionCode: firstQuestion.question_id,
-                          sectionId: firstQuestion.section_id,
-                          instanceNumber: 1,
-                          packData: packMetadata
-                        };
-                        
-                        console.log('[WELCOME][BEGIN][V3_PACK_ENTERED]', {
-                          packId,
-                          instanceNumber: 1,
-                          currentItemType: 'v3_pack_opener',
-                          openerTextPreview: opener.text?.substring(0, 60)
-                        });
-                        
-                        setScreenMode("QUESTION");
-                        setCurrentItem(openerItem);
-                        setQueue([]);
-                        setCurrentSectionIndex(0);
-                        
-                        await refreshTranscriptFromDB('v3_pack_opener_set');
-                        await persistStateToDatabase(null, [], openerItem);
-                        
-                        console.log('[WELCOME][BEGIN][AFTER]', {
-                          screenMode: 'QUESTION',
-                          currentItemType: 'v3_pack_opener',
-                          currentItemId: openerItem.id,
-                          packId
-                        });
-                        
-                        return; // Exit early - pack mode entered
-                      }
-                    }
-                  }
-                  
-                  // NO PACK OR LEGACY PATH: Continue with base question
-                  console.log('[WELCOME][BEGIN][NO_PACK_LEGACY_START]', {
-                    firstQuestionId,
-                    firstQuestionCode: firstQuestion.question_id,
-                    hasFollowupPack: !!firstQuestion.followup_pack,
-                    reason: followUpResult ? 'V3 pack not final or no category' : 'No pack detected'
-                  });
-                  
-                  // GUARD: Block legacy path if V3 pack was detected (tripwire)
-                  if (v3PackDetected) {
-                    console.error('[GUARD][LEGACY_START_BLOCKED]', {
-                      firstQuestionId,
-                      packId: followUpResult?.packId,
-                      reason: 'V3 pack detected but pack entry failed - blocking legacy start'
-                    });
-                    return;
-                  }
-                  
-                  console.log('[WELCOME][BEGIN][LEGACY_SET_CURRENT_ITEM]', { firstQuestionId });
                   
                   // Set screen mode and current item to first question
                   console.log('[FORENSIC][MODE_TRANSITION]', { 
