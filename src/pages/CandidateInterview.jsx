@@ -3225,7 +3225,8 @@ export default function CandidateInterview() {
   // REQUIRED_ANCHOR_FALLBACK > V3_PROMPT > V3_WAITING > V3_OPENER > MI_GATE > DEFAULT
   const resolveActiveUiItem = () => {
     // Priority 0: Required anchor fallback (deadlock breaker)
-    if (requiredAnchorFallbackActive && requiredAnchorCurrent) {
+    // GUARD: Never allow fallback to override v3_pack_opener (instance start takes precedence)
+    if (requiredAnchorFallbackActive && requiredAnchorCurrent && currentItem?.type !== 'v3_pack_opener') {
       return {
         kind: "REQUIRED_ANCHOR_FALLBACK",
         packId: v3ProbingContext?.packId || currentItem?.packId,
@@ -3236,6 +3237,15 @@ export default function CandidateInterview() {
         currentItemType: currentItem?.type,
         currentItemId: currentItem?.id
       };
+    }
+    
+    // GUARD LOG: If opener suppressed fallback, log once
+    if (requiredAnchorFallbackActive && requiredAnchorCurrent && currentItem?.type === 'v3_pack_opener') {
+      console.log('[V3_OPENER][SUPPRESS_FALLBACK]', {
+        packId: currentItem.packId,
+        instanceNumber: currentItem.instanceNumber,
+        reason: 'V3 opener takes precedence over required-anchor fallback - skipped fallback return'
+      });
     }
     
     // Priority 1: V3 prompt active (multi-signal detection)
@@ -6517,6 +6527,18 @@ export default function CandidateInterview() {
         nextItemKindOrType: 'v3_pack_opener'
       });
 
+      // INSTANCE START: Clear sticky required-anchor fallback from prior instance
+      setRequiredAnchorFallbackActive(false);
+      setRequiredAnchorCurrent(null);
+      setRequiredAnchorQueue([]);
+      setV3PromptPhase('IDLE');
+
+      console.log('[INSTANCE_START][FALLBACK_CLEARED]', {
+        packId: gate.packId,
+        instanceNumber: nextInstanceNumber,
+        reason: 'Cleared sticky fallback state from prior instance to prevent opener hijack'
+      });
+
       await logPackEntered(sessionId, {
         packId: gate.packId,
         instanceNumber: nextInstanceNumber,
@@ -6541,23 +6563,18 @@ export default function CandidateInterview() {
         packData: gate.packData
       };
       
-      console.log('[MI_GATE][STATE_SET_OPENER]', {
-        toInstanceNumber: nextInstanceNumber,
-        openerId: openerItem.id,
-        packId: gate.packId
-      });
-
       console.log('[INSTANCE_START][OPENER_SET]', { 
-        packId: gate.packId, 
-        instanceNumber: nextInstanceNumber, 
-        type: openerItem.type 
+        packId: openerItem.packId, 
+        instanceNumber: openerItem.instanceNumber, 
+        type: openerItem.type,
+        openerTextPreview: openerItem.openerText?.substring(0, 60)
       });
 
       setCurrentItem(openerItem);
 
       console.log('[INSTANCE_START][OPENER_SET_OK]', { 
-        packId: gate.packId, 
-        instanceNumber: nextInstanceNumber 
+        packId: openerItem.packId, 
+        instanceNumber: openerItem.instanceNumber 
       });
 
       await persistStateToDatabase(null, [], openerItem);
