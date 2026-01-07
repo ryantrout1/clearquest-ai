@@ -20401,6 +20401,16 @@ export default function CandidateInterview() {
             const cardKind = activeCard.kind;
 
             if (cardKind === "required_anchor_fallback_prompt") {
+              // V3_OPENER PRECEDENCE: Suppress fallback card when opener is active
+              if (activeUiItem?.kind === "V3_OPENER") {
+                console.log('[V3_OPENER][ACTIVE_LANE_FALLBACK_SUPPRESSED]', {
+                  packId: activeCard?.packId,
+                  instanceNumber: activeCard?.instanceNumber,
+                  reason: 'Active V3 opener owns active lane - suppressing fallback card'
+                });
+                return null;
+              }
+              
               const safeCardPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_FALLBACK_PROMPT');
               
               console.log('[REQUIRED_ANCHOR_FALLBACK][ACTIVE_LANE_RENDER_OVERRIDE]', {
