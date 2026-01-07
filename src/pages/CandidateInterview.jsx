@@ -19161,6 +19161,8 @@ export default function CandidateInterview() {
                   ? buildV3OpenerStableKey(currentItem.packId, currentItem.instanceNumber || 1)
                   : null;
 
+              const renderedV3OpenerKeysSOT = new Set();
+
               return finalTranscriptList.map((entry, index) => {
               // CANONICAL STREAM: Handle both transcript entries AND active cards
               const isActiveCard = entry.__activeCard === true;
