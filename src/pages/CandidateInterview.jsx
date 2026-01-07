@@ -2026,6 +2026,7 @@ export default function CandidateInterview() {
   
   // V3 UI-ONLY HISTORY: Moved here to prevent TDZ error (used in refreshTranscriptFromDB below)
   const [v3ProbeDisplayHistory, setV3ProbeDisplayHistory] = useState([]);
+  const lastPersistedV3OpenerKeyRef = useRef(null);
 
   const [aiSessionId, setAiSessionId] = useState(null);
   const [aiProbingPackInstanceKey, setAiProbingPackInstanceKey] = useState(null);
