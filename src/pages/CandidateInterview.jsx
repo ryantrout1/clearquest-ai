@@ -7506,6 +7506,31 @@ export default function CandidateInterview() {
         });
         console.log("[V3_OPENER][TRANSCRIPT_AFTER_A]", { length: transcriptAfterAnswer.length });
 
+        // Append opener to UI history AFTER answer submitted (prevents duplicate during active state)
+        const stableKey = buildV3OpenerStableKey(packId, instanceNumber);
+        
+        setV3ProbeDisplayHistory(prev => {
+          if (prev.some(e => e.stableKey === stableKey)) {
+            return prev;
+          }
+          return [
+            ...prev,
+            {
+              kind: 'v3_opener_history',
+              stableKey,
+              text: openerText,
+              packId,
+              categoryLabel,
+              instanceNumber,
+              exampleNarrative,
+              source: 'prompt_lane_history',
+              createdAt: Date.now()
+            }
+          ];
+        });
+        
+        console.log('[V3_OPENER][HISTORY_APPEND_ON_COMPLETE]', { stableKey, instanceNumber });
+
         // ITEM-SCOPED COMMIT: Clear committing item ID after successful submission
         committingItemIdRef.current = null;
         console.log('[V3_OPENER][COMMIT_CLEAR]', {
@@ -10377,49 +10402,22 @@ export default function CandidateInterview() {
     });
   }, [sessionId]);
 
-  // V3 OPENER PERSISTENCE: Move state update out of render path (React #301 fix)
+  // V3 OPENER PERSISTENCE: DISABLED - Append on submit only (prevents duplicate during active state)
   useEffect(() => {
     if (!activeUiItem || activeUiItem.kind !== "V3_OPENER" || !currentItem) return;
 
     const stableKey = buildV3OpenerStableKey(currentItem.packId, currentItem.instanceNumber || 1);
 
-    // Dedupe: skip if already persisted
-    if (lastPersistedV3OpenerKeyRef.current === stableKey) return;
-
-    const openerText = currentItem.openerText || "";
-    if (!openerText) return;
-
-    const openerHistoryCard = {
-      kind: 'v3_opener_history',
+    // DISABLED: Do NOT append during active opener step - submit handler owns this
+    console.log('[V3_OPENER][PERSIST_EFFECT_DISABLED]', { 
       stableKey,
-      text: openerText,
       packId: currentItem.packId,
-      categoryLabel: currentItem.categoryLabel,
-      instanceNumber: currentItem.instanceNumber || 1,
-      exampleNarrative: currentItem.exampleNarrative,
-      source: 'prompt_lane_history',
-      createdAt: Date.now()
-    };
-
-    setV3ProbeDisplayHistory(prev => {
-      const alreadyHas = prev.some(e => e.stableKey === stableKey);
-      if (alreadyHas) {
-        console.log('[V3_OPENER][PERSIST_EFFECT_DEDUPED]', { stableKey });
-        lastPersistedV3OpenerKeyRef.current = stableKey;
-        return prev;
-      }
-      const updated = [...prev, openerHistoryCard];
-      console.log('[V3_OPENER][PERSIST_EFFECT]', {
-        stableKey,
-        packId: currentItem.packId,
-        instanceNumber: currentItem.instanceNumber,
-        willAppend: true,
-        historyLenBefore: prev.length,
-        historyLenAfter: updated.length
-      });
-      lastPersistedV3OpenerKeyRef.current = stableKey;
-      return updated;
+      instanceNumber: currentItem.instanceNumber,
+      reason: 'Persist on submit only' 
     });
+    
+    // Effect is now a NO-OP for history persistence
+    // History append happens in handleAnswer after submission
   }, [activeUiItem?.kind, currentItem]);
 
   // V3 probing completion handler - ENFORCES required fields completion before MI_GATE
