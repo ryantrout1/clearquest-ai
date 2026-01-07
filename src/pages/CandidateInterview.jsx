@@ -19225,17 +19225,24 @@ export default function CandidateInterview() {
 
                      return null; // Active lane owns rendering
                     } else if (cardKind === "v3_pack_opener") {
-                      // Dedupe: Skip duplicate opener cards with same stableKey
+                      // Dedupe: Skip duplicate opener cards using CANONICAL opener key (packId + instanceNumber)
                       if (activeUiItem?.kind === "V3_OPENER") {
-                        const cardStableKey = entry.stableKey;
-                        if (renderedV3OpenerKeysSOT.has(cardStableKey)) {
+                        const canonicalOpenerKeySOT = buildV3OpenerStableKey(
+                          activeCard?.packId,
+                          activeCard?.instanceNumber || 1
+                        );
+
+                        if (renderedV3OpenerKeysSOT.has(canonicalOpenerKeySOT)) {
                           console.log('[V3_OPENER][ACTIVE_LANE_DUP_OPENER_SUPPRESSED]', {
-                            stableKey: cardStableKey,
-                            reason: 'duplicate opener activeCard in stream'
+                            entryStableKey: entry?.stableKey,
+                            activeCardStableKey: activeCard?.stableKey,
+                            canonicalOpenerKeySOT,
+                            reason: 'duplicate opener activeCard in stream (canonical dedupe)'
                           });
                           return null;
                         }
-                        renderedV3OpenerKeysSOT.add(cardStableKey);
+
+                        renderedV3OpenerKeysSOT.add(canonicalOpenerKeySOT);
                       }
                       
                       // STEP 2: Sanitize opener card text
