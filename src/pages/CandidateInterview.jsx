@@ -19431,6 +19431,16 @@ export default function CandidateInterview() {
 
                   // V3 UI-only history cards (ephemeral - for immediate display)
                   if (entry.kind === 'v3_opener_history') {
+                    // V3_OPENER PRECEDENCE: Do not render ANY opener history while an opener is active
+                    if (activeUiItem?.kind === "V3_OPENER") {
+                      console.log('[V3_OPENER][HISTORY_OPENER_SUPPRESSED_ACTIVE]', {
+                        stableKey: entry.stableKey,
+                        instanceNumber: entry.instanceNumber,
+                        reason: 'Active opener owns prompt lane - suppress all opener history during opener step'
+                      });
+                      return null;
+                    }
+                    
                     // Skip if this is the currently active opener (prevents duplicate)
                     if (activeOpenerStableKeySOT && entry.stableKey === activeOpenerStableKeySOT) {
                       console.log('[V3_OPENER][HISTORY_RENDER_SKIPPED_ACTIVE]', {
@@ -20478,8 +20488,22 @@ export default function CandidateInterview() {
             }
 
             if (cardKind === "v3_pack_opener") {
-              const safeOpenerPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_V3_OPENER');
               const cardStableKey = activeCard.stableKey || `followup-card:${activeCard.packId}:opener:${activeCard.instanceNumber}`;
+              
+              // V3_OPENER PRECEDENCE: Only render the CURRENT active opener card
+              if (activeUiItem?.kind === "V3_OPENER") {
+                const activeKeySOT = activeCardKeySOT;
+                if (activeKeySOT && cardStableKey && cardStableKey !== activeKeySOT) {
+                  console.log('[V3_OPENER][ACTIVE_LANE_EXTRA_OPENER_SUPPRESSED]', {
+                    cardStableKey,
+                    activeKeySOT,
+                    reason: 'Only the active opener card should render during V3_OPENER'
+                  });
+                  return null;
+                }
+              }
+              
+              const safeOpenerPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_V3_OPENER');
               
               const instanceTitle = activeCard.categoryLabel && activeCard.instanceNumber > 1 
                 ? `${activeCard.categoryLabel} — Instance ${activeCard.instanceNumber}` 
