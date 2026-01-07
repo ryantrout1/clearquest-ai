@@ -21487,7 +21487,23 @@ export default function CandidateInterview() {
           {(() => {
             // Use pre-computed shouldRenderFooter from derived block
             // PAYLOAD LOG: What footer actually receives for prompt/label/placeholder
-            const promptTextUsed = activePromptText || safeActivePromptText || '';
+            // LAST-MILE OPENER LOCK: Hard-enforce opener text when v3_pack_opener is active
+            let promptTextUsed;
+            if (effectiveItemType === 'v3_pack_opener') {
+              const openerTextRaw = (currentItem?.openerText || '').trim();
+              promptTextUsed =
+                openerTextRaw || 'Please describe the details for this section in your own words.';
+
+              console.log('[V3_OPENER][PROMPT_TEXT_LOCK]', {
+                effectiveItemType,
+                instanceNumber: currentItem?.instanceNumber,
+                usedOpenerText: !!openerTextRaw,
+                preview: promptTextUsed.substring(0, 80),
+                reason: openerTextRaw ? 'opener_text_found' : 'opener_blank_using_fallback',
+              });
+            } else {
+              promptTextUsed = activePromptText || safeActivePromptText || '';
+            }
             
             // UI CONTRACT: Footer placeholder is ALWAYS generic (question renders in main pane)
             const placeholderUsedActual = "Type your response here…";
