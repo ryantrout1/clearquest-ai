@@ -10377,6 +10377,51 @@ export default function CandidateInterview() {
     });
   }, [sessionId]);
 
+  // V3 OPENER PERSISTENCE: Move state update out of render path (React #301 fix)
+  useEffect(() => {
+    if (!activeUiItem || activeUiItem.kind !== "V3_OPENER" || !currentItem) return;
+
+    const stableKey = buildV3OpenerStableKey(currentItem.packId, currentItem.instanceNumber || 1);
+
+    // Dedupe: skip if already persisted
+    if (lastPersistedV3OpenerKeyRef.current === stableKey) return;
+
+    const openerText = currentItem.openerText || "";
+    if (!openerText) return;
+
+    const openerHistoryCard = {
+      kind: 'v3_opener_history',
+      stableKey,
+      text: openerText,
+      packId: currentItem.packId,
+      categoryLabel: currentItem.categoryLabel,
+      instanceNumber: currentItem.instanceNumber || 1,
+      exampleNarrative: currentItem.exampleNarrative,
+      source: 'prompt_lane_history',
+      createdAt: Date.now()
+    };
+
+    setV3ProbeDisplayHistory(prev => {
+      const alreadyHas = prev.some(e => e.stableKey === stableKey);
+      if (alreadyHas) {
+        console.log('[V3_OPENER][PERSIST_EFFECT_DEDUPED]', { stableKey });
+        lastPersistedV3OpenerKeyRef.current = stableKey;
+        return prev;
+      }
+      const updated = [...prev, openerHistoryCard];
+      console.log('[V3_OPENER][PERSIST_EFFECT]', {
+        stableKey,
+        packId: currentItem.packId,
+        instanceNumber: currentItem.instanceNumber,
+        willAppend: true,
+        historyLenBefore: prev.length,
+        historyLenAfter: updated.length
+      });
+      lastPersistedV3OpenerKeyRef.current = stableKey;
+      return updated;
+    });
+  }, [activeUiItem?.kind, currentItem]);
+
   // V3 probing completion handler - ENFORCES required fields completion before MI_GATE
   const handleV3ProbingComplete = useCallback(async (result) => {
     const { packId, categoryId, instanceNumber, nextAction, stopReason, missingFields } = result || {};
