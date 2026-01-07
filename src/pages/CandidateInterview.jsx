@@ -3424,7 +3424,7 @@ export default function CandidateInterview() {
       return promptId ? `v3-prompt:${promptId}` : null;
     }
     if (activeUiItem.kind === "V3_OPENER") {
-      return currentItem?.id || buildV3OpenerStableKey(currentItem?.packId, currentItem?.instanceNumber);
+      return buildV3OpenerStableKey(currentItem.packId, currentItem.instanceNumber || 1);
     }
     if (activeUiItem.kind === "V3_WAITING") {
       const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
@@ -20502,6 +20502,12 @@ export default function CandidateInterview() {
                   return null;
                 }
               }
+              
+              console.log('[V3_OPENER][KEYS_SOT]', {
+                cardStableKey,
+                activeKeySOT: activeCardKeySOT,
+                match: cardStableKey === activeCardKeySOT
+              });
               
               const safeOpenerPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_V3_OPENER');
               
