@@ -1073,6 +1073,13 @@ const buildMiGateItemId = (packId, instanceNumber) => {
   return `multi-instance-gate-${packId}-${instanceNumber}`;
 };
 
+// ============================================================================
+// V3 OPENER STABLEKEY BUILDER - Single source of truth
+// ============================================================================
+const buildV3OpenerStableKey = (packId, instanceNumber) => {
+  return `v3-opener:${packId}:${instanceNumber}`;
+};
+
 // Centralized V2 probe runner for both base questions and follow-ups
 // CRITICAL: For V2 packs, we ALWAYS call the backend - it controls progression
 /**
@@ -3416,7 +3423,7 @@ export default function CandidateInterview() {
       return promptId ? `v3-prompt:${promptId}` : null;
     }
     if (activeUiItem.kind === "V3_OPENER") {
-      return currentItem?.id || `v3-opener:${currentItem?.packId}:${currentItem?.instanceNumber}`;
+      return currentItem?.id || buildV3OpenerStableKey(currentItem?.packId, currentItem?.instanceNumber);
     }
     if (activeUiItem.kind === "V3_WAITING") {
       const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
@@ -3587,23 +3594,21 @@ export default function CandidateInterview() {
     });
   } else if (activeUiItem.kind === "V3_OPENER") {
     const openerText = currentItem?.openerText || "";
-    const stableKey = `followup-card:${currentItem.packId}:opener:${currentItem.instanceNumber || 1}`;
+    const stableKey = buildV3OpenerStableKey(currentItem.packId, currentItem.instanceNumber || 1);
     
-    // DEDUPE: Check if opener already in transcript (using early TDZ-safe source)
-    const alreadyInStream = transcriptRenderable.some(e => 
-      e.__canonicalKey === stableKey || 
-      (e.messageType === 'FOLLOWUP_CARD_SHOWN' && e.meta?.variant === 'opener' && e.meta?.packId === currentItem.packId && e.meta?.instanceNumber === currentItem.instanceNumber)
-    );
+    // DEDUPE: Check if opener already in prompt-lane history (NOT transcript)
+    const expectedKey = buildV3OpenerStableKey(currentItem.packId, currentItem.instanceNumber || 1);
+    const alreadyInHistory = v3ProbeDisplayHistory.some(e => e.stableKey === expectedKey);
     
-    // ACTIVE OPENER ENFORCEMENT: ALWAYS render active card when V3_OPENER is active, even if in transcript
-    // Active UI items MUST render - transcript presence does NOT satisfy active requirement
+    // ACTIVE OPENER ENFORCEMENT: ALWAYS render active card when V3_OPENER is active, even if in history
+    // Active UI items MUST render - history presence does NOT satisfy active requirement
     if (screenMode === "QUESTION" && openerText) {
-      if (alreadyInStream) {
+      if (alreadyInHistory) {
         console.log("[V3_OPENER][DEDUP_BYPASS]", { 
           packId: currentItem.packId, 
           instanceNumber: currentItem.instanceNumber,
           stableKey,
-          reason: "Active V3 opener must render - bypassing transcript dedupe" 
+          reason: "Active V3 opener must render - bypassing history dedupe" 
         });
       }
       
@@ -3624,8 +3629,44 @@ export default function CandidateInterview() {
         packId: currentItem.packId,
         instanceNumber: currentItem.instanceNumber,
         stableKey,
-        transcriptAlreadyHas: alreadyInStream,
-        reason: "Active opener must render in main pane regardless of transcript state"
+        historyAlreadyHas: alreadyInHistory,
+        reason: "Active opener must render in main pane regardless of history state"
+      });
+      
+      // Persist opener to prompt-lane history (non-transcript)
+      const openerHistoryCard = {
+        kind: 'v3_opener_history',
+        stableKey,
+        text: openerText,
+        packId: currentItem.packId,
+        categoryLabel: currentItem.categoryLabel,
+        instanceNumber: currentItem.instanceNumber || 1,
+        exampleNarrative: currentItem.exampleNarrative,
+        source: 'prompt_lane_history',
+        createdAt: Date.now()
+      };
+
+      setV3ProbeDisplayHistory(prev => {
+        const alreadyHas = prev.some(e => e.stableKey === stableKey);
+        if (alreadyHas) {
+          console.log('[V3_OPENER][DEDUPED]', {
+            stableKey,
+            instanceNumber: currentItem.instanceNumber,
+            reason: 'already_exists'
+          });
+          return prev;
+        }
+        const updated = [...prev, openerHistoryCard];
+        console.log('[V3_OPENER][SOT]', {
+          packId: currentItem.packId,
+          instanceNumber: currentItem.instanceNumber,
+          stableKey,
+          hadExisting: false,
+          didAppend: true,
+          historyLenBefore: prev.length,
+          historyLenAfter: updated.length
+        });
+        return updated;
       });
     } else if (!openerText) {
       console.warn("[V3_OPENER][MISSING_TEXT]", {
@@ -19372,6 +19413,33 @@ export default function CandidateInterview() {
                   }
 
                   // V3 UI-only history cards (ephemeral - for immediate display)
+                  if (entry.kind === 'v3_opener_history') {
+                    const instanceTitle = entry.categoryLabel && entry.instanceNumber > 1
+                      ? `${entry.categoryLabel} — Instance ${entry.instanceNumber}`
+                      : entry.categoryLabel;
+
+                    return (
+                      <div key={entryKey} data-stablekey={entry.stableKey}>
+                        <ContentContainer>
+                          <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                            {entry.categoryLabel && (
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-sm font-medium text-purple-400">{instanceTitle}</span>
+                              </div>
+                            )}
+                            <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                            {entry.exampleNarrative && (
+                              <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
+                                <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
+                                <p className="text-slate-300 text-xs italic">{entry.exampleNarrative}</p>
+                              </div>
+                            )}
+                          </div>
+                        </ContentContainer>
+                      </div>
+                    );
+                  }
+                  
                   if (entry.kind === 'v3_probe_q') {
                     return (
                       <div key={entryKey}>
