@@ -19990,6 +19990,17 @@ export default function CandidateInterview() {
 
               {/* Required Anchor Question - Deterministic fallback question */}
               {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'REQUIRED_ANCHOR_QUESTION' && (() => {
+                // V3_OPENER PRECEDENCE: Suppress fallback questions when opener is active
+                if (activeUiItem?.kind === "V3_OPENER") {
+                  console.log('[V3_OPENER][FALLBACK_QUESTION_SUPPRESSED]', {
+                    packId: currentItem?.packId,
+                    instanceNumber: currentItem?.instanceNumber,
+                    anchor: entry.meta?.anchor || entry.anchor,
+                    reason: 'Active V3 opener owns prompt lane - fallback suppressed'
+                  });
+                  return null;
+                }
+                
                 const questionStableKey = entry.stableKey || entry.id;
                 const anchor = entry.meta?.anchor || entry.anchor;
                 
@@ -20044,6 +20055,17 @@ export default function CandidateInterview() {
 
               {/* Prompt Lane Context - Non-chat context rows (e.g., fallback questions) */}
               {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'PROMPT_LANE_CONTEXT' && entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK' && (() => {
+                // V3_OPENER PRECEDENCE: Suppress fallback context when opener is active
+                if (activeUiItem?.kind === "V3_OPENER") {
+                  console.log('[V3_OPENER][FALLBACK_CONTEXT_SUPPRESSED]', {
+                    packId: currentItem?.packId,
+                    instanceNumber: currentItem?.instanceNumber,
+                    anchor: entry.meta?.anchor || entry.anchor,
+                    reason: 'Active V3 opener owns prompt lane - fallback context suppressed'
+                  });
+                  return null;
+                }
+                
                 const contextStableKey = entry.stableKey || entry.id;
                 const contextAnchor = entry.meta?.anchor || entry.anchor;
                 
