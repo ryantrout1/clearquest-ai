@@ -20888,6 +20888,7 @@ export default function CandidateInterview() {
                   
                   // PACK DETECTION: Check if first question triggers V2/V3 pack
                   const followUpResult = checkFollowUpTrigger(engine, firstQuestionId, 'Yes', interviewMode);
+                  let v3PackDetected = false;
                   
                   if (followUpResult) {
                     const { packId, isV3Pack } = followUpResult;
@@ -20899,6 +20900,8 @@ export default function CandidateInterview() {
                     let isV3PackFinal = isV3PackExplicit || (isV3Pack && !isV2PackExplicit);
                     
                     if (isV3PackFinal) {
+                      v3PackDetected = true;
+                      
                       console.log('[WELCOME][BEGIN][V3_PACK_DETECTED]', {
                         packId,
                         firstQuestionId,
@@ -20985,6 +20988,18 @@ export default function CandidateInterview() {
                     hasFollowupPack: !!firstQuestion.followup_pack,
                     reason: followUpResult ? 'V3 pack not final or no category' : 'No pack detected'
                   });
+                  
+                  // GUARD: Block legacy path if V3 pack was detected (tripwire)
+                  if (v3PackDetected) {
+                    console.error('[GUARD][LEGACY_START_BLOCKED]', {
+                      firstQuestionId,
+                      packId: followUpResult?.packId,
+                      reason: 'V3 pack detected but pack entry failed - blocking legacy start'
+                    });
+                    return;
+                  }
+                  
+                  console.log('[WELCOME][BEGIN][LEGACY_SET_CURRENT_ITEM]', { firstQuestionId });
                   
                   // Set screen mode and current item to first question
                   console.log('[FORENSIC][MODE_TRANSITION]', { 
