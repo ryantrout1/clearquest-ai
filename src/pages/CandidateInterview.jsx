@@ -19156,7 +19156,14 @@ export default function CandidateInterview() {
           
           <div className="space-y-3">
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
-            {finalTranscriptList.map((entry, index) => {
+            {/* Active opener suppression: Compute current active opener stableKey */}
+            {(() => {
+              const activeOpenerStableKeySOT = 
+                (activeUiItem?.kind === "V3_OPENER" && currentItem?.packId)
+                  ? buildV3OpenerStableKey(currentItem.packId, currentItem.instanceNumber || 1)
+                  : null;
+
+              return finalTranscriptList.map((entry, index) => {
               // CANONICAL STREAM: Handle both transcript entries AND active cards
               const isActiveCard = entry.__activeCard === true;
                   
@@ -19424,6 +19431,17 @@ export default function CandidateInterview() {
 
                   // V3 UI-only history cards (ephemeral - for immediate display)
                   if (entry.kind === 'v3_opener_history') {
+                    // Skip if this is the currently active opener (prevents duplicate)
+                    if (activeOpenerStableKeySOT && entry.stableKey === activeOpenerStableKeySOT) {
+                      console.log('[V3_OPENER][HISTORY_RENDER_SKIPPED_ACTIVE]', {
+                        stableKey: entry.stableKey,
+                        packId: entry.packId,
+                        instanceNumber: entry.instanceNumber,
+                        reason: 'Active opener renders in active lane - suppressing history duplicate'
+                      });
+                      return null;
+                    }
+                    
                     const instanceTitle = entry.categoryLabel && entry.instanceNumber > 1
                       ? `${entry.categoryLabel} — Instance ${entry.instanceNumber}`
                       : entry.categoryLabel;
@@ -20344,7 +20362,8 @@ export default function CandidateInterview() {
               )}
             </div>
           );
-          })}
+          });
+          })()}
 
           {/* ACTIVE CARD LANE: Render active prompt card at bottom (after transcript) */}
           {activeCard && (activeUiItem.kind === "REQUIRED_ANCHOR_FALLBACK" || activeUiItem.kind === "V3_OPENER" || activeUiItem.kind === "V3_PROMPT" || activeUiItem.kind === "MI_GATE" || activeCard.kind === "base_question_yesno") && (() => {
