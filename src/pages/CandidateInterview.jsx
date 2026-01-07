@@ -3632,42 +3632,6 @@ export default function CandidateInterview() {
         historyAlreadyHas: alreadyInHistory,
         reason: "Active opener must render in main pane regardless of history state"
       });
-      
-      // Persist opener to prompt-lane history (non-transcript)
-      const openerHistoryCard = {
-        kind: 'v3_opener_history',
-        stableKey,
-        text: openerText,
-        packId: currentItem.packId,
-        categoryLabel: currentItem.categoryLabel,
-        instanceNumber: currentItem.instanceNumber || 1,
-        exampleNarrative: currentItem.exampleNarrative,
-        source: 'prompt_lane_history',
-        createdAt: Date.now()
-      };
-
-      setV3ProbeDisplayHistory(prev => {
-        const alreadyHas = prev.some(e => e.stableKey === stableKey);
-        if (alreadyHas) {
-          console.log('[V3_OPENER][DEDUPED]', {
-            stableKey,
-            instanceNumber: currentItem.instanceNumber,
-            reason: 'already_exists'
-          });
-          return prev;
-        }
-        const updated = [...prev, openerHistoryCard];
-        console.log('[V3_OPENER][SOT]', {
-          packId: currentItem.packId,
-          instanceNumber: currentItem.instanceNumber,
-          stableKey,
-          hadExisting: false,
-          didAppend: true,
-          historyLenBefore: prev.length,
-          historyLenAfter: updated.length
-        });
-        return updated;
-      });
     } else if (!openerText) {
       console.warn("[V3_OPENER][MISSING_TEXT]", {
         packId: currentItem.packId,
