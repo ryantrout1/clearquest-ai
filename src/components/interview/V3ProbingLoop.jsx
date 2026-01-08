@@ -333,18 +333,51 @@ export default function V3ProbingLoop({
       };
     }
 
+    // EDIT 1: localStorage override (deterministic control)
+    const overrideRaw = (typeof window !== 'undefined' && window.localStorage)
+      ? window.localStorage.getItem('cq_v3_llm')
+      : null;
+    const override = (overrideRaw || '').toLowerCase().trim();
+
     const pathname = window.location?.pathname || '';
     const href = window.location?.href || '';
     const isEditorPreviewPath = pathname.includes('/editor/preview/');
     const isEditorPreviewHref = href.includes('/editor/preview/');
     const isPreviewSandbox = href.includes('preview-sandbox');
-    const enabled = isEditorPreviewPath || isEditorPreviewHref || isPreviewSandbox;
+    const isPreviewSandboxDash = href.includes('preview-sandbox--');
+    const isBase44AppDomain = href.includes('.base44.app');
+    
+    // EDIT 2: Extended preview detection
+    let enabled = isEditorPreviewPath || isEditorPreviewHref || isPreviewSandbox || isPreviewSandboxDash || isBase44AppDomain;
+
+    // EDIT 1: Apply localStorage override
+    if (override === '1' || override === 'true') {
+      enabled = true;
+      // ONE-TIME LOG (guard prevents spam)
+      if (!window.__CQ_V3_LLM_OVERRIDE_LOGGED__) {
+        window.__CQ_V3_LLM_OVERRIDE_LOGGED__ = true;
+        console.log('[V3_LLM][OVERRIDE]', { value: overrideRaw, enabled: true });
+      }
+    } else if (override === '0' || override === 'false') {
+      enabled = false;
+      // ONE-TIME LOG (guard prevents spam)
+      if (!window.__CQ_V3_LLM_OVERRIDE_LOGGED__) {
+        window.__CQ_V3_LLM_OVERRIDE_LOGGED__ = true;
+        console.log('[V3_LLM][OVERRIDE]', { value: overrideRaw, enabled: false });
+      }
+    }
 
     let reason = 'not_preview_context';
     if (isEditorPreviewPath || isEditorPreviewHref) {
       reason = 'editor_preview_path_detected';
-    } else if (isPreviewSandbox) {
+    } else if (isPreviewSandbox || isPreviewSandboxDash) {
       reason = 'preview_sandbox_detected';
+    } else if (isBase44AppDomain) {
+      reason = 'base44_app_domain_detected';
+    }
+    
+    if (override === '1' || override === 'true' || override === '0' || override === 'false') {
+      reason = `override_${override}`;
     }
 
     return {
