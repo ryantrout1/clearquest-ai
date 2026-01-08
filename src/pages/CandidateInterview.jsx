@@ -1553,6 +1553,18 @@ export default function CandidateInterview() {
     }
   }
   
+  // ============================================================================
+  // SESSION SNAPSHOT LOG (TOP-LEVEL) - DIAGNOSTIC ONLY
+  // ============================================================================
+  console.log('[SESSION_SNAPSHOT][RENDER]', {
+    sessionId,
+    sessionIdType: typeof sessionId,
+    hasSession: !!sessionId,
+    pathname: window.location.pathname,
+    search: window.location.search,
+    timestamp: Date.now()
+  });
+  
   // DIAGNOSTIC: Component mount entry point
   console.log("[CANDIDATE_INTERVIEW][MOUNT]", {
     sessionId,
@@ -1617,8 +1629,13 @@ export default function CandidateInterview() {
     // LOG: No session and no repair possible - unrecoverable
     if (!noSessionEarlyReturnLoggedRef.current) {
       noSessionEarlyReturnLoggedRef.current = true;
-      console.log('[CANDIDATE_INTERVIEW][NO_SESSION_UNRECOVERABLE]', {
+      console.error('[CANDIDATE_INTERVIEW][NO_SESSION_UNRECOVERABLE]', {
+        sessionId,
+        hasSession: !!sessionId,
+        screenMode,
+        pathname: window.location.pathname,
         search: window.location.search,
+        stack: new Error().stack?.split('\n').slice(0,6).join('\n'),
         hadRefSession: !!resolvedSessionRef.current,
         deptParam: urlParams.get('dept'),
         fileParam: urlParams.get('file'),
@@ -5693,6 +5710,15 @@ export default function CandidateInterview() {
     window.addEventListener('unhandledrejection', handleRejection);
     
     return () => {
+      // ============================================================================
+      // SESSION SNAPSHOT LOG (UNMOUNT) - DIAGNOSTIC ONLY
+      // ============================================================================
+      console.log('[SESSION_SNAPSHOT][UNMOUNT]', {
+        sessionId,
+        screenMode,
+        timestamp: Date.now()
+      });
+      
       console.log('[FORENSIC][UNMOUNT]', { 
         component: 'CandidateInterview', 
         instanceId: componentInstanceId.current,
@@ -16103,6 +16129,16 @@ export default function CandidateInterview() {
   
   // Unified bottom bar submit handler for question, v2_pack_field, followup, and V3 probing
   const handleBottomBarSubmit = async () => {
+    // ============================================================================
+    // SESSION SNAPSHOT LOG (BEFORE SUBMIT) - DIAGNOSTIC ONLY
+    // ============================================================================
+    console.log('[SESSION_SNAPSHOT][BEFORE_SUBMIT]', {
+      sessionId,
+      hasSession: !!sessionId,
+      screenMode,
+      timestamp: Date.now()
+    });
+    
     // DIAGNOSTIC: Entry log with full state snapshot
     console.log('[BOTTOM_BAR][SEND_CLICK]', {
       bottomBarModeSOT,
@@ -16976,6 +17012,16 @@ export default function CandidateInterview() {
 
     // Call handleAnswer with the answer text - handleAnswer reads currentItem from state
     await handleAnswer(trimmed);
+    
+    // ============================================================================
+    // SESSION SNAPSHOT LOG (AFTER SUBMIT) - DIAGNOSTIC ONLY
+    // ============================================================================
+    console.log('[SESSION_SNAPSHOT][AFTER_SUBMIT]', {
+      sessionId,
+      hasSession: !!sessionId,
+      screenMode,
+      timestamp: Date.now()
+    });
 
     // UX: Clear draft on successful submit
     if (currentItem?.type === 'v3_pack_opener') {
