@@ -444,7 +444,7 @@ export default function V3ProbingLoop({
 
     // PART 3: Ensure stable promptId exists BEFORE any callbacks (prevents NO_SNAPSHOT)
     const probeIndex = messages.filter(m => m.role === 'ai').length;
-    const loopKey = `${sessionId}:${categoryId}:${instanceNumber || 1}`;
+    // TDZ FIX: Use component-scope loopKey (line 63) - do NOT redeclare
     const stablePromptId = `${loopKey}:${probeIndex}`;
 
     console.log('[V3_PROBE][PROMPTID_ENSURED]', {
