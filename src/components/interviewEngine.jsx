@@ -5,6 +5,29 @@
  */
 
 // ============================================================================
+// LOGGING CONTROL - Minimal runtime gate for console spam reduction
+// ============================================================================
+const CQ_LOG_LEVEL = (() => {
+  try {
+    const v = (typeof window !== 'undefined' && window?.localStorage?.getItem?.('cq_log_level') || '').toUpperCase();
+    return v || 'WARN';
+  } catch {
+    return 'WARN';
+  }
+})();
+const cqLogEnabled = (level) => {
+  const order = { OFF:0, ERROR:1, WARN:2, INFO:3, DEBUG:4 };
+  const cur = order[CQ_LOG_LEVEL] ?? 2;
+  const want = order[(level || 'INFO').toUpperCase()] ?? 3;
+  return cur >= want;
+};
+const cqLog = (level, ...args) => {
+  if (!cqLogEnabled(level)) return;
+  const fn = (level === 'ERROR') ? console.error : (level === 'WARN' ? console.warn : console.log);
+  fn(...args);
+};
+
+// ============================================================================
 // FOLLOW-UP PACK DEFINITIONS
 // NOTE: These are comprehensive definitions for ALL packs referenced by Question entities
 // Each pack defines the structured follow-up questions asked after a "Yes" answer
@@ -1785,8 +1808,8 @@ function mapResponseTypeToExpectedType(responseType) {
 }
 
 export async function bootstrapEngine(base44) {
-  console.log('🚀 Bootstrapping interview engine (SECTION-FIRST + DATABASE-DRIVEN + V2 PACKS)...');
-  console.log('[V3_ONLY][SOT_FLAG][ENGINE]', { V3_ONLY_MODE });
+  cqLog('INFO', '🚀 Bootstrapping interview engine (SECTION-FIRST + DATABASE-DRIVEN + V2 PACKS)...');
+  cqLog('DEBUG', '[V3_ONLY][SOT_FLAG][ENGINE]', { V3_ONLY_MODE });
   const startTime = performance.now();
 
   try {
@@ -1878,24 +1901,31 @@ export async function bootstrapEngine(base44) {
     });
     
     if (UndefinedPacks.size > 0) {
-      console.warn(`⚠️ Found ${UndefinedPacks.size} undefined packs after V2 loading:`, Array.from(UndefinedPacks));
+      console.warn(`⚠️ Found ${UndefinedPacks.size} undefined packs after V2 loading`);
+      if (cqLogEnabled('DEBUG')) {
+        console.warn('   Undefined packs:', Array.from(UndefinedPacks));
+      }
     }
     
     const configValidation = validateEngineConfigurationInternal(MatrixYesByQ, PackStepsById, QById);
     if (!configValidation.valid) {
       console.warn('⚠️ Engine configuration warnings:', configValidation.errors.length, 'issues found');
-      console.warn('   Questions with undefined packs will be treated as having no follow-ups');
-      configValidation.errors.slice(0, 10).forEach(err => console.warn(`  - ${err}`));
-      if (configValidation.errors.length > 10) {
-        console.warn(`  ... and ${configValidation.errors.length - 10} more issues`);
+      if (cqLogEnabled('DEBUG')) {
+        console.warn('   Questions with undefined packs will be treated as having no follow-ups');
+        configValidation.errors.slice(0, 10).forEach(err => console.warn(`  - ${err}`));
+        if (configValidation.errors.length > 10) {
+          console.warn(`  ... and ${configValidation.errors.length - 10} more issues`);
+        }
       }
     } else {
-      console.log('✅ Engine configuration validated - all packs defined');
+      cqLog('DEBUG', '✅ Engine configuration validated - all packs defined');
     }
 
-    // DEBUG: Print diagnostic maps
-    debugPrintQuestionSectionMap(sections, questions);
-    debugPrintDuplicateQuestionCodes(sections, questions, QuestionCodeById);
+    // DEBUG: Print diagnostic maps (only in DEBUG mode)
+    if (cqLogEnabled('DEBUG')) {
+      debugPrintQuestionSectionMap(sections, questions);
+      debugPrintDuplicateQuestionCodes(sections, questions, QuestionCodeById);
+    }
 
     const engineState = {
       QById, // database question.id -> question object
@@ -1916,11 +1946,11 @@ export async function bootstrapEngine(base44) {
       Architecture: 'section-first-db-id-keyed-v2-packs'
     };
 
-    // DEBUG: Print runtime mapping for sections 3-7
-    debugPrintSuspiciousSectionsMapping(engineState, sections);
-    
-    // DEBUG: Print full section order summary
-    debugPrintSectionOrderSummary(engineState, sections);
+    // DEBUG: Print runtime mapping for sections 3-7 (only in DEBUG mode)
+    if (cqLogEnabled('DEBUG')) {
+      debugPrintSuspiciousSectionsMapping(engineState, sections);
+      debugPrintSectionOrderSummary(engineState, sections);
+    }
 
     // Build v2PacksById map from v2Packs array for frontend access
     // V3_ONLY_MODE: Skip building v2PacksById when true

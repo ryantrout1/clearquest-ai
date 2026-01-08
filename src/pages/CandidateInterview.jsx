@@ -3,6 +3,29 @@ import { useNavigate } from "react-router-dom";
 import { unstable_batchedUpdates } from "react-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
+
+// ============================================================================
+// LOGGING CONTROL - Minimal runtime gate for console spam reduction
+// ============================================================================
+const CQ_LOG_LEVEL = (() => {
+  try {
+    const v = (window?.localStorage?.getItem?.('cq_log_level') || '').toUpperCase();
+    return v || 'WARN';
+  } catch {
+    return 'WARN';
+  }
+})();
+const cqLogEnabled = (level) => {
+  const order = { OFF:0, ERROR:1, WARN:2, INFO:3, DEBUG:4 };
+  const cur = order[CQ_LOG_LEVEL] ?? 2;
+  const want = order[(level || 'INFO').toUpperCase()] ?? 3;
+  return cur >= want;
+};
+const cqLog = (level, ...args) => {
+  if (!cqLogEnabled(level)) return;
+  const fn = (level === 'ERROR') ? console.error : (level === 'WARN' ? console.warn : console.log);
+  fn(...args);
+};
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -1218,8 +1241,17 @@ const runV2FieldProbeIfNeeded = async ({
 // - Welcome / start screens must NEVER reappear mid-session
 
 export default function CandidateInterview() {
-  console.log('[BUILD_OK][CandidateInterview]');
-  console.log('[V3_ONLY][SOT_FLAG][CANDIDATE]', { V3_ONLY_MODE });
+  cqLog('DEBUG', '[BUILD_OK][CandidateInterview]');
+  cqLog('DEBUG', '[V3_ONLY][SOT_FLAG][CANDIDATE]', { V3_ONLY_MODE });
+  
+  // User instruction for verbose logging (visible at WARN level)
+  if (cqLogEnabled('INFO')) {
+    const instructionShownRef = { current: false };
+    if (!instructionShownRef.current) {
+      instructionShownRef.current = true;
+      cqLog('INFO', '[CQ_LOGGING] To enable verbose logs: localStorage.setItem("cq_log_level","DEBUG") then hard refresh.');
+    }
+  }
   
   const navigate = useNavigate();
   
@@ -3223,7 +3255,7 @@ export default function CandidateInterview() {
     return false;
   })();
   
-  console.log("[ORDER][V3_VISIBLE_PROMPT_CARD]", {
+  cqLog('DEBUG', "[ORDER][V3_VISIBLE_PROMPT_CARD]", {
     v3HasVisiblePromptCard,
     v3UiHistoryLen: v3ProbeDisplayHistory?.length || 0,
     lastKeysPreview: (v3ProbeDisplayHistory || []).slice(-4).map(x => x.stableKey)
@@ -3442,7 +3474,7 @@ export default function CandidateInterview() {
   
   const hasActiveCardSOT = Boolean(activeCardKeySOT);
   
-  console.log('[ACTIVE_CARD_KEY_SOT]', {
+  cqLog('DEBUG', '[ACTIVE_CARD_KEY_SOT]', {
     activeUiItemKind: activeUiItem.kind,
     activeCardKeySOT,
     hasActiveCardSOT
@@ -3878,7 +3910,7 @@ export default function CandidateInterview() {
   })();
   
   // Sanity log: confirm variable exists before render
-  console.log("[BOTTOM_BAR_RENDER_TYPE][SOT_TOP]", { 
+  cqLog('DEBUG', "[BOTTOM_BAR_RENDER_TYPE][SOT_TOP]", { 
     activeUiItemKind: activeUiItem?.kind, 
     bottomBarRenderTypeSOT,
     v3PromptPhase,
@@ -3912,7 +3944,7 @@ export default function CandidateInterview() {
   const bottomBarModeSOTSafe = VALID_MODES.includes(bottomBarModeSOT) ? bottomBarModeSOT : 'DEFAULT';
   
   if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-    console.log('[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT, bottomBarModeSOT, bottomBarModeSOTSafe });
+    cqLog('DEBUG', '[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT, bottomBarModeSOT, bottomBarModeSOTSafe });
   }
   
   // FIX #1: Diagnostic log for base yes/no routing (TDZ-SAFE: uses only early variables)
@@ -5771,7 +5803,7 @@ export default function CandidateInterview() {
       // SERVER-TRUTH GUARD: Always fetch session from DB (never create duplicate)
       console.log('[CANDIDATE_BOOT][FETCH_SESSION]', { sessionId });
       
-      console.log('[CANDIDATE_BOOT][SESSION_LOAD_BEGIN]', { sessionId });
+      cqLog('INFO', '[CANDIDATE_BOOT][SESSION_LOAD_BEGIN]', { sessionId });
       
       let loadedSession;
       try {
@@ -5809,7 +5841,7 @@ export default function CandidateInterview() {
         transcriptLen: loadedSession.transcript_snapshot?.length || 0
       });
       
-      console.log('[CANDIDATE_BOOT][SESSION_LOAD_OK]', { sessionId, status: loadedSession?.status });
+      cqLog('INFO', '[CANDIDATE_BOOT][SESSION_LOAD_OK]', { sessionId, status: loadedSession?.status });
       
       loadedSessionForDiag = loadedSession; // DIAGNOSTIC: Capture for FATAL log
       
@@ -5840,7 +5872,7 @@ export default function CandidateInterview() {
         // Silent continue
       }
 
-      console.log('[CANDIDATE_BOOT][ENGINE_INIT_BEGIN]', { sessionId });
+      cqLog('INFO', '[CANDIDATE_BOOT][ENGINE_INIT_BEGIN]', { sessionId });
       
       const bootStart = Date.now();
       const engineData = await bootstrapEngine(base44);
@@ -5848,7 +5880,7 @@ export default function CandidateInterview() {
       
       engineDataForDiag = engineData; // DIAGNOSTIC: Capture for FATAL log
       
-      console.log('[CANDIDATE_BOOT][ENGINE_INIT_OK]', { sessionId, hasEngineData: !!engineData });
+      cqLog('INFO', '[CANDIDATE_BOOT][ENGINE_INIT_OK]', { sessionId, hasEngineData: !!engineData });
       
       setEngine(engineData);
       bootCompletedRef.value = true; // Mark boot complete BEFORE any further async work
@@ -5973,7 +6005,7 @@ export default function CandidateInterview() {
       setIsLoading(false);
       setShowLoadingRetry(false);
       
-      console.log("[CANDIDATE_INTERVIEW][READY]", { 
+      cqLog('INFO', "[CANDIDATE_INTERVIEW][READY]", { 
         screenMode: sessionIsNew ? 'WELCOME' : 'QUESTION',
         currentItemType: loadedSession.current_item_snapshot?.type || null,
         transcriptLen: transcriptSOT.length,
