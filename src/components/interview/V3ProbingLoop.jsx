@@ -404,6 +404,9 @@ export default function V3ProbingLoop({
 
   const handleSubmit = async (e, initialAnswer = null, isInitialCall = false) => {
     e?.preventDefault();
+    
+    // MARKER: Proof-of-invocation (must be first log, before any guards)
+    console.log('[V3_SUBMIT][MARKER_TOP]', { loopKey, ts: Date.now() });
 
     // Use initialAnswer (from parent's pendingAnswer) if provided, otherwise fall back to local input
     const answer = initialAnswer || input.trim();
