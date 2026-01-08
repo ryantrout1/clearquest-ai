@@ -20611,14 +20611,16 @@ export default function CandidateInterview() {
             }
 
             if (cardKind === "v3_pack_opener") {
-              if (activeUiItem?.kind === "V3_OPENER") {
-                console.log('[V3_OPENER][ACTIVE_LANE_OPENER_SUPPRESSED_OWNER_SWAP]', {
-                  reason: 'Transcript lane owns opener during V3_OPENER - preventing active lane duplicate'
-                });
-                return null;
-              }
-              
               const cardStableKey = activeCard.stableKey || `followup-card:${activeCard.packId}:opener:${activeCard.instanceNumber}`;
+              
+              // FORCED RENDERING: Active opener MUST render in main pane (owner swap suppression removed)
+              if (activeUiItem?.kind === "V3_OPENER") {
+                console.log('[V3_OPENER][FORCE_MAIN_PANE_RENDER]', {
+                  packId: activeCard.packId,
+                  instanceNumber: activeCard.instanceNumber,
+                  reason: 'active_v3_opener_must_be_visible'
+                });
+              }
               
               // V3_OPENER PRECEDENCE: Only render the CURRENT active opener card
               if (activeUiItem?.kind === "V3_OPENER") {
