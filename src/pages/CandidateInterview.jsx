@@ -6620,7 +6620,32 @@ export default function CandidateInterview() {
       });
 
       // STATIC IMPORT: Use top-level import (already imported at line 61)
-      const opener = getV3DeterministicOpener(gate.packData, gate.categoryId, gate.categoryLabel);
+      
+      // INSTANCE 2+ FIX: Reload packMetadata if packData incomplete
+      let packDataForOpener = gate.packData;
+      const isPackDataIncompleteForOpener = !packDataForOpener || 
+        !packDataForOpener.opening_question_text || 
+        !packDataForOpener.pack_name;
+      
+      if (isPackDataIncompleteForOpener && gate.packId) {
+        try {
+          const reloadedPacks = await base44.entities.FollowUpPack.filter({ 
+            followup_pack_id: gate.packId 
+          });
+          if (reloadedPacks.length > 0) {
+            packDataForOpener = reloadedPacks[0];
+            console.log('[MI_GATE][OPENER_PACKDATA_RELOAD]', { 
+              packId: gate.packId, 
+              instanceNumber: nextInstanceNumber, 
+              reason: 'packData_incomplete' 
+            });
+          }
+        } catch (err) {
+          console.warn('[MI_GATE][OPENER_PACKDATA_RELOAD_ERROR]', { error: err.message });
+        }
+      }
+      
+      const opener = getV3DeterministicOpener(packDataForOpener, gate.categoryId, gate.categoryLabel);
 
       const openerItem = {
         id: `v3-opener-${gate.packId}-${nextInstanceNumber}`,
@@ -6634,7 +6659,7 @@ export default function CandidateInterview() {
         questionCode: engine.QById[gate.baseQuestionId]?.question_id,
         sectionId: engine.QById[gate.baseQuestionId]?.section_id,
         instanceNumber: nextInstanceNumber,
-        packData: gate.packData
+        packData: packDataForOpener
       };
       
       console.log('[INSTANCE_START][OPENER_SET]', { 
