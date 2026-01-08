@@ -18271,17 +18271,31 @@ export default function CandidateInterview() {
     
     if (shouldSuppressActiveOpener) {
       const activeOpenerStableKey = activeCard.stableKey;
+      const activeOpenerPackId = activeCard.packId;
+      const activeOpenerInstanceNumber = activeCard.instanceNumber;
+      const activeV3OpenerStableKey = `v3-opener:${activeOpenerPackId}:${activeOpenerInstanceNumber}`;
+      const activeV3OpenerFollowupShownKey = `followup-card:${activeOpenerPackId}:opener:${activeOpenerInstanceNumber}`;
       const beforeLen = transcriptWithActiveOpenerRemoved.length;
       
       transcriptWithActiveOpenerRemoved = transcriptWithActiveOpenerRemoved.filter(e => {
         const entryStableKey = e.stableKey || e.id || e.__canonicalKey;
-        const matches = entryStableKey === activeOpenerStableKey;
+        const entryPackId = e.packId || e.meta?.packId;
+        const entryInstanceNumber = e.instanceNumber || e.meta?.instanceNumber;
+        const entryVariant = e.meta?.variant || e.variant;
+        const isOpenerByType = (e.messageType === 'FOLLOWUP_CARD_SHOWN' || e.type === 'FOLLOWUP_CARD_SHOWN') && entryVariant === 'opener';
+        
+        const matchesByKey = entryStableKey === activeOpenerStableKey || 
+                            entryStableKey === activeV3OpenerStableKey || 
+                            entryStableKey === activeV3OpenerFollowupShownKey;
+        const matchesByMetadata = isOpenerByType && entryPackId === activeOpenerPackId && entryInstanceNumber === activeOpenerInstanceNumber;
+        const matches = matchesByKey || matchesByMetadata;
         
         if (matches) {
           console.log('[V3_UI_CONTRACT][ACTIVE_OPENER_DUPLICATE_REMOVED]', {
             activeStableKey: activeOpenerStableKey,
             removedStableKey: entryStableKey,
             messageType: e.messageType || e.type,
+            matchedBy: matchesByKey ? 'stableKey' : 'metadata',
             screenMode,
             activeUiItemKind: activeUiItem.kind
           });
@@ -18291,6 +18305,14 @@ export default function CandidateInterview() {
       });
       
       const removedCount = beforeLen - transcriptWithActiveOpenerRemoved.length;
+      
+      if (removedCount > 0) {
+        console.log('[V3_OPENER][DEDUP_TRANSCRIPT_OPENER_REMOVED]', { 
+          packId: activeOpenerPackId, 
+          instanceNumber: activeOpenerInstanceNumber, 
+          removedCount 
+        });
+      }
       
       console.log('[V3_UI_CONTRACT][ACTIVE_OPENER_DUPLICATE_FILTER_SOT]', {
         activeUiItemKind: activeUiItem?.kind,
