@@ -1265,6 +1265,9 @@ export default function CandidateInterview() {
   // SESSION STICKY REF: Persist sessionId across mounts (memory-safe)
   const resolvedSessionRef = useRef(null);
   
+  // SESSION LOCK REF: Once locked, interview cannot invalidate (prevents reset to WELCOME)
+  const lockedSessionIdRef = useRef(null);
+  
   // FORENSIC: Mount-only log showing what session params we received
   const sessionParamLoggedRef = useRef(false);
   if (!sessionParamLoggedRef.current) {
@@ -1290,6 +1293,15 @@ export default function CandidateInterview() {
     resolvedSessionRef.current = sessionId;
     console.log('[CANDIDATE_INTERVIEW][SESSION_STICKY_SET]', { sessionId });
   }
+  
+  // SESSION LOCK: Capture first valid sessionId (prevents invalidation after interview starts)
+  if (sessionId && !lockedSessionIdRef.current) {
+    lockedSessionIdRef.current = sessionId;
+    console.log('[SESSION_LOCK][ACQUIRED]', { sessionId });
+  }
+  
+  // EFFECTIVE SESSION: Use locked session as authoritative source (ignores transient nulls)
+  const effectiveSessionId = lockedSessionIdRef.current || sessionId;
   
   // ============================================================================
   // PROMPT TEXT SOT (HOIST-SAFE) - Must be ABOVE all usages
@@ -1613,44 +1625,57 @@ export default function CandidateInterview() {
   }
   
   // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
-  if (!sessionId) {
-    // GUARD: Do not redirect while recovery is in-flight
-    if (isRecoveringSession) {
+  // SESSION LOCK: Suppress invalidation if session was previously locked
+  if (!effectiveSessionId) {
+    // GUARD: Session locked - suppress invalidation (prevents reset to WELCOME)
+    if (lockedSessionIdRef.current) {
+      console.warn('[SESSION_LOCK][SUPPRESSED_INVALIDATION]', {
+        rawSessionId: sessionId,
+        lockedSessionId: lockedSessionIdRef.current,
+        screenMode,
+        reason: 'Session locked - ignoring transient null sessionId'
+      });
+      // Continue rendering - use locked session (no redirect)
+    } else {
+      // No lock yet - apply original guard logic
+      // GUARD: Do not redirect while recovery is in-flight
+      if (isRecoveringSession) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+            <div className="text-center space-y-4">
+              <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
+              <p className="text-slate-300">Recovering session...</p>
+            </div>
+          </div>
+        );
+      }
+      
+      // LOG: No session and no repair possible - unrecoverable
+      if (!noSessionEarlyReturnLoggedRef.current) {
+        noSessionEarlyReturnLoggedRef.current = true;
+        console.error('[CANDIDATE_INTERVIEW][NO_SESSION_UNRECOVERABLE]', {
+          sessionId,
+          hasSession: !!sessionId,
+          screenMode,
+          pathname: window.location.pathname,
+          search: window.location.search,
+          stack: new Error().stack?.split('\n').slice(0,6).join('\n'),
+          hadRefSession: !!resolvedSessionRef.current,
+          deptParam: urlParams.get('dept'),
+          fileParam: urlParams.get('file'),
+          action: 'redirect_to_startinterview'
+        });
+      }
+      
       return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
           <div className="text-center space-y-4">
             <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
-            <p className="text-slate-300">Recovering session...</p>
+            <p className="text-slate-300">Redirecting to start interview...</p>
           </div>
         </div>
       );
     }
-    
-    // LOG: No session and no repair possible - unrecoverable
-    if (!noSessionEarlyReturnLoggedRef.current) {
-      noSessionEarlyReturnLoggedRef.current = true;
-      console.error('[CANDIDATE_INTERVIEW][NO_SESSION_UNRECOVERABLE]', {
-        sessionId,
-        hasSession: !!sessionId,
-        screenMode,
-        pathname: window.location.pathname,
-        search: window.location.search,
-        stack: new Error().stack?.split('\n').slice(0,6).join('\n'),
-        hadRefSession: !!resolvedSessionRef.current,
-        deptParam: urlParams.get('dept'),
-        fileParam: urlParams.get('file'),
-        action: 'redirect_to_startinterview'
-      });
-    }
-    
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
-          <p className="text-slate-300">Redirecting to start interview...</p>
-        </div>
-      </div>
-    );
   }
   
   // TODO: REMOVE CQDIAG after PASS validation
@@ -1658,11 +1683,13 @@ export default function CandidateInterview() {
   
   // FORENSIC: Mount-only bootstrap confirmation (proves session param routing worked)
   const bootstrapOkLoggedRef = useRef(false);
-  if (!bootstrapOkLoggedRef.current && sessionId) {
+  if (!bootstrapOkLoggedRef.current && effectiveSessionId) {
     bootstrapOkLoggedRef.current = true;
     console.log('[CANDIDATE_INTERVIEW][BOOTSTRAP_OK]', {
-      sessionId,
-      hasSession: !!sessionId,
+      sessionId: effectiveSessionId,
+      rawSessionId: sessionId,
+      hasSession: !!effectiveSessionId,
+      lockedSession: lockedSessionIdRef.current,
       search: window.location.search,
       note: 'Session param received - no redirect loop'
     });
@@ -5454,8 +5481,8 @@ export default function CandidateInterview() {
   const sessionRecoveryAttemptedRef = useRef(false);
   
   useEffect(() => {
-    // Only run recovery if sessionId is missing
-    if (sessionId) return;
+    // Only run recovery if sessionId is missing AND no lock exists
+    if (effectiveSessionId) return;
     if (resolvedSessionRef.current) return;
     if (didSessionRepairRef.current) return;
     if (sessionRecoveryAttemptedRef.current) return;
@@ -5517,7 +5544,8 @@ export default function CandidateInterview() {
   
   // SESSION GUARD: Redirect to StartInterview if no sessionId in URL
   useEffect(() => {
-    if (!sessionId) {
+    // SESSION LOCK: Suppress redirect if session was locked (prevents mid-interview reset)
+    if (!effectiveSessionId) {
       // ONE-SHOT GUARD: Only redirect once (prevent loops)
       if (didTerminalRedirectRef.current) {
         return; // Already redirected - no-op
@@ -5550,13 +5578,13 @@ export default function CandidateInterview() {
     }
     
     // CRITICAL: Only initialize once per sessionId (even if component remounts)
-    if (initMapRef.current[sessionId]) {
-      console.log('[MOUNT_GUARD] Already initialized for sessionId - skipping init', { sessionId });
+    if (initMapRef.current[effectiveSessionId]) {
+      console.log('[MOUNT_GUARD] Already initialized for sessionId - skipping init', { sessionId: effectiveSessionId });
       
       // Remount recovery: restore state from DB without full init
       const quickRestore = async () => {
         try {
-          const loadedSession = await base44.entities.InterviewSession.get(sessionId);
+          const loadedSession = await base44.entities.InterviewSession.get(effectiveSessionId);
           if (loadedSession) {
             setSession(loadedSession);
 
@@ -5586,8 +5614,8 @@ export default function CandidateInterview() {
     }
     
     // Mark this sessionId as initialized
-    initMapRef.current[sessionId] = true;
-    console.log('[MOUNT_GUARD] First init for sessionId', { sessionId });
+    initMapRef.current[effectiveSessionId] = true;
+    console.log('[MOUNT_GUARD] First init for sessionId', { sessionId: effectiveSessionId });
     
     initializeInterview();
 
@@ -5602,7 +5630,7 @@ export default function CandidateInterview() {
       
       // DO NOT clear initMapRef on unmount - allows detection across remounts
     };
-  }, [sessionId]);
+  }, [effectiveSessionId]);
 
   // STABLE: Component instance tracking - MUST NOT change during session
   const componentInstanceId = useRef(`CandidateInterview-${sessionId}`);
