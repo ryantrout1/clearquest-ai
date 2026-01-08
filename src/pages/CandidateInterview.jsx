@@ -19225,14 +19225,6 @@ export default function CandidateInterview() {
 
                      return null; // Active lane owns rendering
                     } else if (cardKind === "v3_pack_opener") {
-                      // V3_OPENER PRECEDENCE: opener renders ONLY in Active Lane during opener step
-                      if (activeUiItem?.kind === "V3_OPENER") {
-                        console.log('[V3_OPENER][TRANSCRIPT_LANE_OPENER_SUPPRESSED]', {
-                          reason: 'Prevent duplicate opener: transcript-lane activeCard v3_pack_opener suppressed; active lane owns opener'
-                        });
-                        return null;
-                      }
-                      
                       // Dedupe: Skip duplicate opener cards using CANONICAL opener key (packId + instanceNumber)
                       if (activeUiItem?.kind === "V3_OPENER") {
                         const canonicalOpenerKeySOT = buildV3OpenerStableKey(
@@ -20526,6 +20518,13 @@ export default function CandidateInterview() {
             }
 
             if (cardKind === "v3_pack_opener") {
+              if (activeUiItem?.kind === "V3_OPENER") {
+                console.log('[V3_OPENER][ACTIVE_LANE_OPENER_SUPPRESSED_OWNER_SWAP]', {
+                  reason: 'Transcript lane owns opener during V3_OPENER - preventing active lane duplicate'
+                });
+                return null;
+              }
+              
               const cardStableKey = activeCard.stableKey || `followup-card:${activeCard.packId}:opener:${activeCard.instanceNumber}`;
               
               // V3_OPENER PRECEDENCE: Only render the CURRENT active opener card
