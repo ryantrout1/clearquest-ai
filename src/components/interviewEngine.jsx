@@ -1791,8 +1791,11 @@ export async function bootstrapEngine(base44) {
 
   try {
     // V3_ONLY_MODE: Skip V2 pack bootstrap when true (conversational probing only)
-    const [questions, sections, categories, v2Packs, v2FollowUpQuestions] = V3_ONLY_MODE
-      ? await Promise.all([
+    // TIMEOUT GUARD: 20s max for entity fetches (prevents indefinite hang)
+    const ENTITY_FETCH_TIMEOUT_MS = 20000;
+    
+    const fetchPromise = V3_ONLY_MODE
+      ? Promise.all([
           base44.entities.Question.filter({ active: true }),
           base44.entities.Section.list(),
           base44.entities.Category.list()
@@ -1803,13 +1806,22 @@ export async function bootstrapEngine(base44) {
           });
           return [q, s, c, [], []]; // Stub: v2Packs=[], v2FollowUpQuestions=[]
         })
-      : await Promise.all([
+      : Promise.all([
           base44.entities.Question.filter({ active: true }),
           base44.entities.Section.list(),
           base44.entities.Category.list(),
           base44.entities.FollowUpPack.filter({ is_standard_cluster: true, active: true }),
           base44.entities.FollowUpQuestion.filter({ active: true })
         ]);
+    
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('ENTITY_FETCH_TIMEOUT')), ENTITY_FETCH_TIMEOUT_MS)
+    );
+    
+    const [questions, sections, categories, v2Packs, v2FollowUpQuestions] = await Promise.race([
+      fetchPromise,
+      timeoutPromise
+    ]);
 
     const { 
       QById,

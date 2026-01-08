@@ -5721,10 +5721,10 @@ export default function CandidateInterview() {
         hasEngine: bootCompletedRef.value,
         screenMode,
         currentItemType: currentItem?.type,
-        elapsed: '10000ms'
+        elapsed: '25000ms'
       });
       setShowLoadingRetry(true);
-    }, 10000);
+    }, 25000);
     
     // Cleanup: mark unmounted and clear timeout
     const timeoutCleanup = () => {
@@ -5764,6 +5764,8 @@ export default function CandidateInterview() {
       // SERVER-TRUTH GUARD: Always fetch session from DB (never create duplicate)
       console.log('[CANDIDATE_BOOT][FETCH_SESSION]', { sessionId });
       
+      console.log('[CANDIDATE_BOOT][SESSION_LOAD_BEGIN]', { sessionId });
+      
       let loadedSession;
       try {
         loadedSession = await base44.entities.InterviewSession.get(sessionId);
@@ -5800,6 +5802,8 @@ export default function CandidateInterview() {
         transcriptLen: loadedSession.transcript_snapshot?.length || 0
       });
       
+      console.log('[CANDIDATE_BOOT][SESSION_LOAD_OK]', { sessionId, status: loadedSession?.status });
+      
       // CQ_TRANSCRIPT_CONTRACT: Session start assertion
       console.log('[CQ_TRANSCRIPT][SESSION_START]', {
         sessionId: loadedSession.id,
@@ -5827,9 +5831,13 @@ export default function CandidateInterview() {
         // Silent continue
       }
 
+      console.log('[CANDIDATE_BOOT][ENGINE_INIT_BEGIN]', { sessionId });
+      
       const bootStart = Date.now();
       const engineData = await bootstrapEngine(base44);
       const bootMs = Date.now() - bootStart;
+      
+      console.log('[CANDIDATE_BOOT][ENGINE_INIT_OK]', { sessionId, hasEngineData: !!engineData });
       
       setEngine(engineData);
       bootCompletedRef.value = true; // Mark boot complete BEFORE any further async work
@@ -5880,6 +5888,8 @@ export default function CandidateInterview() {
         // CRITICAL: dbTranscript already initialized as [] - NEVER reset it
         setQueue([]);
         setCurrentItem(null); // Will be set after "Got it — Let's Begin"
+        
+        console.log('[CANDIDATE_BOOT][FIRST_ITEM_RESOLVED]', { currentItemType: null, reason: 'new_session' });
       }
 
       const hasAnyResponses = loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0;
@@ -5963,6 +5973,13 @@ export default function CandidateInterview() {
       bootCompletedRef.value = true; // Mark complete even on error
       clearTimeout(bootTimeout);
       
+      console.error('[CANDIDATE_BOOT][FATAL]', {
+        phase: 'initializeInterview',
+        sessionId,
+        errorMessage: err?.message,
+        errorStack: err?.stack?.substring(0, 300)
+      });
+      
       const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
       setError(`Failed to load interview: ${errorMessage}`);
       setIsLoading(false);
@@ -5999,6 +6016,8 @@ export default function CandidateInterview() {
     
     setQueue(restoredQueue);
     setCurrentItem(restoredCurrentItem);
+    
+    console.log('[CANDIDATE_BOOT][FIRST_ITEM_RESOLVED]', { currentItemType: restoredCurrentItem?.type, reason: 'restore_from_snapshots' });
 
     if (!restoredCurrentItem && restoredQueue.length > 0) {
       const nextItem = restoredQueue[0];
