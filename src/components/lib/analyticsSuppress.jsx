@@ -4,6 +4,9 @@
  * CORS blocks analytics/track/batch POST in preview environments,
  * causing repeating console errors. This module suppresses analytics
  * in preview-only, keeping production behavior unchanged.
+ * 
+ * EXTENDED: Also blocks third-party analytics (Clarity, Meta Pixel) 
+ * in preview to prevent CORS retry spam.
  */
 
 let suppressionLoggedRef = false;
@@ -20,6 +23,42 @@ export const isPreviewSandbox = () => {
          hostname.includes('.preview.') ||
          hostname.endsWith('.base44.run');
 };
+
+/**
+ * Block third-party analytics (Clarity, Meta Pixel) in preview environments
+ * Stubs globals early to prevent script execution and CORS retry loops
+ */
+const blockThirdPartyAnalyticsInPreview = () => {
+  if (!isPreviewSandbox()) return;
+  if (typeof window === 'undefined') return;
+  
+  // Guard: Only log once per page load
+  if (window.__CQ_3P_ANALYTICS_LOGGED__) return;
+  window.__CQ_3P_ANALYTICS_LOGGED__ = true;
+  
+  // Stub Microsoft Clarity
+  if (typeof window.clarity !== 'function') {
+    window.clarity = function() {};
+    window.__CQ_CLARITY_BLOCKED__ = true;
+  }
+  
+  // Stub Meta Pixel
+  if (typeof window.fbq !== 'function') {
+    window.fbq = function() {};
+    window._fbq = window.fbq;
+    window.__CQ_META_PIXEL_BLOCKED__ = true;
+  }
+  
+  // Single log line
+  console.log('[ANALYTICS][3RDPARTY_DISABLED]', { 
+    hostname: window.location.hostname 
+  });
+};
+
+// Auto-run blocker at module load (before scripts execute)
+if (typeof window !== 'undefined') {
+  blockThirdPartyAnalyticsInPreview();
+}
 
 /**
  * Initialize analytics suppression for preview environments
