@@ -154,6 +154,9 @@ export default function V3ProbingLoop({
   // DECIDE CYCLE DIAGNOSTICS: Track decide sequence number and timeout
   const decideSeqRef = useRef(0);
   const decideTimeoutRef = useRef(null);
+  
+  // STALE IN-FLIGHT FAILSAFE: Track when in-flight was set to detect stuck states
+  const lastInFlightAtRef = useRef(null);
 
   // RENDER TRUTH: Diagnostic logging for prompt card visibility
   const shouldShowPromptCard = !!activePromptText && !isComplete;
@@ -404,7 +407,40 @@ export default function V3ProbingLoop({
 
     // Use initialAnswer (from parent's pendingAnswer) if provided, otherwise fall back to local input
     const answer = initialAnswer || input.trim();
-    if (!answer || isLoading || isComplete) return;
+    
+    // SUBMIT ENTRY LOG: Track all handleSubmit invocations
+    console.log('[V3_SUBMIT][ENTRY]', {
+      loopKey,
+      hasAnswer: !!answer,
+      answerLen: (answer || '').length,
+      isLoading,
+      isDeciding,
+      isComplete,
+      inFlight: !!engineInFlightRef.current
+    });
+    
+    // STALE IN-FLIGHT FAILSAFE: Clear stuck in-flight guard if >20s old
+    if (engineInFlightRef.current && lastInFlightAtRef.current) {
+      const ageMs = Date.now() - lastInFlightAtRef.current;
+      if (ageMs > 20000) {
+        console.warn('[V3_SUBMIT][STALE_INFLIGHT_CLEARED]', {
+          loopKey,
+          ageMs,
+          reason: 'In-flight guard stuck for >20s - clearing to allow new decide'
+        });
+        engineInFlightRef.current = false;
+        setIsLoading(false);
+        setIsDeciding(false);
+      }
+    }
+    
+    if (!answer || isLoading || isComplete) {
+      console.log('[V3_SUBMIT][EARLY_RETURN]', { 
+        loopKey, 
+        reason: !answer ? 'NO_ANSWER' : isLoading ? 'ALREADY_LOADING' : 'COMPLETE' 
+      });
+      return;
+    }
 
     // PART 3: Ensure stable promptId exists BEFORE any callbacks (prevents NO_SNAPSHOT)
     const probeIndex = messages.filter(m => m.role === 'ai').length;
@@ -420,6 +456,11 @@ export default function V3ProbingLoop({
     
     // IN-FLIGHT GUARD: Prevent concurrent engine calls
     if (engineInFlightRef.current) {
+      console.log('[V3_SUBMIT][EARLY_RETURN]', { 
+        loopKey, 
+        reason: 'IN_FLIGHT',
+        ageMs: lastInFlightAtRef.current ? Date.now() - lastInFlightAtRef.current : null
+      });
       console.log('[V3_PROBING_LOOP][IN_FLIGHT_GUARD] Engine call already in progress - blocking duplicate', {
         loopKey,
         isInitialCall,
@@ -464,6 +505,7 @@ export default function V3ProbingLoop({
     
     // Mark engine call as in-flight
     engineInFlightRef.current = true;
+    lastInFlightAtRef.current = Date.now(); // Track when in-flight was set
     
     // DECIDE DIAGNOSTICS: Increment sequence and log start
     decideSeqRef.current += 1;
