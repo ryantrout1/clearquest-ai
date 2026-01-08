@@ -5934,6 +5934,13 @@ export default function CandidateInterview() {
 
       cqLog('INFO', '[CANDIDATE_BOOT][ENGINE_INIT_BEGIN]', { sessionId });
       
+      console.log('[V3_ONLY][ENFORCED]', {
+        route: 'CandidateInterview',
+        reason: 'Candidate/public interview runtime',
+        v3Only: true,
+        v2PacksDisabled: true
+      });
+      
       const bootStart = Date.now();
       const engineData = await bootstrapEngine(base44);
       const bootMs = Date.now() - bootStart;
