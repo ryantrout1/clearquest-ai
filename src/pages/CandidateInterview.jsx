@@ -7522,7 +7522,7 @@ export default function CandidateInterview() {
               packId,
               categoryLabel,
               instanceNumber,
-              exampleNarrative,
+              exampleNarrative: currentItem.exampleNarrative,
               source: 'prompt_lane_history',
               createdAt: Date.now()
             }
