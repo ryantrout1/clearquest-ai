@@ -150,6 +150,10 @@ export default function V3ProbingLoop({
   
   // IDEMPOTENCY GUARD: Track last consumed answer to prevent duplicate processing
   const lastConsumedAnswerRef = useRef(null);
+  
+  // DECIDE CYCLE DIAGNOSTICS: Track decide sequence number and timeout
+  const decideSeqRef = useRef(0);
+  const decideTimeoutRef = useRef(null);
 
   // RENDER TRUTH: Diagnostic logging for prompt card visibility
   const shouldShowPromptCard = !!activePromptText && !isComplete;
@@ -240,6 +244,12 @@ export default function V3ProbingLoop({
     // Cleanup: remove loopKey on unmount
     return () => {
       activeLoopKeysRef.current.delete(loopKey);
+      
+      // Cleanup watchdog timeout on unmount
+      if (decideTimeoutRef.current) {
+        clearTimeout(decideTimeoutRef.current);
+        decideTimeoutRef.current = null;
+      }
     };
   }, []);
 
@@ -454,6 +464,33 @@ export default function V3ProbingLoop({
     
     // Mark engine call as in-flight
     engineInFlightRef.current = true;
+    
+    // DECIDE DIAGNOSTICS: Increment sequence and log start
+    decideSeqRef.current += 1;
+    const decideSeq = decideSeqRef.current;
+    
+    console.log('[V3_DECIDE][START]', {
+      loopKey,
+      decideSeq,
+      hasOpenerAnswerLen: answer?.length || 0,
+      isInitialCall,
+      llmEnabledSOT: shouldUseLLMProbeWording
+    });
+    
+    // WATCHDOG: 15s timeout to detect stuck decide cycle
+    decideTimeoutRef.current = setTimeout(() => {
+      console.error('[V3_DECIDE][TIMEOUT]', {
+        loopKey,
+        decideSeq,
+        llmEnabledSOT: shouldUseLLMProbeWording,
+        hasPrompt: !!activePromptText,
+        isDeciding,
+        isBlocked,
+        isComplete,
+        engineInFlight: engineInFlightRef.current,
+        reason: 'Decide cycle did not complete within 15 seconds'
+      });
+    }, 15000);
 
     // Add user message (skip for initial opener - it's already in transcript)
     if (!isInitialCall) {
@@ -512,6 +549,14 @@ export default function V3ProbingLoop({
         : packData?.packId ? 'packId' 
         : packData?.id ? 'id' 
         : 'none';
+      
+      // DECIDE DIAGNOSTICS: Log effective instructions before engine call
+      console.log('[V3_DECIDE][INPUTS]', {
+        loopKey,
+        decideSeq,
+        effectiveInstructionsLen: packInstructionsLen,
+        hasPackInstructions
+      });
       
       // FRONTEND ASSERTION: Warn if enablement is true but instructions are missing
       if (payloadUseLLMProbeWording && !hasPackInstructions) {
@@ -995,6 +1040,14 @@ export default function V3ProbingLoop({
     } catch (err) {
       const engineCallMs = Date.now() - engineCallStart;
       
+      // DECIDE DIAGNOSTICS: Log error
+      console.error('[V3_DECIDE][ERR]', {
+        loopKey,
+        decideSeq,
+        message: err?.message || String(err),
+        stackPreview: err?.stack?.substring(0, 200) || 'N/A'
+      });
+      
       console.error("[V3_PROBING][ENGINE_CALL_ERROR]", { 
         error: String(err), 
         stack: err?.stack,
@@ -1117,6 +1170,20 @@ export default function V3ProbingLoop({
       });
       return;
     } finally {
+      // DECIDE DIAGNOSTICS: Log end and clear watchdog
+      console.log('[V3_DECIDE][END]', {
+        loopKey,
+        decideSeq,
+        hasPrompt: !!activePromptText,
+        promptLen: activePromptText?.length || 0
+      });
+      
+      // Clear watchdog timeout
+      if (decideTimeoutRef.current) {
+        clearTimeout(decideTimeoutRef.current);
+        decideTimeoutRef.current = null;
+      }
+      
       setIsLoading(false);
       setIsDeciding(false);
       engineInFlightRef.current = false;
