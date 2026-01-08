@@ -2736,6 +2736,12 @@ export default function CandidateInterview() {
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
   
+  // HOOK ORDER FIX: One-time proof that onPromptSet is plain function (no React hook)
+  if (typeof window !== 'undefined' && !window.__CQ_ONPROMPTSET_NOHOOK_LOGGED__) {
+    window.__CQ_ONPROMPTSET_NOHOOK_LOGGED__ = true;
+    console.log('[HOOK_ORDER][ONPROMPTSET_NOHOOK_OK]', { sessionId: effectiveSessionId || sessionId });
+  }
+  
   // FORENSIC: Mount-only log confirming TDZ fix for showRedirectFallback
   const tdzFixLoggedRef = useRef(false);
   if (!tdzFixLoggedRef.current) {
