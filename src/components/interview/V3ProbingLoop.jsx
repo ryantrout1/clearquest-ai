@@ -1284,11 +1284,11 @@ export default function V3ProbingLoop({
         
         setActivePromptText(fallbackPrompt);
         setActivePromptId(fallbackPromptId);
-        
+
         // ANSWER_NEEDED state: same as normal ASK response
         setIsDeciding(false);
         setIsLoading(false);
-        
+
         // Notify parent that answer is needed (same as normal ASK)
         if (onAnswerNeeded) {
           onAnswerNeeded({
@@ -1297,7 +1297,7 @@ export default function V3ProbingLoop({
             probeCount: probeCount
           });
         }
-        
+
         if (onPromptChange) {
           onPromptChange({
             promptText: fallbackPrompt,
@@ -1310,7 +1310,18 @@ export default function V3ProbingLoop({
             v3LlmMs: null
           });
         }
-        
+
+        if (onPromptSet) {
+          onPromptSet({ loopKey, promptPreview: fallbackPrompt.substring(0, 60), promptLen: fallbackPrompt.length });
+        }
+
+        // SNAPSHOT COMMITTED: Mark timeout fail-open as committed
+        console.log('[V3_SNAPSHOT][FAILOPEN_COMMITTED]', {
+          loopKey,
+          promptLen: fallbackPrompt.length,
+          reason: 'FALLBACK_TIMEOUT'
+        });
+
         console.log('[V3_PROBE][FALLBACK_PROMPT_SET]', {
           promptPreview: fallbackPrompt.slice(0, 60),
           reason: 'BACKEND_TIMEOUT',
