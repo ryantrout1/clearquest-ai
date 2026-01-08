@@ -3991,6 +3991,66 @@ export default function CandidateInterview() {
       lastV3PromptPhaseRef.current = v3PromptPhase;
     }
   }, [v3PromptPhase, v3ActivePromptText, hasV3PromptText, hasActiveV3Prompt, activeUiItem]);
+  
+  // V3 WAITING WATCHDOG: Detect stuck state and force fallback prompt
+  const v3WaitingWatchdogRef = useRef(null);
+  const v3WaitingLastArmKeyRef = useRef(null);
+  
+  useEffect(() => {
+    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+    const isStuck = v3ProbingActive && 
+                    bottomBarModeSOT === 'V3_WAITING' && 
+                    !hasActiveV3Prompt && 
+                    screenMode === 'QUESTION' &&
+                    loopKey;
+    
+    const armKey = loopKey || 'none';
+    
+    if (isStuck && armKey !== 'none') {
+      if (v3WaitingLastArmKeyRef.current !== armKey) {
+        if (v3WaitingWatchdogRef.current) {
+          clearTimeout(v3WaitingWatchdogRef.current);
+        }
+        
+        v3WaitingLastArmKeyRef.current = armKey;
+        
+        v3WaitingWatchdogRef.current = setTimeout(() => {
+          console.warn('[V3_WAITING][WATCHDOG_FIRE]', { 
+            sessionId, 
+            loopKey, 
+            reason: 'no_prompt_after_12s' 
+          });
+          
+          const fallbackPromptId = `${loopKey}:fallback`;
+          setV3PromptPhase('ANSWER_NEEDED');
+          setV3ActivePromptText("Please restate the missing detail you want to add, including the agency name.");
+          setV3ProbingContext(prev => ({
+            ...prev,
+            promptId: fallbackPromptId
+          }));
+        }, 12000);
+      }
+    } else {
+      if (v3WaitingWatchdogRef.current) {
+        clearTimeout(v3WaitingWatchdogRef.current);
+        v3WaitingWatchdogRef.current = null;
+        
+        if (v3WaitingLastArmKeyRef.current) {
+          console.log('[V3_WAITING][WATCHDOG_CLEARED]', { 
+            sessionId, 
+            loopKey: v3WaitingLastArmKeyRef.current 
+          });
+          v3WaitingLastArmKeyRef.current = null;
+        }
+      }
+    }
+    
+    return () => {
+      if (v3WaitingWatchdogRef.current) {
+        clearTimeout(v3WaitingWatchdogRef.current);
+      }
+    };
+  }, [v3ProbingActive, bottomBarModeSOT, hasActiveV3Prompt, screenMode, v3ProbingContext, sessionId]);
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
