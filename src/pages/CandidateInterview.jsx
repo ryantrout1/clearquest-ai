@@ -5705,6 +5705,11 @@ export default function CandidateInterview() {
     const bootCompletedRef = { value: false };
     const componentUnmountedRef = { value: false };
     
+    // DIAGNOSTIC VARS: Track gating values for FATAL log (diagnostics only, not used by runtime)
+    let loadedSessionForDiag = null;
+    let configForDiag = null;
+    let engineDataForDiag = null;
+    
     const bootTimeout = setTimeout(() => {
       if (componentUnmountedRef.value) {
         console.log('[CANDIDATE_INTERVIEW][LOAD_TIMEOUT][SKIP] Component unmounted');
@@ -5739,6 +5744,8 @@ export default function CandidateInterview() {
       console.log('[CANDIDATE_BOOT] Route: CandidateInterview (public/anonymous)');
       
       const { config } = await getSystemConfig();
+      configForDiag = config; // DIAGNOSTIC: Capture for FATAL log
+      
       let effectiveMode = await getEffectiveInterviewMode({
         isSandbox: false,
         departmentCode: null
@@ -5804,6 +5811,8 @@ export default function CandidateInterview() {
       
       console.log('[CANDIDATE_BOOT][SESSION_LOAD_OK]', { sessionId, status: loadedSession?.status });
       
+      loadedSessionForDiag = loadedSession; // DIAGNOSTIC: Capture for FATAL log
+      
       // CQ_TRANSCRIPT_CONTRACT: Session start assertion
       console.log('[CQ_TRANSCRIPT][SESSION_START]', {
         sessionId: loadedSession.id,
@@ -5836,6 +5845,8 @@ export default function CandidateInterview() {
       const bootStart = Date.now();
       const engineData = await bootstrapEngine(base44);
       const bootMs = Date.now() - bootStart;
+      
+      engineDataForDiag = engineData; // DIAGNOSTIC: Capture for FATAL log
       
       console.log('[CANDIDATE_BOOT][ENGINE_INIT_OK]', { sessionId, hasEngineData: !!engineData });
       
@@ -5977,7 +5988,12 @@ export default function CandidateInterview() {
         phase: 'initializeInterview',
         sessionId,
         errorMessage: err?.message,
-        errorStack: err?.stack?.substring(0, 300)
+        errorStack: err?.stack?.substring(0, 300),
+        gatingValues: {
+          sessionFetchComplete: !!loadedSessionForDiag,
+          configFetchComplete: !!configForDiag,
+          engineBootstrapComplete: !!engineDataForDiag
+        }
       });
       
       const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';

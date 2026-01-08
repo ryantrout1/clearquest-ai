@@ -1794,11 +1794,19 @@ export async function bootstrapEngine(base44) {
     // TIMEOUT GUARD: 20s max for entity fetches (prevents indefinite hang)
     const ENTITY_FETCH_TIMEOUT_MS = 20000;
     
+    console.log('[ENGINE_BOOT][ENTITY_FETCH_BEGIN]');
+    
     const fetchPromise = V3_ONLY_MODE
       ? Promise.all([
-          base44.entities.Question.filter({ active: true }),
-          base44.entities.Section.list(),
+          base44.entities.Question.filter({ active: true })
+            .then(result => { console.log('[ENGINE_BOOT][ENTITY_FETCH_OK]', { entity: 'Question' }); return result; })
+            .catch(err => { console.error('[ENGINE_BOOT][ENTITY_FETCH_ERR]', { entity: 'Question', errorMessage: err?.message }); throw err; }),
+          base44.entities.Section.list()
+            .then(result => { console.log('[ENGINE_BOOT][ENTITY_FETCH_OK]', { entity: 'Section' }); return result; })
+            .catch(err => { console.error('[ENGINE_BOOT][ENTITY_FETCH_ERR]', { entity: 'Section', errorMessage: err?.message }); throw err; }),
           base44.entities.Category.list()
+            .then(result => { console.log('[ENGINE_BOOT][ENTITY_FETCH_OK]', { entity: 'Category' }); return result; })
+            .catch(err => { console.error('[ENGINE_BOOT][ENTITY_FETCH_ERR]', { entity: 'Category', errorMessage: err?.message }); throw err; })
         ]).then(([q, s, c]) => {
           console.log('[V3_ONLY][BLOCKED_V2_PATH]', { 
             callsite: 'bootstrapEngine_fetch',
@@ -1807,11 +1815,21 @@ export async function bootstrapEngine(base44) {
           return [q, s, c, [], []]; // Stub: v2Packs=[], v2FollowUpQuestions=[]
         })
       : Promise.all([
-          base44.entities.Question.filter({ active: true }),
-          base44.entities.Section.list(),
-          base44.entities.Category.list(),
-          base44.entities.FollowUpPack.filter({ is_standard_cluster: true, active: true }),
+          base44.entities.Question.filter({ active: true })
+            .then(result => { console.log('[ENGINE_BOOT][ENTITY_FETCH_OK]', { entity: 'Question' }); return result; })
+            .catch(err => { console.error('[ENGINE_BOOT][ENTITY_FETCH_ERR]', { entity: 'Question', errorMessage: err?.message }); throw err; }),
+          base44.entities.Section.list()
+            .then(result => { console.log('[ENGINE_BOOT][ENTITY_FETCH_OK]', { entity: 'Section' }); return result; })
+            .catch(err => { console.error('[ENGINE_BOOT][ENTITY_FETCH_ERR]', { entity: 'Section', errorMessage: err?.message }); throw err; }),
+          base44.entities.Category.list()
+            .then(result => { console.log('[ENGINE_BOOT][ENTITY_FETCH_OK]', { entity: 'Category' }); return result; })
+            .catch(err => { console.error('[ENGINE_BOOT][ENTITY_FETCH_ERR]', { entity: 'Category', errorMessage: err?.message }); throw err; }),
+          base44.entities.FollowUpPack.filter({ is_standard_cluster: true, active: true })
+            .then(result => { console.log('[ENGINE_BOOT][ENTITY_FETCH_OK]', { entity: 'FollowUpPack' }); return result; })
+            .catch(err => { console.error('[ENGINE_BOOT][ENTITY_FETCH_ERR]', { entity: 'FollowUpPack', errorMessage: err?.message }); throw err; }),
           base44.entities.FollowUpQuestion.filter({ active: true })
+            .then(result => { console.log('[ENGINE_BOOT][ENTITY_FETCH_OK]', { entity: 'FollowUpQuestion' }); return result; })
+            .catch(err => { console.error('[ENGINE_BOOT][ENTITY_FETCH_ERR]', { entity: 'FollowUpQuestion', errorMessage: err?.message }); throw err; })
         ]);
     
     const timeoutPromise = new Promise((_, reject) => 
