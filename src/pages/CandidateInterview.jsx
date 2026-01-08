@@ -5945,14 +5945,14 @@ export default function CandidateInterview() {
       const engineData = await bootstrapEngine(base44);
       const bootMs = Date.now() - bootStart;
       
-      // V3-ONLY KILL SWITCH: Detect V2 leaks after engine boot
+      // V3-ONLY KILL SWITCH: Detect V2 leaks after engine boot (FAIL-FAST)
       if (engineData) {
         const v2PacksLoaded = engineData.V2Packs?.length > 0;
         const packsBootstrapped = Object.keys(engineData.PackStepsById || {}).length;
         const hasV2Artifacts = v2PacksLoaded || (packsBootstrapped > 0 && !V3_ONLY_MODE);
         
         if (hasV2Artifacts) {
-          const stack = new Error().stack?.split('\n').slice(1, 4).join(' | ') || 'N/A';
+          const stack = new Error().stack?.split('\n').slice(0, 4).join('\n') || 'N/A';
           console.error('[FATAL][V2_LEAK_DETECTED]', {
             reason: v2PacksLoaded ? 'v2_packs_loaded' : 'packs_bootstrapped_without_v3_flag',
             route: 'CandidateInterview',
@@ -5961,23 +5961,11 @@ export default function CandidateInterview() {
             v2PacksCount: engineData.V2Packs?.length || 0,
             packsBootstrappedCount: packsBootstrapped,
             V3_ONLY_MODE,
-            stackPreview: stack
+            stack
           });
           
-          // SELF-HEAL: Force V3-only mode
-          console.log('[V3_ONLY][SELF_HEAL]', {
-            action: 'forcing_v3_only',
-            v2PacksBeforeHeal: engineData.V2Packs?.length || 0
-          });
-          
-          // Clear V2 pack data
-          engineData.V2Packs = [];
-          engineData.v2PacksById = {};
-          
-          console.log('[V3_ONLY][SELF_HEAL_COMPLETE]', {
-            v2PacksAfterHeal: 0,
-            note: 'V2 artifacts cleared - proceeding with V3-only mode'
-          });
+          // FAIL-FAST: Throw immediately (do not self-heal - this is a contract violation)
+          throw new Error('V2_LEAK_DETECTED in candidate/public — V3-only contract violated. Interview cannot proceed.');
         }
       }
       
@@ -15607,10 +15595,10 @@ export default function CandidateInterview() {
     lastEffectiveItemTypeRef.current = effectiveItemType;
   }
   
-  // YES/NO RENDERER ASSERTION: Log selected renderer (candidate/public only)
+  // YES/NO RENDERER ASSERTION: Detect legacy by code path + DOM verification
   if (bottomBarModeSOT === 'YES_NO' && currentItem) {
     const rendererName = 'YesNoControls';
-    const isLegacyV2 = false; // Modern neutral renderer, not legacy green/red
+    const isLegacyV2 = false; // Code path uses modern neutral renderer
     
     logOnce(`yesno_renderer_selected_${sessionId}:${currentItem?.id}`, () => {
       console.log('[YESNO_RENDERER_SELECTED]', {
@@ -15621,6 +15609,37 @@ export default function CandidateInterview() {
         currentItemType: currentItem?.type,
         bottomBarModeSOT,
         note: 'Modern neutral YesNoControls - no green/red legacy buttons'
+      });
+      
+      // DOM VERIFICATION: Check for legacy green/red buttons after render
+      requestAnimationFrame(() => {
+        if (!footerRef.current) return;
+        
+        // Detect legacy by known class patterns (green/red buttons)
+        const hasGreenButton = footerRef.current.querySelector('.bg-green-600, .bg-emerald-600, .hover\\:bg-green-700, .hover\\:bg-emerald-700');
+        const hasRedButton = footerRef.current.querySelector('.bg-red-600, .bg-rose-600, .hover\\:bg-red-700, .hover\\:bg-rose-700');
+        const legacyDetected = hasGreenButton || hasRedButton;
+        
+        if (legacyDetected) {
+          const stack = new Error().stack?.split('\n').slice(0, 4).join('\n') || 'N/A';
+          console.error('[FATAL][LEGACY_YESNO_RENDERED]', {
+            questionId: currentItem?.id,
+            questionCode: engine?.QById?.[currentItem?.id]?.question_id || 'N/A',
+            hasGreenButton: !!hasGreenButton,
+            hasRedButton: !!hasRedButton,
+            stack,
+            reason: 'Legacy green/red YES/NO buttons detected in DOM - V3-only contract violated'
+          });
+          
+          // FAIL-FAST: This should never happen (code path already uses YesNoControls)
+          throw new Error('LEGACY_YESNO_RENDERED - V3-only contract violated');
+        } else {
+          console.log('[YESNO_DOM_VERIFIED]', {
+            questionId: currentItem?.id,
+            legacyDetected: false,
+            rendererConfirmed: 'YesNoControls_neutral'
+          });
+        }
       });
     });
   }

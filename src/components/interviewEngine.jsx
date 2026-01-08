@@ -1808,20 +1808,28 @@ function mapResponseTypeToExpectedType(responseType) {
 }
 
 export async function bootstrapEngine(base44) {
-  // FATAL V2 LEAK DETECTION: Log if V2 boot path is reached (should never happen in V3-only mode)
-  if (!V3_ONLY_MODE && typeof window !== 'undefined') {
+  // FATAL V2 ENGINE BOOT TRIPWIRE: Fail-fast if V2 path reached on candidate/public
+  if (typeof window !== 'undefined') {
     const pathname = window.location?.pathname || '';
+    const href = window.location?.href || '';
     const isPublicRoute = pathname.includes('CandidateInterview') || pathname.includes('candidateinterview');
     
-    if (isPublicRoute) {
-      const stack = new Error().stack?.split('\n').slice(1, 4).join(' | ') || 'N/A';
-      console.error('[FATAL][V2_ENGINE_BOOT_PATH_HIT]', {
-        route: 'candidate/public',
+    // Always log when boot function is called (proof of invocation)
+    const stack = new Error().stack?.split('\n').slice(0, 4).join('\n') || 'N/A';
+    
+    if (!V3_ONLY_MODE) {
+      console.error('[FATAL][V2_ENGINE_BOOT_TEXT_REACHED]', {
         pathname,
-        moduleFileHint: 'components/interviewEngine.js',
-        stackPreview: stack,
-        reason: 'V2 boot path reached on candidate/public route - V3_ONLY_MODE should be true'
+        href,
+        stack,
+        V3_ONLY_MODE,
+        moduleFileHint: 'components/interviewEngine.js:bootstrapEngine'
       });
+      
+      // FAIL-FAST: Throw on candidate/public routes (admin continues)
+      if (isPublicRoute) {
+        throw new Error('V2_ENGINE_BOOT_TEXT_REACHED on candidate/public — V3-only contract violated');
+      }
     }
   }
   
