@@ -1862,7 +1862,29 @@ export async function bootstrapEngine(base44) {
           });
           return [q, s, c, [], []]; // Stub: v2Packs=[], v2FollowUpQuestions=[]
         })
-      : Promise.all([
+      : (() => {
+          // FATAL V2 BOOT BRANCH TRIPWIRE: Detect V2 path regardless of flag state
+          const pathname = typeof window !== 'undefined' ? (window.location?.pathname || '') : '';
+          const href = typeof window !== 'undefined' ? (window.location?.href || '') : '';
+          const isPublicRoute = pathname.includes('CandidateInterview') || pathname.includes('candidateinterview');
+          const stack = new Error().stack?.split('\n').slice(0, 6).join('\n') || 'N/A';
+          
+          console.error('[FATAL][V2_BOOT_BRANCH_REACHED]', {
+            pathname,
+            href,
+            stack,
+            V3_ONLY_MODE,
+            moduleFileHint: 'components/interviewEngine.js:bootstrapEngine:V2_BRANCH',
+            reason: 'V2 boot branch executed - this should never happen on candidate/public'
+          });
+          
+          // FAIL-FAST: Throw on candidate/public routes
+          if (isPublicRoute) {
+            throw new Error('V2_BOOT_BRANCH_REACHED on candidate/public — V3-only contract violated');
+          }
+          
+          // Admin routes: continue with V2 boot
+          return Promise.all([
           base44.entities.Question.filter({ active: true })
             .then(result => { console.log('[ENGINE_BOOT][ENTITY_FETCH_OK]', { entity: 'Question' }); return result; })
             .catch(err => { console.error('[ENGINE_BOOT][ENTITY_FETCH_ERR]', { entity: 'Question', errorMessage: err?.message }); throw err; }),
@@ -1879,6 +1901,7 @@ export async function bootstrapEngine(base44) {
             .then(result => { console.log('[ENGINE_BOOT][ENTITY_FETCH_OK]', { entity: 'FollowUpQuestion' }); return result; })
             .catch(err => { console.error('[ENGINE_BOOT][ENTITY_FETCH_ERR]', { entity: 'FollowUpQuestion', errorMessage: err?.message }); throw err; })
         ]);
+        })();
     
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('ENTITY_FETCH_TIMEOUT')), ENTITY_FETCH_TIMEOUT_MS)

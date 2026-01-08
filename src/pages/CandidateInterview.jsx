@@ -15595,7 +15595,7 @@ export default function CandidateInterview() {
     lastEffectiveItemTypeRef.current = effectiveItemType;
   }
   
-  // YES/NO RENDERER ASSERTION: Detect legacy by code path + DOM verification
+  // YES/NO RENDERER ASSERTION: Detect legacy by code path + expanded DOM verification
   if (bottomBarModeSOT === 'YES_NO' && currentItem) {
     const rendererName = 'YesNoControls';
     const isLegacyV2 = false; // Code path uses modern neutral renderer
@@ -15611,33 +15611,115 @@ export default function CandidateInterview() {
         note: 'Modern neutral YesNoControls - no green/red legacy buttons'
       });
       
-      // DOM VERIFICATION: Check for legacy green/red buttons after render
+      // EXPANDED DOM VERIFICATION: Detect legacy by multiple signals
       requestAnimationFrame(() => {
         if (!footerRef.current) return;
         
-        // Detect legacy by known class patterns (green/red buttons)
-        const hasGreenButton = footerRef.current.querySelector('.bg-green-600, .bg-emerald-600, .hover\\:bg-green-700, .hover\\:bg-emerald-700');
-        const hasRedButton = footerRef.current.querySelector('.bg-red-600, .bg-rose-600, .hover\\:bg-red-700, .hover\\:bg-rose-700');
-        const legacyDetected = hasGreenButton || hasRedButton;
+        const footer = footerRef.current;
         
-        if (legacyDetected) {
-          const stack = new Error().stack?.split('\n').slice(0, 4).join('\n') || 'N/A';
+        // SIGNAL 1: Class-based detection (expanded patterns)
+        const greenClasses = [
+          '.bg-green-600', '.bg-green-500', '.bg-green-700',
+          '.bg-emerald-600', '.bg-emerald-500', '.bg-emerald-700',
+          '.hover\\:bg-green-600', '.hover\\:bg-green-700',
+          '.hover\\:bg-emerald-600', '.hover\\:bg-emerald-700',
+          '[class*="bg-green"]', '[class*="bg-emerald"]'
+        ];
+        
+        const redClasses = [
+          '.bg-red-600', '.bg-red-500', '.bg-red-700',
+          '.bg-rose-600', '.bg-rose-500', '.bg-rose-700',
+          '.hover\\:bg-red-600', '.hover\\:bg-red-700',
+          '.hover\\:bg-rose-600', '.hover\\:bg-rose-700',
+          '[class*="bg-red"]', '[class*="bg-rose"]'
+        ];
+        
+        let legacyGreenButton = null;
+        let legacyRedButton = null;
+        
+        for (const selector of greenClasses) {
+          const el = footer.querySelector(selector);
+          if (el && el.tagName === 'BUTTON') {
+            legacyGreenButton = el;
+            break;
+          }
+        }
+        
+        for (const selector of redClasses) {
+          const el = footer.querySelector(selector);
+          if (el && el.tagName === 'BUTTON') {
+            legacyRedButton = el;
+            break;
+          }
+        }
+        
+        // SIGNAL 2: Inline style detection (rgb/hex green/red)
+        const allButtons = footer.querySelectorAll('button');
+        for (const btn of allButtons) {
+          const bgColor = window.getComputedStyle(btn).backgroundColor;
+          // Green RGB ranges: rgb(16,185,129) emerald-600, rgb(34,197,94) green-600
+          // Red RGB ranges: rgb(220,38,38) red-600, rgb(225,29,72) rose-600
+          if (bgColor.includes('rgb(16, 185, 129)') || bgColor.includes('rgb(34, 197, 94)')) {
+            legacyGreenButton = btn;
+          }
+          if (bgColor.includes('rgb(220, 38, 38)') || bgColor.includes('rgb(225, 29, 72)')) {
+            legacyRedButton = btn;
+          }
+        }
+        
+        // SIGNAL 3: Legacy container detection
+        const legacyContainer = footer.querySelector('[data-legacy-yesno="true"]') ||
+                                footer.querySelector('.legacy-yesno-container') ||
+                                footer.querySelector('#legacy-yesno-footer');
+        
+        const legacyDetected = legacyGreenButton || legacyRedButton || legacyContainer;
+        
+        // PROOF LOG: Always log what we found (success or failure)
+        const yesButton = footer.querySelector('button:first-of-type');
+        const noButton = footer.querySelector('button:last-of-type');
+        const yesClassNames = yesButton?.className || 'N/A';
+        const noClassNames = noButton?.className || 'N/A';
+        const yesBg = yesButton ? window.getComputedStyle(yesButton).backgroundColor : 'N/A';
+        const noBg = noButton ? window.getComputedStyle(noButton).backgroundColor : 'N/A';
+        const isCandidateRoute = window.location?.pathname?.includes('CandidateInterview') || 
+                                 window.location?.pathname?.includes('candidateinterview');
+        
+        console.log('[YESNO_RENDER_PROOF]', {
+          rendererName,
+          buttonClassNamesPreview: {
+            yes: yesClassNames.substring(0, 100),
+            no: noClassNames.substring(0, 100)
+          },
+          computedBgLeft: yesBg,
+          computedBgRight: noBg,
+          isCandidateRoute,
+          legacyDetected
+        });
+        
+        if (legacyDetected && isCandidateRoute) {
+          const stack = new Error().stack?.split('\n').slice(0, 6).join('\n') || 'N/A';
+          const matchedElement = legacyGreenButton || legacyRedButton || legacyContainer;
+          const matchedBg = matchedElement ? window.getComputedStyle(matchedElement).backgroundColor : 'N/A';
+          
           console.error('[FATAL][LEGACY_YESNO_RENDERED]', {
             questionId: currentItem?.id,
             questionCode: engine?.QById?.[currentItem?.id]?.question_id || 'N/A',
-            hasGreenButton: !!hasGreenButton,
-            hasRedButton: !!hasRedButton,
+            matchedElementTag: matchedElement?.tagName,
+            matchedElementClass: matchedElement?.className,
+            computedBackgroundColor: matchedBg,
+            detectionSignal: legacyGreenButton ? 'green_button' : legacyRedButton ? 'red_button' : 'legacy_container',
             stack,
-            reason: 'Legacy green/red YES/NO buttons detected in DOM - V3-only contract violated'
+            reason: 'Legacy green/red YES/NO detected in DOM - V3-only contract violated'
           });
           
-          // FAIL-FAST: This should never happen (code path already uses YesNoControls)
-          throw new Error('LEGACY_YESNO_RENDERED - V3-only contract violated');
+          // FAIL-FAST: Throw immediately on candidate/public
+          throw new Error('LEGACY_YESNO_RENDERED on candidate/public - V3-only contract violated');
         } else {
           console.log('[YESNO_DOM_VERIFIED]', {
             questionId: currentItem?.id,
             legacyDetected: false,
-            rendererConfirmed: 'YesNoControls_neutral'
+            rendererConfirmed: 'YesNoControls_neutral',
+            isCandidateRoute
           });
         }
       });
