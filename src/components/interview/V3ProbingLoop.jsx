@@ -515,21 +515,24 @@ export default function V3ProbingLoop({
       loopKey,
       decideSeq,
       hasOpenerAnswerLen: answer?.length || 0,
-      isInitialCall,
-      llmEnabledSOT: shouldUseLLMProbeWording
+      isInitialCall
     });
+    
+    // TDZ FIX: Capture safe snapshot primitives BEFORE watchdog (prevents closure TDZ crash)
+    const watchdogSnapshot = {
+      loopKey,
+      decideSeq,
+      hasPromptNow: !!activePromptText,
+      isDecidingNow: isDeciding,
+      isBlockedNow: isBlocked,
+      isCompleteNow: isComplete,
+      engineInFlightNow: !!engineInFlightRef.current
+    };
     
     // WATCHDOG: 15s timeout to detect stuck decide cycle
     decideTimeoutRef.current = setTimeout(() => {
       console.error('[V3_DECIDE][TIMEOUT]', {
-        loopKey,
-        decideSeq,
-        llmEnabledSOT: shouldUseLLMProbeWording,
-        hasPrompt: !!activePromptText,
-        isDeciding,
-        isBlocked,
-        isComplete,
-        engineInFlight: engineInFlightRef.current,
+        ...watchdogSnapshot,
         reason: 'Decide cycle did not complete within 15 seconds'
       });
     }, 15000);
