@@ -1786,6 +1786,7 @@ function mapResponseTypeToExpectedType(responseType) {
 
 export async function bootstrapEngine(base44) {
   console.log('🚀 Bootstrapping interview engine (SECTION-FIRST + DATABASE-DRIVEN + V2 PACKS)...');
+  console.log('[V3_ONLY][SOT_FLAG][ENGINE]', { V3_ONLY_MODE });
   const startTime = performance.now();
 
   try {

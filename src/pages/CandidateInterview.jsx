@@ -1219,6 +1219,7 @@ const runV2FieldProbeIfNeeded = async ({
 
 export default function CandidateInterview() {
   console.log('[BUILD_OK][CandidateInterview]');
+  console.log('[V3_ONLY][SOT_FLAG][CANDIDATE]', { V3_ONLY_MODE });
   
   const navigate = useNavigate();
   
