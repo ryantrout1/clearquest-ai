@@ -651,13 +651,19 @@ export default function V3ProbingLoop({
         useLLMProbeWording: payloadUseLLMProbeWording,
         isEditorPreview: payloadIsEditorPreview
       });
-      
+
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('BACKEND_TIMEOUT')), BACKEND_TIMEOUT_MS)
       );
-      
+
       // Race: backend call vs timeout
-      const result = await Promise.race([enginePromise, timeoutPromise]);
+      let result;
+      try {
+        result = await Promise.race([enginePromise, timeoutPromise]);
+      } catch (raceErr) {
+        // Re-throw for outer catch to handle
+        throw raceErr;
+      }
 
       const engineCallMs = Date.now() - engineCallStart;
       const data = result.data || result;
@@ -923,11 +929,18 @@ export default function V3ProbingLoop({
           onPromptSet({ loopKey, promptPreview: normalizedPrompt.substring(0, 60), promptLen: normalizedPrompt.length });
         }
 
-        return;
-      }
+        // SNAPSHOT COMMITTED: Mark fail-open prompt as committed (prevents NO_SNAPSHOT)
+        console.log('[V3_SNAPSHOT][FAILOPEN_COMMITTED]', {
+          loopKey,
+          promptLen: normalizedPrompt.length,
+          reason: 'FAILOPEN_MALFORMED'
+        });
 
-      // Handle next action
-      if (data.nextAction === "ASK" && data.nextPrompt) {
+        return;
+        }
+
+        // Handle next action
+        if (data.nextAction === "ASK" && data.nextPrompt) {
         // PROMPT-SET DEDUPE: Compute stable hash and check for duplicates
         const canon = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const promptHash = `${loopKey}:${newProbeCount}:${canon(data.nextPrompt)}`;
@@ -942,6 +955,7 @@ export default function V3ProbingLoop({
           });
           setIsDeciding(false);
           setIsLoading(false);
+          engineInFlightRef.current = false;
           return;
         }
 
@@ -1363,7 +1377,18 @@ export default function V3ProbingLoop({
           v3LlmMs: null
         });
       }
-      
+
+      if (onPromptSet) {
+        onPromptSet({ loopKey, promptPreview: fallbackPrompt.substring(0, 60), promptLen: fallbackPrompt.length });
+      }
+
+      // SNAPSHOT COMMITTED: Mark exception fail-open as committed
+      console.log('[V3_SNAPSHOT][FAILOPEN_COMMITTED]', {
+        loopKey,
+        promptLen: fallbackPrompt.length,
+        reason: 'FALLBACK_EXCEPTION'
+      });
+
       console.log('[V3_PROBE][FALLBACK_PROMPT_SET]', {
         promptPreview: fallbackPrompt.slice(0, 60),
         reason: 'RUNTIME_EXCEPTION',

@@ -1873,60 +1873,28 @@ export default function CandidateInterview() {
       const freshSession = await base44.entities.InterviewSession.get(sessionId);
       const freshTranscript = freshSession.transcript_snapshot || [];
       
-      // PART 2: GUARD - Never refresh with shorter transcript (storage may be stale)
+      // MONOTONIC MERGE: Always merge fresh with current (never shrink, never replace)
       const currentLen = canonicalTranscriptRef.current.length;
-      if (freshTranscript.length < currentLen) {
-        console.warn('[TRANSCRIPT_REFRESH][SKIP_SHORTER]', {
+      const freshLen = freshTranscript.length;
+      
+      // Always merge (even if fresh is shorter - prevents history loss)
+      const merged = upsertTranscriptMonotonic(canonicalTranscriptRef.current, freshTranscript, `refresh_${reason}`);
+      const mergedLen = merged.length;
+      
+      // Log when merge prevented shrink or grew transcript
+      if (freshLen < currentLen || mergedLen !== currentLen) {
+        console.warn('[TRANSCRIPT_REFRESH][MERGE_MONOTONIC]', {
           reason,
-          freshLen: freshTranscript.length,
           currentLen,
-          delta: currentLen - freshTranscript.length,
-          action: 'KEEPING_CURRENT'
+          freshLen,
+          mergedLen,
+          delta: freshLen - currentLen,
+          action: freshLen < currentLen ? 'MERGED_PREVENTED_SHRINK' : 'MERGED_GREW'
         });
-        return canonicalTranscriptRef.current; // Return current, do NOT update
       }
       
-      // FALLBACK ANSWER PROTECTION: Preserve recently-submitted fallback answers during merge
-      const fallbackAnswersInCurrent = canonicalTranscriptRef.current.filter(e => 
-        (e.meta?.answerContext === 'REQUIRED_ANCHOR_FALLBACK' || 
-         e.answerContext === 'REQUIRED_ANCHOR_FALLBACK' ||
-         (e.stableKey && e.stableKey.startsWith('fallback-answer:'))) &&
-        e.role === 'user' &&
-        e.messageType === 'ANSWER'
-      );
-      
-      const fallbackAnswersInFresh = freshTranscript.filter(e => 
-        e.stableKey && e.stableKey.startsWith('fallback-answer:')
-      );
-      
-      // Protect fallback answers: merge fresh with current fallbacks
-      let protectedTranscript = freshTranscript;
-      let keptCount = 0;
-      
-      if (fallbackAnswersInCurrent.length > 0) {
-        const freshKeys = new Set(freshTranscript.map(e => e.stableKey || e.id).filter(Boolean));
-        const missingFallbacks = fallbackAnswersInCurrent.filter(fb => {
-          const key = fb.stableKey || fb.id;
-          return key && !freshKeys.has(key);
-        });
-        
-        if (missingFallbacks.length > 0) {
-          // Add missing fallback answers to fresh transcript (preserves them)
-          protectedTranscript = [...freshTranscript, ...missingFallbacks];
-          keptCount = missingFallbacks.length;
-          
-          console.log('[CQ_TRANSCRIPT][FALLBACK_ANSWER_PROTECT_MERGE]', {
-            keptCount,
-            totalFallbacksInCurrent: fallbackAnswersInCurrent.length,
-            fallbacksInFresh: fallbackAnswersInFresh.length,
-            note: 'Prevented fallback answers from being dropped during bulk transcript refresh',
-            keptKeys: missingFallbacks.map(fb => fb.stableKey || fb.id)
-          });
-        }
-      }
-      
-      // STEP 2: Upsert into canonical ref (monotonic merge) - use protected transcript
-      const merged = upsertTranscriptMonotonic(canonicalTranscriptRef.current, protectedTranscript, `refresh_${reason}`);
+      // Merged result already contains all entries from both current and fresh
+      // No need for separate fallback protection - upsertTranscriptMonotonic handles it
       
       // ATOMIC SYNC: Use unified helper
       upsertTranscriptState(merged, `refresh_${reason}`);
