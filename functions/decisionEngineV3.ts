@@ -2797,7 +2797,33 @@ Deno.serve(async (req) => {
       incidentId: result.incidentId,
       missingFieldsCount: result.missingFields?.length || 0
     });
-    
+
+    // FAIL-OPEN GUARANTEE: ASK must never have empty prompt
+    if (result.nextAction === 'ASK' && (!result.nextPrompt || result.nextPrompt.trim() === '')) {
+      const missingFieldId = result.missingFields?.[0]?.field_id || null;
+      let fallbackPrompt = "What additional details can you provide to make this complete?";
+
+      // Try to generate better fallback from missing field
+      if (missingFieldId && result.missingFields?.[0]) {
+        try {
+          fallbackPrompt = generateV3ProbeQuestion(result.missingFields[0], {}) || fallbackPrompt;
+        } catch (err) {
+          console.warn('[V3_ENGINE][ASK_EMPTY_PROMPT_FAILOPEN]', { error: err.message });
+        }
+      }
+
+      console.warn('[V3_ENGINE][ASK_EMPTY_PROMPT_FAILOPEN]', {
+        categoryId: body.categoryId,
+        instanceNumber: body.instanceNumber || 1,
+        hasFieldId: !!missingFieldId,
+        synthesizedPrompt: fallbackPrompt,
+        reason: 'Engine returned ASK with empty prompt - synthesizing fallback'
+      });
+
+      result.nextPrompt = fallbackPrompt;
+      result.v3PromptSource = 'FAILOPEN_FALLBACK';
+    }
+
     // ========== RETURN SUCCESS ==========
     return Response.json({
       ok: true,

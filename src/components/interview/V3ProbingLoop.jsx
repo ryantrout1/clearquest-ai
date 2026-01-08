@@ -662,6 +662,73 @@ export default function V3ProbingLoop({
       const engineCallMs = Date.now() - engineCallStart;
       const data = result.data || result;
 
+      // FAIL-OPEN GUARD 1: Malformed response
+      if (!data || !data.nextAction) {
+        console.error('[V3_FAILOPEN][ENGINE_MALFORMED_RESPONSE]', {
+          loopKey,
+          categoryId,
+          instanceNumber,
+          hasData: !!data,
+          hasNextAction: data?.nextAction || null,
+          reason: 'Engine returned null/undefined or missing nextAction - synthesizing safe fallback'
+        });
+
+        const fallbackPrompt = "What additional details can you provide to make this complete?";
+
+        // Normalize prompt (same as normal ASK path)
+        let normalizedPrompt = await (async () => {
+          try {
+            const [sessionData, allFactModels] = await Promise.all([
+              base44.entities.InterviewSession.get(sessionId),
+              base44.entities.FactModel.list()
+            ]);
+            const factModel = allFactModels.find(fm => fm.category_id === categoryId);
+            return normalizeV3ProbeQuestion(fallbackPrompt, {
+              factModel,
+              session: sessionData,
+              incidentId: incidentId,
+              packId: packData?.followup_pack_id
+            });
+          } catch (err) {
+            console.warn('[V3_FAILOPEN][NORMALIZATION_SKIP]', { error: err.message });
+            return fallbackPrompt;
+          }
+        })();
+
+        setActivePromptText(normalizedPrompt);
+        setActivePromptId(`v3-failopen-malformed-${incidentId}-${newProbeCount}`);
+        setIsDeciding(false);
+        setIsLoading(false);
+        engineInFlightRef.current = false;
+
+        if (onPromptChange) {
+          onPromptChange({
+            promptText: normalizedPrompt,
+            promptId: `${loopKey}:failopen-malformed`,
+            loopKey,
+            packId: packData?.followup_pack_id,
+            instanceNumber: instanceNumber || 1,
+            categoryId,
+            v3PromptSource: 'FAILOPEN_MALFORMED',
+            v3LlmMs: null
+          });
+        }
+
+        if (onAnswerNeeded) {
+          onAnswerNeeded({
+            promptText: normalizedPrompt,
+            incidentId: incidentId,
+            probeCount: newProbeCount
+          });
+        }
+
+        if (onPromptSet) {
+          onPromptSet({ loopKey, promptPreview: normalizedPrompt.substring(0, 60), promptLen: normalizedPrompt.length });
+        }
+
+        return;
+      }
+
       console.log('[ENGINE][DECIDE_END]', {
         traceId,
         nextAction: data.nextAction,
@@ -772,6 +839,92 @@ export default function V3ProbingLoop({
       // Update probe count (skip for initial call)
       const newProbeCount = isInitialCall ? 0 : probeCount + 1;
       setProbeCount(newProbeCount);
+
+      // FAIL-OPEN GUARD 2: ASK with empty prompt
+      if (data.nextAction === "ASK" && (!data.nextPrompt || data.nextPrompt.trim() === '')) {
+        console.warn('[V3_FAILOPEN][ASK_EMPTY_PROMPT_LOCAL]', {
+          loopKey,
+          categoryId,
+          instanceNumber,
+          hasMissingFieldId: !!(data.missingFields?.[0]?.field_id),
+          reason: 'Engine returned ASK but prompt is empty - synthesizing local fallback'
+        });
+
+        // Synthesize local fallback prompt
+        let localFallbackPrompt = "What additional details can you provide to make this complete?";
+
+        const missingFieldId = data.missingFields?.[0]?.field_id;
+        if (missingFieldId) {
+          const idLower = missingFieldId.toLowerCase();
+          if (idLower.includes('agency') || idLower.includes('department')) {
+            localFallbackPrompt = "What was the name of the law enforcement agency you applied to?";
+          } else if (idLower.includes('position') || idLower.includes('title') || idLower.includes('role')) {
+            localFallbackPrompt = "What position did you apply for?";
+          } else if (idLower.includes('date') || idLower.includes('month') || idLower.includes('year') || idLower.includes('when')) {
+            localFallbackPrompt = "About what month and year was this?";
+          }
+        }
+
+        // Normalize prompt (same as normal ASK path)
+        let normalizedPrompt = await (async () => {
+          try {
+            const [sessionData, allFactModels] = await Promise.all([
+              base44.entities.InterviewSession.get(sessionId),
+              base44.entities.FactModel.list()
+            ]);
+            const factModel = allFactModels.find(fm => fm.category_id === categoryId);
+            return normalizeV3ProbeQuestion(localFallbackPrompt, {
+              factModel,
+              session: sessionData,
+              incidentId: data.incidentId || incidentId,
+              packId: packData?.followup_pack_id
+            });
+          } catch (err) {
+            console.warn('[V3_FAILOPEN][NORMALIZATION_SKIP]', { error: err.message });
+            return localFallbackPrompt;
+          }
+        })();
+
+        console.log('[V3_FAILOPEN][ASK_EMPTY_PROMPT_LOCAL]', {
+          loopKey,
+          hasMissingFieldId: !!missingFieldId,
+          promptLen: normalizedPrompt.length,
+          synthesizedPrompt: normalizedPrompt
+        });
+
+        setActivePromptText(normalizedPrompt);
+        setActivePromptId(`v3-failopen-${data.incidentId || incidentId}-${newProbeCount}`);
+        setIsDeciding(false);
+        setIsLoading(false);
+        engineInFlightRef.current = false;
+
+        if (onPromptChange) {
+          onPromptChange({
+            promptText: normalizedPrompt,
+            promptId: `${loopKey}:failopen-empty`,
+            loopKey,
+            packId: packData?.followup_pack_id,
+            instanceNumber: instanceNumber || 1,
+            categoryId,
+            v3PromptSource: 'FAILOPEN_EMPTY',
+            v3LlmMs: null
+          });
+        }
+
+        if (onAnswerNeeded) {
+          onAnswerNeeded({
+            promptText: normalizedPrompt,
+            incidentId: data.incidentId || incidentId,
+            probeCount: newProbeCount
+          });
+        }
+
+        if (onPromptSet) {
+          onPromptSet({ loopKey, promptPreview: normalizedPrompt.substring(0, 60), promptLen: normalizedPrompt.length });
+        }
+
+        return;
+      }
 
       // Handle next action
       if (data.nextAction === "ASK" && data.nextPrompt) {
