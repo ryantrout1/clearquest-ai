@@ -1789,13 +1789,26 @@ export async function bootstrapEngine(base44) {
   const startTime = performance.now();
 
   try {
-    const [questions, sections, categories, v2Packs, v2FollowUpQuestions] = await Promise.all([
-      base44.entities.Question.filter({ active: true }),
-      base44.entities.Section.list(), // Fetch Section entities
-      base44.entities.Category.list(), // Still fetch Categories for gate question backward compatibility
-      base44.entities.FollowUpPack.filter({ is_standard_cluster: true, active: true }), // Fetch V2 standardized packs
-      base44.entities.FollowUpQuestion.filter({ active: true }) // Fetch all V2 follow-up questions
-    ]);
+    // V3_ONLY_MODE: Skip V2 pack bootstrap when true (conversational probing only)
+    const [questions, sections, categories, v2Packs, v2FollowUpQuestions] = V3_ONLY_MODE
+      ? await Promise.all([
+          base44.entities.Question.filter({ active: true }),
+          base44.entities.Section.list(),
+          base44.entities.Category.list()
+        ]).then(([q, s, c]) => {
+          console.log('[V3_ONLY][BLOCKED_V2_PATH]', { 
+            callsite: 'bootstrapEngine_fetch',
+            reason: 'V3-only mode - skipping FollowUpPack and FollowUpQuestion fetch'
+          });
+          return [q, s, c, [], []]; // Stub: v2Packs=[], v2FollowUpQuestions=[]
+        })
+      : await Promise.all([
+          base44.entities.Question.filter({ active: true }),
+          base44.entities.Section.list(),
+          base44.entities.Category.list(),
+          base44.entities.FollowUpPack.filter({ is_standard_cluster: true, active: true }),
+          base44.entities.FollowUpQuestion.filter({ active: true })
+        ]);
 
     const { 
       QById,
@@ -1814,10 +1827,16 @@ export async function bootstrapEngine(base44) {
     
     // V2 PACK SYSTEM: Load both legacy and V2 packs
     const { PackStepsById } = parseFollowUpPacks();
-    const V2PackStepsById = parseV2FollowUpPacks(v2Packs, v2FollowUpQuestions);
+    
+    // V3_ONLY_MODE: Skip V2 pack parsing when true
+    const V2PackStepsById = V3_ONLY_MODE
+      ? {} // Empty object - no V2 packs in V3-only mode
+      : parseV2FollowUpPacks(v2Packs, v2FollowUpQuestions);
     
     // Merge V2 packs into PackStepsById (V2 takes precedence over legacy)
-    Object.assign(PackStepsById, V2PackStepsById);
+    if (!V3_ONLY_MODE) {
+      Object.assign(PackStepsById, V2PackStepsById);
+    }
     
     // NOW check for undefined packs after V2 packs are loaded
     const UndefinedPacks = new Set();
@@ -1873,52 +1892,75 @@ export async function bootstrapEngine(base44) {
     debugPrintSectionOrderSummary(engineState, sections);
 
     // Build v2PacksById map from v2Packs array for frontend access
-    const v2PacksById = {};
-    v2Packs.forEach(pack => {
-      if (pack.followup_pack_id) {
-        v2PacksById[pack.followup_pack_id] = {
-          meta: pack,
-          packId: pack.followup_pack_id,
-          packName: pack.pack_name
-        };
-      }
-    });
+    // V3_ONLY_MODE: Skip building v2PacksById when true
+    const v2PacksById = V3_ONLY_MODE
+      ? {} // Empty object - no V2 pack metadata
+      : (() => {
+          const map = {};
+          v2Packs.forEach(pack => {
+            if (pack.followup_pack_id) {
+              map[pack.followup_pack_id] = {
+                meta: pack,
+                packId: pack.followup_pack_id,
+                packName: pack.pack_name
+              };
+            }
+          });
+          return map;
+        })();
     
-    console.log(`📦 Built v2PacksById map with ${Object.keys(v2PacksById).length} V2 pack metadata entries`);
+    if (!V3_ONLY_MODE) {
+      console.log(`📦 Built v2PacksById map with ${Object.keys(v2PacksById).length} V2 pack metadata entries`);
+    }
     
     // Add v2PacksById to engine state for frontend access
     engineState.v2PacksById = v2PacksById;
 
-    // V2 PACK DEBUG: Print detailed info for PACK_PRIOR_LE_APPS_STANDARD
-    const priorLePack = v2Packs.find(p => p.followup_pack_id === 'PACK_PRIOR_LE_APPS_STANDARD');
-    if (priorLePack) {
-      const packSteps = PackStepsById['PACK_PRIOR_LE_APPS_STANDARD'] || [];
-      console.log('\n[V2 PACK DEBUG] PACK_PRIOR_LE_APPS_STANDARD meta:', {
-        packId: priorLePack.followup_pack_id,
-        packName: priorLePack.pack_name,
-        isStandardCluster: priorLePack.is_standard_cluster,
-        active: priorLePack.active,
-        maxAiFollowups: priorLePack.max_ai_followups,
-        aiProbeInstructions: priorLePack.ai_probe_instructions ? 'present' : 'missing',
-        fixedQuestionsCount: packSteps.length,
-        isInPackStepsById: !!PackStepsById['PACK_PRIOR_LE_APPS_STANDARD'],
-        isV2Pack: packSteps.length > 0 && packSteps[0]?.IsV2
-      });
-    } else {
-      console.warn('[V2 PACK DEBUG] PACK_PRIOR_LE_APPS_STANDARD not found in v2Packs array');
-    }
-
     const elapsed = performance.now() - startTime;
     console.log(`✅ Engine bootstrapped successfully in ${elapsed.toFixed(2)}ms`);
-    console.log(`   - Architecture: SECTION-FIRST (Section entities) + V2 Packs`);
-    console.log(`   - Section order source: Section.section_order`);
-    console.log(`   - Sections: ${Object.keys(sectionConfig).length}`);
-    console.log(`   - Total active questions: ${TotalQuestions}`);
-    console.log(`   - Questions with follow-ups: ${Object.keys(MatrixYesByQ).length}`);
-    console.log(`   - Legacy packs: ${Object.keys(FOLLOWUP_PACK_STEPS).length}`);
-    console.log(`   - V2 packs: ${Object.keys(V2PackStepsById).length}`);
-    console.log(`   - V2 pack metadata entries: ${Object.keys(v2PacksById).length}`);
-    console.log(`   - Total packs available: ${Object.keys(PackStepsById).length}`);
+    
+    // V3_ONLY_MODE: Conditional logging based on mode
+    if (!V3_ONLY_MODE) {
+      // V2 PACK DEBUG: Print detailed info for PACK_PRIOR_LE_APPS_STANDARD
+      const priorLePack = v2Packs.find(p => p.followup_pack_id === 'PACK_PRIOR_LE_APPS_STANDARD');
+      if (priorLePack) {
+        const packSteps = PackStepsById['PACK_PRIOR_LE_APPS_STANDARD'] || [];
+        console.log('\n[V2 PACK DEBUG] PACK_PRIOR_LE_APPS_STANDARD meta:', {
+          packId: priorLePack.followup_pack_id,
+          packName: priorLePack.pack_name,
+          isStandardCluster: priorLePack.is_standard_cluster,
+          active: priorLePack.active,
+          maxAiFollowups: priorLePack.max_ai_followups,
+          aiProbeInstructions: priorLePack.ai_probe_instructions ? 'present' : 'missing',
+          fixedQuestionsCount: packSteps.length,
+          isInPackStepsById: !!PackStepsById['PACK_PRIOR_LE_APPS_STANDARD'],
+          isV2Pack: packSteps.length > 0 && packSteps[0]?.IsV2
+        });
+      } else {
+        console.warn('[V2 PACK DEBUG] PACK_PRIOR_LE_APPS_STANDARD not found in v2Packs array');
+      }
+      
+      console.log(`   - Architecture: SECTION-FIRST (Section entities) + V2 Packs`);
+      console.log(`   - Section order source: Section.section_order`);
+      console.log(`   - Sections: ${Object.keys(sectionConfig).length}`);
+      console.log(`   - Total active questions: ${TotalQuestions}`);
+      console.log(`   - Questions with follow-ups: ${Object.keys(MatrixYesByQ).length}`);
+      console.log(`   - Legacy packs: ${Object.keys(FOLLOWUP_PACK_STEPS).length}`);
+      console.log(`   - V2 packs: ${Object.keys(V2PackStepsById).length}`);
+      console.log(`   - V2 pack metadata entries: ${Object.keys(v2PacksById).length}`);
+      console.log(`   - Total packs available: ${Object.keys(PackStepsById).length}`);
+    } else {
+      console.log(`[V3_ONLY][ENGINE_BOOT]`, {
+        v3Only: true,
+        v2PacksDisabled: true,
+        v2PacksBootstrapped: false,
+        legacyPacksCount: Object.keys(FOLLOWUP_PACK_STEPS).length,
+        architecture: 'SECTION-FIRST (V3-only conversational probing)',
+        sections: Object.keys(sectionConfig).length,
+        totalActiveQuestions: TotalQuestions,
+        questionsWithFollowups: Object.keys(MatrixYesByQ).length
+      });
+    }
 
     if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
       setTimeout(() => runEntityFollowupSelfTest(engineState), 500);
