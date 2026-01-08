@@ -55,6 +55,78 @@ const blockThirdPartyAnalyticsInPreview = () => {
   });
 };
 
+/**
+ * Hard network block for third-party analytics in preview
+ * Intercepts fetch/XHR/sendBeacon to prevent retry spam
+ */
+const installThirdPartyNetworkBlock = () => {
+  if (!isPreviewSandbox()) return;
+  if (typeof window === 'undefined') return;
+  if (window.__CQ_3P_NETBLOCK_INSTALLED__) return;
+  
+  const denylist = [
+    'a.clarity.ms',
+    'clarity.ms',
+    'connect.facebook.net',
+    'facebook.com/tr',
+    'fbevents.js'
+  ];
+  
+  const isBlocked = (url) => {
+    if (!url || typeof url !== 'string') return false;
+    const urlLower = url.toLowerCase();
+    return denylist.some(domain => urlLower.includes(domain));
+  };
+  
+  // Intercept fetch
+  if (window.fetch) {
+    const origFetch = window.fetch;
+    window.fetch = function(input, init) {
+      const url = typeof input === 'string' ? input : input?.url || '';
+      if (isBlocked(url)) {
+        return Promise.resolve(new Response('', { status: 200 }));
+      }
+      return origFetch.call(this, input, init);
+    };
+  }
+  
+  // Intercept XMLHttpRequest
+  if (window.XMLHttpRequest) {
+    const OrigXHR = window.XMLHttpRequest;
+    const origOpen = OrigXHR.prototype.open;
+    const origSend = OrigXHR.prototype.send;
+    
+    OrigXHR.prototype.open = function(method, url, ...args) {
+      this.__cqBlocked = isBlocked(url);
+      if (!this.__cqBlocked) {
+        return origOpen.apply(this, [method, url, ...args]);
+      }
+    };
+    
+    OrigXHR.prototype.send = function(...args) {
+      if (this.__cqBlocked) return;
+      return origSend.apply(this, args);
+    };
+  }
+  
+  // Intercept sendBeacon
+  if (window.navigator?.sendBeacon) {
+    const origBeacon = window.navigator.sendBeacon.bind(window.navigator);
+    window.navigator.sendBeacon = function(url, data) {
+      if (isBlocked(url)) return true;
+      return origBeacon(url, data);
+    };
+  }
+  
+  window.__CQ_3P_NETBLOCK_INSTALLED__ = true;
+  console.log('[ANALYTICS][3P_NETBLOCK_INSTALLED]', { hostname: window.location.hostname });
+};
+
+// Install network blocks FIRST (before scripts execute)
+if (typeof window !== 'undefined') {
+  installThirdPartyNetworkBlock();
+}
+
 // Auto-run blocker at module load (before scripts execute)
 if (typeof window !== 'undefined') {
   blockThirdPartyAnalyticsInPreview();

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import './lib/analyticsSuppress';
 
 // ============================================================================
 // SANDBOX FILES 500 INTERCEPTOR - One-time install guard
