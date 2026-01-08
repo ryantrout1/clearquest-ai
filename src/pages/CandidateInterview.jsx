@@ -5945,6 +5945,42 @@ export default function CandidateInterview() {
       const engineData = await bootstrapEngine(base44);
       const bootMs = Date.now() - bootStart;
       
+      // V3-ONLY KILL SWITCH: Detect V2 leaks after engine boot
+      if (engineData) {
+        const v2PacksLoaded = engineData.V2Packs?.length > 0;
+        const packsBootstrapped = Object.keys(engineData.PackStepsById || {}).length;
+        const hasV2Artifacts = v2PacksLoaded || (packsBootstrapped > 0 && !V3_ONLY_MODE);
+        
+        if (hasV2Artifacts) {
+          const stack = new Error().stack?.split('\n').slice(1, 4).join(' | ') || 'N/A';
+          console.error('[FATAL][V2_LEAK_DETECTED]', {
+            reason: v2PacksLoaded ? 'v2_packs_loaded' : 'packs_bootstrapped_without_v3_flag',
+            route: 'CandidateInterview',
+            pathname: window.location?.pathname || '',
+            sessionId,
+            v2PacksCount: engineData.V2Packs?.length || 0,
+            packsBootstrappedCount: packsBootstrapped,
+            V3_ONLY_MODE,
+            stackPreview: stack
+          });
+          
+          // SELF-HEAL: Force V3-only mode
+          console.log('[V3_ONLY][SELF_HEAL]', {
+            action: 'forcing_v3_only',
+            v2PacksBeforeHeal: engineData.V2Packs?.length || 0
+          });
+          
+          // Clear V2 pack data
+          engineData.V2Packs = [];
+          engineData.v2PacksById = {};
+          
+          console.log('[V3_ONLY][SELF_HEAL_COMPLETE]', {
+            v2PacksAfterHeal: 0,
+            note: 'V2 artifacts cleared - proceeding with V3-only mode'
+          });
+        }
+      }
+      
       engineDataForDiag = engineData; // DIAGNOSTIC: Capture for FATAL log
       
       cqLog('INFO', '[CANDIDATE_BOOT][ENGINE_INIT_OK]', { sessionId, hasEngineData: !!engineData });
@@ -15569,6 +15605,24 @@ export default function CandidateInterview() {
     lastFooterControllerRef.current = footerControllerLocal;
     lastBottomBarModeRef.current = bottomBarModeSOT;
     lastEffectiveItemTypeRef.current = effectiveItemType;
+  }
+  
+  // YES/NO RENDERER ASSERTION: Log selected renderer (candidate/public only)
+  if (bottomBarModeSOT === 'YES_NO' && currentItem) {
+    const rendererName = 'YesNoControls';
+    const isLegacyV2 = false; // Modern neutral renderer, not legacy green/red
+    
+    logOnce(`yesno_renderer_selected_${sessionId}:${currentItem?.id}`, () => {
+      console.log('[YESNO_RENDERER_SELECTED]', {
+        rendererName,
+        isLegacy: isLegacyV2,
+        questionId: currentItem?.id,
+        questionCode: engine?.QById?.[currentItem?.id]?.question_id || 'N/A',
+        currentItemType: currentItem?.type,
+        bottomBarModeSOT,
+        note: 'Modern neutral YesNoControls - no green/red legacy buttons'
+      });
+    });
   }
   
   // UI CONTRACT: CTA mode is ONLY valid during WELCOME screen

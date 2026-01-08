@@ -1808,6 +1808,23 @@ function mapResponseTypeToExpectedType(responseType) {
 }
 
 export async function bootstrapEngine(base44) {
+  // FATAL V2 LEAK DETECTION: Log if V2 boot path is reached (should never happen in V3-only mode)
+  if (!V3_ONLY_MODE && typeof window !== 'undefined') {
+    const pathname = window.location?.pathname || '';
+    const isPublicRoute = pathname.includes('CandidateInterview') || pathname.includes('candidateinterview');
+    
+    if (isPublicRoute) {
+      const stack = new Error().stack?.split('\n').slice(1, 4).join(' | ') || 'N/A';
+      console.error('[FATAL][V2_ENGINE_BOOT_PATH_HIT]', {
+        route: 'candidate/public',
+        pathname,
+        moduleFileHint: 'components/interviewEngine.js',
+        stackPreview: stack,
+        reason: 'V2 boot path reached on candidate/public route - V3_ONLY_MODE should be true'
+      });
+    }
+  }
+  
   cqLog('INFO', '🚀 Bootstrapping interview engine (SECTION-FIRST + DATABASE-DRIVEN + V2 PACKS)...');
   cqLog('DEBUG', '[V3_ONLY][SOT_FLAG][ENGINE]', { V3_ONLY_MODE });
   const startTime = performance.now();
