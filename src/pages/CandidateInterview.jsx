@@ -19459,6 +19459,16 @@ export default function CandidateInterview() {
 
                   // V3 UI-only history cards (ephemeral - for immediate display)
                   if (entry.kind === 'v3_opener_history') {
+                    // V3_OPENER PRECEDENCE: Do not render opener history while an opener is active
+                    if (activeUiItem?.kind === "V3_OPENER") {
+                      console.log('[V3_OPENER][HISTORY_SUPPRESSED_DURING_ACTIVE]', {
+                        stableKey: entry.stableKey,
+                        instanceNumber: entry.instanceNumber,
+                        reason: 'History must not render during active opener step'
+                      });
+                      return null;
+                    }
+                    
                     // V3_OPENER PRECEDENCE: Do not render ANY opener history while an opener is active
                     if (activeUiItem?.kind === "V3_OPENER") {
                       console.log('[V3_OPENER][HISTORY_OPENER_SUPPRESSED_ACTIVE]', {
