@@ -2745,6 +2745,12 @@ export default function CandidateInterview() {
     });
   }
   
+  // HOOK ORDER FIX: One-time proof that onPromptSet is plain function (no React hook)
+  if (!window.__CQ_ONPROMPTSET_NOHOOK_LOGGED__) {
+    window.__CQ_ONPROMPTSET_NOHOOK_LOGGED__ = true;
+    console.log('[HOOK_ORDER][ONPROMPTSET_NOHOOK_OK]', { sessionId: effectiveSessionId || sessionId });
+  }
+  
   // PART A: Violation snapshot helper (component-scoped - needs refs/state access)
   const captureViolationSnapshot = useCallback((context) => {
     const { reason, list, packId, instanceNumber, activeItemId } = context;
@@ -21331,7 +21337,7 @@ export default function CandidateInterview() {
                 onAnswerNeeded={handleV3AnswerNeeded}
                 pendingAnswer={v3PendingAnswer}
                 onAnswerConsumed={handleV3AnswerConsumed}
-                onPromptSet={useCallback(({ loopKey, promptPreview, promptLen }) => {
+                onPromptSet={({ loopKey, promptPreview, promptLen }) => {
                   // SNAPSHOT COMMIT: Create parent-side snapshot marker
                   const decideSeq = Date.now(); // Unique seq per prompt
                   lastV3PromptSnapshotRef.current = {
@@ -21354,7 +21360,7 @@ export default function CandidateInterview() {
                     instanceNumber: v3ProbingContext.instanceNumber,
                     promptLen
                   });
-                }, [v3ProbingContext])}
+                }}
                 onRecapReady={async ({ loopKey, packId, categoryId, instanceNumber, recapText, nextAction, incidentId }) => {
                   console.log('[V3_RECAP][RECEIVED]', {
                     loopKey,
