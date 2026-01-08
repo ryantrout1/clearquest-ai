@@ -1896,6 +1896,15 @@ export default function CandidateInterview() {
       // Merged result already contains all entries from both current and fresh
       // No need for separate fallback protection - upsertTranscriptMonotonic handles it
       
+      // PROOF: Log merged application
+      console.warn('[TRANSCRIPT_REFRESH][APPLIED_MERGED]', {
+        reason,
+        beforeLen: currentLen,
+        freshLen,
+        mergedLen,
+        mergedLastKey: merged[merged.length - 1]?.stableKey || merged[merged.length - 1]?.id || null
+      });
+      
       // ATOMIC SYNC: Use unified helper
       upsertTranscriptState(merged, `refresh_${reason}`);
       setSession(freshSession);
@@ -4007,6 +4016,7 @@ export default function CandidateInterview() {
   // V3 WAITING WATCHDOG: Detect stuck state and force fallback prompt
   const v3WaitingWatchdogRef = useRef(null);
   const v3WaitingLastArmKeyRef = useRef(null);
+  const v3WaitingFailopenFiredRef = useRef(new Set());
   
   useEffect(() => {
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
@@ -4019,6 +4029,33 @@ export default function CandidateInterview() {
     const armKey = loopKey || 'none';
     
     if (isStuck && armKey !== 'none') {
+      // IMMEDIATE FAILOPEN: Don't wait 12s - force prompt immediately
+      if (!v3WaitingFailopenFiredRef.current.has(armKey)) {
+        v3WaitingFailopenFiredRef.current.add(armKey);
+        
+        console.warn('[V3_WAITING][FAILOPEN_PROMPT_FORCED]', { 
+          loopKey: armKey,
+          reason: 'V3_WAITING with no prompt - forcing failopen immediately'
+        });
+        
+        const fallbackPromptId = `${armKey}:failopen`;
+        setV3PromptPhase('ANSWER_NEEDED');
+        setV3ActivePromptText("What additional details can you provide to make this complete?");
+        setV3ProbingContext(prev => ({
+          ...prev,
+          promptId: fallbackPromptId
+        }));
+        
+        // Create parent snapshot marker
+        lastV3PromptSnapshotRef.current = {
+          loopKey: armKey,
+          decideSeq: Date.now(),
+          promptPreview: "What additional details can you provide",
+          promptLen: 61,
+          ts: Date.now()
+        };
+      }
+      
       if (v3WaitingLastArmKeyRef.current !== armKey) {
         if (v3WaitingWatchdogRef.current) {
           clearTimeout(v3WaitingWatchdogRef.current);
@@ -21294,14 +21331,30 @@ export default function CandidateInterview() {
                 onAnswerNeeded={handleV3AnswerNeeded}
                 pendingAnswer={v3PendingAnswer}
                 onAnswerConsumed={handleV3AnswerConsumed}
-                onPromptSet={({ loopKey, promptPreview, promptLen }) => {
+                onPromptSet={useCallback(({ loopKey, promptPreview, promptLen }) => {
+                  // SNAPSHOT COMMIT: Create parent-side snapshot marker
+                  const decideSeq = Date.now(); // Unique seq per prompt
+                  lastV3PromptSnapshotRef.current = {
+                    loopKey,
+                    decideSeq,
+                    promptPreview,
+                    promptLen,
+                    ts: Date.now()
+                  };
+                  
+                  console.warn('[V3_SNAPSHOT][PARENT_COMMITTED]', {
+                    loopKey,
+                    decideSeq,
+                    promptLen
+                  });
+                  
                   console.log('[V3_PROBING][PROMPT_READY]', {
                     loopKey,
                     packId: v3ProbingContext.packId,
                     instanceNumber: v3ProbingContext.instanceNumber,
                     promptLen
                   });
-                }}
+                }, [v3ProbingContext])}
                 onRecapReady={async ({ loopKey, packId, categoryId, instanceNumber, recapText, nextAction, incidentId }) => {
                   console.log('[V3_RECAP][RECEIVED]', {
                     loopKey,

@@ -925,8 +925,18 @@ export default function V3ProbingLoop({
           });
         }
 
+        // SNAPSHOT: Call onPromptSet to create parent marker
+        console.warn('[V3_SNAPSHOT][CALLING_ONPROMPTSET]', {
+          loopKey,
+          decideSeq: Date.now(),
+          hasOnPromptSet: typeof onPromptSet === 'function',
+          promptLen: normalizedPrompt?.length || 0,
+          reason: 'FAILOPEN_MALFORMED'
+        });
+
         if (onPromptSet) {
           onPromptSet({ loopKey, promptPreview: normalizedPrompt.substring(0, 60), promptLen: normalizedPrompt.length });
+          console.warn('[V3_SNAPSHOT][ONPROMPTSET_CALLED]', { loopKey, decideSeq: Date.now() });
         }
 
         // SNAPSHOT COMMITTED: Mark fail-open prompt as committed (prevents NO_SNAPSHOT)
@@ -1311,8 +1321,18 @@ export default function V3ProbingLoop({
           });
         }
 
+        // SNAPSHOT: Call onPromptSet to create parent marker
+        console.warn('[V3_SNAPSHOT][CALLING_ONPROMPTSET]', {
+          loopKey,
+          decideSeq: Date.now(),
+          hasOnPromptSet: typeof onPromptSet === 'function',
+          promptLen: fallbackPrompt?.length || 0,
+          reason: 'FALLBACK_TIMEOUT'
+        });
+
         if (onPromptSet) {
           onPromptSet({ loopKey, promptPreview: fallbackPrompt.substring(0, 60), promptLen: fallbackPrompt.length });
+          console.warn('[V3_SNAPSHOT][ONPROMPTSET_CALLED]', { loopKey, decideSeq: Date.now() });
         }
 
         // SNAPSHOT COMMITTED: Mark timeout fail-open as committed
