@@ -1634,10 +1634,13 @@ async function decisionEngineV3Probe(base44, {
     }
   }
   
-  console.log('[V3_OPENER][FACTSTATE_UPDATE_INPUT_SOT]', {
+  console.log('[V3_FACT_GATE][INPUT_SOT]', {
     incidentId,
-    monthYearPresent: !!(incident?.facts && Object.keys(incident.facts).some(k => canon(k).includes('month') || canon(k).includes('year') || canon(k).includes('date'))),
-    factsKeysCount: incident?.facts ? Object.keys(incident.facts).length : 0
+    categoryId,
+    isInitialCall,
+    packId,
+    requiredFieldsCount: requiredFieldsList?.length || 0,
+    factsKeysCount: incident?.facts ? Object.keys(incident.facts).length : 0,
   });
   
   // Update fact_state to reflect newly written facts (use actual required fields list)
@@ -1645,6 +1648,12 @@ async function decisionEngineV3Probe(base44, {
   
   // RECOMPUTE missing fields AFTER exact writes (use actual required fields list)
   const missingFieldsAfter = getMissingRequiredFieldsFromList(factState, incidentId, requiredFieldsList);
+  
+  console.log('[V3_FACT_GATE][MISSING_FIELDS_SOT]', {
+    incidentId,
+    missingCount: missingFieldsAfter?.length || 0,
+    missingFieldIds: (missingFieldsAfter || []).map(f => f.field_id).slice(0, 12),
+  });
   
   // LOAD-BEARING DIAGNOSTIC: Initial call truth log
   const extractedMonthYearKey = Object.keys(extractedFacts).find(k => 
@@ -1999,6 +2008,12 @@ async function decisionEngineV3Probe(base44, {
       // Found first truly missing field
       candidateField = field;
       selectedFieldIdForLogging = field.field_id;
+      
+      console.log('[V3_FACT_GATE][DECISION_SOT]', {
+        incidentId,
+        nextAction: 'ASK',
+        askedFieldId: candidateField?.field_id || null,
+      });
       
       // LOG: Field selected for probing (proves enforcement active)
       console.log('[V3_REQUIRED_FIELDS][MISSING_SELECTED]', {
