@@ -1649,6 +1649,13 @@ async function decisionEngineV3Probe(base44, {
   // RECOMPUTE missing fields AFTER exact writes (use actual required fields list)
   const missingFieldsAfter = getMissingRequiredFieldsFromList(factState, incidentId, requiredFieldsList);
   
+  console.log('[V3_REQUIRED_FACTS][STATE]', {
+    incidentId,
+    packId,
+    missingCount: missingFieldsAfter.length,
+    missingFieldIds: missingFieldsAfter.map(f => f.field_id),
+  });
+  
   console.log('[V3_FACT_GATE][MISSING_FIELDS_SOT]', {
     incidentId,
     missingCount: missingFieldsAfter?.length || 0,
@@ -1939,6 +1946,11 @@ async function decisionEngineV3Probe(base44, {
         missingCount: missingFieldsAfter.length,
       });
       
+      console.log('[V3_REQUIRED_FACTS][FORCED_SELECTION]', {
+        incidentId,
+        forcedFieldId: candidateField?.field_id || null,
+      });
+      
       console.log('[V3_FACT_GATE][DECISION_SOT]', {
         incidentId,
         nextAction: 'ASK',
@@ -2058,6 +2070,19 @@ async function decisionEngineV3Probe(base44, {
         });
         
         break;
+      }
+    }
+    
+    // VIOLATION DETECTOR: Check if selected field is actually required
+    if (missingFieldsAfter.length > 0 && candidateField) {
+      const requiredIds = new Set(missingFieldsAfter.map(f => f.field_id));
+      if (!requiredIds.has(candidateField?.field_id)) {
+        console.error('[V3_REQUIRED_FACTS][VIOLATION]', {
+          incidentId,
+          missingFieldIds: [...requiredIds],
+          selectedFieldId: candidateField?.field_id || null,
+          reason: 'Non-required field selected while required facts missing',
+        });
       }
     }
     
