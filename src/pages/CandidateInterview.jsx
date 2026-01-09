@@ -2760,12 +2760,18 @@ export default function CandidateInterview() {
       currentItem?.type === 'v3_probing'
     );
     
+    // Compute phase for snapshot
+    const phaseSOT = computeInterviewPhaseSOT();
+    
     // Build snapshot object (safe, non-PII fields only)
     const snapshot = {
       // IDENTITY
       ts: Date.now(),
       sessionId: sessionId,
       reason: reason,
+      
+      // PHASE AUTHORITY
+      phase: phaseSOT.phase,
       
       // ROUTING STATE
       currentItemType: currentItem?.type || null,
@@ -3307,6 +3313,229 @@ export default function CandidateInterview() {
   const lastRegressionLogRef = useRef(new Set()); // Track logged regressions (prevent spam)
 
   // ============================================================================
+  // INTERVIEW PHASE AUTHORITY - Single source of truth for lifecycle state
+  // ============================================================================
+  /**
+   * Computes current interview phase using priority-ordered evaluation.
+   * PURE FUNCTION - reads existing state only, no side effects.
+   * @returns {object} { phase, allowedActions, blockedReasons, derivedFlags }
+   */
+  const computeInterviewPhaseSOT = () => {
+    const blockedReasons = [];
+    
+    // Priority 1: BOOTSTRAP
+    if (isLoading && !engine && !session) {
+      return {
+        phase: "BOOTSTRAP",
+        allowedActions: new Set([]),
+        blockedReasons: ["loading"],
+        derivedFlags: {
+          canSubmitText: false,
+          canClickYesNo: false,
+          shouldShowPrompt: false,
+          shouldBlockInput: true,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // Priority 2: DONE
+    if (showCompletionModal || error) {
+      return {
+        phase: "DONE",
+        allowedActions: new Set([]),
+        blockedReasons: error ? ["error"] : ["complete"],
+        derivedFlags: {
+          canSubmitText: false,
+          canClickYesNo: false,
+          shouldShowPrompt: false,
+          shouldBlockInput: true,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // Priority 3: PENDING_TRANSITION
+    if (pendingSectionTransition || (uiBlocker?.type === 'SECTION_MESSAGE' && !uiBlocker.resolved)) {
+      return {
+        phase: "PENDING_TRANSITION",
+        allowedActions: new Set([]),
+        blockedReasons: ["transition_pending"],
+        derivedFlags: {
+          canSubmitText: false,
+          canClickYesNo: false,
+          shouldShowPrompt: false,
+          shouldBlockInput: true,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // Priority 4: WELCOME
+    if (screenMode === "WELCOME" && !currentItem) {
+      return {
+        phase: "WELCOME",
+        allowedActions: new Set([]),
+        blockedReasons: [],
+        derivedFlags: {
+          canSubmitText: false,
+          canClickYesNo: false,
+          shouldShowPrompt: false,
+          shouldBlockInput: true,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // Priority 5: REQUIRED_ANCHOR_FALLBACK
+    if (requiredAnchorFallbackActive && requiredAnchorCurrent) {
+      return {
+        phase: "REQUIRED_ANCHOR_FALLBACK",
+        allowedActions: new Set(["SUBMIT", "TEXT"]),
+        blockedReasons: [],
+        derivedFlags: {
+          canSubmitText: true,
+          canClickYesNo: false,
+          shouldShowPrompt: true,
+          shouldBlockInput: false,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: false
+        }
+      };
+    }
+    
+    // Priority 6: MI_GATE (only if NOT blocked by V3)
+    const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
+    const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
+    const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
+    const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && v3PromptPhase === "ANSWER_NEEDED";
+    const isV3Blocking = hasActiveV3Prompt || v3PromptPhase === 'ANSWER_NEEDED' || hasV3PromptText;
+    
+    if ((currentItem?.type === 'multi_instance_gate' || multiInstanceGate) && !isV3Blocking) {
+      return {
+        phase: "MI_GATE",
+        allowedActions: new Set(["SUBMIT", "YES_NO"]),
+        blockedReasons: [],
+        derivedFlags: {
+          canSubmitText: false,
+          canClickYesNo: true,
+          shouldShowPrompt: true,
+          shouldBlockInput: false,
+          shouldSuppressMiGate: false,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // Priority 7: V3_PROCESSING
+    if (v3PromptPhase === "PROCESSING" || (v3ProbingActive && !hasActiveV3Prompt && bottomBarModeSOT === "V3_WAITING")) {
+      return {
+        phase: "V3_PROCESSING",
+        allowedActions: new Set([]),
+        blockedReasons: ["v3_processing"],
+        derivedFlags: {
+          canSubmitText: false,
+          canClickYesNo: false,
+          shouldShowPrompt: false,
+          shouldBlockInput: true,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: false
+        }
+      };
+    }
+    
+    // Priority 8: V3_PROBING
+    if (v3ProbingActive && hasActiveV3Prompt && v3PromptPhase === "ANSWER_NEEDED") {
+      return {
+        phase: "V3_PROBING",
+        allowedActions: new Set(["SUBMIT", "TEXT"]),
+        blockedReasons: [],
+        derivedFlags: {
+          canSubmitText: true,
+          canClickYesNo: false,
+          shouldShowPrompt: true,
+          shouldBlockInput: false,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // Priority 9: V3_OPENER
+    if (currentItem?.type === 'v3_pack_opener') {
+      return {
+        phase: "V3_OPENER",
+        allowedActions: new Set(["SUBMIT", "TEXT"]),
+        blockedReasons: [],
+        derivedFlags: {
+          canSubmitText: true,
+          canClickYesNo: false,
+          shouldShowPrompt: true,
+          shouldBlockInput: false,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // Priority 10: V2_PACK_ACTIVE
+    if (v2PackMode === "V2_PACK" && activeV2Pack && currentItem?.type === 'v2_pack_field') {
+      return {
+        phase: "V2_PACK_ACTIVE",
+        allowedActions: new Set(["SUBMIT", "TEXT"]),
+        blockedReasons: [],
+        derivedFlags: {
+          canSubmitText: true,
+          canClickYesNo: false,
+          shouldShowPrompt: true,
+          shouldBlockInput: false,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // Priority 11: BASE_QUESTION
+    if (currentItem?.type === 'question' && !v3ProbingActive) {
+      const question = engine?.QById?.[currentItem.id];
+      const isYesNo = question?.response_type === 'yes_no';
+      
+      return {
+        phase: "BASE_QUESTION",
+        allowedActions: new Set(isYesNo ? ["SUBMIT", "YES_NO"] : ["SUBMIT", "TEXT"]),
+        blockedReasons: [],
+        derivedFlags: {
+          canSubmitText: !isYesNo,
+          canClickYesNo: isYesNo,
+          shouldShowPrompt: true,
+          shouldBlockInput: false,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // Fallback: DONE
+    return {
+      phase: "DONE",
+      allowedActions: new Set([]),
+      blockedReasons: ["no_current_item"],
+      derivedFlags: {
+        canSubmitText: false,
+        canClickYesNo: false,
+        shouldShowPrompt: false,
+        shouldBlockInput: true,
+        shouldSuppressMiGate: true,
+        shouldSuppressFallback: true
+      }
+    };
+  };
+  
+  // ============================================================================
   // V3 PROMPT DETECTION + ACTIVE UI ITEM RESOLVER (TDZ-safe early placement)
   // ============================================================================
   // CRITICAL: These must be declared BEFORE useEffect that depends on activeUiItem
@@ -3491,12 +3720,16 @@ export default function CandidateInterview() {
     }
     
     // TASK B: Priority 3: Multi-instance gate (ONLY if V3 not blocking)
-    // HARDENED: Block MI_GATE if V3 is blocking (active, has prompt, or processing)
+    // PHASE GATE: Use phase authority for MI_GATE suppression
+    const phaseSOTForMiGate = computeInterviewPhaseSOT();
+    const shouldSuppressMiGate = phaseSOTForMiGate.derivedFlags.shouldSuppressMiGate;
+    
     if (currentItem?.type === 'multi_instance_gate') {
-      if (isV3Blocking) {
+      if (shouldSuppressMiGate) {
         console.log('[FLOW][MI_GATE_STAGED_BUT_BLOCKED_BY_V3]', {
           packId: currentItem.packId,
           instanceNumber: currentItem.instanceNumber,
+          phase: phaseSOTForMiGate.phase,
           v3PromptPhase,
           v3ProbingActive,
           hasActiveV3Prompt,
@@ -4121,6 +4354,12 @@ export default function CandidateInterview() {
   const v3WaitingFailopenFiredRef = useRef(new Set());
   
   useEffect(() => {
+    // PHASE GATE: Only allow failopen in V3_PROCESSING phase
+    const phaseSOTForFailopen = computeInterviewPhaseSOT();
+    if (phaseSOTForFailopen.phase !== "V3_PROCESSING") {
+      return; // Not in processing phase - skip watchdog
+    }
+    
     const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
     const isStuck = v3ProbingActive && 
                     bottomBarModeSOT === 'V3_WAITING' && 
@@ -4137,6 +4376,7 @@ export default function CandidateInterview() {
         
         console.warn('[V3_WAITING][FAILOPEN_PROMPT_FORCED]', { 
           loopKey: armKey,
+          phase: phaseSOTForFailopen.phase,
           reason: 'V3_WAITING with no prompt - forcing failopen immediately'
         });
         
@@ -10304,6 +10544,23 @@ export default function CandidateInterview() {
         // DEADLOCK DETECTION: Check if V3 is headless (engine won't prompt)
         const isV3Headless = v3ProbingActive && !hasActiveV3Prompt && bottomBarModeSOT === 'V3_WAITING';
 
+        // PHASE GATE: Only activate fallback if phase allows it
+        const phaseSOTForFallback = computeInterviewPhaseSOT();
+        const fallbackAllowedByPhase = (phaseSOTForFallback.phase === "V3_PROCESSING" || 
+                                        phaseSOTForFallback.phase === "V3_PROBING") &&
+                                       !phaseSOTForFallback.derivedFlags.shouldSuppressFallback;
+        
+        if (!fallbackAllowedByPhase) {
+          console.warn('[PHASE_BLOCK][FALLBACK]', { 
+            phase: phaseSOTForFallback.phase, 
+            reasons: phaseSOTForFallback.blockedReasons,
+            packId,
+            instanceNumber
+          });
+          // Do not activate fallback - phase doesn't allow it
+          return; // Exit guard, allow normal flow
+        }
+
         if (isV3Headless && missingRequired.length > 0) {
           console.log('[REQUIRED_ANCHOR_FALLBACK][START]', {
             packId,
@@ -16373,6 +16630,16 @@ export default function CandidateInterview() {
     
     // STABILITY SNAPSHOT: Submit initiated
     getStabilitySnapshotSOT("SUBMIT_BEGIN");
+    
+    // PHASE GATE: Block submit if phase doesn't allow it
+    const phaseSOT = computeInterviewPhaseSOT();
+    if (!phaseSOT.allowedActions.has("SUBMIT")) {
+      console.warn('[PHASE_BLOCK][SUBMIT]', { 
+        phase: phaseSOT.phase, 
+        reasons: phaseSOT.blockedReasons 
+      });
+      return; // Hard block - no submit during illegal phase
+    }
     
     // ROUTE A0: Required anchor answer submission (HIGHEST PRIORITY - triple-gate routing)
     // Routes by: effectiveItemType OR activeUiItemKind OR requiredAnchorFallbackActive flag
