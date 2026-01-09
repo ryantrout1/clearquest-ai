@@ -11175,6 +11175,12 @@ export default function CandidateInterview() {
     v3SubmitCounterRef.current++;
     const submitId = v3SubmitCounterRef.current;
     
+    // IDENTIFIER FALLBACK CHAIN: Use context first, snapshot second
+    const categoryId = v3ProbingContext?.categoryId || lastV3PromptSnapshotRef.current?.categoryId;
+    const instanceNumber = v3ProbingContext?.instanceNumber || lastV3PromptSnapshotRef.current?.instanceNumber || 1;
+    const packId = v3ProbingContext?.packId || lastV3PromptSnapshotRef.current?.packId;
+    const loopKey = v3ProbingContext ? `${sessionId}:${categoryId}:${instanceNumber}` : null;
+    
     // EDIT 3: Diagnostic log - prove answer submitted to loop
     console.log('[V3_ANSWER][SUBMIT_TO_LOOP]', {
       submitId,
@@ -11183,12 +11189,6 @@ export default function CandidateInterview() {
       pendingAnswerSet: true,
       ts: Date.now()
     });
-    
-    // IDENTIFIER FALLBACK CHAIN: Use context first, snapshot second
-    const categoryId = v3ProbingContext?.categoryId || lastV3PromptSnapshotRef.current?.categoryId;
-    const instanceNumber = v3ProbingContext?.instanceNumber || lastV3PromptSnapshotRef.current?.instanceNumber || 1;
-    const packId = v3ProbingContext?.packId || lastV3PromptSnapshotRef.current?.packId;
-    const loopKey = v3ProbingContext ? `${sessionId}:${categoryId}:${instanceNumber}` : null;
     
     // GUARD: Validate identifiers before proceeding
     if (!categoryId || !packId) {
