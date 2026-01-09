@@ -1554,34 +1554,6 @@ async function decisionEngineV3Probe(base44, {
     });
   }
   
-  // PART 3: If month/year detected on initial call, write to ALL month/year required keys
-  const detectedMonthYearNormalized = isInitialCall ? extractMonthYear(latestAnswerText || '') : null;
-  
-  if (detectedMonthYearNormalized && isInitialCall) {
-    // Find ALL month/year required fields and write detected value to them
-    const monthYearRequiredFields = (factModel.required_fields || []).filter(f => {
-      const typeMatch = f.type === 'date' || f.type === 'month_year';
-      const idMatch = ['date', 'month', 'year', 'when', 'time', 'approx'].some(kw => 
-        canon(f.field_id || '').includes(kw)
-      );
-      return typeMatch || idMatch;
-    });
-    
-    const requiredKeysWritten = [];
-    for (const field of monthYearRequiredFields) {
-      incident.facts[field.field_id] = detectedMonthYearNormalized;
-      requiredKeysWritten.push(field.field_id);
-    }
-    
-    if (requiredKeysWritten.length > 0) {
-      console.log('[V3_MONTH_YEAR_KEYS][APPLIED]', {
-        requiredKeysWritten,
-        normalized: detectedMonthYearNormalized,
-        incidentId
-      });
-    }
-  }
-  
   // FIELD KEY ALIGNMENT: Map extracted facts to required field_id keys
   // Required fields use pack.field_config[].fieldKey (e.g., "agency_name", "position_applied_for")
   // Extraction may use semantic keys or variant spellings - align them
@@ -1634,14 +1606,45 @@ async function decisionEngineV3Probe(base44, {
     }
   }
   
+  // PART 3: If month/year detected on initial call, write to ALL month/year required keys
+  const detectedMonthYearNormalized = isInitialCall ? extractMonthYear(latestAnswerText || '') : null;
+  
+  if (detectedMonthYearNormalized && isInitialCall) {
+    // Find ALL month/year required fields and write detected value to them
+    const monthYearRequiredFields = (factModel.required_fields || []).filter(f => {
+      const typeMatch = f.type === 'date' || f.type === 'month_year';
+      const idMatch = ['date', 'month', 'year', 'when', 'time', 'approx'].some(kw => 
+        canon(f.field_id || '').includes(kw)
+      );
+      return typeMatch || idMatch;
+    });
+    
+    const requiredKeysWritten = [];
+    for (const field of monthYearRequiredFields) {
+      incident.facts[field.field_id] = detectedMonthYearNormalized;
+      requiredKeysWritten.push(field.field_id);
+    }
+    
+    if (requiredKeysWritten.length > 0) {
+      console.log('[V3_MONTH_YEAR_KEYS][APPLIED]', {
+        requiredKeysWritten,
+        normalized: detectedMonthYearNormalized,
+        incidentId
+      });
+    }
+  }
+  
+  console.log('[V3_OPENER][FACTSTATE_UPDATE_INPUT_SOT]', {
+    incidentId,
+    monthYearPresent: !!(incident?.facts && Object.keys(incident.facts).some(k => canon(k).includes('month') || canon(k).includes('year') || canon(k).includes('date'))),
+    factsKeysCount: incident?.facts ? Object.keys(incident.facts).length : 0
+  });
+  
   // Update fact_state to reflect newly written facts (use actual required fields list)
   factState = updateV3FactStateFromFields(factState, incidentId, requiredFieldsList, incident.facts);
   
   // RECOMPUTE missing fields AFTER exact writes (use actual required fields list)
   const missingFieldsAfter = getMissingRequiredFieldsFromList(factState, incidentId, requiredFieldsList);
-  
-  // DETERMINISTIC DETECTION: Extract month/year from opener FIRST (single source of truth)
-  const detectedMonthYearNormalized = isInitialCall ? extractMonthYear(latestAnswerText || '') : null;
   
   // LOAD-BEARING DIAGNOSTIC: Initial call truth log
   const extractedMonthYearKey = Object.keys(extractedFacts).find(k => 
