@@ -2736,6 +2736,93 @@ export default function CandidateInterview() {
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
   
+  // ============================================================================
+  // STABILITY SNAPSHOT HARNESS - Lifecycle visibility for regression detection
+  // ============================================================================
+  /**
+   * Captures immutable snapshot of routing/phase/gate state for debugging.
+   * NO-OP by default - only logs when window.__CQ_STABILITY_DEBUG__ === true
+   * @param {string} reason - Label for snapshot (e.g., "MOUNT", "SUBMIT_BEGIN")
+   * @param {object} context - Optional extra safe fields (no PII)
+   * @returns {object|null} Snapshot object or null if disabled
+   */
+  const getStabilitySnapshotSOT = (reason, context = {}) => {
+    // GUARD: Only log if flag enabled
+    if (typeof window === 'undefined' || window.__CQ_STABILITY_DEBUG__ !== true) {
+      return null; // No-op when disabled
+    }
+    
+    // Derive V3 pack context (safe boolean - no metadata loading)
+    const isV3PackContext = Boolean(
+      v3ProbingActive || 
+      v3ProbingContext || 
+      currentItem?.type === 'v3_pack_opener' || 
+      currentItem?.type === 'v3_probing'
+    );
+    
+    // Build snapshot object (safe, non-PII fields only)
+    const snapshot = {
+      // IDENTITY
+      ts: Date.now(),
+      sessionId: sessionId,
+      reason: reason,
+      
+      // ROUTING STATE
+      currentItemType: currentItem?.type || null,
+      currentItemId: currentItem?.id || null,
+      effectiveItemType: effectiveItemType,
+      activeUiItemKind: activeUiItem?.kind || null,
+      
+      // FOOTER CONTROLLER
+      bottomBarModeSOT: bottomBarModeSOT,
+      bottomBarRenderTypeSOT: bottomBarRenderTypeSOT,
+      
+      // V3 LIFECYCLE
+      v3PromptPhase: v3PromptPhase,
+      v3ProbingActive: v3ProbingActive,
+      hasActiveV3Prompt: hasActiveV3Prompt,
+      v3ProbingLoopKey: v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null,
+      
+      // FALLBACK STATE
+      requiredAnchorFallbackActive: requiredAnchorFallbackActive,
+      requiredAnchorCurrent: requiredAnchorCurrent,
+      requiredAnchorQueueLen: requiredAnchorQueue?.length || 0,
+      
+      // GATE STATE
+      multiInstanceGateActive: !!multiInstanceGate,
+      multiInstanceGatePackId: multiInstanceGate?.packId || null,
+      multiInstanceGateInstance: multiInstanceGate?.instanceNumber || null,
+      
+      // TRANSITION STATE
+      hasPendingTransition: !!pendingTransition,
+      pendingTransitionType: pendingTransition?.type || null,
+      
+      // COUNTS ONLY (no content)
+      transcriptLen: transcriptSOT?.length || 0,
+      v3UiHistoryLen: v3ProbeDisplayHistory?.length || 0,
+      dbTranscriptLen: dbTranscript?.length || 0,
+      canonicalTranscriptLen: canonicalTranscriptRef.current?.length || 0,
+      
+      // COMMIT STATE
+      isCommitting: isCommitting,
+      committingItemId: committingItemIdRef.current,
+      
+      // CONTEXT (safe metadata)
+      packId: currentItem?.packId || v3ProbingContext?.packId || null,
+      instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber || null,
+      categoryId: v3ProbingContext?.categoryId || null,
+      isV3PackContext: isV3PackContext,
+      
+      // CALLER PASSTHROUGH
+      ...context
+    };
+    
+    // Single consolidated log
+    console.log('[STABILITY_SNAPSHOT]', snapshot);
+    
+    return snapshot;
+  };
+  
   // HOOK ORDER FIX: One-time proof that onPromptSet is plain function (no React hook)
   if (typeof window !== 'undefined' && !window.__CQ_ONPROMPTSET_NOHOOK_LOGGED__) {
     window.__CQ_ONPROMPTSET_NOHOOK_LOGGED__ = true;
@@ -5791,7 +5878,10 @@ export default function CandidateInterview() {
         sessionMounts: mountsBySession[sessionId],
         WARNING: '⚠️ UNMOUNT during session - should only occur on route exit or browser close'
       });
-      
+
+      // STABILITY SNAPSHOT: Component mounted
+      getStabilitySnapshotSOT("MOUNT");
+
       resetMountTracker(sessionId);
       
       window.removeEventListener('beforeunload', handleBeforeUnload);
@@ -7779,6 +7869,9 @@ export default function CandidateInterview() {
           transcriptLenAfter: transcriptAfterAnswer.length
         });
         console.log("[V3_OPENER][TRANSCRIPT_AFTER_A]", { length: transcriptAfterAnswer.length });
+        
+        // STABILITY SNAPSHOT: Opener answer submitted
+        getStabilitySnapshotSOT("SUBMIT_END_V3_OPENER");
 
         // Append opener to UI history AFTER answer submitted (prevents duplicate during active state)
         const stableKey = buildV3OpenerStableKey(packId, instanceNumber);
@@ -8305,6 +8398,9 @@ export default function CandidateInterview() {
           responseId: savedResponse?.id,
           packId: null
         });
+        
+        // STABILITY SNAPSHOT: Base answer submitted
+        getStabilitySnapshotSOT("SUBMIT_END_BASE");
         
         // Reload session transcript into local state (single source of truth)
         const newTranscript = await refreshTranscriptFromDB('base_question_answered');
@@ -10089,6 +10185,9 @@ export default function CandidateInterview() {
       loopKey: `${sessionId}:${categoryId}:${instanceNumber || 1}`
     });
     
+    // STABILITY SNAPSHOT: MI_GATE transition initiated
+    getStabilitySnapshotSOT("MI_GATE_SHOW");
+    
     // HUMAN LABEL RESOLUTION: Ensure categoryLabel is human-friendly
     let humanCategoryLabel = categoryLabel;
     
@@ -10425,6 +10524,9 @@ export default function CandidateInterview() {
           setRequiredAnchorFallbackActive(true);
           setRequiredAnchorQueue([...sortedMissing]);
           setRequiredAnchorCurrent(sortedMissing[0]);
+          
+          // STABILITY SNAPSHOT: Fallback activated
+          getStabilitySnapshotSOT("FALLBACK_ON");
           
           // CLEAR STUCK STATE + Set phase to ANSWER_NEEDED (enables Send button)
           setIsCommitting(false);
@@ -11011,6 +11113,13 @@ export default function CandidateInterview() {
     const instanceNumber = typeof promptData === 'object' ? promptData?.instanceNumber : (v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1);
     const categoryId = typeof promptData === 'object' ? promptData?.categoryId : v3ProbingContext?.categoryId;
     
+    // STABILITY SNAPSHOT: V3 phase change
+    if (lastV3PromptPhaseRef.current !== v3PromptPhase) {
+      getStabilitySnapshotSOT("V3_PHASE_CHANGE", { 
+        prevV3PromptPhase: lastV3PromptPhaseRef.current 
+      });
+    }
+    
     // EDIT 3: Diagnostic log - prove parent received prompt from loop
     console.log('[V3_PROMPT][RECEIVED_BY_PARENT]', {
       canonicalPromptId: canonicalPromptId || 'will_generate',
@@ -11596,11 +11705,14 @@ export default function CandidateInterview() {
         instanceNumber,
         probeIndex
       });
-    }
-    
-    // PART B: Force immediate transition (optimistic - don't wait for DB)
-    // This prevents PROMPT_MISSING_AFTER_OPENER stall
-    setV3PromptPhase("PROCESSING");
+
+      // STABILITY SNAPSHOT: V3 probe answer committed
+      getStabilitySnapshotSOT("SUBMIT_END_V3_PROBE");
+      }
+
+      // PART B: Force immediate transition (optimistic - don't wait for DB)
+      // This prevents PROMPT_MISSING_AFTER_OPENER stall
+      setV3PromptPhase("PROCESSING");
     console.log('[V3_PROMPT_PHASE][SET_PROCESSING_OPTIMISTIC]', {
       submitId,
       loopKey,
@@ -16258,6 +16370,9 @@ export default function CandidateInterview() {
       hasPrompt,
       requiredAnchorFallbackActive
     });
+    
+    // STABILITY SNAPSHOT: Submit initiated
+    getStabilitySnapshotSOT("SUBMIT_BEGIN");
     
     // ROUTE A0: Required anchor answer submission (HIGHEST PRIORITY - triple-gate routing)
     // Routes by: effectiveItemType OR activeUiItemKind OR requiredAnchorFallbackActive flag
