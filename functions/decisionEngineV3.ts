@@ -1928,86 +1928,16 @@ async function decisionEngineV3Probe(base44, {
     let candidateField = null;
     let suppressedCount = 0;
     
-    for (let i = 0; i < missingFieldsAfter.length; i++) {
-      const field = missingFieldsAfter[i];
-      const fieldIdCanon = canon(field.field_id || '');
+    // DETERMINISTIC REQUIRED-FIELD PRIORITY: Force first missing required field
+    if (missingFieldsAfter && missingFieldsAfter.length > 0) {
+      candidateField = missingFieldsAfter[0];
+      selectedFieldIdForLogging = candidateField.field_id;
       
-      // Check if this field already has a non-empty value in incident.facts (canonical match)
-      const alreadyCollected = Object.keys(incident.facts).some(k => {
-        const kCanon = canon(k);
-        const hasValue = incident.facts[k] && String(incident.facts[k]).trim() !== '';
-        return kCanon === fieldIdCanon && hasValue;
+      console.log('[V3_REQUIRED_FIELD_PRIORITY][FORCED]', {
+        incidentId,
+        forcedFieldId: candidateField?.field_id || null,
+        missingCount: missingFieldsAfter.length,
       });
-      
-      if (alreadyCollected) {
-        suppressedCount++;
-        const collectedKey = Object.keys(incident.facts).find(k => canon(k) === fieldIdCanon);
-        console.log(`[V3_PRE_ASK_GUARD][SKIP]`, {
-          traceId: effectiveTraceId,
-          fieldId: field.field_id,
-          reason: 'Already collected in incident.facts',
-          collectedAs: collectedKey,
-          valuePreview: incident.facts[collectedKey]?.substring?.(0, 30) || incident.facts[collectedKey]
-        });
-        continue;
-      }
-      
-      // PART 2: HARD GATE - If month/year detected in opener, skip all month/year questions
-      if (isInitialCall && detectedMonthYearNormalized) {
-        const potentialPrompt = generateV3ProbeQuestion(field, incident.facts);
-        const isDateIntent = isDateApplyOccurIntent({
-          promptText: potentialPrompt,
-          missingFieldId: field.field_id,
-          categoryId
-        });
-        
-        if (isDateIntent) {
-          suppressedCount++;
-          
-          console.warn(`[V3_DATE_GATE][FIRED]`, {
-            categoryId,
-            instanceNumber: instanceNumber || 1,
-            detectedMonthYearNormalized,
-            blockedFieldId: field.field_id,
-            blockedPromptPreview: potentialPrompt?.substring(0, 60) || null,
-            nextActionBeforeBlock: 'ASK',
-            reason: 'Deterministic month/year detected in opener - date question suppressed'
-          });
-          
-          continue;
-        }
-      }
-      
-      // LEGACY: INSTANCE-AWARE SAFETY GATE (kept as fallback)
-      if (categoryId === 'PRIOR_LE_APPS' && isInitialCall && openerHasMonthYear && !detectedMonthYearNormalized) {
-        const potentialPrompt = generateV3ProbeQuestion(field, incident.facts);
-        const isDateIntent = isDateApplyOccurIntent({
-          promptText: potentialPrompt,
-          missingFieldId: field.field_id,
-          categoryId
-        });
-        
-        if (isDateIntent) {
-          suppressedCount++;
-          
-          console.warn(`[V3_DATE_GATE][FIRED_LEGACY]`, {
-            categoryId,
-            instanceNumber: instanceNumber || 1,
-            openerHasMonthYear: true,
-            extractedMonthYear: extractedMonthYearRaw || 'detected_via_hasMonthYear',
-            blockedFieldId: field.field_id,
-            blockedPromptPreview: potentialPrompt?.substring(0, 60) || null,
-            nextActionBeforeBlock: 'ASK',
-            reason: 'Opener contains month/year (legacy pattern detection) - date question suppressed'
-          });
-          
-          continue;
-        }
-      }
-      
-      // Found first truly missing field
-      candidateField = field;
-      selectedFieldIdForLogging = field.field_id;
       
       console.log('[V3_FACT_GATE][DECISION_SOT]', {
         incidentId,
@@ -2019,15 +1949,116 @@ async function decisionEngineV3Probe(base44, {
       console.log('[V3_REQUIRED_FIELDS][MISSING_SELECTED]', {
         packId: packId || 'none',
         instanceNumber: instanceNumber || 1,
-        fieldId: field.field_id,
-        label: field.label,
-        type: field.type,
+        fieldId: candidateField.field_id,
+        label: candidateField.label,
+        type: candidateField.type,
         source: requiredFieldsSource,
-        fieldPosition: `${index + 1} of ${missingFieldsAfter.length}`,
+        fieldPosition: `1 of ${missingFieldsAfter.length}`,
         reason: 'Required field missing from FollowUp Fields config - must probe before advancement'
       });
-      
-      break;
+    } else {
+      // FALLBACK: Heuristic selection loop with guards (only when no required fields missing)
+      for (let i = 0; i < missingFieldsAfter.length; i++) {
+        const field = missingFieldsAfter[i];
+        const fieldIdCanon = canon(field.field_id || '');
+        
+        // Check if this field already has a non-empty value in incident.facts (canonical match)
+        const alreadyCollected = Object.keys(incident.facts).some(k => {
+          const kCanon = canon(k);
+          const hasValue = incident.facts[k] && String(incident.facts[k]).trim() !== '';
+          return kCanon === fieldIdCanon && hasValue;
+        });
+        
+        if (alreadyCollected) {
+          suppressedCount++;
+          const collectedKey = Object.keys(incident.facts).find(k => canon(k) === fieldIdCanon);
+          console.log(`[V3_PRE_ASK_GUARD][SKIP]`, {
+            traceId: effectiveTraceId,
+            fieldId: field.field_id,
+            reason: 'Already collected in incident.facts',
+            collectedAs: collectedKey,
+            valuePreview: incident.facts[collectedKey]?.substring?.(0, 30) || incident.facts[collectedKey]
+          });
+          continue;
+        }
+        
+        // PART 2: HARD GATE - If month/year detected in opener, skip all month/year questions
+        if (isInitialCall && detectedMonthYearNormalized) {
+          const potentialPrompt = generateV3ProbeQuestion(field, incident.facts);
+          const isDateIntent = isDateApplyOccurIntent({
+            promptText: potentialPrompt,
+            missingFieldId: field.field_id,
+            categoryId
+          });
+          
+          if (isDateIntent) {
+            suppressedCount++;
+            
+            console.warn(`[V3_DATE_GATE][FIRED]`, {
+              categoryId,
+              instanceNumber: instanceNumber || 1,
+              detectedMonthYearNormalized,
+              blockedFieldId: field.field_id,
+              blockedPromptPreview: potentialPrompt?.substring(0, 60) || null,
+              nextActionBeforeBlock: 'ASK',
+              reason: 'Deterministic month/year detected in opener - date question suppressed'
+            });
+            
+            continue;
+          }
+        }
+        
+        // LEGACY: INSTANCE-AWARE SAFETY GATE (kept as fallback)
+        if (categoryId === 'PRIOR_LE_APPS' && isInitialCall && openerHasMonthYear && !detectedMonthYearNormalized) {
+          const potentialPrompt = generateV3ProbeQuestion(field, incident.facts);
+          const isDateIntent = isDateApplyOccurIntent({
+            promptText: potentialPrompt,
+            missingFieldId: field.field_id,
+            categoryId
+          });
+          
+          if (isDateIntent) {
+            suppressedCount++;
+            
+            console.warn(`[V3_DATE_GATE][FIRED_LEGACY]`, {
+              categoryId,
+              instanceNumber: instanceNumber || 1,
+              openerHasMonthYear: true,
+              extractedMonthYear: extractedMonthYearRaw || 'detected_via_hasMonthYear',
+              blockedFieldId: field.field_id,
+              blockedPromptPreview: potentialPrompt?.substring(0, 60) || null,
+              nextActionBeforeBlock: 'ASK',
+              reason: 'Opener contains month/year (legacy pattern detection) - date question suppressed'
+            });
+            
+            continue;
+          }
+        }
+        
+        // Found first truly missing field
+        candidateField = field;
+        selectedFieldIdForLogging = field.field_id;
+        
+        console.log('[V3_FACT_GATE][DECISION_SOT]', {
+          incidentId,
+          nextAction: 'ASK',
+          askedFieldId: candidateField?.field_id || null,
+        });
+        
+        // LOG: Field selected for probing (proves enforcement active)
+        console.log('[V3_REQUIRED_FIELDS][MISSING_SELECTED]', {
+          packId: packId || 'none',
+          instanceNumber: instanceNumber || 1,
+          fieldId: field.field_id,
+          label: field.label,
+          type: field.type,
+          source: requiredFieldsSource,
+          fieldPosition: `${i + 1} of ${missingFieldsAfter.length}`,
+          reason: 'Required field missing from FollowUp Fields config - must probe before advancement'
+        });
+        
+        break;
+      }
     }
     
     // If all fields suppressed, complete
