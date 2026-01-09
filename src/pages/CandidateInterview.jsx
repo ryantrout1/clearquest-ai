@@ -13365,6 +13365,12 @@ export default function CandidateInterview() {
   // TDZ ELIMINATED: Late bottomBarMode declaration removed - bottomBarModeSOT is canonical source
   
   // ============================================================================
+  // CURRENT PROMPT COMPUTATION - Moved here after all dependencies (TDZ fix)
+  // ============================================================================
+  // CRITICAL: Must be after effectiveItemType, bottomBarModeSOT, activeUiItem
+  const currentPrompt = getCurrentPrompt();
+  
+  // ============================================================================
   // FOOTER CLEARANCE COMPUTATION - Stable, unconditional (prevents overlap)
   // ============================================================================
   const footerClearancePx = Math.max(dynamicFooterHeightPx + 32, 96);
@@ -15605,7 +15611,6 @@ export default function CandidateInterview() {
     }
     return true;
   };
-  const currentPrompt = getCurrentPrompt();
   
   // ============================================================================
   // CANONICAL RENDER STREAM - Single source of truth (component scope, always defined)
