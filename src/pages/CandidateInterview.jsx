@@ -11002,15 +11002,12 @@ export default function CandidateInterview() {
     const categoryId = typeof promptData === 'object' ? promptData?.categoryId : v3ProbingContext?.categoryId;
     
     // EDIT 3: Diagnostic log - prove parent received prompt from loop
-    const v3PromptSource = typeof promptData === 'object' ? promptData?.v3PromptSource : undefined;
-    const v3LlmMs = typeof promptData === 'object' ? promptData?.v3LlmMs : undefined;
-    
     console.log('[V3_PROMPT][RECEIVED_BY_PARENT]', {
       canonicalPromptId: canonicalPromptId || 'will_generate',
       loopKey: loopKey || 'unknown',
       promptLen: promptText?.length || 0,
-      v3PromptSource,
-      v3LlmMs,
+      v3PromptSource: typeof promptData === 'object' ? promptData?.v3PromptSource : undefined,
+      v3LlmMs: typeof promptData === 'object' ? promptData?.v3LlmMs : undefined,
       willActivate: true,
       ts: Date.now()
     });
