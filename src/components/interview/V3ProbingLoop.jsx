@@ -256,6 +256,9 @@ export default function V3ProbingLoop({
     };
   }, []);
 
+  // V3 PROMPT WATCHDOG: Timer ref for stall detection (declared at top to prevent TDZ)
+  const promptWatchdogTimerRef = useRef(null);
+  
   // HEADLESS MODE: Consume pending answer from parent
   useEffect(() => {
     if (!pendingAnswer || isComplete) return;
@@ -284,6 +287,14 @@ export default function V3ProbingLoop({
       });
       return;
     }
+
+    // EDIT 2C: Diagnostic log - prove answer consumed by loop
+    console.log('[V3_LOOP][ANSWER_CONSUMED]', { 
+      loopKey, 
+      probeCount, 
+      answerLen: answerText?.length || 0, 
+      ts: Date.now() 
+    });
 
     console.log('[V3_PROBING_LOOP][CONSUME_ANSWER]', { 
       answerPreview: answerText?.substring(0, 50),
@@ -328,7 +339,50 @@ export default function V3ProbingLoop({
         });
       }, 0);
     }
-  }, [pendingAnswer, isComplete, loopKey, probeCount, onAnswerConsumed]);
+    
+    // EDIT 2B: Watchdog - force failopen if no prompt arrives within 2s
+    if (promptWatchdogTimerRef.current) {
+      clearTimeout(promptWatchdogTimerRef.current);
+    }
+    
+    promptWatchdogTimerRef.current = setTimeout(() => {
+      if (isComplete) return;
+      
+      const hasPromptNow = !!activePromptText && activePromptText.trim().length > 0;
+      if (hasPromptNow) return;
+      
+      console.error('[V3_LOOP][PROMPT_WATCHDOG_FIRE]', {
+        loopKey,
+        probeCount,
+        reason: 'No prompt arrived 2s after answer consumed',
+        ts: Date.now()
+      });
+      
+      setIsDeciding(false);
+      setActivePromptText("What additional details can you provide?");
+      setActivePromptId(`${loopKey}:watchdog-${Date.now()}`);
+      
+      if (onPromptChange) {
+        onPromptChange({
+          promptText: "What additional details can you provide?",
+          promptId: `${loopKey}:watchdog`,
+          loopKey,
+          v3PromptSource: 'WATCHDOG_FAILOPEN'
+        });
+      }
+      
+      if (onPromptSet) {
+        onPromptSet({ loopKey, promptPreview: "What additional details", promptLen: 43 });
+      }
+    }, 2000);
+    
+    return () => {
+      if (promptWatchdogTimerRef.current) {
+        clearTimeout(promptWatchdogTimerRef.current);
+        promptWatchdogTimerRef.current = null;
+      }
+    };
+  }, [pendingAnswer, isComplete, loopKey, probeCount, onAnswerConsumed, activePromptText, onPromptChange, onPromptSet]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -569,6 +623,7 @@ export default function V3ProbingLoop({
     // Start timing for backend call
     const engineCallStart = Date.now();
     
+    // EDIT 2A: Wrap engine call in try/catch for guaranteed error handling
     try {
       console.log('[ENGINE][DECIDE_START]', { traceId, categoryId, incidentId: incidentId || '(will create)' });
       console.log('[V3_PROBE][LOOP_START]', {
@@ -982,6 +1037,14 @@ export default function V3ProbingLoop({
           reason: 'Pre-callback generation for snapshot'
         });
 
+        // EDIT 2C: Diagnostic log - prove prompt received from backend
+        console.log('[V3_LOOP][PROMPT_RECEIVED]', { 
+          loopKey, 
+          promptLen: data.nextPrompt?.length || 0, 
+          v3PromptSource: data?.v3PromptSource, 
+          ts: Date.now() 
+        });
+
         // OUTPUT BOUNDARY: Normalize probe question to enforce Date Rule
         // This is the ONLY normalization layer - runs before setting state
         let normalizedPrompt = await (async () => {
@@ -1273,6 +1336,13 @@ export default function V3ProbingLoop({
         stackPreview: err?.stack?.substring(0, 200) || 'N/A'
       });
       
+      // EDIT 2A: Engine call failed - log and force failopen prompt
+      console.error('[V3_LOOP][ENGINE_CALL_FAILED]', { 
+        loopKey, 
+        err: String(err), 
+        ts: Date.now() 
+      });
+      
       console.error("[V3_PROBING][ENGINE_CALL_ERROR]", { 
         error: String(err), 
         stack: err?.stack,
@@ -1370,24 +1440,27 @@ export default function V3ProbingLoop({
         return; // ✓ EXPLICIT RETURN - guarantees no fallthrough to error card
       }
       
-      // FAIL-OPEN: For other runtime errors, show fallback probe instead of error card
+      // EDIT 2A: Runtime exception failopen
+      console.error('[V3_LOOP][ENGINE_CALL_FAILED]', { 
+        loopKey, 
+        err: String(err), 
+        ts: Date.now() 
+      });
+      
       console.warn("[V3_PROBE][EXCEPTION_FAIL_OPEN]", {
         traceId,
         reason: 'Runtime exception - failing open with fallback probe'
       });
       
-      // Set safe fallback probe question - same state as normal ASK response
       const fallbackPrompt = "What was the name of the law enforcement agency you applied to?";
       const fallbackPromptId = `v3-fallback-${sessionId}-${categoryId}-${instanceNumber || 1}-${Date.now()}`;
       
       setActivePromptText(fallbackPrompt);
       setActivePromptId(fallbackPromptId);
-      
-      // ANSWER_NEEDED state: same as normal ASK response
       setIsDeciding(false);
       setIsLoading(false);
+      engineInFlightRef.current = false;
       
-      // Notify parent that answer is needed (same as normal ASK)
       if (onAnswerNeeded) {
         onAnswerNeeded({
           promptText: fallbackPrompt,
@@ -1413,7 +1486,6 @@ export default function V3ProbingLoop({
         onPromptSet({ loopKey, promptPreview: fallbackPrompt.substring(0, 60), promptLen: fallbackPrompt.length });
       }
 
-      // SNAPSHOT COMMITTED: Mark exception fail-open as committed
       console.log('[V3_SNAPSHOT][FAILOPEN_COMMITTED]', {
         loopKey,
         promptLen: fallbackPrompt.length,

@@ -2415,6 +2415,29 @@ async function decisionEngineV3Probe(base44, {
     llmMs: finalV3LlmMs,
     promptPreview: nextPrompt?.slice(0, 90) || null
   });
+  
+  // EDIT 3: Hard guard - ASK must never have empty prompt (inside engine function)
+  if (nextAction === 'ASK' && (!nextPrompt || nextPrompt.trim() === '')) {
+    const fallbackField = missingFieldsAfter?.[0];
+    if (fallbackField) {
+      try {
+        nextPrompt = generateV3ProbeQuestion(fallbackField, incident.facts);
+      } catch (genErr) {
+        console.warn('[V3_ENGINE][FALLBACK_GEN_FAILED]', { error: genErr.message });
+      }
+    }
+    if (!nextPrompt || nextPrompt.trim() === '') {
+      nextPrompt = "What additional details can you provide to make this complete?";
+    }
+    
+    console.error('[V3_ENGINE][ASK_EMPTY_PROMPT_REPAIRED]', {
+      categoryId,
+      incidentId,
+      selectedField: selectedFieldIdForLogging || '(none)',
+      synthesizedPrompt: nextPrompt.slice(0, 80),
+      ts: Date.now()
+    });
+  }
 
   // PART 2: HARD FAIL-SAFE - If month/year detected in opener, MUST NOT ask date questions
   let gateStatus = 'NOT_APPLICABLE';

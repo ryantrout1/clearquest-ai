@@ -4023,7 +4023,16 @@ export default function CandidateInterview() {
       });
       lastV3PromptPhaseRef.current = v3PromptPhase;
     }
-  }, [v3PromptPhase, v3ActivePromptText, hasV3PromptText, hasActiveV3Prompt, activeUiItem]);
+    
+    // EDIT 1: Clear V3_WAITING failopen guard when real prompt arrives
+    if (v3PromptPhase === 'ANSWER_NEEDED' && hasActiveV3Prompt && v3ProbingActive) {
+      const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+      if (loopKey && v3WaitingFailopenFiredRef.current.has(loopKey)) {
+        v3WaitingFailopenFiredRef.current.delete(loopKey);
+        console.log('[V3_WAITING][FAILOPEN_CLEARED]', { loopKey, reason: 'prompt_arrived' });
+      }
+    }
+  }, [v3PromptPhase, v3ActivePromptText, hasV3PromptText, hasActiveV3Prompt, activeUiItem, v3ProbingActive, v3ProbingContext, sessionId]);
   
   // V3 WAITING WATCHDOG: Detect stuck state and force fallback prompt
   const v3WaitingWatchdogRef = useRef(null);
@@ -10992,6 +11001,20 @@ export default function CandidateInterview() {
     const instanceNumber = typeof promptData === 'object' ? promptData?.instanceNumber : (v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1);
     const categoryId = typeof promptData === 'object' ? promptData?.categoryId : v3ProbingContext?.categoryId;
     
+    // EDIT 3: Diagnostic log - prove parent received prompt from loop
+    const v3PromptSource = typeof promptData === 'object' ? promptData?.v3PromptSource : undefined;
+    const v3LlmMs = typeof promptData === 'object' ? promptData?.v3LlmMs : undefined;
+    
+    console.log('[V3_PROMPT][RECEIVED_BY_PARENT]', {
+      canonicalPromptId: canonicalPromptId || 'will_generate',
+      loopKey: loopKey || 'unknown',
+      promptLen: promptText?.length || 0,
+      v3PromptSource,
+      v3LlmMs,
+      willActivate: true,
+      ts: Date.now()
+    });
+    
     // FIX B4: Generate promptId if missing (prevents PROMPTID_MISSING error)
     if (!canonicalPromptId) {
       const effectiveLoopKey = loopKey || `${sessionId}:${categoryId}:${instanceNumber}`;
@@ -11147,6 +11170,15 @@ export default function CandidateInterview() {
     
     v3SubmitCounterRef.current++;
     const submitId = v3SubmitCounterRef.current;
+    
+    // EDIT 3: Diagnostic log - prove answer submitted to loop
+    console.log('[V3_ANSWER][SUBMIT_TO_LOOP]', {
+      submitId,
+      loopKey: loopKey || 'unknown',
+      answerLen: answerText?.length || 0,
+      pendingAnswerSet: true,
+      ts: Date.now()
+    });
     
     // IDENTIFIER FALLBACK CHAIN: Use context first, snapshot second
     const categoryId = v3ProbingContext?.categoryId || lastV3PromptSnapshotRef.current?.categoryId;
