@@ -2737,6 +2737,222 @@ export default function CandidateInterview() {
   console.log('[CQ_HOOKS_OK]', { sessionId });
   
   // ============================================================================
+  // INTERVIEW PHASE AUTHORITY - Single source of truth for lifecycle state
+  // ============================================================================
+  /**
+   * Computes current interview phase and allowed actions (PURE function).
+   * Priority-ordered evaluation ensures mutual exclusivity.
+   * @returns {object} { phase, allowedActions, blockedReasons, derivedFlags }
+   */
+  const computeInterviewPhaseSOT = () => {
+    // Priority-ordered evaluation (highest to lowest)
+    
+    // 1. BOOTSTRAP - Initial loading
+    if (isLoading && !engine && !session) {
+      return {
+        phase: "BOOTSTRAP",
+        allowedActions: new Set([]),
+        blockedReasons: ["Loading session data"],
+        derivedFlags: {
+          canSubmitText: false,
+          canClickYesNo: false,
+          shouldShowPrompt: false,
+          shouldBlockInput: true,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // 2. DONE - Interview complete or error
+    if (showCompletionModal || error !== null) {
+      return {
+        phase: "DONE",
+        allowedActions: new Set([]),
+        blockedReasons: ["Interview complete or error state"],
+        derivedFlags: {
+          canSubmitText: false,
+          canClickYesNo: false,
+          shouldShowPrompt: false,
+          shouldBlockInput: true,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // 3. PENDING_TRANSITION - Section transition or pack exit
+    if (pendingSectionTransition !== null || (uiBlocker?.type === 'SECTION_MESSAGE' && !uiBlocker.resolved)) {
+      return {
+        phase: "PENDING_TRANSITION",
+        allowedActions: new Set([]),
+        blockedReasons: ["Transition in progress"],
+        derivedFlags: {
+          canSubmitText: false,
+          canClickYesNo: false,
+          shouldShowPrompt: false,
+          shouldBlockInput: true,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // 4. WELCOME - New session start screen
+    if (screenMode === "WELCOME" && !currentItem) {
+      return {
+        phase: "WELCOME",
+        allowedActions: new Set([]),
+        blockedReasons: [],
+        derivedFlags: {
+          canSubmitText: false,
+          canClickYesNo: false,
+          shouldShowPrompt: false,
+          shouldBlockInput: true,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // 5. REQUIRED_ANCHOR_FALLBACK - Deterministic fallback (highest priority active state)
+    if (requiredAnchorFallbackActive && requiredAnchorCurrent !== null) {
+      return {
+        phase: "REQUIRED_ANCHOR_FALLBACK",
+        allowedActions: new Set(["SUBMIT", "TEXT"]),
+        blockedReasons: [],
+        derivedFlags: {
+          canSubmitText: true,
+          canClickYesNo: false,
+          shouldShowPrompt: true,
+          shouldBlockInput: false,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: false
+        }
+      };
+    }
+    
+    // 6. MI_GATE - Multi-instance gate (when not blocked by higher priority states)
+    if (currentItem?.type === 'multi_instance_gate' || 
+        (multiInstanceGate && !v3ProbingActive && !requiredAnchorFallbackActive)) {
+      return {
+        phase: "MI_GATE",
+        allowedActions: new Set(["SUBMIT", "YES_NO"]),
+        blockedReasons: [],
+        derivedFlags: {
+          canSubmitText: false,
+          canClickYesNo: true,
+          shouldShowPrompt: false,
+          shouldBlockInput: false,
+          shouldSuppressMiGate: false,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // 7. V3_PROCESSING - V3 answer submitted, engine deciding
+    if (v3PromptPhase === "PROCESSING" || 
+        (v3ProbingActive && !hasActiveV3Prompt && bottomBarModeSOT === "V3_WAITING")) {
+      return {
+        phase: "V3_PROCESSING",
+        allowedActions: new Set([]),
+        blockedReasons: ["V3 engine processing"],
+        derivedFlags: {
+          canSubmitText: false,
+          canClickYesNo: false,
+          shouldShowPrompt: false,
+          shouldBlockInput: true,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: false  // Allow failopen to fallback if stalled
+        }
+      };
+    }
+    
+    // 8. V3_PROBING - V3 conversational probing active
+    if (v3ProbingActive && hasActiveV3Prompt && v3PromptPhase === "ANSWER_NEEDED") {
+      return {
+        phase: "V3_PROBING",
+        allowedActions: new Set(["SUBMIT", "TEXT"]),
+        blockedReasons: [],
+        derivedFlags: {
+          canSubmitText: true,
+          canClickYesNo: false,
+          shouldShowPrompt: true,
+          shouldBlockInput: false,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: false
+        }
+      };
+    }
+    
+    // 9. V3_OPENER - V3 pack opener narrative
+    if (currentItem?.type === 'v3_pack_opener') {
+      return {
+        phase: "V3_OPENER",
+        allowedActions: new Set(["SUBMIT", "TEXT"]),
+        blockedReasons: [],
+        derivedFlags: {
+          canSubmitText: true,
+          canClickYesNo: false,
+          shouldShowPrompt: true,
+          shouldBlockInput: false,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // 10. V2_PACK_ACTIVE - V2 deterministic pack field
+    if (v2PackMode === "V2_PACK" && activeV2Pack !== null && currentItem?.type === 'v2_pack_field') {
+      return {
+        phase: "V2_PACK_ACTIVE",
+        allowedActions: new Set(["SUBMIT", "TEXT"]),
+        blockedReasons: [],
+        derivedFlags: {
+          canSubmitText: true,
+          canClickYesNo: false,
+          shouldShowPrompt: true,
+          shouldBlockInput: false,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // 11. BASE_QUESTION - Regular question (V2 or no pack)
+    if (currentItem?.type === 'question' && !v3ProbingActive) {
+      return {
+        phase: "BASE_QUESTION",
+        allowedActions: new Set(["SUBMIT", "YES_NO"]),
+        blockedReasons: [],
+        derivedFlags: {
+          canSubmitText: false,
+          canClickYesNo: true,
+          shouldShowPrompt: false,
+          shouldBlockInput: false,
+          shouldSuppressMiGate: false,
+          shouldSuppressFallback: true
+        }
+      };
+    }
+    
+    // 12. DONE (fallback) - No active item
+    return {
+      phase: "DONE",
+      allowedActions: new Set([]),
+      blockedReasons: ["No active item"],
+      derivedFlags: {
+        canSubmitText: false,
+        canClickYesNo: false,
+        shouldShowPrompt: false,
+        shouldBlockInput: true,
+        shouldSuppressMiGate: true,
+        shouldSuppressFallback: true
+      }
+    };
+  };
+  
+  // ============================================================================
   // STABILITY SNAPSHOT HARNESS - Lifecycle visibility for regression detection
   // ============================================================================
   /**
@@ -2760,12 +2976,18 @@ export default function CandidateInterview() {
       currentItem?.type === 'v3_probing'
     );
     
+    // Compute current phase (single source of truth)
+    const phaseSOT = computeInterviewPhaseSOT();
+    
     // Build snapshot object (safe, non-PII fields only)
     const snapshot = {
       // IDENTITY
       ts: Date.now(),
       sessionId: sessionId,
       reason: reason,
+      
+      // PHASE AUTHORITY (single source of truth)
+      phase: phaseSOT.phase,
       
       // ROUTING STATE
       currentItemType: currentItem?.type || null,
@@ -16344,6 +16566,18 @@ export default function CandidateInterview() {
   
   // Unified bottom bar submit handler for question, v2_pack_field, followup, and V3 probing
   const handleBottomBarSubmit = async () => {
+    // ============================================================================
+    // PHASE GATE - Block illegal submits
+    // ============================================================================
+    const phaseSOT = computeInterviewPhaseSOT();
+    if (!phaseSOT.allowedActions.has("SUBMIT")) {
+      console.warn('[PHASE_BLOCK][SUBMIT]', { 
+        phase: phaseSOT.phase, 
+        reasons: phaseSOT.blockedReasons 
+      });
+      return; // Block submit
+    }
+    
     // ============================================================================
     // SESSION SNAPSHOT LOG (BEFORE SUBMIT) - DIAGNOSTIC ONLY
     // ============================================================================
