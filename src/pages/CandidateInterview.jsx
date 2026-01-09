@@ -3601,6 +3601,9 @@ export default function CandidateInterview() {
   // Determines what UI should be shown based on strict precedence:
   // REQUIRED_ANCHOR_FALLBACK > V3_PROMPT > V3_WAITING > V3_OPENER > MI_GATE > DEFAULT
   const resolveActiveUiItem = () => {
+    // PHASE ALIGNMENT: Compute phase for consistency checks
+    const resolverPhaseSOT = computeInterviewPhaseSOT();
+    
     // Priority 0: Required anchor fallback (deadlock breaker)
     // GUARD: Never allow fallback to override v3_pack_opener (instance start takes precedence)
     if (requiredAnchorFallbackActive && requiredAnchorCurrent && currentItem?.type !== 'v3_pack_opener') {
@@ -3712,11 +3715,12 @@ export default function CandidateInterview() {
       };
     }
     
-    // TASK B: Priority 3: Multi-instance gate (ONLY if V3 not blocking)
-    // HARDENED: Block MI_GATE if V3 is blocking (active, has prompt, or processing)
+    // TASK B: Priority 3: Multi-instance gate (ONLY if phase allows)
+    // PHASE ALIGNMENT: Block MI_GATE based on phase authority
     if (currentItem?.type === 'multi_instance_gate') {
-      if (isV3Blocking) {
+      if (resolverPhaseSOT.derivedFlags.shouldSuppressMiGate) {
         console.log('[FLOW][MI_GATE_STAGED_BUT_BLOCKED_BY_V3]', {
+          phase: resolverPhaseSOT.phase,
           packId: currentItem.packId,
           instanceNumber: currentItem.instanceNumber,
           v3PromptPhase,
@@ -10527,6 +10531,28 @@ export default function CandidateInterview() {
         const isV3Headless = v3ProbingActive && !hasActiveV3Prompt && bottomBarModeSOT === 'V3_WAITING';
 
         if (isV3Headless && missingRequired.length > 0) {
+          // PHASE GATE: Only activate fallback when phase allows it
+          const fallbackPhaseSOT = computeInterviewPhaseSOT();
+          
+          // Require phase to be V3_PROCESSING or V3_PROBING
+          if (fallbackPhaseSOT.phase !== "V3_PROCESSING" && fallbackPhaseSOT.phase !== "V3_PROBING") {
+            console.warn('[PHASE_BLOCK][FALLBACK]', { 
+              phase: fallbackPhaseSOT.phase, 
+              reasons: fallbackPhaseSOT.blockedReasons,
+              context: 'Fallback blocked - phase not V3_PROCESSING or V3_PROBING'
+            });
+            return;
+          }
+          
+          // Check derived flag
+          if (fallbackPhaseSOT.derivedFlags.shouldSuppressFallback) {
+            console.warn('[PHASE_BLOCK][FALLBACK]', { 
+              phase: fallbackPhaseSOT.phase, 
+              reasons: fallbackPhaseSOT.blockedReasons 
+            });
+            return;
+          }
+          
           console.log('[REQUIRED_ANCHOR_FALLBACK][START]', {
             packId,
             instanceNumber,
