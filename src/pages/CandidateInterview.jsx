@@ -13371,6 +13371,24 @@ export default function CandidateInterview() {
   const currentPrompt = getCurrentPrompt();
   
   // ============================================================================
+  // ACTIVE PROMPT TEXT RESOLUTION - Consolidated render-time derivations (TDZ-safe)
+  // ============================================================================
+  // CRITICAL: All prompt-related consts consolidated here (after dependencies)
+  const activePromptText = computeActivePromptText({
+    requiredAnchorFallbackActive,
+    requiredAnchorCurrent,
+    v3ProbingContext,
+    v3ProbingActive,
+    v3ActivePromptText,
+    effectiveItemType,
+    currentItem,
+    v2ClarifierState,
+    currentPrompt
+  });
+  
+  const safeActivePromptText = sanitizeCandidateFacingText(activePromptText, 'ACTIVE_PROMPT_TEXT');
+  
+  // ============================================================================
   // FOOTER CLEARANCE COMPUTATION - Stable, unconditional (prevents overlap)
   // ============================================================================
   const footerClearancePx = Math.max(dynamicFooterHeightPx + 32, 96);
@@ -15951,22 +15969,6 @@ export default function CandidateInterview() {
   return item.type === "question" || item.type === "v2_pack_field" || item.type === "v3_pack_opener" || item.type === "followup";
   };
 
-  // ============================================================================
-  // ACTIVE PROMPT TEXT RESOLUTION - Single source of truth (TDZ-SAFE)
-  // ============================================================================
-  // CRITICAL: Compute EARLY using hoisted function to prevent TDZ
-  const activePromptText = computeActivePromptText({
-    requiredAnchorFallbackActive,
-    requiredAnchorCurrent,
-    v3ProbingContext,
-    v3ProbingActive,
-    v3ActivePromptText,
-    effectiveItemType,
-    currentItem,
-    v2ClarifierState,
-    currentPrompt
-  });
-  
   // FORENSIC: Regression proof (mount-only)
   if (activePromptText) {
     logOnce(`active_prompt_sot_${sessionId}`, () => {
@@ -15979,14 +15981,10 @@ export default function CandidateInterview() {
     });
   }
   
-  // STEP 2: Sanitize active prompt text (prevents dev instructions from showing to candidate)
-  // CRITICAL: Declared HERE (before footer IIFE uses it) to prevent TDZ
-  const safeActivePromptText = sanitizeCandidateFacingText(activePromptText, 'ACTIVE_PROMPT_TEXT');
-  
-  console.log('[TDZ_FIX][SAFEACTIVEPROMPTTEXT_MOVED]', {
-    declaredBeforeFooterIIFE: true,
-    lineApprox: 15431,
-    reason: 'Prevents TDZ in footer promptTextUsed derivation'
+  console.log('[TDZ_FIX][ACTIVEPROMPTTEXTS_CONSOLIDATED]', {
+    movedFrom: 'line ~15953',
+    movedTo: 'line ~13380',
+    reason: 'Consolidated all prompt derivations after currentPrompt to prevent TDZ'
   });
   
   // ============================================================================
