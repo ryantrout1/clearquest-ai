@@ -22164,6 +22164,11 @@ export default function CandidateInterview() {
               });
             } else {
               promptTextUsed = activePromptText || safeActivePromptText || '';
+              
+              // V3_WAITING SAFETY NET: Show "Thinking…" instead of empty prompt
+              if (bottomBarModeSOT === 'V3_WAITING' && v3ProbingActive && !promptTextUsed.trim()) {
+                promptTextUsed = 'Thinking…';
+              }
             }
             
             // UI CONTRACT: Footer placeholder is ALWAYS generic (question renders in main pane)
