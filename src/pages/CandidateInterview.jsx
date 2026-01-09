@@ -4350,73 +4350,6 @@ export default function CandidateInterview() {
     }
   }, [v3PromptPhase, v3ActivePromptText, hasV3PromptText, hasActiveV3Prompt, activeUiItem, v3ProbingActive, v3ProbingContext, sessionId]);
   
-  // PHASE TRANSITION TRACKER: Record phase changes (debug-only, non-PII observability)
-  useEffect(() => {
-    // GUARD: Only run when debug flag enabled
-    if (typeof window === 'undefined' || window.__CQ_STABILITY_DEBUG__ !== true) {
-      return; // No-op when disabled
-    }
-    
-    // Compute current phase
-    const phaseSOT = computeInterviewPhaseSOT();
-    const currentPhase = phaseSOT.phase;
-    const currentItemTypeNow = currentItem?.type || null;
-    
-    // Only record when phase OR currentItemType changes
-    const phaseChanged = lastRecordedPhaseRef.current !== currentPhase;
-    const itemTypeChanged = lastRecordedCurrentItemTypeRef.current !== currentItemTypeNow;
-    
-    if (!phaseChanged && !itemTypeChanged) {
-      return; // No change - skip recording
-    }
-    
-    // Update tracking refs
-    lastRecordedPhaseRef.current = currentPhase;
-    lastRecordedCurrentItemTypeRef.current = currentItemTypeNow;
-    
-    // Build safe, non-PII entry
-    const entry = {
-      ts: Date.now(),
-      phase: currentPhase,
-      reason: phaseChanged ? 'PHASE_CHANGE' : 'ITEM_TYPE_CHANGE',
-      currentItemType: currentItemTypeNow,
-      activeUiItemKind: activeUiItem?.kind || null,
-      effectiveItemType: effectiveItemType,
-      bottomBarModeSOT: bottomBarModeSOT,
-      v3PromptPhase: v3PromptPhase,
-      v3ProbingActive: v3ProbingActive,
-      requiredAnchorFallbackActive: requiredAnchorFallbackActive,
-      multiInstanceGateActive: !!multiInstanceGate,
-      hasPendingTransition: !!pendingTransition,
-      screenMode: screenMode,
-      isLoading: isLoading,
-      hasError: !!error
-    };
-    
-    // Append to history (max 50 entries)
-    phaseHistoryRef.current.push(entry);
-    if (phaseHistoryRef.current.length > 50) {
-      phaseHistoryRef.current.shift(); // Remove oldest
-    }
-    
-    // Debug log
-    console.log('[PHASE_HISTORY][PUSH]', entry);
-  }, [
-    currentItem,
-    effectiveItemType,
-    bottomBarModeSOT,
-    v3PromptPhase,
-    v3ProbingActive,
-    requiredAnchorFallbackActive,
-    multiInstanceGate,
-    pendingTransition,
-    screenMode,
-    isLoading,
-    showCompletionModal,
-    error,
-    activeUiItem
-  ]);
-  
   // V3 WAITING WATCHDOG: Detect stuck state and force fallback prompt
   const v3WaitingWatchdogRef = useRef(null);
   const v3WaitingLastArmKeyRef = useRef(null);
@@ -13360,6 +13293,74 @@ export default function CandidateInterview() {
                            activeUiItem.kind === "MI_GATE" ? 'multi_instance_gate' :
                            v3ProbingActive ? 'v3_probing' : 
                            currentItemType;
+  
+  // PHASE TRANSITION TRACKER: Record phase changes (debug-only, non-PII observability)
+  // MOVED HERE: Must be after effectiveItemType declaration (prevents TDZ violation)
+  useEffect(() => {
+    // GUARD: Only run when debug flag enabled
+    if (typeof window === 'undefined' || window.__CQ_STABILITY_DEBUG__ !== true) {
+      return; // No-op when disabled
+    }
+    
+    // Compute current phase
+    const phaseSOT = computeInterviewPhaseSOT();
+    const currentPhase = phaseSOT.phase;
+    const currentItemTypeNow = currentItem?.type || null;
+    
+    // Only record when phase OR currentItemType changes
+    const phaseChanged = lastRecordedPhaseRef.current !== currentPhase;
+    const itemTypeChanged = lastRecordedCurrentItemTypeRef.current !== currentItemTypeNow;
+    
+    if (!phaseChanged && !itemTypeChanged) {
+      return; // No change - skip recording
+    }
+    
+    // Update tracking refs
+    lastRecordedPhaseRef.current = currentPhase;
+    lastRecordedCurrentItemTypeRef.current = currentItemTypeNow;
+    
+    // Build safe, non-PII entry
+    const entry = {
+      ts: Date.now(),
+      phase: currentPhase,
+      reason: phaseChanged ? 'PHASE_CHANGE' : 'ITEM_TYPE_CHANGE',
+      currentItemType: currentItemTypeNow,
+      activeUiItemKind: activeUiItem?.kind || null,
+      effectiveItemType: effectiveItemType,
+      bottomBarModeSOT: bottomBarModeSOT,
+      v3PromptPhase: v3PromptPhase,
+      v3ProbingActive: v3ProbingActive,
+      requiredAnchorFallbackActive: requiredAnchorFallbackActive,
+      multiInstanceGateActive: !!multiInstanceGate,
+      hasPendingTransition: !!pendingTransition,
+      screenMode: screenMode,
+      isLoading: isLoading,
+      hasError: !!error
+    };
+    
+    // Append to history (max 50 entries)
+    phaseHistoryRef.current.push(entry);
+    if (phaseHistoryRef.current.length > 50) {
+      phaseHistoryRef.current.shift(); // Remove oldest
+    }
+    
+    // Debug log
+    console.log('[PHASE_HISTORY][PUSH]', entry);
+  }, [
+    currentItem,
+    effectiveItemType,
+    bottomBarModeSOT,
+    v3PromptPhase,
+    v3ProbingActive,
+    requiredAnchorFallbackActive,
+    multiInstanceGate,
+    pendingTransition,
+    screenMode,
+    isLoading,
+    showCompletionModal,
+    error,
+    activeUiItem
+  ]);
   
   // TDZ ELIMINATED: Late bottomBarMode declaration removed - bottomBarModeSOT is canonical source
   
