@@ -5733,6 +5733,15 @@ export default function CandidateInterview() {
         visibleLen: nextRenderable?.length || 0,
         last5MessageTypes: dbTranscript?.slice(-5).map(e => ({ type: e.messageType || e.type, key: e.stableKey || e.id })) || []
       });
+      
+      console.error('[FORENSIC][WINDOW_ERROR_CAPTURED]', {
+        message: String(event?.message || ''),
+        filename: event?.filename,
+        lineno: event?.lineno,
+        colno: event?.colno,
+        stack: String(event?.error?.stack || ''),
+        ts: Date.now()
+      });
     };
     
     const handleRejection = (event) => {
@@ -5749,6 +5758,13 @@ export default function CandidateInterview() {
         canonicalLen: dbTranscript?.length || 0,
         visibleLen: nextRenderable?.length || 0,
         last5MessageTypes: dbTranscript?.slice(-5).map(e => ({ type: e.messageType || e.type, key: e.stableKey || e.id })) || []
+      });
+      
+      console.error('[FORENSIC][UNHANDLED_REJECTION_CAPTURED]', {
+        message: String(event?.reason?.message || event?.reason || ''),
+        name: event?.reason?.name,
+        stack: String(event?.reason?.stack || ''),
+        ts: Date.now()
       });
     };
     
@@ -11130,6 +11146,7 @@ export default function CandidateInterview() {
   
   // V3 answer submit handler - routes answer to V3ProbingLoop
   const handleV3AnswerSubmit = useCallback(async (answerText) => {
+    try {
     // PART 3A: Send click trace
     const v3PromptIdSOT = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
     
@@ -11592,7 +11609,22 @@ export default function CandidateInterview() {
       reason: 'Optimistic transition - UI advances immediately'
     });
     
+    console.log('[FORENSIC][V3_SUBMIT_BREADCRUMB]', {
+      answerLen: (answerText || '').length,
+      loopKey,
+      ts: Date.now()
+    });
+    
     setV3PendingAnswer(payload);
+    } catch (err) {
+      console.error('[FORENSIC][V3_SUBMIT_HANDLER_THROW]', {
+        err: String(err),
+        message: err?.message,
+        stack: String(err?.stack || ''),
+        ts: Date.now()
+      });
+      throw err;
+    }
   }, [v3ProbingContext, sessionId, v3ActivePromptText, currentItem, setDbTranscriptSafe, dbTranscript]);
   
   // V3 REFRESH RUNNER: Safe post-commit transcript refresh
