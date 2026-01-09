@@ -15426,7 +15426,14 @@ export default function CandidateInterview() {
   }
   
   // STEP 2: Sanitize active prompt text (prevents dev instructions from showing to candidate)
+  // CRITICAL: Declared HERE (before footer IIFE uses it) to prevent TDZ
   const safeActivePromptText = sanitizeCandidateFacingText(activePromptText, 'ACTIVE_PROMPT_TEXT');
+  
+  console.log('[TDZ_FIX][SAFEACTIVEPROMPTTEXT_MOVED]', {
+    declaredBeforeFooterIIFE: true,
+    lineApprox: 15431,
+    reason: 'Prevents TDZ in footer promptTextUsed derivation'
+  });
   
   // ============================================================================
   // BOTTOM BAR DERIVED STATE BLOCK - All derived variables in strict order
