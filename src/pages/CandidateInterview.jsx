@@ -10575,6 +10575,28 @@ export default function CandidateInterview() {
             return; // Exit transitionToAnotherInstanceGate early
           }
           
+          // PHASE GATE: Only activate fallback when phase allows it
+          const fallbackPhaseSOT = computeInterviewPhaseSOT();
+          
+          // Require phase to be V3_PROCESSING or V3_PROBING
+          if (fallbackPhaseSOT.phase !== "V3_PROCESSING" && fallbackPhaseSOT.phase !== "V3_PROBING") {
+            console.warn('[PHASE_BLOCK][FALLBACK]', { 
+              phase: fallbackPhaseSOT.phase, 
+              reasons: fallbackPhaseSOT.blockedReasons,
+              context: 'Fallback blocked - phase not V3_PROCESSING or V3_PROBING'
+            });
+            return; // Exit transitionToAnotherInstanceGate early
+          }
+          
+          // Check derived flag
+          if (fallbackPhaseSOT.derivedFlags.shouldSuppressFallback) {
+            console.warn('[PHASE_BLOCK][FALLBACK]', { 
+              phase: fallbackPhaseSOT.phase, 
+              reasons: fallbackPhaseSOT.blockedReasons 
+            });
+            return; // Exit transitionToAnotherInstanceGate early
+          }
+          
           console.log('[REQUIRED_ANCHOR_FALLBACK][START]', {
             packId,
             instanceNumber,
