@@ -2751,12 +2751,6 @@ export default function CandidateInterview() {
     });
   }
   
-  // HOOK ORDER FIX: One-time proof that onPromptSet is plain function (no React hook)
-  if (!window.__CQ_ONPROMPTSET_NOHOOK_LOGGED__) {
-    window.__CQ_ONPROMPTSET_NOHOOK_LOGGED__ = true;
-    console.log('[HOOK_ORDER][ONPROMPTSET_NOHOOK_OK]', { sessionId: effectiveSessionId || sessionId });
-  }
-  
   // PART A: Violation snapshot helper (component-scoped - needs refs/state access)
   const captureViolationSnapshot = useCallback((context) => {
     const { reason, list, packId, instanceNumber, activeItemId } = context;
@@ -11041,10 +11035,6 @@ export default function CandidateInterview() {
     // FIX: promptId already contains sessionId via loopKey - don't duplicate
     const qStableKey = `v3-probe-q:${canonicalPromptId}`;
 
-    // TASK 3: Extract provenance metadata from prompt payload (if provided)
-    const v3PromptSource = typeof promptData === 'object' ? promptData?.v3PromptSource : undefined;
-    const v3LlmMs = typeof promptData === 'object' ? promptData?.v3LlmMs : undefined;
-
     // OPTIMISTIC APPEND: Check + append in single functional update
     const appendSuccess = await new Promise((resolve) => {
       setDbTranscriptSafe(prev => {
@@ -11077,12 +11067,12 @@ export default function CandidateInterview() {
             categoryId,
             source: 'v3',
             // TASK 3: Store provenance in meta for render-time access
-            v3PromptSource,
-            v3LlmMs
+            v3PromptSource: typeof promptData === 'object' ? promptData?.v3PromptSource : undefined,
+            v3LlmMs: typeof promptData === 'object' ? promptData?.v3LlmMs : undefined
           },
           // TASK 3: Also store at top-level for easier access
-          v3PromptSource,
-          v3LlmMs,
+          v3PromptSource: typeof promptData === 'object' ? promptData?.v3PromptSource : undefined,
+          v3LlmMs: typeof promptData === 'object' ? promptData?.v3LlmMs : undefined,
           visibleToCandidate: true
         };
         
