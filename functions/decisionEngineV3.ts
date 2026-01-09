@@ -1937,7 +1937,37 @@ async function decisionEngineV3Probe(base44, {
     
     // DETERMINISTIC REQUIRED-FIELD PRIORITY: Force first missing required field
     if (missingFieldsAfter && missingFieldsAfter.length > 0) {
-      candidateField = missingFieldsAfter[0];
+      // PRIOR_LE_APPS: Filter narrative fields + prioritize month/year
+      let effectiveMissing = missingFieldsAfter;
+      if (categoryId === 'PRIOR_LE_APPS' && missingFieldsAfter.length > 1) {
+        // Filter out narrative-like fields
+        const nonNarrative = missingFieldsAfter.filter(f => {
+          const id = String(f?.field_id || '').toLowerCase();
+          return !(id.includes('narrative') || id.includes('story') || id.includes('details') ||
+                   id.includes('explain') || id.includes('describe') || id.includes('free_text'));
+        });
+        
+        // Prioritize month/year to front
+        const monthYearField = nonNarrative.find(f => {
+          const id = String(f?.field_id || '').toLowerCase();
+          return id.includes('month') || id.includes('year') || id.includes('date');
+        });
+        
+        if (monthYearField) {
+          effectiveMissing = [monthYearField, ...nonNarrative.filter(f => f.field_id !== monthYearField.field_id)];
+        } else {
+          effectiveMissing = nonNarrative.length > 0 ? nonNarrative : missingFieldsAfter;
+        }
+        
+        console.log('[V3_REQUIRED_FACTS][ORDER_OVERRIDE]', {
+          incidentId,
+          categoryId,
+          originalFirst: missingFieldsAfter?.[0]?.field_id || null,
+          newFirst: effectiveMissing?.[0]?.field_id || null
+        });
+      }
+      
+      candidateField = effectiveMissing[0];
       selectedFieldIdForLogging = candidateField.field_id;
       
       console.log('[V3_REQUIRED_FIELD_PRIORITY][FORCED]', {
