@@ -3407,6 +3407,11 @@ export default function CandidateInterview() {
   const lastMultiIncidentSourceRef = useRef(null);
   const lastRecoveryAnotherInstanceRef = useRef(null);
   
+  // PHASE HISTORY TRACKER: In-memory phase transition history (debug-only observability)
+  const phaseHistoryRef = useRef([]);
+  const lastRecordedPhaseRef = useRef(null);
+  const lastRecordedCurrentItemTypeRef = useRef(null);
+  
   // V3 FAILSAFE: Opener submit tracking for safe timeout recovery
   const v3OpenerSubmitTokenRef = useRef(null);
   const v3OpenerSubmitLoopKeyRef = useRef(null);
@@ -4340,6 +4345,73 @@ export default function CandidateInterview() {
       }
     }
   }, [v3PromptPhase, v3ActivePromptText, hasV3PromptText, hasActiveV3Prompt, activeUiItem, v3ProbingActive, v3ProbingContext, sessionId]);
+  
+  // PHASE TRANSITION TRACKER: Record phase changes (debug-only, non-PII observability)
+  useEffect(() => {
+    // GUARD: Only run when debug flag enabled
+    if (typeof window === 'undefined' || window.__CQ_STABILITY_DEBUG__ !== true) {
+      return; // No-op when disabled
+    }
+    
+    // Compute current phase
+    const phaseSOT = computeInterviewPhaseSOT();
+    const currentPhase = phaseSOT.phase;
+    const currentItemTypeNow = currentItem?.type || null;
+    
+    // Only record when phase OR currentItemType changes
+    const phaseChanged = lastRecordedPhaseRef.current !== currentPhase;
+    const itemTypeChanged = lastRecordedCurrentItemTypeRef.current !== currentItemTypeNow;
+    
+    if (!phaseChanged && !itemTypeChanged) {
+      return; // No change - skip recording
+    }
+    
+    // Update tracking refs
+    lastRecordedPhaseRef.current = currentPhase;
+    lastRecordedCurrentItemTypeRef.current = currentItemTypeNow;
+    
+    // Build safe, non-PII entry
+    const entry = {
+      ts: Date.now(),
+      phase: currentPhase,
+      reason: phaseChanged ? 'PHASE_CHANGE' : 'ITEM_TYPE_CHANGE',
+      currentItemType: currentItemTypeNow,
+      activeUiItemKind: activeUiItem?.kind || null,
+      effectiveItemType: effectiveItemType,
+      bottomBarModeSOT: bottomBarModeSOT,
+      v3PromptPhase: v3PromptPhase,
+      v3ProbingActive: v3ProbingActive,
+      requiredAnchorFallbackActive: requiredAnchorFallbackActive,
+      multiInstanceGateActive: !!multiInstanceGate,
+      hasPendingTransition: !!pendingTransition,
+      screenMode: screenMode,
+      isLoading: isLoading,
+      hasError: !!error
+    };
+    
+    // Append to history (max 50 entries)
+    phaseHistoryRef.current.push(entry);
+    if (phaseHistoryRef.current.length > 50) {
+      phaseHistoryRef.current.shift(); // Remove oldest
+    }
+    
+    // Debug log
+    console.log('[PHASE_HISTORY][PUSH]', entry);
+  }, [
+    currentItem,
+    effectiveItemType,
+    bottomBarModeSOT,
+    v3PromptPhase,
+    v3ProbingActive,
+    requiredAnchorFallbackActive,
+    multiInstanceGate,
+    pendingTransition,
+    screenMode,
+    isLoading,
+    showCompletionModal,
+    error,
+    activeUiItem
+  ]);
   
   // V3 WAITING WATCHDOG: Detect stuck state and force fallback prompt
   const v3WaitingWatchdogRef = useRef(null);
@@ -6016,6 +6088,21 @@ export default function CandidateInterview() {
       note: 'hoisted-safe plain function with zero closure deps + defensive guards (line ~1220)'
     });
     
+    // PHASE HISTORY DUMP: Expose global dump function (debug-only)
+    if (typeof window !== 'undefined') {
+      window.__CQ_DUMP_PHASE_HISTORY__ = function() {
+        if (window.__CQ_STABILITY_DEBUG__ !== true) {
+          console.warn('[PHASE_HISTORY][DUMP_BLOCKED] Enable window.__CQ_STABILITY_DEBUG__ = true first');
+          return;
+        }
+        
+        console.log('[PHASE_HISTORY][DUMP]', {
+          count: phaseHistoryRef.current.length,
+          history: phaseHistoryRef.current
+        });
+      };
+    }
+    
     // ABANDONMENT SAFETY: Flush retry queue on unload/visibility change
     const handleBeforeUnload = () => {
       if (flushRetryQueueOnce) {
@@ -6109,6 +6196,11 @@ export default function CandidateInterview() {
       getStabilitySnapshotSOT("MOUNT");
 
       resetMountTracker(sessionId);
+      
+      // PHASE HISTORY DUMP: Cleanup global function on unmount
+      if (typeof window !== 'undefined' && window.__CQ_DUMP_PHASE_HISTORY__) {
+        delete window.__CQ_DUMP_PHASE_HISTORY__;
+      }
       
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('visibilitychange', handleVisibilityChange);
