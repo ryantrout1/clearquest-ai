@@ -3412,6 +3412,10 @@ export default function CandidateInterview() {
   const lastRecordedPhaseRef = useRef(null);
   const lastRecordedCurrentItemTypeRef = useRef(null);
   
+  // FALLBACK OSCILLATION GUARD: Prevent infinite REQUIRED_ANCHOR_FALLBACK ↔ V3_PROBING loops
+  // In-memory counter per instance (sessionId:packId:instanceNumber)
+  const fallbackReactivationCountRef = useRef(new Map());
+  
   // V3 FAILSAFE: Opener submit tracking for safe timeout recovery
   const v3OpenerSubmitTokenRef = useRef(null);
   const v3OpenerSubmitLoopKeyRef = useRef(null);
@@ -7201,6 +7205,24 @@ export default function CandidateInterview() {
         instanceNumber: nextInstanceNumber,
         reason: 'Cleared sticky fallback state from prior instance to prevent opener hijack'
       });
+      
+      // FALLBACK OSCILLATION GUARD: Reset re-activation counter for new instance
+      const sessionPackPrefix = `${sessionId}:${gate.packId}:`;
+      let clearedCount = 0;
+      for (const key of fallbackReactivationCountRef.current.keys()) {
+        if (key.startsWith(sessionPackPrefix)) {
+          fallbackReactivationCountRef.current.delete(key);
+          clearedCount++;
+        }
+      }
+      if (clearedCount > 0) {
+        console.log('[FALLBACK_OSCILLATION_GUARD][RESET]', {
+          packId: gate.packId,
+          nextInstanceNumber,
+          clearedKeys: clearedCount,
+          reason: 'New instance started - reset re-activation counters'
+        });
+      }
 
       await logPackEntered(sessionId, {
         packId: gate.packId,
@@ -10903,6 +10925,47 @@ export default function CandidateInterview() {
         setIsCommitting(false);
         setV3PromptPhase('IDLE'); // Reset phase to allow new prompt
         
+        // FALLBACK OSCILLATION GUARD: Prevent infinite re-activation loops
+        const reactivationKey = `${sessionId}:${packId}:${instanceNumber}`;
+        const reactivationCount = fallbackReactivationCountRef.current.get(reactivationKey) || 0;
+        
+        if (reactivationCount >= 2) {
+          // MAX RE-ACTIVATIONS REACHED - force forward progress to MI_GATE
+          const currentPhaseSOT = computeInterviewPhaseSOT();
+          console.warn('[FALLBACK_OSCILLATION_GUARD][STOP]', {
+            key: reactivationKey,
+            count: reactivationCount,
+            phase: currentPhaseSOT.phase,
+            reason: 'Max fallback re-activation cycles reached - forcing MI_GATE to prevent oscillation'
+          });
+          
+          // Clear fallback state and force MI_GATE (skip re-activation)
+          setRequiredAnchorFallbackActive(false);
+          setRequiredAnchorCurrent(null);
+          setRequiredAnchorQueue([]);
+          setV3PromptPhase('IDLE');
+          setIsCommitting(false);
+          
+          // Allow gate to show (missing fields will be logged but not block progression)
+          console.log('[FALLBACK_OSCILLATION_GUARD][FORCE_PROGRESS]', {
+            packId,
+            instanceNumber,
+            missingRequired,
+            action: 'Allowing MI_GATE despite incomplete fields - preventing deadlock'
+          });
+          
+          // Do NOT re-activate V3 probing - return and let gate show
+          return;
+        }
+        
+        // Increment re-activation counter
+        fallbackReactivationCountRef.current.set(reactivationKey, reactivationCount + 1);
+        console.log('[FALLBACK_OSCILLATION_GUARD][INC]', {
+          key: reactivationKey,
+          count: reactivationCount + 1,
+          reason: 'Re-activating V3 probing after fallback incomplete'
+        });
+        
         // RE-ACTIVATE V3 PROBING: Ensure engine continues collecting facts
         setV3ProbingActive(true);
         setV3ProbingContext({
@@ -10931,6 +10994,7 @@ export default function CandidateInterview() {
           instanceNumber,
           missingRequired,
           existingIncidentId,
+          reactivationCount: reactivationCount + 1,
           note: 'Cleared submit state + re-triggered V3 probing render/phase transition'
         });
         
