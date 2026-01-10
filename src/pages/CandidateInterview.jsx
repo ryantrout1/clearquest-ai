@@ -6676,6 +6676,7 @@ function CandidateInterviewInner() {
 
   const initializeInterview = async () => {
     console.log('[CQ_BOOT][INIT_ENTER_TDZ_SAFE_POINT]', { sessionId });
+    console.log('[CQ_BOOT][INIT_ENTER_TDZ_SAFE_POINT]', { sessionId });
     // BOOT DEBUG: Mark started (prevents kickstart)
     if (typeof window !== 'undefined' && sessionId) {
       window[`__CQ_INIT_STARTED__${sessionId}`] = true;
