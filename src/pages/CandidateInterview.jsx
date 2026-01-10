@@ -671,6 +671,56 @@ const WHAT_TO_EXPECT = {
 const ENABLE_LIVE_AI_FOLLOWUPS = true;
 const DEBUG_AI_PROBES = DEBUG_MODE;
 
+// ============================================================================
+// ERROR BOUNDARY - Catch render-time TDZ crashes
+// ============================================================================
+class CQCandidateInterviewErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, info) {
+    console.log('[CQ_ERROR_BOUNDARY][CANDIDATE_INTERVIEW]', {
+      message: error?.message,
+      stack: error?.stack,
+      componentStack: info?.componentStack
+    });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      console.log('[CQ_ERROR_BOUNDARY][FALLBACK_RENDERED]', { hasError: true });
+      
+      // Minimal fallback UI (cannot reuse cqLoadingReturnJSX - scoped inside inner component)
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+          <div className="text-center space-y-4">
+            <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
+            <p className="text-slate-300">Loading interview...</p>
+            <div className="mt-6 space-y-3">
+              <p className="text-slate-400 text-sm">An error occurred during initialization.</p>
+              <Button 
+                onClick={() => window.location.reload()} 
+                variant="outline"
+                className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700"
+              >
+                Refresh
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 // Helper: Generate field suggestions using LLM based on narrative answer
 const generateFieldSuggestions = async (packId, narrativeAnswer) => {
   try {
@@ -1240,7 +1290,7 @@ const runV2FieldProbeIfNeeded = async ({
 // - CandidateInterview owns UI once session starts
 // - Welcome / start screens must NEVER reappear mid-session
 
-export default function CandidateInterview() {
+function CandidateInterviewInner() {
   cqLog('DEBUG', '[BUILD_OK][CandidateInterview]');
   cqLog('DEBUG', '[V3_ONLY][SOT_FLAG][CANDIDATE]', { V3_ONLY_MODE });
   
@@ -23155,4 +23205,15 @@ export default function CandidateInterview() {
   
   cqTdzMark('AFTER_MAIN_RETURN_EXPR_SHALLOW', { constructed: true, screenMode, shouldShowFullScreenLoader });
   return cqMainReturnJSX;
+}
+
+// ============================================================================
+// DEFAULT EXPORT - Wrapped with Error Boundary
+// ============================================================================
+export default function CandidateInterview() {
+  return (
+    <CQCandidateInterviewErrorBoundary>
+      <CandidateInterviewInner />
+    </CQCandidateInterviewErrorBoundary>
+  );
 }
