@@ -3556,6 +3556,19 @@ export default function CandidateInterview() {
             console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
           } catch (_) {}
           try {
+            // Extract variable name from ReferenceError TDZ messages
+            if (!window.__CQ_TDZ_REFERR_VAR_LOGGED__) {
+              const firstArg = args[0];
+              const errMsg = String(firstArg?.message || firstArg || '');
+              const match = errMsg.match(/Cannot access '([^']+)' before initialization/);
+              if (match && match[1]) {
+                window.__CQ_TDZ_REFERR_VAR_LOGGED__ = true;
+                console.log('[TDZ_TRACE][REF_ERROR_VAR]', { varName: match[1] });
+                console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
+              }
+            }
+          } catch (_) {}
+          try {
             originalConsoleError.apply(console, args);
           } catch (_) {}
         };
