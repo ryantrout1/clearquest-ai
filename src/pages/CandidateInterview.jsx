@@ -3498,6 +3498,14 @@ export default function CandidateInterview() {
   // TYPING LOCK BYPASS: Force one-time scroll on explicit user navigation (Yes/No, Submit)
   const forceAutoScrollOnceRef = useRef(false);
   
+  // ============================================================================
+  // TDZ TRACE HELPER - Debug-only render markers (no-op by default)
+  // ============================================================================
+  const cqTdzMark = (step, extra = {}) => {
+    if (typeof window === 'undefined' || window.__CQ_TDZ_TRACE__ !== true) return;
+    console.log('[TDZ_TRACE]', { step, ts: Date.now(), ...extra });
+  };
+  
   // ACTIVE KIND CHANGE DETECTION: Track last logged kind to prevent spam
   const lastLoggedActiveKindRef = useRef(null);
   
@@ -4911,6 +4919,8 @@ export default function CandidateInterview() {
       renderedLen: finalFiltered.length,
       syntheticEnabled: ENABLE_SYNTHETIC_TRANSCRIPT
     });
+    
+    cqTdzMark('AFTER_TRANSCRIPT_AUDIT_LOGS');
     
     // GUARD: Detect candidate-visible entries being filtered out (ILLEGAL)
     const candidateVisibleRenderedLen = finalFiltered.filter(e => e.visibleToCandidate === true).length;
@@ -13364,11 +13374,17 @@ export default function CandidateInterview() {
   
   // TDZ ELIMINATED: Late bottomBarMode declaration removed - bottomBarModeSOT is canonical source
   
+  cqTdzMark('BEFORE_CURRENT_PROMPT_COMPUTATION');
+  
   // ============================================================================
   // CURRENT PROMPT COMPUTATION - Moved here after all dependencies (TDZ fix)
   // ============================================================================
   // CRITICAL: Must be after effectiveItemType, bottomBarModeSOT, activeUiItem
   const currentPrompt = getCurrentPrompt();
+  
+  cqTdzMark('AFTER_CURRENT_PROMPT_COMPUTATION', { hasPrompt: !!currentPrompt });
+  
+  cqTdzMark('BEFORE_ACTIVE_PROMPT_TEXT_RESOLUTION');
   
   // ============================================================================
   // ACTIVE PROMPT TEXT RESOLUTION - Consolidated render-time derivations (TDZ-safe)
@@ -13386,7 +13402,11 @@ export default function CandidateInterview() {
     currentPrompt
   });
   
+  cqTdzMark('AFTER_ACTIVE_PROMPT_TEXT_RESOLUTION', { hasText: !!activePromptText });
+  
   const safeActivePromptText = sanitizeCandidateFacingText(activePromptText, 'ACTIVE_PROMPT_TEXT');
+  
+  cqTdzMark('BEFORE_FOOTER_AND_PROMPT_DERIVATIONS');
   
   // ============================================================================
   // FOOTER AND PROMPT DERIVATIONS - Consolidated render-time block (TDZ-safe)
@@ -13395,6 +13415,8 @@ export default function CandidateInterview() {
   const needsPrompt = bottomBarModeSOT === 'TEXT_INPUT' || 
                       ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
   const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
+  
+  cqTdzMark('AFTER_NEEDS_PROMPT_HAS_PROMPT');
   
   // Step 5: Compute footer rendering flag (include V3_WAITING and CTA)
   const shouldRenderFooter = (screenMode === 'QUESTION' && 
@@ -13411,11 +13433,17 @@ export default function CandidateInterview() {
   
   const shouldApplyFooterClearance = shouldRenderFooter && hasInterviewContent;
   
+  cqTdzMark('AFTER_SHOULD_APPLY_FOOTER_CLEARANCE', { shouldApply: shouldApplyFooterClearance });
+  
   // ============================================================================
   // FOOTER CLEARANCE COMPUTATION - Stable, unconditional (prevents overlap)
   // ============================================================================
   const footerClearancePx = Math.max(dynamicFooterHeightPx + 32, 96);
   const activeCardScrollMarginBottomPx = footerClearancePx;
+  
+  cqTdzMark('AFTER_FOOTER_CLEARANCE_PX', { clearancePx: footerClearancePx });
+  
+  cqTdzMark('BEFORE_FOOTER_VISIBILITY_CHECK');
   
   // FIX #1: Diagnostic log for footer visibility
   if (bottomBarRenderTypeSOT === "yes_no") {
@@ -13426,6 +13454,8 @@ export default function CandidateInterview() {
       bottomBarRenderTypeSOT
     });
   }
+  
+  cqTdzMark('AFTER_FOOTER_VISIBILITY_CHECK');
   
   // REGRESSION LOGGING: Clearance SOT (once per active item, deduped)
   const clearanceLogKeyRef = React.useRef(null);
@@ -13508,6 +13538,8 @@ export default function CandidateInterview() {
   // FOOTER HEIGHT SOT: Use max of measured (observer) and DOM (real-time)
   const footerHeightSOTPx = Math.max(footerMeasuredHeightPx || 0, footerDomHeightPx || 0);
   
+  cqTdzMark('BEFORE_BOTTOM_SPACER_COMPUTATION');
+  
   // PART C: BOTTOM SPACER HEIGHT - Measured from stable footer shell
   // Uses footerShellHeightPx (source of truth for all modes)
   // PART A: Compute base spacer (before expansion)
@@ -13534,6 +13566,8 @@ export default function CandidateInterview() {
   const bottomSpacerPx = (isYesNoModeDerived || isMiGateDerived)
     ? Math.max(yesNoModeClearance, normalModeClearance)
     : normalModeClearance;
+  
+  cqTdzMark('AFTER_BOTTOM_SPACER_PX', { spacerPx: bottomSpacerPx });
   
   // DIAGNOSTIC LOG: Show bottom spacer computation (deduped)
   const spacerLogKey = `${bottomBarModeSOT}:${footerShellHeightPx}:${bottomSpacerPx}`;
@@ -15995,11 +16029,14 @@ export default function CandidateInterview() {
     reason: 'Consolidated all prompt derivations after currentPrompt to prevent TDZ'
   });
   
+  cqTdzMark('BEFORE_BOTTOM_BAR_DERIVED_BLOCK');
+  
   // ============================================================================
   // BOTTOM BAR DERIVED STATE BLOCK - All derived variables in strict order
   // ============================================================================
   // NOTE: bottomBarModeSOT, effectiveItemType, shouldRenderFooter, needsPrompt, hasPrompt already declared in consolidated block above
   
+  cqTdzMark('AFTER_BOTTOM_BAR_DERIVED_BLOCK_NOTE');
   
   // PART D: Align active card when bottomBarModeSOT becomes YES_NO
   // TDZ-SAFE: Uses early bottomBarModeSOTSafe (computed before late bottomBarModeSOT declaration)
@@ -17717,10 +17754,14 @@ export default function CandidateInterview() {
     });
   }
 
+  cqTdzMark('BEFORE_FINAL_TRANSCRIPT_LIST_MEMO');
+  
   // ============================================================================
   // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
   // ============================================================================
   const finalTranscriptList = useMemo(() => {
+    cqTdzMark('INSIDE_FINAL_TRANSCRIPT_LIST_MEMO_START');
+    
     // CRASH GUARD: Safe logging helper (prevents logging from crashing render)
     const safeLog = (fn) => {
       try {
@@ -19933,6 +19974,8 @@ export default function CandidateInterview() {
     finalListRef.current = Array.isArray(renderedItems) ? renderedItems : [];
     finalListLenRef.current = Array.isArray(renderedItems) ? renderedItems.length : 0;
     
+    cqTdzMark('INSIDE_FINAL_TRANSCRIPT_LIST_MEMO_END', { renderedLen: renderedItems.length });
+    
     if (CQ_DEBUG_FOOTER_ANCHOR) {
       console.log('[TDZ_GUARD][FINAL_LIST_REF_SYNC]', { len: finalListLenRef.current });
     }
@@ -19986,6 +20029,8 @@ export default function CandidateInterview() {
     cqDiagEnabled,
     v3UiRenderable
   ]);
+  
+  cqTdzMark('AFTER_FINAL_TRANSCRIPT_LIST_MEMO', { listLen: finalTranscriptList?.length || 0 });
   
   // GOLDEN CONTRACT CHECK: Emit deterministic verification bundle (deduped)
   const emitGoldenContractCheck = React.useCallback(() => {
@@ -20044,8 +20089,11 @@ export default function CandidateInterview() {
     });
   }, [sessionId]);
 
+  cqTdzMark('BEFORE_GUARD_SCREENS_CHECK');
+  
   // GUARD: Show guard screens without early return (maintains hook order)
   if (showMissingSession) {
+    cqTdzMark('INSIDE_SHOW_MISSING_SESSION_GUARD');
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center space-y-4">
@@ -20055,7 +20103,12 @@ export default function CandidateInterview() {
     );
   }
   
+  cqTdzMark('AFTER_SHOW_MISSING_SESSION_GUARD');
+  
+  cqTdzMark('BEFORE_FULL_SCREEN_LOADER_CHECK');
+  
   if (shouldShowFullScreenLoader) {
+    cqTdzMark('INSIDE_FULL_SCREEN_LOADER_GUARD');
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center space-y-4">
@@ -20078,8 +20131,11 @@ export default function CandidateInterview() {
       </div>
     );
   }
+  
+  cqTdzMark('AFTER_FULL_SCREEN_LOADER_GUARD');
 
   if (showError) {
+    cqTdzMark('INSIDE_SHOW_ERROR_GUARD');
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="max-w-md space-y-4">
@@ -20094,8 +20150,13 @@ export default function CandidateInterview() {
       </div>
     );
   }
+  
+  cqTdzMark('AFTER_SHOW_ERROR_GUARD');
+  cqTdzMark('BEFORE_JSX_RETURN_PREP');
 
   // UI CONTRACT: 3-row shell enforced - do not reintroduce footer spacers/padding hacks; footer must stay in layout flow.
+  
+  cqTdzMark('BEFORE_JSX_RETURN');
   
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
