@@ -1325,7 +1325,6 @@ const runV2FieldProbeIfNeeded = async ({
 // - Welcome / start screens must NEVER reappear mid-session
 
 function CandidateInterviewInner() {
-  let initializeInterview;
   cqLog('DEBUG', '[BUILD_OK][CandidateInterview]');
   cqLog('DEBUG', '[V3_ONLY][SOT_FLAG][CANDIDATE]', { V3_ONLY_MODE });
   
@@ -6677,8 +6676,7 @@ function CandidateInterviewInner() {
     }
   };
 
-  initializeInterview = async () => {
-    console.log('[CQ_BOOT][INIT_ENTER_TDZ_SAFE_POINT]', { sessionId });
+  const initializeInterview = async () => {
     // BOOT DEBUG: Mark started (prevents kickstart)
     if (typeof window !== 'undefined' && sessionId) {
       window[`__CQ_INIT_STARTED__${sessionId}`] = true;
