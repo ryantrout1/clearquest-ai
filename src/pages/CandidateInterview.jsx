@@ -3553,9 +3553,6 @@ export default function CandidateInterview() {
         const originalConsoleError = console.error;
         console.error = (...args) => {
           try {
-            console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
-          } catch (_) {}
-          try {
             // Extract variable name from ReferenceError TDZ messages
             if (!window.__CQ_TDZ_REFERR_VAR_LOGGED__) {
               const firstArg = args[0];
@@ -3563,10 +3560,17 @@ export default function CandidateInterview() {
               const match = errMsg.match(/Cannot access '([^']+)' before initialization/);
               if (match && match[1]) {
                 window.__CQ_TDZ_REFERR_VAR_LOGGED__ = true;
+                const ring = window.__CQ_TDZ_TRACE_RING__ || [];
+                const last = Array.isArray(ring) && ring.length ? ring[ring.length - 1] : null;
+                const lastStep = last && last.step ? last.step : null;
+                console.log('[TDZ_TRACE][REF_ERROR_CONTEXT]', { varName: match[1], lastStep, phase: (typeof cqRenderPhaseTag !== 'undefined' ? cqRenderPhaseTag : null) });
                 console.log('[TDZ_TRACE][REF_ERROR_VAR]', { varName: match[1] });
                 console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
               }
             }
+          } catch (_) {}
+          try {
+            console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
           } catch (_) {}
           try {
             originalConsoleError.apply(console, args);
@@ -15797,6 +15801,7 @@ export default function CandidateInterview() {
   cqTdzMark('AFTER_GET_CURRENT_PROMPT_DECLARATION_OK');
 
   // Compute guard states (no early returns before JSX to maintain hook order)
+  const cqRenderPhaseTag = 'PRE_RETURN_FLAGS';
   const showMissingSession = !sessionId;
   const shouldShowFullScreenLoader = isLoading && !engine && !session;
   const showError = !!error;
