@@ -10570,7 +10570,7 @@ function CandidateInterviewInner() {
     }
     }, [currentItem, engine, queue, dbTranscript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, sectionCompletionMessage, activeV2Pack, v2PackMode, aiFollowupCounts, aiProbingEnabled, aiProbingDisabledForSession, refreshTranscriptFromDB]);
 
-    async function saveAnswerToDatabase(questionId, answer, question) {
+  const saveAnswerToDatabase = async (questionId, answer, question) => {
     try {
       const existing = await base44.entities.Response.filter({
         session_id: sessionId,
@@ -10609,9 +10609,9 @@ function CandidateInterviewInner() {
       console.error('❌ Database save error:', err);
       return null;
     }
-  }
+  };
 
-    async function saveV2PackFieldResponse({ sessionId, packId, fieldKey, instanceNumber, answer, baseQuestionId, baseQuestionCode, sectionId, questionText }) {
+  const saveV2PackFieldResponse = async ({ sessionId, packId, fieldKey, instanceNumber, answer, baseQuestionId, baseQuestionCode, sectionId, questionText }) => {
     try {
       console.log('[V2_PACK_FIELD][SAVE][CALL]', {
         sessionId,
@@ -10670,9 +10670,9 @@ function CandidateInterviewInner() {
       // Non-blocking - log error but don't break UX
       return null;
     }
-  }
+  };
 
-    async function saveFollowUpAnswer(packId, fieldKey, answer, substanceName, instanceNumber = 1, factSource = "user") {
+  const saveFollowUpAnswer = async (packId, fieldKey, answer, substanceName, instanceNumber = 1, factSource = "user") => {
     try {
       const responses = await base44.entities.Response.filter({
         session_id: sessionId,
@@ -10804,7 +10804,7 @@ function CandidateInterviewInner() {
     } catch (err) {
       console.error('❌ Follow-up save error:', err);
     }
-  }
+  };
 
   const handleCompletionConfirm = async () => {
     setIsCompletingInterview(true);
