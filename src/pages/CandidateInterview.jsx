@@ -3563,7 +3563,13 @@ export default function CandidateInterview() {
                 const ring = window.__CQ_TDZ_TRACE_RING__ || [];
                 const last = Array.isArray(ring) && ring.length ? ring[ring.length - 1] : null;
                 const lastStep = last && last.step ? last.step : null;
-                console.log('[TDZ_TRACE][REF_ERROR_CONTEXT]', { varName: match[1], lastStep, phase: (typeof cqRenderPhaseTag !== 'undefined' ? cqRenderPhaseTag : null) });
+                console.log('[TDZ_TRACE][REF_ERROR_CONTEXT]', { 
+                  varName: match[1], 
+                  lastStep, 
+                  phase: (typeof cqRenderPhaseTag !== 'undefined' ? cqRenderPhaseTag : null),
+                  shouldShowFullScreenLoader: (typeof shouldShowFullScreenLoader !== 'undefined' ? shouldShowFullScreenLoader : null),
+                  screenModeNow: (typeof screenMode !== 'undefined' ? screenMode : null)
+                });
                 console.log('[TDZ_TRACE][REF_ERROR_VAR]', { varName: match[1] });
                 console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
               }
@@ -20233,6 +20239,7 @@ export default function CandidateInterview() {
   }, [sessionId]);
 
   cqTdzMark('BEFORE_GUARD_SCREENS_CHECK');
+  cqTdzMark('BEFORE_LOADING_GUARD', { shouldShowFullScreenLoader });
   
   // GUARD: Show guard screens without early return (maintains hook order)
   if (showMissingSession) {
@@ -20251,6 +20258,7 @@ export default function CandidateInterview() {
   cqTdzMark('BEFORE_FULL_SCREEN_LOADER_CHECK');
   
   if (shouldShowFullScreenLoader) {
+    cqTdzMark('INSIDE_LOADING_GUARD_BEFORE_RETURN', { shouldShowFullScreenLoader });
     cqTdzMark('INSIDE_FULL_SCREEN_LOADER_GUARD');
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
