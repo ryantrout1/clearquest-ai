@@ -3510,17 +3510,35 @@ export default function CandidateInterview() {
   };
   
   // ============================================================================
-  // TDZ TRACE BOOTSTRAP - Read window.name early (persists across reloads)
+  // TDZ TRACE BOOTSTRAP - Read window.name + query param early (persists across reloads)
   // ============================================================================
   try {
     if (typeof window !== 'undefined') {
       const wn = String(window.name || '');
-      if (wn.includes('CQ_TDZ_TRACE=1')) {
+      const qs = String(window.location?.search || '');
+      const hasQueryFlag = qs.includes('tdztrace=1');
+      if (wn.includes('CQ_TDZ_TRACE=1') || hasQueryFlag) {
         window.__CQ_TDZ_TRACE__ = true;
       }
     }
   } catch (_) {
     // never throw
+  }
+  
+  // ============================================================================
+  // TDZ TRACE STATUS - Early confirmation log (only when enabled)
+  // ============================================================================
+  if (typeof window !== 'undefined') {
+    const wn = String(window.name || '');
+    const qs = String(window.location?.search || '');
+    const enabled = (window.__CQ_TDZ_TRACE__ === true) || wn.includes('CQ_TDZ_TRACE=1') || qs.includes('tdztrace=1');
+    if (enabled) {
+      console.log('[TDZ_TRACE_STATUS]', { 
+        enabled, 
+        nameHasFlag: wn.includes('CQ_TDZ_TRACE=1'), 
+        queryHasFlag: qs.includes('tdztrace=1') 
+      });
+    }
   }
   
   // ACTIVE KIND CHANGE DETECTION: Track last logged kind to prevent spam
