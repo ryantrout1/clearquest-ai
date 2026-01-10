@@ -677,14 +677,29 @@ const DEBUG_AI_PROBES = DEBUG_MODE;
 class CQCandidateInterviewErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { 
+      hasError: false, 
+      errorMessage: '', 
+      didAutoRetry: false 
+    };
   }
 
   static getDerivedStateFromError(error) {
-    return { hasError: true };
+    return { 
+      hasError: true, 
+      errorMessage: String(error?.message || 'Unknown error') 
+    };
   }
 
   componentDidCatch(error, info) {
+    // CRASH_SIGNATURE: Capture error + TDZ trace ring
+    const ring = Array.isArray(window.__CQ_TDZ_TRACE_RING__) ? window.__CQ_TDZ_TRACE_RING__.slice(-10) : null;
+    console.log('[CQ_ERROR_BOUNDARY][CRASH_SIGNATURE]', {
+      message: error?.message,
+      name: error?.name,
+      ringTail: ring
+    });
+    
     console.log('[CQ_ERROR_BOUNDARY][CANDIDATE_INTERVIEW]', {
       message: error?.message,
       stack: error?.stack,
@@ -692,18 +707,37 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
     });
   }
 
+  componentDidUpdate(prevProps, prevState) {
+    // Auto-retry: ONE attempt after 1200ms when error occurs
+    if (this.state.hasError && !prevState.hasError && !this.state.didAutoRetry) {
+      console.log('[CQ_ERROR_BOUNDARY][AUTO_RETRY_SCHEDULED]', { ms: 1200 });
+      
+      setTimeout(() => {
+        this.setState({ hasError: false, didAutoRetry: true });
+      }, 1200);
+    }
+  }
+
   render() {
     if (this.state.hasError) {
       console.log('[CQ_ERROR_BOUNDARY][FALLBACK_RENDERED]', { hasError: true });
+      
+      const isRetrying = !this.state.didAutoRetry;
       
       // Minimal fallback UI (cannot reuse cqLoadingReturnJSX - scoped inside inner component)
       return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
           <div className="text-center space-y-4">
             <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
-            <p className="text-slate-300">Loading interview...</p>
+            <p className="text-slate-300">
+              {isRetrying ? 'Retrying...' : 'Loading interview...'}
+            </p>
             <div className="mt-6 space-y-3">
-              <p className="text-slate-400 text-sm">An error occurred during initialization.</p>
+              <p className="text-slate-400 text-sm">
+                {isRetrying 
+                  ? 'Automatically retrying initialization...' 
+                  : 'An error occurred during initialization.'}
+              </p>
               <Button 
                 onClick={() => window.location.reload()} 
                 variant="outline"
