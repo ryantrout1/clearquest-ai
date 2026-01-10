@@ -3570,6 +3570,10 @@ export default function CandidateInterview() {
                   shouldShowFullScreenLoader: (typeof shouldShowFullScreenLoader !== 'undefined' ? shouldShowFullScreenLoader : null),
                   screenModeNow: (typeof screenMode !== 'undefined' ? screenMode : null)
                 });
+                console.log('[TDZ_TRACE][STACK_CAPTURE]', { 
+                  message: firstArg?.message || String(firstArg || ''), 
+                  stack: firstArg?.stack || args[0]?.stack || new Error().stack 
+                });
                 console.log('[TDZ_TRACE][REF_ERROR_VAR]', { varName: match[1] });
                 console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
               }
@@ -15807,6 +15811,7 @@ export default function CandidateInterview() {
   cqTdzMark('AFTER_GET_CURRENT_PROMPT_DECLARATION_OK');
 
   // Compute guard states (no early returns before JSX to maintain hook order)
+  cqTdzMark('BEFORE_GUARD_FLAGS_COMPUTE', { isLoading, hasEngine: !!engine, hasSession: !!session, hasError: !!error });
   const cqRenderPhaseTag = 'PRE_RETURN_FLAGS';
   const showMissingSession = !sessionId;
   const shouldShowFullScreenLoader = isLoading && !engine && !session;
@@ -20307,9 +20312,9 @@ export default function CandidateInterview() {
 
   // UI CONTRACT: 3-row shell enforced - do not reintroduce footer spacers/padding hacks; footer must stay in layout flow.
   
-  cqTdzMark('BEFORE_JSX_RETURN');
+  cqTdzMark('BEFORE_MAIN_RETURN_EXPR', { screenModeNow: screenMode, shouldShowFullScreenLoader, currentItemType: currentItem?.type, effectiveItemType });
   
-  return (
+  const cqMainReturnJSX = (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
       <header className="bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3 flex-shrink-0">
         <div className="max-w-5xl mx-auto">
