@@ -3570,6 +3570,24 @@ export default function CandidateInterview() {
                   shouldShowFullScreenLoader: (typeof shouldShowFullScreenLoader !== 'undefined' ? shouldShowFullScreenLoader : null),
                   screenModeNow: (typeof screenMode !== 'undefined' ? screenMode : null)
                 });
+                
+                // AUTO-PINPOINT: Extract exact source location from stack
+                const stackStr = String(firstArg?.stack || args[0]?.stack || '');
+                const stackMatch = stackStr.match(/CandidateInterview\.jsx:(\d+):(\d+)/);
+                const ringTail = (window.__CQ_TDZ_TRACE_RING__ || []).slice(-20);
+                
+                if (stackMatch) {
+                  console.log('[TDZ_TRACE][AUTO_PINPOINT]', {
+                    offenderVar: match[1],
+                    file: 'CandidateInterview.jsx',
+                    line: parseInt(stackMatch[1]),
+                    col: parseInt(stackMatch[2]),
+                    lastStep,
+                    phase: (typeof cqRenderPhaseTag !== 'undefined' ? cqRenderPhaseTag : null),
+                    ringTail: ringTail.map(e => e.step)
+                  });
+                }
+                
                 console.log('[TDZ_TRACE][STACK_CAPTURE]', { 
                   message: firstArg?.message || String(firstArg || ''), 
                   stack: firstArg?.stack || args[0]?.stack || new Error().stack 
@@ -20313,6 +20331,24 @@ export default function CandidateInterview() {
   // UI CONTRACT: 3-row shell enforced - do not reintroduce footer spacers/padding hacks; footer must stay in layout flow.
   
   cqTdzMark('BEFORE_MAIN_RETURN_EXPR', { screenModeNow: screenMode, shouldShowFullScreenLoader, currentItemType: currentItem?.type, effectiveItemType });
+  
+  // LIKELY_OFFENDER_SNAPSHOT: Safe typeof checks for identifiers declared ABOVE this point
+  console.log('[TDZ_TRACE][LIKELY_OFFENDER_SNAPSHOT]', {
+    keys: {
+      screenMode: typeof screenMode,
+      currentItem: typeof currentItem,
+      effectiveItemType: typeof effectiveItemType,
+      bottomBarModeSOT: typeof bottomBarModeSOT,
+      activeUiItem: typeof activeUiItem,
+      v3ProbingActive: typeof v3ProbingActive,
+      hasActiveV3Prompt: typeof hasActiveV3Prompt,
+      transcriptSOT: typeof transcriptSOT,
+      engine: typeof engine,
+      session: typeof session,
+      finalTranscriptList: typeof finalTranscriptList,
+      activeCard: typeof activeCard
+    }
+  });
   
   const cqMainReturnJSX = (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
