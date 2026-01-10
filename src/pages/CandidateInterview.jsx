@@ -13503,6 +13503,8 @@ export default function CandidateInterview() {
   // CRITICAL: Must be after effectiveItemType, bottomBarModeSOT, activeUiItem
   const currentPrompt = getCurrentPrompt();
   
+  cqTdzMark('AFTER_CURRENT_PROMPT_COMPUTATION_TDZ_POINT_OK');
+  
   cqTdzMark('AFTER_CURRENT_PROMPT_COMPUTATION', { hasPrompt: !!currentPrompt });
   
   cqTdzMark('BEFORE_ACTIVE_PROMPT_TEXT_RESOLUTION');
@@ -15337,7 +15339,7 @@ export default function CandidateInterview() {
   // CENTRALIZED BOTTOM BAR MODE SELECTION - moved earlier (line 6963) for TDZ-safe footer padding
   // ============================================================================
 
-  const getCurrentPrompt = () => {
+  function getCurrentPrompt() {
     // PRIORITY 1: V3 prompt active - use hasActiveV3Prompt (TDZ-safe minimal check)
     if (hasActiveV3Prompt && v3ActivePromptText) {
       const packConfig = FOLLOWUP_PACK_CONFIGS[v3ProbingContext?.packId];
@@ -15777,7 +15779,9 @@ export default function CandidateInterview() {
     }
 
     return null;
-  };
+  }
+  
+  cqTdzMark('AFTER_GET_CURRENT_PROMPT_DECLARATION_OK');
 
   // Compute guard states (no early returns before JSX to maintain hook order)
   const showMissingSession = !sessionId;
