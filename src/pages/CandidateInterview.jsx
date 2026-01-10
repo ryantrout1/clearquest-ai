@@ -2821,6 +2821,18 @@ function CandidateInterviewInner() {
   console.log('[CQ_HOOKS_OK]', { sessionId });
   
   // ============================================================================
+  // TDZ ISOLATE MODE - Diagnostic bypass for suspected offender blocks
+  // ============================================================================
+  const cqTdzIsolate = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tdz_isolate') === '1';
+  
+  if (cqTdzIsolate) {
+    console.log('[TDZ_ISOLATE][ENABLED]', { 
+      mode: 'BYPASS_FINAL_TRANSCRIPT_LIST',
+      reason: 'Diagnostic mode - isolating finalTranscriptList useMemo'
+    });
+  }
+  
+  // ============================================================================
   // BOOT GUARD - Ultra-minimal early return during unstable boot/LOADING
   // ============================================================================
   const cqBootNotReady = isLoading || !session || !engine || screenMode === 'LOADING';
@@ -18046,8 +18058,14 @@ function CandidateInterviewInner() {
   // ============================================================================
   // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
   // ============================================================================
-  const finalTranscriptList = useMemo(() => {
+  const finalTranscriptList = cqTdzIsolate ? [] : useMemo(() => {
     cqTdzMark('INSIDE_FINAL_TRANSCRIPT_LIST_MEMO_START');
+    
+    // TDZ ISOLATE: This memo is bypassed when tdz_isolate=1
+    if (cqTdzIsolate) {
+      console.log('[TDZ_ISOLATE][FINAL_TRANSCRIPT_LIST_BYPASSED]', { enabled: true });
+      return [];
+    }
     
     // CRASH GUARD: Safe logging helper (prevents logging from crashing render)
     const safeLog = (fn) => {
@@ -20302,7 +20320,7 @@ function CandidateInterviewInner() {
     }
     
     return renderedItems;
-  }, [
+  }, cqTdzIsolate ? [] : [
     renderableTranscriptStream,
     activeUiItem,
     currentItem,
