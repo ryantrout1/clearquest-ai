@@ -2821,6 +2821,32 @@ function CandidateInterviewInner() {
   console.log('[CQ_HOOKS_OK]', { sessionId });
   
   // ============================================================================
+  // BOOT RENDERKICK - Emergency render-time init scheduler (last-resort safety net)
+  // ============================================================================
+  // GUARD: Only schedule if boot hasn't started yet
+  const cqStartedKey = `__CQ_INIT_STARTED__${sessionId}`;
+  const cqRenderKickKey = `__CQ_INIT_RENDERKICK__${sessionId}`;
+  
+  if (sessionId && typeof window !== 'undefined' && !window[cqStartedKey] && !window[cqRenderKickKey]) {
+    window[cqRenderKickKey] = true;
+    console.warn('[CQ_BOOT_RENDERKICK][SCHEDULED]', { sessionId });
+    
+    setTimeout(() => {
+      if (!window[cqStartedKey]) {
+        try {
+          console.warn('[CQ_BOOT_RENDERKICK][CALL_INIT]', { sessionId });
+          initializeInterview(); // use same call signature as effect path (no args)
+        } catch (e) {
+          console.error('[CQ_BOOT_RENDERKICK][FAILED]', { 
+            sessionId, 
+            message: e?.message 
+          });
+        }
+      }
+    }, 0);
+  }
+  
+  // ============================================================================
   // TDZ ISOLATE MODE - Diagnostic bypass for suspected offender blocks
   // ============================================================================
   const cqTdzIsolate = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tdz_isolate') === '1';
