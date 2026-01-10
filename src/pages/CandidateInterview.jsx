@@ -20280,30 +20280,33 @@ export default function CandidateInterview() {
   
   cqTdzMark('BEFORE_FULL_SCREEN_LOADER_CHECK');
   
+  // LOADING JSX - Extracted for reuse (TDZ fix)
+  const cqLoadingReturnJSX = (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+      <div className="text-center space-y-4">
+        <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
+        <p className="text-slate-300">Loading interview...</p>
+        <p className="text-slate-500 text-xs">Session: {sessionId?.substring(0, 8)}...</p>
+        {showLoadingRetry && (
+          <div className="mt-6 space-y-3">
+            <p className="text-slate-400 text-sm">Taking longer than expected...</p>
+            <Button 
+              onClick={() => window.location.reload()} 
+              variant="outline"
+              className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700"
+            >
+              Retry
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+  
   if (shouldShowFullScreenLoader) {
     cqTdzMark('INSIDE_LOADING_GUARD_BEFORE_RETURN', { shouldShowFullScreenLoader });
     cqTdzMark('INSIDE_FULL_SCREEN_LOADER_GUARD');
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
-          <p className="text-slate-300">Loading interview...</p>
-          <p className="text-slate-500 text-xs">Session: {sessionId?.substring(0, 8)}...</p>
-          {showLoadingRetry && (
-            <div className="mt-6 space-y-3">
-              <p className="text-slate-400 text-sm">Taking longer than expected...</p>
-              <Button 
-                onClick={() => window.location.reload()} 
-                variant="outline"
-                className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700"
-              >
-                Retry
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
+    return cqLoadingReturnJSX;
   }
   
   cqTdzMark('AFTER_FULL_SCREEN_LOADER_GUARD');
@@ -20327,6 +20330,12 @@ export default function CandidateInterview() {
   
   cqTdzMark('AFTER_SHOW_ERROR_GUARD');
   cqTdzMark('BEFORE_JSX_RETURN_PREP');
+
+  // TDZ FIX: LOADING HARD GUARD - Prevent main JSX construction during LOADING
+  if (screenMode === 'LOADING') {
+    console.log('[TDZ_FIX][LOADING_HARD_GUARD]', { screenMode, shouldShowFullScreenLoader });
+    return cqLoadingReturnJSX;
+  }
 
   // UI CONTRACT: 3-row shell enforced - do not reintroduce footer spacers/padding hacks; footer must stay in layout flow.
   
