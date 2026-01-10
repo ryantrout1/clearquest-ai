@@ -3560,6 +3560,16 @@ export default function CandidateInterview() {
           } catch (_) {}
         };
       }
+      
+      // DUMP HELPER: On-demand ring buffer dump
+      if (!window.__CQ_TDZ_TRACE_DUMP_FN__) {
+        window.__CQ_TDZ_TRACE_DUMP_FN__ = true;
+        window.cqDumpTdzTrace = () => {
+          try {
+            console.log('[TDZ_TRACE][DUMP_LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
+          } catch (_) {}
+        };
+      }
     } catch (_) {
       // never throw
     }
