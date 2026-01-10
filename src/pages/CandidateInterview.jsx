@@ -3503,9 +3503,32 @@ export default function CandidateInterview() {
   // ============================================================================
   const cqTdzMark = (step, extra = {}) => {
     if (typeof window === 'undefined') return;
+    
+    // TDZ-SAFE: Compute preview env locally (no outer-scope dependency)
+    let localIsPreviewEnv = false;
+    try {
+      const hostname = String(window.location?.hostname || '');
+      localIsPreviewEnv = hostname.includes('preview') || hostname.includes('preview-sandbox');
+    } catch (_) {
+      // never throw
+    }
+    
     const wn = String(window.name || '');
-    const enabled = (window.__CQ_TDZ_TRACE__ === true) || wn.includes('CQ_TDZ_TRACE=1') || isPreviewEnv;
+    const enabled = (window.__CQ_TDZ_TRACE__ === true) || wn.includes('CQ_TDZ_TRACE=1') || localIsPreviewEnv;
     if (!enabled) return;
+    
+    // MISMATCH DETECTION: Compare with outer scope if available (TDZ-safe check)
+    if (enabled) {
+      try {
+        const outerIsPreviewEnv = (typeof isPreviewEnv !== 'undefined') ? isPreviewEnv : undefined;
+        if (outerIsPreviewEnv !== undefined && outerIsPreviewEnv !== localIsPreviewEnv) {
+          console.log('[TDZ_TRACE][PREVIEW_ENV_MISMATCH]', { outerIsPreviewEnv, localIsPreviewEnv });
+        }
+      } catch (_) {
+        // never throw - TDZ access would throw here if isPreviewEnv not yet initialized
+      }
+    }
+    
     console.log('[TDZ_TRACE]', { step, ts: Date.now(), ...extra });
   };
   
