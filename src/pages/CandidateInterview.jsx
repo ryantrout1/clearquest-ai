@@ -6258,10 +6258,29 @@ function CandidateInterviewInner() {
   
   // SESSION GUARD: Redirect to StartInterview if no sessionId in URL
   useEffect(() => {
+    // BOOT DEBUG: Effect entry log
+    console.log('[CQ_BOOT_EFFECT][ENTER]', { 
+      sessionId, 
+      effectiveSessionId,
+      isLoading, 
+      hasSession: !!session, 
+      hasEngine: !!engine 
+    });
+    
     // SESSION LOCK: Suppress redirect if session was locked (prevents mid-interview reset)
     if (!effectiveSessionId) {
+      console.log('[CQ_BOOT_EFFECT][SKIP]', { 
+        reason: 'NO_EFFECTIVE_SESSION_ID',
+        sessionId,
+        effectiveSessionId
+      });
+      
       // ONE-SHOT GUARD: Only redirect once (prevent loops)
       if (didTerminalRedirectRef.current) {
+        console.log('[CQ_BOOT_EFFECT][SKIP]', { 
+          reason: 'ALREADY_REDIRECTED',
+          didTerminalRedirectRef: true
+        });
         return; // Already redirected - no-op
       }
       
@@ -6293,6 +6312,10 @@ function CandidateInterviewInner() {
     
     // CRITICAL: Only initialize once per sessionId (even if component remounts)
     if (initMapRef.current[effectiveSessionId]) {
+      console.log('[CQ_BOOT_EFFECT][SKIP]', { 
+        reason: 'ALREADY_INITIALIZED',
+        sessionId: effectiveSessionId
+      });
       console.log('[MOUNT_GUARD] Already initialized for sessionId - skipping init', { sessionId: effectiveSessionId });
       
       // Remount recovery: restore state from DB without full init
@@ -6331,7 +6354,35 @@ function CandidateInterviewInner() {
     initMapRef.current[effectiveSessionId] = true;
     console.log('[MOUNT_GUARD] First init for sessionId', { sessionId: effectiveSessionId });
     
+    // BOOT DEBUG: About to call init
+    console.log('[CQ_BOOT_EFFECT][CALL_INIT]', { sessionId: effectiveSessionId });
+    
     initializeInterview();
+    
+    // KICKSTART FALLBACK: If init doesn't start within 250ms, force-call it
+    if (typeof window !== 'undefined' && effectiveSessionId) {
+      const kickKey = `__CQ_INIT_KICKED__${effectiveSessionId}`;
+      const startedKey = `__CQ_INIT_STARTED__${effectiveSessionId}`;
+      
+      if (!window[kickKey] && !window[startedKey]) {
+        window[kickKey] = true;
+        
+        setTimeout(() => {
+          if (!window[startedKey]) {
+            console.warn('[CQ_BOOT_EFFECT][KICKSTART]', { sessionId: effectiveSessionId });
+            try {
+              console.log('[CQ_BOOT_EFFECT][CALL_INIT_KICKSTART]', { sessionId: effectiveSessionId });
+              initializeInterview();
+            } catch (e) {
+              console.error('[CQ_BOOT_EFFECT][KICKSTART_FAILED]', { 
+                sessionId: effectiveSessionId, 
+                message: e?.message 
+              });
+            }
+          }
+        }, 250);
+      }
+    }
 
     return () => {
       if (unsubscribeRef.current) {
@@ -6600,6 +6651,11 @@ function CandidateInterviewInner() {
   };
 
   const initializeInterview = async () => {
+    // BOOT DEBUG: Mark started (prevents kickstart)
+    if (typeof window !== 'undefined' && sessionId) {
+      window[`__CQ_INIT_STARTED__${sessionId}`] = true;
+    }
+    
     // BOOT DEBUG: Entry log (one-time per session)
     console.log('[CQ_BOOT][START]', { sessionId });
     
