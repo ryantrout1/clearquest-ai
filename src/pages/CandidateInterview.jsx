@@ -2821,6 +2821,37 @@ function CandidateInterviewInner() {
   console.log('[CQ_HOOKS_OK]', { sessionId });
   
   // ============================================================================
+  // BOOT GUARD - Ultra-minimal early return during unstable boot/LOADING
+  // ============================================================================
+  const cqBootNotReady = isLoading || !session || !engine || screenMode === 'LOADING';
+  
+  if (cqBootNotReady) {
+    console.log('[CQ_BOOT_GUARD][RETURN]', { 
+      isLoading, 
+      hasSession: !!session, 
+      hasEngine: !!engine, 
+      screenMode 
+    });
+    
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(to bottom right, #0f172a, #1e3a8a, #0f172a)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+        color: '#cbd5e1',
+        fontFamily: 'system-ui, sans-serif'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '14px' }}>Loading interview…</div>
+        </div>
+      </div>
+    );
+  }
+  
+  // ============================================================================
   // INTERVIEW PHASE AUTHORITY - Single source of truth for lifecycle state
   // ============================================================================
   /**
