@@ -3545,6 +3545,21 @@ export default function CandidateInterview() {
           } catch (_) {}
         });
       }
+      
+      // CONSOLE.ERROR INTERCEPTOR: Catch minified React crashes
+      if (!window.__CQ_TDZ_TRACE_CONSOLE_ERR_HOOK__) {
+        window.__CQ_TDZ_TRACE_CONSOLE_ERR_HOOK__ = true;
+        
+        const originalConsoleError = console.error;
+        console.error = (...args) => {
+          try {
+            console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
+          } catch (_) {}
+          try {
+            originalConsoleError.apply(console, args);
+          } catch (_) {}
+        };
+      }
     } catch (_) {
       // never throw
     }
