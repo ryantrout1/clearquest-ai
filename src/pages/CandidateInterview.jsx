@@ -13389,15 +13389,33 @@ export default function CandidateInterview() {
   const safeActivePromptText = sanitizeCandidateFacingText(activePromptText, 'ACTIVE_PROMPT_TEXT');
   
   // ============================================================================
-  // FOOTER CLEARANCE COMPUTATION - Stable, unconditional (prevents overlap)
+  // FOOTER AND PROMPT DERIVATIONS - Consolidated render-time block (TDZ-safe)
   // ============================================================================
-  const footerClearancePx = Math.max(dynamicFooterHeightPx + 32, 96);
-  const activeCardScrollMarginBottomPx = footerClearancePx;
+  // CRITICAL: All footer/prompt-related consts consolidated here
+  const needsPrompt = bottomBarModeSOT === 'TEXT_INPUT' || 
+                      ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
+  const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
   
   // Step 5: Compute footer rendering flag (include V3_WAITING and CTA)
   const shouldRenderFooter = (screenMode === 'QUESTION' && 
                               (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO' || bottomBarModeSOT === 'SELECT' || bottomBarModeSOT === 'V3_WAITING')) ||
                               bottomBarModeSOT === 'CTA';
+  
+  // CLEARANCE ENABLEMENT: Only apply footer clearance when there's interview content to protect
+  const hasInterviewContent = Boolean(
+    transcriptSOT?.length > 0 || 
+    hasActiveCardSOT || 
+    activeUiItem?.kind !== 'DEFAULT' ||
+    screenMode === 'QUESTION'
+  );
+  
+  const shouldApplyFooterClearance = shouldRenderFooter && hasInterviewContent;
+  
+  // ============================================================================
+  // FOOTER CLEARANCE COMPUTATION - Stable, unconditional (prevents overlap)
+  // ============================================================================
+  const footerClearancePx = Math.max(dynamicFooterHeightPx + 32, 96);
+  const activeCardScrollMarginBottomPx = footerClearancePx;
   
   // FIX #1: Diagnostic log for footer visibility
   if (bottomBarRenderTypeSOT === "yes_no") {
@@ -13432,16 +13450,6 @@ export default function CandidateInterview() {
       note: 'Footer height too small for YES/NO; measurement likely stale or footer not yet rendered'
     });
   }
-  
-  // CLEARANCE ENABLEMENT: Only apply footer clearance when there's interview content to protect
-  const hasInterviewContent = Boolean(
-    transcriptSOT?.length > 0 || 
-    hasActiveCardSOT || 
-    activeUiItem?.kind !== 'DEFAULT' ||
-    screenMode === 'QUESTION'
-  );
-  
-  const shouldApplyFooterClearance = shouldRenderFooter && hasInterviewContent;
   
   // SAFE DIAGNOSTIC: Log footer position and clearance when it changes
   const lastFooterPositionLogKeyRef = React.useRef(null);
@@ -15990,12 +15998,8 @@ export default function CandidateInterview() {
   // ============================================================================
   // BOTTOM BAR DERIVED STATE BLOCK - All derived variables in strict order
   // ============================================================================
-  // NOTE: bottomBarModeSOT, effectiveItemType, and shouldRenderFooter already declared in unified block above
-  const needsPrompt = bottomBarModeSOT === 'TEXT_INPUT' || 
-                      ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
-  const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
+  // NOTE: bottomBarModeSOT, effectiveItemType, shouldRenderFooter, needsPrompt, hasPrompt already declared in consolidated block above
   
-
   
   // PART D: Align active card when bottomBarModeSOT becomes YES_NO
   // TDZ-SAFE: Uses early bottomBarModeSOTSafe (computed before late bottomBarModeSOT declaration)
