@@ -6600,6 +6600,9 @@ function CandidateInterviewInner() {
   };
 
   const initializeInterview = async () => {
+    // BOOT DEBUG: Entry log (one-time per session)
+    console.log('[CQ_BOOT][START]', { sessionId });
+    
     // CANCELABLE TIMEOUT: Track boot completion to prevent false timeout
     const bootCompletedRef = { value: false };
     const componentUnmountedRef = { value: false };
@@ -6636,6 +6639,7 @@ function CandidateInterviewInner() {
       clearTimeout(bootTimeout);
     };
 
+    // HARDENED: Wrap entire boot sequence in try/catch/finally
     try {
       // CRITICAL: Candidate interviews are 100% anonymous - NO auth calls
       console.log('[CANDIDATE_BOOT] ========== ANONYMOUS BOOT PATH ==========');
@@ -6929,6 +6933,22 @@ function CandidateInterviewInner() {
       });
 
     } catch (err) {
+      // BOOT DEBUG: Store last error for inspection
+      if (typeof window !== 'undefined') {
+        window.__CQ_BOOT_LAST_ERROR__ = {
+          message: String(err?.message || err),
+          stack: err?.stack || null,
+          at: Date.now(),
+          sessionId
+        };
+      }
+      
+      console.error('[CQ_BOOT][ERROR]', { 
+        sessionId, 
+        message: String(err?.message || err),
+        stack: err?.stack?.substring(0, 200)
+      });
+      
       bootCompletedRef.value = true; // Mark complete even on error
       clearTimeout(bootTimeout);
       
@@ -6946,8 +6966,19 @@ function CandidateInterviewInner() {
       
       const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
       setError(`Failed to load interview: ${errorMessage}`);
+    } finally {
+      // CRITICAL: ALWAYS flip isLoading=false (even on error)
       setIsLoading(false);
       setShowLoadingRetry(false);
+      
+      // BOOT DEBUG: One-time isLoading=false log (already added above in main flow)
+      // This log fires here in error path too
+      if (typeof window !== 'undefined' && sessionId && !window[`cqLoadingFalse_${sessionId}`]) {
+        window[`cqLoadingFalse_${sessionId}`] = true;
+        console.log('[CQ_BOOT_DEBUG][LOADING_FALSE]', { sessionId, isLoading: false });
+      }
+      
+      console.log('[CQ_BOOT][END]', { sessionId });
     }
   };
 
