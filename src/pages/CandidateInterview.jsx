@@ -6727,6 +6727,12 @@ function CandidateInterviewInner() {
       }
 
       setSession(loadedSession);
+      
+      // BOOT DEBUG: One-time session ready log (window-scoped, deduped per sessionId)
+      if (typeof window !== 'undefined' && sessionId && !window[`cqSessionReady_${sessionId}`]) {
+        window[`cqSessionReady_${sessionId}`] = true;
+        console.log('[CQ_BOOT_DEBUG][SESSION_READY]', { sessionId, hasSession: true });
+      }
 
       try {
         const departments = await base44.entities.Department.filter({
@@ -6782,6 +6788,12 @@ function CandidateInterviewInner() {
       
       setEngine(engineData);
       bootCompletedRef.value = true; // Mark boot complete BEFORE any further async work
+      
+      // BOOT DEBUG: One-time engine ready log (window-scoped, deduped per sessionId)
+      if (typeof window !== 'undefined' && sessionId && !window[`cqEngineReady_${sessionId}`]) {
+        window[`cqEngineReady_${sessionId}`] = true;
+        console.log('[CQ_BOOT_DEBUG][ENGINE_READY]', { sessionId, hasEngine: true });
+      }
       
       console.log('[CANDIDATE_INTERVIEW][ENGINE_READY]', {
         sessionId,
@@ -6902,6 +6914,12 @@ function CandidateInterviewInner() {
       
       setIsLoading(false);
       setShowLoadingRetry(false);
+      
+      // BOOT DEBUG: One-time isLoading=false log (window-scoped, deduped per sessionId)
+      if (typeof window !== 'undefined' && sessionId && !window[`cqLoadingFalse_${sessionId}`]) {
+        window[`cqLoadingFalse_${sessionId}`] = true;
+        console.log('[CQ_BOOT_DEBUG][LOADING_FALSE]', { sessionId, isLoading: false });
+      }
       
       cqLog('INFO', "[CANDIDATE_INTERVIEW][READY]", { 
         screenMode: sessionIsNew ? 'WELCOME' : 'QUESTION',
