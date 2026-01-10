@@ -3517,6 +3517,38 @@ export default function CandidateInterview() {
     const enabled = (window.__CQ_TDZ_TRACE__ === true) || wn.includes('CQ_TDZ_TRACE=1') || localIsPreviewEnv;
     if (!enabled) return;
     
+    // RING BUFFER: Store last 10 markers for crash forensics
+    try {
+      const existing = window.__CQ_TDZ_TRACE_RING__;
+      const ring = Array.isArray(existing) ? existing : [];
+      const entry = { step, ts: Date.now(), ...extra };
+      ring.push(entry);
+      window.__CQ_TDZ_TRACE_RING__ = ring.length > 10 ? ring.slice(-10) : ring;
+    } catch (_) {
+      // never throw
+    }
+    
+    // ERROR HOOKS: Install once to dump ring buffer on crash
+    try {
+      if (!window.__CQ_TDZ_TRACE_ERR_HOOK__) {
+        window.__CQ_TDZ_TRACE_ERR_HOOK__ = true;
+        
+        window.addEventListener('error', () => {
+          try {
+            console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
+          } catch (_) {}
+        });
+        
+        window.addEventListener('unhandledrejection', () => {
+          try {
+            console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
+          } catch (_) {}
+        });
+      }
+    } catch (_) {
+      // never throw
+    }
+    
     // MISMATCH DETECTION: Compare with outer scope if available (TDZ-safe check)
     try {
       const outerIsPreviewEnv = (typeof isPreviewEnv !== 'undefined') ? isPreviewEnv : undefined;
