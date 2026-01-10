@@ -6674,150 +6674,8 @@ function CandidateInterviewInner() {
     }
   };
 
-  const restoreFromSnapshots = async (engineData, loadedSession) => {
-    // CHANGE 1: Clean legacy V3 probe prompts on restore
-    const rawTranscript = loadedSession.transcript_snapshot || [];
-    const restoredTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
-    
-    const restoredQueue = loadedSession.queue_snapshot || [];
-    const restoredCurrentItem = loadedSession.current_item_snapshot || null;
-
-    const hasTranscript = restoredTranscript.length > 0;
-    const isCompleted = loadedSession.status === 'completed';
-    const hasValidCurrentItem = restoredCurrentItem &&
-                                 typeof restoredCurrentItem === 'object' &&
-                                 !Array.isArray(restoredCurrentItem) &&
-                                 restoredCurrentItem.type;
-    const hasQueue = restoredQueue.length > 0;
-
-    if (!isCompleted && hasTranscript && !hasValidCurrentItem && !hasQueue) {
-      return false;
-    }
-
-    // MERGE STRATEGY: Use functional update to guarantee latest canonical state
-    setDbTranscriptSafe(prev => {
-      const merged = mergeTranscript(prev, restoredTranscript, sessionId);
-      console.log('[RESTORE][MERGE]', { prevLen: prev.length, restoredLen: restoredTranscript.length, mergedLen: merged.length });
-      return merged;
-    });
-    
-    setQueue(restoredQueue);
-    setCurrentItem(restoredCurrentItem);
-    
-    console.log('[CANDIDATE_BOOT][FIRST_ITEM_RESOLVED]', { currentItemType: restoredCurrentItem?.type, reason: 'restore_from_snapshots' });
-
-    if (!restoredCurrentItem && restoredQueue.length > 0) {
-      const nextItem = restoredQueue[0];
-      setCurrentItem(nextItem);
-      setQueue(restoredQueue.slice(1));
-    }
-
-    if (!restoredCurrentItem && restoredQueue.length === 0 && restoredTranscript.length > 0) {
-      if (loadedSession.status === 'completed') {
-        setShowCompletionModal(true);
-      } else {
-        return false;
-      }
-    }
-
-    setTimeout(() => autoScrollToBottom(), 100);
-    return true;
-  };
-
-  const rebuildSessionFromResponses = async (engineData, loadedSession) => {
-    try {
-      const responses = await base44.entities.Response.filter({
-        session_id: sessionId
-      });
-
-      const sortedResponses = responses.sort((a, b) =>
-        new Date(a.response_timestamp) - new Date(b.response_timestamp)
-      );
-
-      const restoredTranscript = [];
-
-      for (const response of sortedResponses) {
-        const question = engineData.QById[response.question_id];
-        if (question) {
-          const sectionEntity = engineData.Sections.find(s => s.id === question.section_id);
-          const sectionName = sectionEntity?.section_name || question.category || '';
-
-          restoredTranscript.push({
-            id: `q-${response.id}`,
-            stableKey: `question-rebuild:${response.question_id}:${response.id}`,
-            questionId: response.question_id,
-            questionText: question.question_text,
-            answer: response.answer,
-            category: sectionName,
-            type: 'question',
-            timestamp: response.response_timestamp,
-            createdAt: Date.now()
-          });
-        }
-      }
-
-      // CHANGE 1: Clean legacy V3 probe prompts on rebuild
-      const cleanedRestoredTranscript = cleanLegacyV3ProbePrompts(restoredTranscript, sessionId);
-
-      // MERGE STRATEGY: Use functional update to guarantee latest canonical state
-      let finalLen;
-      setDbTranscriptSafe(prev => {
-        const merged = mergeTranscript(prev, cleanedRestoredTranscript, sessionId);
-        finalLen = merged.length;
-        console.log('[REBUILD][MERGE]', { prevLen: prev.length, restoredLen: cleanedRestoredTranscript.length, mergedLen: merged.length });
-        return merged;
-      });
-      
-      displayOrderRef.current = Math.max(restoredTranscript.length, finalLen || 0);
-
-      let nextQuestionId = null;
-
-      if (sortedResponses.length > 0) {
-        const lastResponse = sortedResponses[sortedResponses.length - 1];
-        const lastQuestionId = lastResponse.question_id;
-        const lastAnswer = lastResponse.answer;
-
-        nextQuestionId = computeNextQuestionId(engineData, lastQuestionId, lastAnswer);
-      } else {
-        nextQuestionId = engineData.ActiveOrdered[0];
-      }
-
-      if (!nextQuestionId || !engineData.QById[nextQuestionId]) {
-        setCurrentItem(null);
-        setQueue([]);
-
-        await base44.entities.InterviewSession.update(sessionId, {
-          transcript_snapshot: restoredTranscript,
-          queue_snapshot: [],
-          current_item_snapshot: null,
-          total_questions_answered: restoredTranscript.filter(t => t.type === 'question').length,
-          completion_percentage: 100,
-          status: 'completed',
-          completed_date: new Date().toISOString()
-        });
-
-        setShowCompletionModal(true);
-      } else {
-        const nextItem = { id: nextQuestionId, type: 'question' };
-        setCurrentItem(nextItem);
-        setQueue([]);
-
-        await base44.entities.InterviewSession.update(sessionId, {
-          transcript_snapshot: restoredTranscript,
-          queue_snapshot: [],
-          current_item_snapshot: nextItem,
-          total_questions_answered: restoredTranscript.filter(t => t.type === 'question').length,
-          completion_percentage: Math.round((restoredTranscript.filter(t => t.type === 'question').length / engineData.TotalQuestions) * 100),
-          status: 'in_progress'
-        });
-      }
-
-    } catch (err) {
-      throw err;
-    }
-  };
-
   const initializeInterview = async () => {
+    console.log('[CQ_BOOT][INIT_ENTER_TDZ_SAFE_POINT]', { sessionId });
     console.log('[CQ_BOOT][INIT_ENTER_TDZ_SAFE_POINT]', { sessionId });
     // BOOT DEBUG: Mark started (prevents kickstart)
     if (typeof window !== 'undefined' && sessionId) {
@@ -7059,7 +6917,7 @@ function CandidateInterviewInner() {
       if (needsRebuild) {
         await rebuildSessionFromResponses(engineData, loadedSession);
       } else if (hasValidSnapshots) {
-        const restoreSuccessful = await restoreFromSnapshots(engineData, loadedSession);
+            const restoreSuccessful = await restoreFromSnapshots(engineData, loadedSession);
 
         if (!restoreSuccessful) {
           await rebuildSessionFromResponses(engineData, loadedSession);
