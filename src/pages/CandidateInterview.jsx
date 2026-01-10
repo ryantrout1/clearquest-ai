@@ -20337,6 +20337,12 @@ export default function CandidateInterview() {
     return cqLoadingReturnJSX;
   }
 
+  // TDZ FIX: LOADING HARD GUARD 2 - Belt-and-suspenders guard before main JSX
+  if (shouldShowFullScreenLoader) {
+    console.log('[TDZ_FIX][LOADING_HARD_GUARD_2]', { screenMode, shouldShowFullScreenLoader });
+    return cqLoadingReturnJSX;
+  }
+
   // UI CONTRACT: 3-row shell enforced - do not reintroduce footer spacers/padding hacks; footer must stay in layout flow.
   
   cqTdzMark('BEFORE_MAIN_RETURN_EXPR', { screenModeNow: screenMode, shouldShowFullScreenLoader, currentItemType: currentItem?.type, effectiveItemType });
