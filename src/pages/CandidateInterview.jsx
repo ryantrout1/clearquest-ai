@@ -3518,15 +3518,13 @@ export default function CandidateInterview() {
     if (!enabled) return;
     
     // MISMATCH DETECTION: Compare with outer scope if available (TDZ-safe check)
-    if (enabled) {
-      try {
-        const outerIsPreviewEnv = (typeof isPreviewEnv !== 'undefined') ? isPreviewEnv : undefined;
-        if (outerIsPreviewEnv !== undefined && outerIsPreviewEnv !== localIsPreviewEnv) {
-          console.log('[TDZ_TRACE][PREVIEW_ENV_MISMATCH]', { outerIsPreviewEnv, localIsPreviewEnv });
-        }
-      } catch (_) {
-        // never throw - TDZ access would throw here if isPreviewEnv not yet initialized
+    try {
+      const outerIsPreviewEnv = (typeof isPreviewEnv !== 'undefined') ? isPreviewEnv : undefined;
+      if (outerIsPreviewEnv !== undefined && outerIsPreviewEnv !== localIsPreviewEnv) {
+        console.log('[TDZ_TRACE][PREVIEW_ENV_MISMATCH]', { outerIsPreviewEnv, localIsPreviewEnv });
       }
+    } catch (_) {
+      // never throw - TDZ access would throw here if isPreviewEnv not yet initialized
     }
     
     console.log('[TDZ_TRACE]', { step, ts: Date.now(), ...extra });
