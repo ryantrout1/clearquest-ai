@@ -3504,7 +3504,7 @@ export default function CandidateInterview() {
   const cqTdzMark = (step, extra = {}) => {
     if (typeof window === 'undefined') return;
     const wn = String(window.name || '');
-    const enabled = (window.__CQ_TDZ_TRACE__ === true) || wn.includes('CQ_TDZ_TRACE=1');
+    const enabled = (window.__CQ_TDZ_TRACE__ === true) || wn.includes('CQ_TDZ_TRACE=1') || isPreviewEnv;
     if (!enabled) return;
     console.log('[TDZ_TRACE]', { step, ts: Date.now(), ...extra });
   };
@@ -3512,12 +3512,18 @@ export default function CandidateInterview() {
   // ============================================================================
   // TDZ TRACE BOOTSTRAP - Read window.name + query param early (persists across reloads)
   // ============================================================================
+  // PREVIEW ENV AUTO-ENABLE: Force tracing ON in Base44 preview environments
+  let isPreviewEnv = false;
   try {
     if (typeof window !== 'undefined') {
+      const hostname = String(window.location?.hostname || '');
+      isPreviewEnv = hostname.includes('preview') || hostname.includes('preview-sandbox');
+      
       const wn = String(window.name || '');
       const qs = String(window.location?.search || '');
       const hasQueryFlag = qs.includes('tdztrace=1');
-      if (wn.includes('CQ_TDZ_TRACE=1') || hasQueryFlag) {
+      
+      if (isPreviewEnv || wn.includes('CQ_TDZ_TRACE=1') || hasQueryFlag) {
         window.__CQ_TDZ_TRACE__ = true;
       }
     }
@@ -3531,12 +3537,14 @@ export default function CandidateInterview() {
   if (typeof window !== 'undefined') {
     const wn = String(window.name || '');
     const qs = String(window.location?.search || '');
-    const enabled = (window.__CQ_TDZ_TRACE__ === true) || wn.includes('CQ_TDZ_TRACE=1') || qs.includes('tdztrace=1');
-    if (enabled) {
+    const enabled = (window.__CQ_TDZ_TRACE__ === true) || wn.includes('CQ_TDZ_TRACE=1') || qs.includes('tdztrace=1') || isPreviewEnv;
+    if (enabled || isPreviewEnv) {
       console.log('[TDZ_TRACE_STATUS]', { 
         enabled, 
         nameHasFlag: wn.includes('CQ_TDZ_TRACE=1'), 
-        queryHasFlag: qs.includes('tdztrace=1') 
+        queryHasFlag: qs.includes('tdztrace=1'),
+        isPreviewEnv,
+        via: isPreviewEnv ? 'preview_env' : 'manual_flag'
       });
     }
   }
