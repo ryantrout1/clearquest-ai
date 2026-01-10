@@ -6674,8 +6674,6 @@ function CandidateInterviewInner() {
     }
   };
 
-  
-
   const initializeInterview = async () => {
     console.log('[CQ_BOOT][INIT_ENTER_TDZ_SAFE_POINT]', { sessionId });
     console.log('[CQ_BOOT][INIT_ENTER_TDZ_SAFE_POINT]', { sessionId });
