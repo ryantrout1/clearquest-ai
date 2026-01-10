@@ -2837,10 +2837,7 @@ function CandidateInterviewInner() {
           console.warn('[CQ_BOOT_RENDERKICK][CALL_INIT]', { sessionId });
           initializeInterview(); // use same call signature as effect path (no args)
         } catch (e) {
-          console.error('[CQ_BOOT_RENDERKICK][FAILED]', { 
-            sessionId, 
-            message: e?.message 
-          });
+          console.error('[CQ_BOOT_RENDERKICK][FAILED]', { sessionId, message: e?.message, stack: e?.stack });
         }
       }
     }, 0);
@@ -6402,7 +6399,8 @@ function CandidateInterviewInner() {
             } catch (e) {
               console.error('[CQ_BOOT_EFFECT][KICKSTART_FAILED]', { 
                 sessionId: effectiveSessionId, 
-                message: e?.message 
+                message: e?.message, 
+                stack: e?.stack 
               });
             }
           }
@@ -6677,6 +6675,7 @@ function CandidateInterviewInner() {
   };
 
   const initializeInterview = async () => {
+    console.log('[CQ_BOOT][INIT_ENTER_TDZ_SAFE_POINT]', { sessionId });
     // BOOT DEBUG: Mark started (prevents kickstart)
     if (typeof window !== 'undefined' && sessionId) {
       window[`__CQ_INIT_STARTED__${sessionId}`] = true;
