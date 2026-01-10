@@ -3502,9 +3502,26 @@ export default function CandidateInterview() {
   // TDZ TRACE HELPER - Debug-only render markers (no-op by default)
   // ============================================================================
   const cqTdzMark = (step, extra = {}) => {
-    if (typeof window === 'undefined' || window.__CQ_TDZ_TRACE__ !== true) return;
+    if (typeof window === 'undefined') return;
+    const wn = String(window.name || '');
+    const enabled = (window.__CQ_TDZ_TRACE__ === true) || wn.includes('CQ_TDZ_TRACE=1');
+    if (!enabled) return;
     console.log('[TDZ_TRACE]', { step, ts: Date.now(), ...extra });
   };
+  
+  // ============================================================================
+  // TDZ TRACE BOOTSTRAP - Read window.name early (persists across reloads)
+  // ============================================================================
+  try {
+    if (typeof window !== 'undefined') {
+      const wn = String(window.name || '');
+      if (wn.includes('CQ_TDZ_TRACE=1')) {
+        window.__CQ_TDZ_TRACE__ = true;
+      }
+    }
+  } catch (_) {
+    // never throw
+  }
   
   // ACTIVE KIND CHANGE DETECTION: Track last logged kind to prevent spam
   const lastLoggedActiveKindRef = useRef(null);
