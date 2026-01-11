@@ -6349,12 +6349,13 @@ function CandidateInterviewInner() {
   
   // SESSION GUARD: Redirect to StartInterview if no sessionId in URL
   useEffect(() => {
+    console.log('[CQ_BOOT_EFFECT][ENTER_TOP]', { sessionId, effectiveSessionId });
     // BOOT DEBUG: Effect entry log
     console.log('[CQ_BOOT_EFFECT][ENTER]', { sessionId, effectiveSessionId });
     
     // SESSION LOCK: Suppress redirect if session was locked (prevents mid-interview reset)
     if (!effectiveSessionId) {
-      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN]', { reason: 'NO_EFFECTIVE_SESSION_ID', sessionId });
+      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN_TOP]', { sessionId, reason: 'NO_EFFECTIVE_SESSION_ID' });
       
       // ONE-SHOT GUARD: Only redirect once (prevent loops)
       if (didTerminalRedirectRef.current) {
@@ -6393,7 +6394,7 @@ function CandidateInterviewInner() {
     
     // CRITICAL: Only initialize once per sessionId (even if component remounts)
     if (initMapRef.current[effectiveSessionId]) {
-      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN]', { reason: 'ALREADY_INITIALIZED', sessionId: effectiveSessionId });
+      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN_TOP]', { sessionId: effectiveSessionId, reason: 'ALREADY_INITIALIZED' });
       console.log('[MOUNT_GUARD] Already initialized for sessionId - skipping init', { sessionId: effectiveSessionId });
       
       // Remount recovery: restore state from DB without full init
@@ -6432,6 +6433,7 @@ function CandidateInterviewInner() {
     initMapRef.current[effectiveSessionId] = true;
     console.log('[MOUNT_GUARD] First init for sessionId', { sessionId: effectiveSessionId });
     
+    console.log('[CQ_BOOT_EFFECT][INVOKE_DOBOOT]', { sessionId: effectiveSessionId });
     const doBoot = async () => {
       try {
         console.log('[CQ_BOOT_EFFECT][RUN]', { sessionId: effectiveSessionId });
