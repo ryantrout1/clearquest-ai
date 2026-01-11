@@ -2843,6 +2843,28 @@ function CandidateInterviewInner() {
     return () => clearTimeout(t);
   }, [sessionId, isLoading, session, engine]);
 
+  useEffect(() => {
+    console.log('[CQ_BOOT_STATE][SNAPSHOT]', {
+      sessionId,
+      isLoading,
+      hasSession: !!session,
+      hasEngine: !!engine
+    });
+  }, [sessionId, isLoading, session, engine]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    const t = setTimeout(() => {
+      console.log('[CQ_BOOT_STATE][WATCHDOG_5S]', {
+        sessionId,
+        isLoading,
+        hasSession: !!session,
+        hasEngine: !!engine
+      });
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [sessionId, isLoading, session, engine]);
+
   // ============================================================================
   // BOOTSTRAP HELPERS + INITIALIZER (HOISTED)
   // ============================================================================
@@ -2902,6 +2924,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // BOOT GUARD - Ultra-minimal early return during unstable boot/LOADING
   // ============================================================================
+  console.log('[CQ_BOOT_GUARD][EVAL]', { sessionId, isLoading, hasSession: !!session, hasEngine: !!engine });
   console.log('[CQ_BOOT_GUARD][EVAL]', { sessionId, isLoading, hasSession: !!session, hasEngine: !!engine });
   const cqBootNotReady = isLoading || !session || !engine;
   
@@ -6327,21 +6350,11 @@ function CandidateInterviewInner() {
   // SESSION GUARD: Redirect to StartInterview if no sessionId in URL
   useEffect(() => {
     // BOOT DEBUG: Effect entry log
-    console.log('[CQ_BOOT_EFFECT][ENTER]', { 
-      sessionId, 
-      effectiveSessionId,
-      isLoading, 
-      hasSession: !!session, 
-      hasEngine: !!engine 
-    });
+    console.log('[CQ_BOOT_EFFECT][ENTER]', { sessionId, effectiveSessionId });
     
     // SESSION LOCK: Suppress redirect if session was locked (prevents mid-interview reset)
     if (!effectiveSessionId) {
-      console.log('[CQ_BOOT_EFFECT][SKIP]', { 
-        reason: 'NO_EFFECTIVE_SESSION_ID',
-        sessionId,
-        effectiveSessionId
-      });
+      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN]', { reason: 'NO_EFFECTIVE_SESSION_ID', sessionId });
       
       // ONE-SHOT GUARD: Only redirect once (prevent loops)
       if (didTerminalRedirectRef.current) {
@@ -6380,10 +6393,7 @@ function CandidateInterviewInner() {
     
     // CRITICAL: Only initialize once per sessionId (even if component remounts)
     if (initMapRef.current[effectiveSessionId]) {
-      console.log('[CQ_BOOT_EFFECT][SKIP]', { 
-        reason: 'ALREADY_INITIALIZED',
-        sessionId: effectiveSessionId
-      });
+      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN]', { reason: 'ALREADY_INITIALIZED', sessionId: effectiveSessionId });
       console.log('[MOUNT_GUARD] Already initialized for sessionId - skipping init', { sessionId: effectiveSessionId });
       
       // Remount recovery: restore state from DB without full init
