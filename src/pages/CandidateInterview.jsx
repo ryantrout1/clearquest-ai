@@ -6432,10 +6432,45 @@ function CandidateInterviewInner() {
     initMapRef.current[effectiveSessionId] = true;
     console.log('[MOUNT_GUARD] First init for sessionId', { sessionId: effectiveSessionId });
     
-    // BOOT DEBUG: About to call init - REMOVED ORPHANED CALL
-    console.log('[CQ_BOOT_EFFECT][CALL_INIT_REMOVED]', { sessionId: effectiveSessionId, reason: 'Orphaned initializeInterview() call removed.' });
-    setIsLoading(false); // Allow boot to complete
-    console.log('[CQ_BOOT_EFFECT][SET_LOADING_FALSE]', { sessionId, reason: 'Forced completion after removing orphaned call' });
+    const doBoot = async () => {
+      try {
+        console.log('[CQ_BOOT_EFFECT][RUN]', { sessionId: effectiveSessionId });
+        const [loadedSession, engineData] = await Promise.all([
+          base44.entities.InterviewSession.get(effectiveSessionId),
+          bootstrapEngine(base44)
+        ]);
+
+        if (!loadedSession) {
+          throw new Error('Session not found during boot');
+        }
+        
+        unstable_batchedUpdates(() => {
+            setSession(loadedSession);
+            setEngine(engineData);
+
+            const rawTranscript = loadedSession.transcript_snapshot || [];
+            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            setDbTranscriptSafe(cleanedTranscript);
+
+            setQueue(loadedSession.queue_snapshot || []);
+            setCurrentItem(loadedSession.current_item_snapshot || null);
+            
+            const hasAnyResponses = cleanedTranscript && cleanedTranscript.length > 0;
+            setIsNewSession(!hasAnyResponses);
+            setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
+
+            console.log('[CQ_BOOT_EFFECT][SUCCESS_PRE_SET]', { sessionId, hasSession: true, hasEngine: true });
+        });
+
+      } catch (e) {
+        console.error('[CQ_BOOT_EFFECT][ERROR]', { sessionId: effectiveSessionId, message: e?.message, stack: e?.stack });
+        setError(e.message);
+      } finally {
+        console.log('[CQ_BOOT_EFFECT][SET_LOADING_FALSE]', { sessionId: effectiveSessionId });
+        setIsLoading(false);
+      }
+    };
+    doBoot();
 
     return () => {
       if (unsubscribeRef.current) {
