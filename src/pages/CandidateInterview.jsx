@@ -6434,8 +6434,13 @@ function CandidateInterviewInner() {
     
     // BOOT DEBUG: About to call init
     console.log('[CQ_BOOT_EFFECT][CALL_INIT]', { sessionId: effectiveSessionId });
-    
-    initializeInterview();
+
+    if (typeof initializeInterview === 'function') {
+      console.log('[CQ_BOOT_EFFECT][SUCCESS_PRE_SET]', { sessionId, hasSession: !!session, hasEngine: !!engine });
+      initializeInterview();
+    } else {
+      console.error('[CQ_BOOT_EFFECT][ERROR]', { sessionId, message: 'initializeInterview is not defined', stack: new Error().stack });
+    }
     
     // KICKSTART FALLBACK: If init doesn't start within 250ms, force-call it
     if (typeof window !== 'undefined' && effectiveSessionId) {
