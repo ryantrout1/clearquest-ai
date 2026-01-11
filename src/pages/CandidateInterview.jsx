@@ -2830,6 +2830,146 @@ function CandidateInterviewInner() {
     });
   }, [sessionId, isLoading, session, engine]);
 
+  // SESSION GUARD: Redirect to StartInterview if no sessionId in URL
+  useEffect(() => {
+    console.log('[CQ_BOOT_EFFECT][ENTER_TOP]', { sessionId, effectiveSessionId });
+    // BOOT DEBUG: Effect entry log
+    console.log('[CQ_BOOT_EFFECT][ENTER]', { sessionId, effectiveSessionId });
+    
+    // SESSION LOCK: Suppress redirect if session was locked (prevents mid-interview reset)
+    if (!effectiveSessionId) {
+      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN_TOP]', { sessionId, reason: 'NO_EFFECTIVE_SESSION_ID' });
+      
+      // ONE-SHOT GUARD: Only redirect once (prevent loops)
+      if (didTerminalRedirectRef.current) {
+        console.log('[CQ_BOOT_EFFECT][SKIP]', { 
+          reason: 'ALREADY_REDIRECTED',
+          didTerminalRedirectRef: true
+        });
+        return; // Already redirected - no-op
+      }
+      
+      // Mark redirect as executed
+      didTerminalRedirectRef.current = true;
+      
+      // Preserve ALL query params (hide_badge, server_url, etc.)
+      const currentSearch = window.location.search || '';
+      const redirectUrl = `/StartInterview${currentSearch}`;
+      
+      console.log('[UI_CONTRACT][CANDIDATE_INTERVIEW_NO_SESSION_REDIRECT_EFFECT]', {
+        to: redirectUrl,
+        preservedParams: currentSearch,
+        reason: 'SessionId missing from URL - one-shot redirect in useEffect'
+      });
+      
+      // Prevent redirect loops: only redirect if not already on StartInterview
+      if (window.location.pathname !== '/StartInterview') {
+        navigate(redirectUrl, { replace: true });
+      }
+      
+      // FAILSAFE: Show manual link after 1500ms if redirect doesn't complete
+      const failsafeTimer = setTimeout(() => {
+        setShowRedirectFallback(true);
+      }, 1500);
+      
+      return () => clearTimeout(failsafeTimer);
+    }
+    
+    // CRITICAL: Only initialize once per sessionId (even if component remounts)
+    if (initMapRef.current[effectiveSessionId]) {
+      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN_TOP]', { sessionId: effectiveSessionId, reason: 'ALREADY_INITIALIZED' });
+      console.log('[MOUNT_GUARD] Already initialized for sessionId - skipping init', { sessionId: effectiveSessionId });
+      
+      // Remount recovery: restore state from DB without full init
+      const quickRestore = async () => {
+        try {
+          const loadedSession = await base44.entities.InterviewSession.get(effectiveSessionId);
+          if (loadedSession) {
+            setSession(loadedSession);
+
+            // CHANGE 1: Clean legacy V3 probe prompts on load
+            const rawTranscript = loadedSession.transcript_snapshot || [];
+            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            setDbTranscriptSafe(cleanedTranscript);
+
+            setQueue(loadedSession.queue_snapshot || []);
+            setCurrentItem(loadedSession.current_item_snapshot || null);
+            setIsLoading(false);
+            setShowLoadingRetry(false);
+
+            const hasAnyResponses = cleanedTranscript && cleanedTranscript.length > 0;
+            setIsNewSession(!hasAnyResponses);
+            setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
+
+            console.log('[MOUNT_GUARD][QUICK_RESTORE]', { transcriptLen: cleanedTranscript?.length || 0 });
+          }
+        } catch (err) {
+          console.error('[MOUNT_GUARD][QUICK_RESTORE][ERROR]', err);
+        }
+      };
+      
+      quickRestore();
+      return;
+    }
+    
+    // Mark this sessionId as initialized
+    initMapRef.current[effectiveSessionId] = true;
+    console.log('[MOUNT_GUARD] First init for sessionId', { sessionId: effectiveSessionId });
+    
+    console.log('[CQ_BOOT_EFFECT][INVOKE_DOBOOT]', { sessionId: effectiveSessionId });
+    const doBoot = async () => {
+      try {
+        console.log('[CQ_BOOT_EFFECT][RUN]', { sessionId: effectiveSessionId });
+        const [loadedSession, engineData] = await Promise.all([
+          base44.entities.InterviewSession.get(effectiveSessionId),
+          bootstrapEngine(base44)
+        ]);
+
+        if (!loadedSession) {
+          throw new Error('Session not found during boot');
+        }
+        
+        unstable_batchedUpdates(() => {
+            setSession(loadedSession);
+            setEngine(engineData);
+
+            const rawTranscript = loadedSession.transcript_snapshot || [];
+            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            setDbTranscriptSafe(cleanedTranscript);
+
+            setQueue(loadedSession.queue_snapshot || []);
+            setCurrentItem(loadedSession.current_item_snapshot || null);
+            
+            const hasAnyResponses = cleanedTranscript && cleanedTranscript.length > 0;
+            setIsNewSession(!hasAnyResponses);
+            setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
+
+            console.log('[CQ_BOOT_EFFECT][SUCCESS_PRE_SET]', { sessionId, hasSession: true, hasEngine: true });
+        });
+
+      } catch (e) {
+        console.error('[CQ_BOOT_EFFECT][ERROR]', { sessionId: effectiveSessionId, message: e?.message, stack: e?.stack });
+        setError(e.message);
+      } finally {
+        console.log('[CQ_BOOT_EFFECT][SET_LOADING_FALSE]', { sessionId: effectiveSessionId });
+        setIsLoading(false);
+      }
+    };
+    doBoot();
+
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+      clearTimeout(typingTimeoutRef.current);
+      clearTimeout(aiResponseTimeoutRef.current);
+      clearTimeout(typingLockTimeoutRef.current);
+      setShowLoadingRetry(false);
+      
+      // DO NOT clear initMapRef on unmount - allows detection across remounts
+    };
+  }, [effectiveSessionId]);
+
   useEffect(() => {
     if (!sessionId) return;
     const t = setTimeout(() => {
@@ -2842,6 +2982,146 @@ function CandidateInterviewInner() {
     }, 5000);
     return () => clearTimeout(t);
   }, [sessionId, isLoading, session, engine]);
+
+  // SESSION GUARD: Redirect to StartInterview if no sessionId in URL
+  useEffect(() => {
+    console.log('[CQ_BOOT_EFFECT][ENTER_TOP]', { sessionId, effectiveSessionId });
+    // BOOT DEBUG: Effect entry log
+    console.log('[CQ_BOOT_EFFECT][ENTER]', { sessionId, effectiveSessionId });
+    
+    // SESSION LOCK: Suppress redirect if session was locked (prevents mid-interview reset)
+    if (!effectiveSessionId) {
+      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN_TOP]', { sessionId, reason: 'NO_EFFECTIVE_SESSION_ID' });
+      
+      // ONE-SHOT GUARD: Only redirect once (prevent loops)
+      if (didTerminalRedirectRef.current) {
+        console.log('[CQ_BOOT_EFFECT][SKIP]', { 
+          reason: 'ALREADY_REDIRECTED',
+          didTerminalRedirectRef: true
+        });
+        return; // Already redirected - no-op
+      }
+      
+      // Mark redirect as executed
+      didTerminalRedirectRef.current = true;
+      
+      // Preserve ALL query params (hide_badge, server_url, etc.)
+      const currentSearch = window.location.search || '';
+      const redirectUrl = `/StartInterview${currentSearch}`;
+      
+      console.log('[UI_CONTRACT][CANDIDATE_INTERVIEW_NO_SESSION_REDIRECT_EFFECT]', {
+        to: redirectUrl,
+        preservedParams: currentSearch,
+        reason: 'SessionId missing from URL - one-shot redirect in useEffect'
+      });
+      
+      // Prevent redirect loops: only redirect if not already on StartInterview
+      if (window.location.pathname !== '/StartInterview') {
+        navigate(redirectUrl, { replace: true });
+      }
+      
+      // FAILSAFE: Show manual link after 1500ms if redirect doesn't complete
+      const failsafeTimer = setTimeout(() => {
+        setShowRedirectFallback(true);
+      }, 1500);
+      
+      return () => clearTimeout(failsafeTimer);
+    }
+    
+    // CRITICAL: Only initialize once per sessionId (even if component remounts)
+    if (initMapRef.current[effectiveSessionId]) {
+      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN_TOP]', { sessionId: effectiveSessionId, reason: 'ALREADY_INITIALIZED' });
+      console.log('[MOUNT_GUARD] Already initialized for sessionId - skipping init', { sessionId: effectiveSessionId });
+      
+      // Remount recovery: restore state from DB without full init
+      const quickRestore = async () => {
+        try {
+          const loadedSession = await base44.entities.InterviewSession.get(effectiveSessionId);
+          if (loadedSession) {
+            setSession(loadedSession);
+
+            // CHANGE 1: Clean legacy V3 probe prompts on load
+            const rawTranscript = loadedSession.transcript_snapshot || [];
+            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            setDbTranscriptSafe(cleanedTranscript);
+
+            setQueue(loadedSession.queue_snapshot || []);
+            setCurrentItem(loadedSession.current_item_snapshot || null);
+            setIsLoading(false);
+            setShowLoadingRetry(false);
+
+            const hasAnyResponses = cleanedTranscript && cleanedTranscript.length > 0;
+            setIsNewSession(!hasAnyResponses);
+            setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
+
+            console.log('[MOUNT_GUARD][QUICK_RESTORE]', { transcriptLen: cleanedTranscript?.length || 0 });
+          }
+        } catch (err) {
+          console.error('[MOUNT_GUARD][QUICK_RESTORE][ERROR]', err);
+        }
+      };
+      
+      quickRestore();
+      return;
+    }
+    
+    // Mark this sessionId as initialized
+    initMapRef.current[effectiveSessionId] = true;
+    console.log('[MOUNT_GUARD] First init for sessionId', { sessionId: effectiveSessionId });
+    
+    console.log('[CQ_BOOT_EFFECT][INVOKE_DOBOOT]', { sessionId: effectiveSessionId });
+    const doBoot = async () => {
+      try {
+        console.log('[CQ_BOOT_EFFECT][RUN]', { sessionId: effectiveSessionId });
+        const [loadedSession, engineData] = await Promise.all([
+          base44.entities.InterviewSession.get(effectiveSessionId),
+          bootstrapEngine(base44)
+        ]);
+
+        if (!loadedSession) {
+          throw new Error('Session not found during boot');
+        }
+        
+        unstable_batchedUpdates(() => {
+            setSession(loadedSession);
+            setEngine(engineData);
+
+            const rawTranscript = loadedSession.transcript_snapshot || [];
+            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            setDbTranscriptSafe(cleanedTranscript);
+
+            setQueue(loadedSession.queue_snapshot || []);
+            setCurrentItem(loadedSession.current_item_snapshot || null);
+            
+            const hasAnyResponses = cleanedTranscript && cleanedTranscript.length > 0;
+            setIsNewSession(!hasAnyResponses);
+            setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
+
+            console.log('[CQ_BOOT_EFFECT][SUCCESS_PRE_SET]', { sessionId, hasSession: true, hasEngine: true });
+        });
+
+      } catch (e) {
+        console.error('[CQ_BOOT_EFFECT][ERROR]', { sessionId: effectiveSessionId, message: e?.message, stack: e?.stack });
+        setError(e.message);
+      } finally {
+        console.log('[CQ_BOOT_EFFECT][SET_LOADING_FALSE]', { sessionId: effectiveSessionId });
+        setIsLoading(false);
+      }
+    };
+    doBoot();
+
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+      clearTimeout(typingTimeoutRef.current);
+      clearTimeout(aiResponseTimeoutRef.current);
+      clearTimeout(typingLockTimeoutRef.current);
+      setShowLoadingRetry(false);
+      
+      // DO NOT clear initMapRef on unmount - allows detection across remounts
+    };
+  }, [effectiveSessionId]);
 
   useEffect(() => {
     console.log('[CQ_BOOT_STATE][SNAPSHOT]', {
@@ -2852,6 +3132,146 @@ function CandidateInterviewInner() {
     });
   }, [sessionId, isLoading, session, engine]);
 
+  // SESSION GUARD: Redirect to StartInterview if no sessionId in URL
+  useEffect(() => {
+    console.log('[CQ_BOOT_EFFECT][ENTER_TOP]', { sessionId, effectiveSessionId });
+    // BOOT DEBUG: Effect entry log
+    console.log('[CQ_BOOT_EFFECT][ENTER]', { sessionId, effectiveSessionId });
+    
+    // SESSION LOCK: Suppress redirect if session was locked (prevents mid-interview reset)
+    if (!effectiveSessionId) {
+      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN_TOP]', { sessionId, reason: 'NO_EFFECTIVE_SESSION_ID' });
+      
+      // ONE-SHOT GUARD: Only redirect once (prevent loops)
+      if (didTerminalRedirectRef.current) {
+        console.log('[CQ_BOOT_EFFECT][SKIP]', { 
+          reason: 'ALREADY_REDIRECTED',
+          didTerminalRedirectRef: true
+        });
+        return; // Already redirected - no-op
+      }
+      
+      // Mark redirect as executed
+      didTerminalRedirectRef.current = true;
+      
+      // Preserve ALL query params (hide_badge, server_url, etc.)
+      const currentSearch = window.location.search || '';
+      const redirectUrl = `/StartInterview${currentSearch}`;
+      
+      console.log('[UI_CONTRACT][CANDIDATE_INTERVIEW_NO_SESSION_REDIRECT_EFFECT]', {
+        to: redirectUrl,
+        preservedParams: currentSearch,
+        reason: 'SessionId missing from URL - one-shot redirect in useEffect'
+      });
+      
+      // Prevent redirect loops: only redirect if not already on StartInterview
+      if (window.location.pathname !== '/StartInterview') {
+        navigate(redirectUrl, { replace: true });
+      }
+      
+      // FAILSAFE: Show manual link after 1500ms if redirect doesn't complete
+      const failsafeTimer = setTimeout(() => {
+        setShowRedirectFallback(true);
+      }, 1500);
+      
+      return () => clearTimeout(failsafeTimer);
+    }
+    
+    // CRITICAL: Only initialize once per sessionId (even if component remounts)
+    if (initMapRef.current[effectiveSessionId]) {
+      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN_TOP]', { sessionId: effectiveSessionId, reason: 'ALREADY_INITIALIZED' });
+      console.log('[MOUNT_GUARD] Already initialized for sessionId - skipping init', { sessionId: effectiveSessionId });
+      
+      // Remount recovery: restore state from DB without full init
+      const quickRestore = async () => {
+        try {
+          const loadedSession = await base44.entities.InterviewSession.get(effectiveSessionId);
+          if (loadedSession) {
+            setSession(loadedSession);
+
+            // CHANGE 1: Clean legacy V3 probe prompts on load
+            const rawTranscript = loadedSession.transcript_snapshot || [];
+            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            setDbTranscriptSafe(cleanedTranscript);
+
+            setQueue(loadedSession.queue_snapshot || []);
+            setCurrentItem(loadedSession.current_item_snapshot || null);
+            setIsLoading(false);
+            setShowLoadingRetry(false);
+
+            const hasAnyResponses = cleanedTranscript && cleanedTranscript.length > 0;
+            setIsNewSession(!hasAnyResponses);
+            setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
+
+            console.log('[MOUNT_GUARD][QUICK_RESTORE]', { transcriptLen: cleanedTranscript?.length || 0 });
+          }
+        } catch (err) {
+          console.error('[MOUNT_GUARD][QUICK_RESTORE][ERROR]', err);
+        }
+      };
+      
+      quickRestore();
+      return;
+    }
+    
+    // Mark this sessionId as initialized
+    initMapRef.current[effectiveSessionId] = true;
+    console.log('[MOUNT_GUARD] First init for sessionId', { sessionId: effectiveSessionId });
+    
+    console.log('[CQ_BOOT_EFFECT][INVOKE_DOBOOT]', { sessionId: effectiveSessionId });
+    const doBoot = async () => {
+      try {
+        console.log('[CQ_BOOT_EFFECT][RUN]', { sessionId: effectiveSessionId });
+        const [loadedSession, engineData] = await Promise.all([
+          base44.entities.InterviewSession.get(effectiveSessionId),
+          bootstrapEngine(base44)
+        ]);
+
+        if (!loadedSession) {
+          throw new Error('Session not found during boot');
+        }
+        
+        unstable_batchedUpdates(() => {
+            setSession(loadedSession);
+            setEngine(engineData);
+
+            const rawTranscript = loadedSession.transcript_snapshot || [];
+            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            setDbTranscriptSafe(cleanedTranscript);
+
+            setQueue(loadedSession.queue_snapshot || []);
+            setCurrentItem(loadedSession.current_item_snapshot || null);
+            
+            const hasAnyResponses = cleanedTranscript && cleanedTranscript.length > 0;
+            setIsNewSession(!hasAnyResponses);
+            setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
+
+            console.log('[CQ_BOOT_EFFECT][SUCCESS_PRE_SET]', { sessionId, hasSession: true, hasEngine: true });
+        });
+
+      } catch (e) {
+        console.error('[CQ_BOOT_EFFECT][ERROR]', { sessionId: effectiveSessionId, message: e?.message, stack: e?.stack });
+        setError(e.message);
+      } finally {
+        console.log('[CQ_BOOT_EFFECT][SET_LOADING_FALSE]', { sessionId: effectiveSessionId });
+        setIsLoading(false);
+      }
+    };
+    doBoot();
+
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+      clearTimeout(typingTimeoutRef.current);
+      clearTimeout(aiResponseTimeoutRef.current);
+      clearTimeout(typingLockTimeoutRef.current);
+      setShowLoadingRetry(false);
+      
+      // DO NOT clear initMapRef on unmount - allows detection across remounts
+    };
+  }, [effectiveSessionId]);
+
   useEffect(() => {
     if (!sessionId) return;
     const t = setTimeout(() => {
@@ -2864,6 +3284,146 @@ function CandidateInterviewInner() {
     }, 5000);
     return () => clearTimeout(t);
   }, [sessionId, isLoading, session, engine]);
+
+  // SESSION GUARD: Redirect to StartInterview if no sessionId in URL
+  useEffect(() => {
+    console.log('[CQ_BOOT_EFFECT][ENTER_TOP]', { sessionId, effectiveSessionId });
+    // BOOT DEBUG: Effect entry log
+    console.log('[CQ_BOOT_EFFECT][ENTER]', { sessionId, effectiveSessionId });
+    
+    // SESSION LOCK: Suppress redirect if session was locked (prevents mid-interview reset)
+    if (!effectiveSessionId) {
+      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN_TOP]', { sessionId, reason: 'NO_EFFECTIVE_SESSION_ID' });
+      
+      // ONE-SHOT GUARD: Only redirect once (prevent loops)
+      if (didTerminalRedirectRef.current) {
+        console.log('[CQ_BOOT_EFFECT][SKIP]', { 
+          reason: 'ALREADY_REDIRECTED',
+          didTerminalRedirectRef: true
+        });
+        return; // Already redirected - no-op
+      }
+      
+      // Mark redirect as executed
+      didTerminalRedirectRef.current = true;
+      
+      // Preserve ALL query params (hide_badge, server_url, etc.)
+      const currentSearch = window.location.search || '';
+      const redirectUrl = `/StartInterview${currentSearch}`;
+      
+      console.log('[UI_CONTRACT][CANDIDATE_INTERVIEW_NO_SESSION_REDIRECT_EFFECT]', {
+        to: redirectUrl,
+        preservedParams: currentSearch,
+        reason: 'SessionId missing from URL - one-shot redirect in useEffect'
+      });
+      
+      // Prevent redirect loops: only redirect if not already on StartInterview
+      if (window.location.pathname !== '/StartInterview') {
+        navigate(redirectUrl, { replace: true });
+      }
+      
+      // FAILSAFE: Show manual link after 1500ms if redirect doesn't complete
+      const failsafeTimer = setTimeout(() => {
+        setShowRedirectFallback(true);
+      }, 1500);
+      
+      return () => clearTimeout(failsafeTimer);
+    }
+    
+    // CRITICAL: Only initialize once per sessionId (even if component remounts)
+    if (initMapRef.current[effectiveSessionId]) {
+      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN_TOP]', { sessionId: effectiveSessionId, reason: 'ALREADY_INITIALIZED' });
+      console.log('[MOUNT_GUARD] Already initialized for sessionId - skipping init', { sessionId: effectiveSessionId });
+      
+      // Remount recovery: restore state from DB without full init
+      const quickRestore = async () => {
+        try {
+          const loadedSession = await base44.entities.InterviewSession.get(effectiveSessionId);
+          if (loadedSession) {
+            setSession(loadedSession);
+
+            // CHANGE 1: Clean legacy V3 probe prompts on load
+            const rawTranscript = loadedSession.transcript_snapshot || [];
+            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            setDbTranscriptSafe(cleanedTranscript);
+
+            setQueue(loadedSession.queue_snapshot || []);
+            setCurrentItem(loadedSession.current_item_snapshot || null);
+            setIsLoading(false);
+            setShowLoadingRetry(false);
+
+            const hasAnyResponses = cleanedTranscript && cleanedTranscript.length > 0;
+            setIsNewSession(!hasAnyResponses);
+            setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
+
+            console.log('[MOUNT_GUARD][QUICK_RESTORE]', { transcriptLen: cleanedTranscript?.length || 0 });
+          }
+        } catch (err) {
+          console.error('[MOUNT_GUARD][QUICK_RESTORE][ERROR]', err);
+        }
+      };
+      
+      quickRestore();
+      return;
+    }
+    
+    // Mark this sessionId as initialized
+    initMapRef.current[effectiveSessionId] = true;
+    console.log('[MOUNT_GUARD] First init for sessionId', { sessionId: effectiveSessionId });
+    
+    console.log('[CQ_BOOT_EFFECT][INVOKE_DOBOOT]', { sessionId: effectiveSessionId });
+    const doBoot = async () => {
+      try {
+        console.log('[CQ_BOOT_EFFECT][RUN]', { sessionId: effectiveSessionId });
+        const [loadedSession, engineData] = await Promise.all([
+          base44.entities.InterviewSession.get(effectiveSessionId),
+          bootstrapEngine(base44)
+        ]);
+
+        if (!loadedSession) {
+          throw new Error('Session not found during boot');
+        }
+        
+        unstable_batchedUpdates(() => {
+            setSession(loadedSession);
+            setEngine(engineData);
+
+            const rawTranscript = loadedSession.transcript_snapshot || [];
+            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            setDbTranscriptSafe(cleanedTranscript);
+
+            setQueue(loadedSession.queue_snapshot || []);
+            setCurrentItem(loadedSession.current_item_snapshot || null);
+            
+            const hasAnyResponses = cleanedTranscript && cleanedTranscript.length > 0;
+            setIsNewSession(!hasAnyResponses);
+            setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
+
+            console.log('[CQ_BOOT_EFFECT][SUCCESS_PRE_SET]', { sessionId, hasSession: true, hasEngine: true });
+        });
+
+      } catch (e) {
+        console.error('[CQ_BOOT_EFFECT][ERROR]', { sessionId: effectiveSessionId, message: e?.message, stack: e?.stack });
+        setError(e.message);
+      } finally {
+        console.log('[CQ_BOOT_EFFECT][SET_LOADING_FALSE]', { sessionId: effectiveSessionId });
+        setIsLoading(false);
+      }
+    };
+    doBoot();
+
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+      clearTimeout(typingTimeoutRef.current);
+      clearTimeout(aiResponseTimeoutRef.current);
+      clearTimeout(typingLockTimeoutRef.current);
+      setShowLoadingRetry(false);
+      
+      // DO NOT clear initMapRef on unmount - allows detection across remounts
+    };
+  }, [effectiveSessionId]);
 
   // ============================================================================
   // BOOTSTRAP HELPERS + INITIALIZER (HOISTED)
@@ -5128,320 +5688,6 @@ function CandidateInterviewInner() {
 
   // Loading watchdog state
   const [showLoadingRetry, setShowLoadingRetry] = useState(false);
-  
-  // REPAIR PASS: Ensure orphaned required anchor answers have their questions
-  useEffect(() => {
-    if (!Array.isArray(canonicalTranscriptRef.current)) return;
-    
-    const orphanAnswers = canonicalTranscriptRef.current.filter(e => 
-      (e.stableKey || e.id || '').startsWith('required-anchor:a:') &&
-      e.messageType === 'ANSWER' &&
-      e.meta?.answerContext === 'REQUIRED_ANCHOR_FALLBACK'
-    );
-    
-    if (orphanAnswers.length === 0) return;
-    
-    for (const answer of orphanAnswers) {
-      const answerKey = answer.stableKey || answer.id;
-      const anchorKey = answer.meta?.anchor || answer.anchor;
-      
-      if (!anchorKey) continue;
-      
-      // Build expected question key
-      const questionKey = `required-anchor:q:${sessionId}:${answer.meta?.categoryId || ''}:${answer.meta?.instanceNumber || 1}:${anchorKey}`;
-      
-      // Check if question exists
-      const questionExists = canonicalTranscriptRef.current.some(e => e.stableKey === questionKey);
-      
-      if (!questionExists) {
-        console.log('[REQUIRED_ANCHOR_FALLBACK][REPAIR_INSERT_Q]', {
-          anchorKey,
-          stableKeyQ: questionKey,
-          reason: 'Orphan answer found - inserting missing question'
-        });
-        
-        // NO-CRASH WRAPPER: Fire-and-forget repair using hoisted-safe function
-        (async () => {
-          try {
-            // QUESTION TEXT SOT: Use resolver for repair
-            const repairQuestionText = resolveAnchorToHumanQuestion(
-              anchorKey,
-              answer.meta?.packId
-            );
-
-            // DEFENSIVE: Check function exists before calling
-            if (typeof ensureRequiredAnchorQuestionInTranscript === "function") {
-              await ensureRequiredAnchorQuestionInTranscript({
-              sessionId,
-              categoryId: answer.meta?.categoryId,
-              instanceNumber: answer.meta?.instanceNumber,
-              anchor: anchorKey,
-              questionText: repairQuestionText,
-              appendFn: appendAssistantMessageImport,
-              existingTranscript: canonicalTranscriptRef.current,
-              packId: answer.meta?.packId,
-                canonicalRef: canonicalTranscriptRef,
-                syncStateFn: upsertTranscriptState
-              });
-            } else {
-              console.error('[REQUIRED_ANCHOR_FALLBACK][ENSURE_HELPER_MISSING]', {
-                anchor: anchorKey,
-                phase: 'REPAIR',
-                stability: 'NON_FATAL',
-                note: 'Helper not in scope - skipping'
-              });
-            }
-          } catch (err) {
-            // Already logged by safe function - no-op
-          }
-        })();
-      }
-    }
-  }, [canonicalTranscriptRef.current.length, sessionId, ensureRequiredAnchorQuestionInTranscript]);
-
-  // STABLE RENDER LIST: Pure deterministic filtering (no UI-state-dependent shrink/grow)
-  const renderedTranscript = useMemo(() => {
-    const base = Array.isArray(transcriptSOT) ? transcriptSOT : [];
-    
-    // V3 probe Q/A now allowed in transcript (no longer filtered)
-    const baseFiltered = base;
-    
-    // Log if any V3 probe prompts were removed
-    const removedCount = base.length - baseFiltered.length;
-    if (removedCount > 0) {
-      const removedKeys = base
-        .filter(e => {
-          const mt = e.messageType || e.type;
-          const stableKey = e.stableKey || '';
-          return mt === 'V3_PROBE_QUESTION' || stableKey.startsWith('v3-probe-q:');
-        })
-        .map(e => ({ key: e.stableKey || e.id, preview: (e.text || '').substring(0, 40) }));
-      
-      console.log('[V3_UI_CONTRACT][RENDER_FILTER_REMOVED]', {
-        removedCount,
-        sampleKeysPreview: removedKeys.slice(0, 3),
-        reason: 'V3 probe prompts found in transcript - filtering for render'
-      });
-    }
-    
-    // REQUIREMENT: Filter first, then dedupe, preserving insertion order
-    const filteredFirst = baseFiltered.filter(entry => isRenderableTranscriptEntry(entry));
-    
-    // SCOPED DEDUPE: Only dedupe specific messageTypes that can legitimately duplicate
-    // DO NOT dedupe normal Q/A entries - they must render exactly as logged
-    const DEDUPE_ALLOWED_TYPES = new Set([
-      'MULTI_INSTANCE_GATE_SHOWN',  // Gate prompts can log multiple times
-      'FOLLOWUP_CARD_SHOWN'          // Opener cards can log on mount+render
-    ]);
-    
-    const deduped = [];
-    const dedupedKeys = new Map();
-    
-    for (const entry of filteredFirst) {
-      const mt = entry.messageType || entry.type;
-      const key = entry.stableKey || entry.id;
-      
-      // Scoped dedupe: ONLY for allowed types with valid keys
-      if (DEDUPE_ALLOWED_TYPES.has(mt) && key) {
-        // Additional filter for FOLLOWUP_CARD_SHOWN: only dedupe opener variant
-        if (mt === 'FOLLOWUP_CARD_SHOWN') {
-          const variant = entry.meta?.variant || entry.variant;
-          if (variant === 'opener') {
-            if (dedupedKeys.has(key)) continue; // Skip duplicate opener
-            dedupedKeys.set(key, true);
-          }
-          // Non-opener FOLLOWUP_CARD_SHOWN: always include (no dedupe)
-        } else {
-          // Other allowed types: dedupe by key
-          if (dedupedKeys.has(key)) continue;
-          dedupedKeys.set(key, true);
-        }
-      }
-      
-      // Include entry (dedupe only applied to specific types above)
-      deduped.push(entry);
-    }
-    
-    // TASK 2: CANONICAL KEY NORMALIZATION - Always include stableKey/id (prevents collisions)
-    const normalized = deduped.map(entry => {
-      const messageType = entry.messageType || entry.type;
-      const role = entry.role || 'unknown';
-      const uniqueId = entry.stableKey || entry.id || `idx-${entry.index || Math.random()}`;
-      
-      // Canonical key: role:messageType:uniqueId (guarantees uniqueness)
-      const canonicalKey = `${role}:${messageType}:${uniqueId}`;
-      
-      return {
-        ...entry,
-        __canonicalKey: canonicalKey
-      };
-    });
-    
-    // PART 4: ACTIVE GATE FILTER - Removed (no longer needed)
-    // Gate questions now append ONLY after answer, so no double-render conflict
-    // Keep activeGateStableKey for compatibility but don't filter
-    const activeGateStableKey = (() => {
-      if (currentItem?.type !== 'multi_instance_gate') return null;
-      const gatePackId = currentItem.packId || multiInstanceGate?.packId;
-      const gateInstanceNumber = currentItem.instanceNumber || multiInstanceGate?.instanceNumber;
-      if (!gatePackId || !gateInstanceNumber) return null;
-      return `mi-gate:${gatePackId}:${gateInstanceNumber}`;
-    })();
-    
-    // TASK 1: DEDUPE - Split logic for legal record vs other entries
-    const stableKeySet = new Set(); // For visibleToCandidate=true (legal record)
-    const canonicalKeySet = new Set(); // For other entries
-    const finalFiltered = [];
-    let activeGateRemovedCount = 0;
-    
-    for (const entry of normalized) {
-      const ck = entry.__canonicalKey;
-      const stableKey = entry.stableKey || entry.id;
-      
-      // LEGAL RECORD PATH: Dedupe by stableKey/id only (no canonicalKey)
-      if (entry.visibleToCandidate === true) {
-        if (!stableKey) {
-          // No stableKey - treat as unique (shouldn't happen but fail-open)
-          finalFiltered.push(entry);
-          continue;
-        }
-        
-        if (!stableKeySet.has(stableKey)) {
-          stableKeySet.add(stableKey);
-          finalFiltered.push(entry);
-        } else {
-          // DUPLICATE LEGAL RECORD: Log and keep first
-          console.log('[TRANSCRIPT_DEDUPE][DUP_STABLEKEY_VISIBLE]', {
-            stableKey,
-            messageType: entry.messageType || entry.type,
-            textPreview: (entry.text || '').substring(0, 40)
-          });
-          // Skip duplicate (first occurrence already added)
-        }
-        continue;
-      }
-      
-      // OTHER ENTRIES PATH: Dedupe by canonicalKey (includes stableKey in key now)
-      if (!ck) {
-        finalFiltered.push(entry);
-        continue;
-      }
-      
-      if (!canonicalKeySet.has(ck)) {
-        canonicalKeySet.add(ck);
-        finalFiltered.push(entry);
-      } else {
-        // DUPLICATE DETECTED: Log for V3 opener cards
-        const messageType = entry.messageType || entry.type;
-        if (messageType === 'FOLLOWUP_CARD_SHOWN') {
-          const variant = entry.meta?.variant || entry.variant;
-          if (variant === 'opener') {
-            console.log('[V3_UI_CONTRACT][OPENER_DUPLICATE_BLOCKED]', {
-              packId: entry.meta?.packId || entry.packId,
-              instanceNumber: entry.meta?.instanceNumber || entry.instanceNumber || 1,
-              variant,
-              droppedKey: entry.stableKey || entry.id,
-              canonicalKey: ck
-            });
-          }
-        }
-        // Skip duplicate (keep first renderable occurrence)
-      }
-    }
-    
-    // Minimal contract check moved out of render loop below
-    console.log('');
-    console.log('[TRANSCRIPT_RENDER]', {
-      canonicalLen: base.length,
-      dedupedLen: deduped.length,
-      normalizedLen: normalized.length,
-      filteredLen: finalFiltered.length,
-      activeGateRemovedCount,
-      screenMode,
-      currentItemType: currentItem?.type
-    });
-    
-    // AUDIT: Verify no synthetic injection (append-only contract) - CORRECTED
-    const renderableDbLen = base.filter(entry => isRenderableTranscriptEntry(entry)).length;
-    const candidateVisibleDbLen = base.filter(entry => entry.visibleToCandidate === true).length;
-    
-    console.log('[TRANSCRIPT_AUDIT][SOURCE_OF_TRUTH]', {
-      dbLen: base.length,
-      renderableDbLen,
-      candidateVisibleDbLen,
-      renderedLen: finalFiltered.length,
-      syntheticEnabled: ENABLE_SYNTHETIC_TRANSCRIPT
-    });
-    
-    cqTdzMark('AFTER_TRANSCRIPT_AUDIT_LOGS');
-    
-    // GUARD: Detect candidate-visible entries being filtered out (ILLEGAL)
-    const candidateVisibleRenderedLen = finalFiltered.filter(e => e.visibleToCandidate === true).length;
-    if (candidateVisibleRenderedLen < candidateVisibleDbLen) {
-      const droppedCount = candidateVisibleDbLen - candidateVisibleRenderedLen;
-      const droppedEntries = base.filter(e => 
-        e.visibleToCandidate === true && 
-        !finalFiltered.some(r => (r.stableKey && r.stableKey === e.stableKey) || (r.id && r.id === e.id))
-      );
-      
-      console.error('[TRANSCRIPT_RENDER][ILLEGAL_DROP_VISIBLE]', {
-        candidateVisibleDbLen,
-        candidateVisibleRenderedLen,
-        droppedCount,
-        droppedKeys: droppedEntries.map(e => ({ 
-          key: e.stableKey || e.id,
-          type: e.messageType || e.type,
-          textPreview: (e.text || '').substring(0, 40)
-        }))
-      });
-      
-      // REGRESSION ASSERT: Detect V3 probe answers specifically
-      const droppedV3Answers = droppedEntries.filter(e => 
-        (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER') &&
-        e.role === 'user'
-      );
-      
-      if (droppedV3Answers.length > 0) {
-        console.error('[CQ_TRANSCRIPT][V3_PROBE_ANSWER_MISSING_REGRESSION]', {
-          droppedCount: droppedV3Answers.length,
-          dbLen: base.length,
-          renderLen: finalFiltered.length,
-          droppedKeys: droppedV3Answers.map(e => ({
-            stableKey: e.stableKey || e.id,
-            promptId: e.meta?.promptId,
-            loopKey: e.meta?.loopKey,
-            textPreview: (e.text || '').substring(0, 40)
-          }))
-        });
-      }
-    }
-    
-    // DIAGNOSTIC: Detect when filters are hiding items - CORRECTED (use renderableDbLen)
-    const hiddenCount = renderableDbLen - finalFiltered.length;
-    if (hiddenCount >= 1) {
-      const hiddenEntries = base.filter(e => 
-        isRenderableTranscriptEntry(e) && 
-        !finalFiltered.some(r => (r.stableKey && r.stableKey === e.stableKey) || (r.id && r.id === e.id))
-      );
-      
-      console.warn('[TRANSCRIPT_AUDIT][LEN_MISMATCH]', {
-        dbLen: base.length,
-        renderableDbLen,
-        renderedLen: finalFiltered.length,
-        hiddenCount,
-        screenMode,
-        currentItemType: currentItem?.type,
-        hiddenKeys: hiddenEntries.map(e => ({
-          key: e.stableKey || e.id,
-          type: e.messageType || e.type,
-          visible: e.visibleToCandidate,
-          textPreview: (e.text || '').substring(0, 40)
-        }))
-      });
-    }
-    
-    return finalFiltered;
-  }, [transcriptSOT, currentItem, multiInstanceGate]);
 
   // Render-time freeze: Capture/clear snapshot based on isUserTyping
   useEffect(() => {
