@@ -2821,6 +2821,28 @@ function CandidateInterviewInner() {
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
 
+  useEffect(() => {
+    console.log('[CQ_BOOT_STATE][SNAPSHOT]', {
+      sessionId,
+      isLoading,
+      hasSession: !!session,
+      hasEngine: !!engine
+    });
+  }, [sessionId, isLoading, session, engine]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    const t = setTimeout(() => {
+      console.log('[CQ_BOOT_STATE][WATCHDOG_5S]', {
+        sessionId,
+        isLoading,
+        hasSession: !!session,
+        hasEngine: !!engine
+      });
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [sessionId, isLoading, session, engine]);
+
   // ============================================================================
   // BOOTSTRAP HELPERS + INITIALIZER (HOISTED)
   // ============================================================================
@@ -2880,6 +2902,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // BOOT GUARD - Ultra-minimal early return during unstable boot/LOADING
   // ============================================================================
+  console.log('[CQ_BOOT_GUARD][EVAL]', { sessionId, isLoading, hasSession: !!session, hasEngine: !!engine });
   const cqBootNotReady = isLoading || !session || !engine;
   
   if (cqBootNotReady) {
