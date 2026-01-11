@@ -3359,6 +3359,545 @@ function CandidateInterviewInner() {
       console.log('[CQ_BOOT][END]', { sessionId });
     }
   };
+
+  // ============================================================================
+  // BOOTSTRAP HELPERS + INITIALIZER (HOISTED)
+  // ============================================================================
+  // TDZ FIX: These functions are moved here (before BOOT GUARD and RENDERKICK)
+  // to ensure they are initialized before any code path that might call them,
+  // especially the render-time kickstart which is not protected by the boot guard.
+  const restoreFromSnapshots = async (engineData, loadedSession) => {
+    // CHANGE 1: Clean legacy V3 probe prompts on restore
+    const rawTranscript = loadedSession.transcript_snapshot || [];
+    const restoredTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+    
+    const restoredQueue = loadedSession.queue_snapshot || [];
+    const restoredCurrentItem = loadedSession.current_item_snapshot || null;
+
+    const hasTranscript = restoredTranscript.length > 0;
+    const isCompleted = loadedSession.status === 'completed';
+    const hasValidCurrentItem = restoredCurrentItem &&
+                                 typeof restoredCurrentItem === 'object' &&
+                                 !Array.isArray(restoredCurrentItem) &&
+                                 restoredCurrentItem.type;
+    const hasQueue = restoredQueue.length > 0;
+
+    if (!isCompleted && hasTranscript && !hasValidCurrentItem && !hasQueue) {
+      return false;
+    }
+
+    // MERGE STRATEGY: Use functional update to guarantee latest canonical state
+    setDbTranscriptSafe(prev => {
+      const merged = mergeTranscript(prev, restoredTranscript, sessionId);
+      console.log('[RESTORE][MERGE]', { prevLen: prev.length, restoredLen: restoredTranscript.length, mergedLen: merged.length });
+      return merged;
+    });
+    
+    setQueue(restoredQueue);
+    setCurrentItem(restoredCurrentItem);
+    
+    console.log('[CANDIDATE_BOOT][FIRST_ITEM_RESOLVED]', { currentItemType: restoredCurrentItem?.type, reason: 'restore_from_snapshots' });
+
+    if (!restoredCurrentItem && restoredQueue.length > 0) {
+      const nextItem = restoredQueue[0];
+      setCurrentItem(nextItem);
+      setQueue(restoredQueue.slice(1));
+    }
+
+    if (!restoredCurrentItem && restoredQueue.length === 0 && restoredTranscript.length > 0) {
+      if (loadedSession.status === 'completed') {
+        setShowCompletionModal(true);
+      } else {
+        return false;
+      }
+    }
+
+    setTimeout(() => autoScrollToBottom(), 100);
+    return true;
+  };
+
+  const rebuildSessionFromResponses = async (engineData, loadedSession) => {
+    try {
+      const responses = await base44.entities.Response.filter({
+        session_id: sessionId
+      });
+
+      const sortedResponses = responses.sort((a, b) =>
+        new Date(a.response_timestamp) - new Date(b.response_timestamp)
+      );
+
+      const restoredTranscript = [];
+
+      for (const response of sortedResponses) {
+        const question = engineData.QById[response.question_id];
+        if (question) {
+          const sectionEntity = engineData.Sections.find(s => s.id === question.section_id);
+          const sectionName = sectionEntity?.section_name || question.category || '';
+
+          restoredTranscript.push({
+            id: `q-${response.id}`,
+            stableKey: `question-rebuild:${response.question_id}:${response.id}`,
+            questionId: response.question_id,
+            questionText: question.question_text,
+            answer: response.answer,
+            category: sectionName,
+            type: 'question',
+            timestamp: response.response_timestamp,
+            createdAt: Date.now()
+          });
+        }
+      }
+
+      // CHANGE 1: Clean legacy V3 probe prompts on rebuild
+      const cleanedRestoredTranscript = cleanLegacyV3ProbePrompts(restoredTranscript, sessionId);
+
+      // MERGE STRATEGY: Use functional update to guarantee latest canonical state
+      let finalLen;
+      setDbTranscriptSafe(prev => {
+        const merged = mergeTranscript(prev, cleanedRestoredTranscript, sessionId);
+        finalLen = merged.length;
+        console.log('[REBUILD][MERGE]', { prevLen: prev.length, restoredLen: cleanedRestoredTranscript.length, mergedLen: merged.length });
+        return merged;
+      });
+      
+      displayOrderRef.current = Math.max(restoredTranscript.length, finalLen || 0);
+
+      let nextQuestionId = null;
+
+      if (sortedResponses.length > 0) {
+        const lastResponse = sortedResponses[sortedResponses.length - 1];
+        const lastQuestionId = lastResponse.question_id;
+        const lastAnswer = lastResponse.answer;
+
+        nextQuestionId = computeNextQuestionId(engineData, lastQuestionId, lastAnswer);
+      } else {
+        nextQuestionId = engineData.ActiveOrdered[0];
+      }
+
+      if (!nextQuestionId || !engineData.QById[nextQuestionId]) {
+        setCurrentItem(null);
+        setQueue([]);
+
+        await base44.entities.InterviewSession.update(sessionId, {
+          transcript_snapshot: restoredTranscript,
+          queue_snapshot: [],
+          current_item_snapshot: null,
+          total_questions_answered: restoredTranscript.filter(t => t.type === 'question').length,
+          completion_percentage: 100,
+          status: 'completed',
+          completed_date: new Date().toISOString()
+        });
+
+        setShowCompletionModal(true);
+      } else {
+        const nextItem = { id: nextQuestionId, type: 'question' };
+        setCurrentItem(nextItem);
+        setQueue([]);
+
+        await base44.entities.InterviewSession.update(sessionId, {
+          transcript_snapshot: restoredTranscript,
+          queue_snapshot: [],
+          current_item_snapshot: nextItem,
+          total_questions_answered: restoredTranscript.filter(t => t.type === 'question').length,
+          completion_percentage: Math.round((restoredTranscript.filter(t => t.type === 'question').length / engineData.TotalQuestions) * 100),
+          status: 'in_progress'
+        });
+      }
+
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const initializeInterview = async () => {
+    console.log('[CQ_BOOT][INIT_ENTER_TDZ_SAFE_POINT]', { sessionId });
+    console.log('[CQ_BOOT][INIT_ENTER_TDZ_SAFE_POINT]', { sessionId });
+    // BOOT DEBUG: Mark started (prevents kickstart)
+    if (typeof window !== 'undefined' && sessionId) {
+      window[`__CQ_INIT_STARTED__${sessionId}`] = true;
+    }
+    
+    // BOOT DEBUG: Entry log (one-time per session)
+    console.log('[CQ_BOOT][START]', { sessionId });
+    
+    // CANCELABLE TIMEOUT: Track boot completion to prevent false timeout
+    const bootCompletedRef = { value: false };
+    const componentUnmountedRef = { value: false };
+    
+    // DIAGNOSTIC VARS: Track gating values for FATAL log (diagnostics only, not used by runtime)
+    let loadedSessionForDiag = null;
+    let configForDiag = null;
+    let engineDataForDiag = null;
+    
+    const bootTimeout = setTimeout(() => {
+      if (componentUnmountedRef.value) {
+        console.log('[CANDIDATE_INTERVIEW][LOAD_TIMEOUT][SKIP] Component unmounted');
+        return;
+      }
+      
+      if (bootCompletedRef.value) {
+        console.log('[CANDIDATE_INTERVIEW][LOAD_TIMEOUT][SKIP] Boot already completed');
+        return;
+      }
+      
+      console.error('[CANDIDATE_INTERVIEW][LOAD_TIMEOUT]', {
+        sessionId,
+        hasEngine: bootCompletedRef.value,
+        screenMode,
+        currentItemType: currentItem?.type,
+        elapsed: '25000ms'
+      });
+      setShowLoadingRetry(true);
+    }, 25000);
+    
+    // Cleanup: mark unmounted and clear timeout
+    const timeoutCleanup = () => {
+      componentUnmountedRef.value = true;
+      clearTimeout(bootTimeout);
+    };
+
+    // HARDENED: Wrap entire boot sequence in try/catch/finally
+    try {
+      // CRITICAL: Candidate interviews are 100% anonymous - NO auth calls
+      console.log('[CANDIDATE_BOOT] ========== ANONYMOUS BOOT PATH ==========');
+      console.log('[CANDIDATE_BOOT] Auth-independent boot (no User/me, no auth.me(), anonymous session)');
+      console.log('[CANDIDATE_BOOT] Route: CandidateInterview (public/anonymous)');
+      
+      const { config } = await getSystemConfig();
+      configForDiag = config; // DIAGNOSTIC: Capture for FATAL log
+      
+      let effectiveMode = await getEffectiveInterviewMode({
+        isSandbox: false,
+        departmentCode: null
+      });
+
+      const isSandboxLike = window?.location?.href?.includes('/preview');
+      if (isSandboxLike && config.sandboxAiProbingOnly) {
+        effectiveMode = "AI_PROBING";
+      }
+
+      setInterviewMode(effectiveMode);
+
+      const ideActive = effectiveMode === "AI_PROBING" || effectiveMode === "HYBRID";
+      setIdeEnabled(ideActive);
+
+      // Check V3 debug mode
+      const v3DebugMode = config.v3?.debug_mode_enabled || false;
+      setV3DebugEnabled(v3DebugMode);
+
+      // Candidate mode: Do NOT call User/me - interviews run anonymously
+      setIsAdminUser(false);
+
+      // SERVER-TRUTH GUARD: Always fetch session from DB (never create duplicate)
+      console.log('[CANDIDATE_BOOT][FETCH_SESSION]', { sessionId });
+      
+      cqLog('INFO', '[CANDIDATE_BOOT][SESSION_LOAD_BEGIN]', { sessionId });
+      
+      let loadedSession;
+      try {
+        loadedSession = await base44.entities.InterviewSession.get(sessionId);
+      } catch (fetchErr) {
+        console.error('[CANDIDATE_BOOT][SESSION_FETCH_ERROR]', { 
+          sessionId, 
+          error: fetchErr.message 
+        });
+        // Session fetch failed - set stable error state
+        setError(`Session not found. This interview link may be invalid or expired.`);
+        setIsLoading(false);
+        bootCompletedRef.value = true;
+        clearTimeout(bootTimeout);
+        return;
+      }
+
+      if (!loadedSession || !loadedSession.id) {
+        console.error('[CANDIDATE_BOOT][SESSION_NOT_FOUND]', { 
+          sessionId, 
+          hasSession: !!loadedSession,
+          hasId: !!loadedSession?.id
+        });
+        // Session not found or invalid - set stable error state
+        setError(`Session not found. This interview link may be invalid or expired.`);
+        setIsLoading(false);
+        bootCompletedRef.value = true;
+        clearTimeout(bootTimeout);
+        return;
+      }
+      
+      console.log('[CANDIDATE_BOOT][SESSION_LOADED]', { 
+        sessionId: loadedSession.id,
+        status: loadedSession.status,
+        transcriptLen: loadedSession.transcript_snapshot?.length || 0
+      });
+      
+      cqLog('INFO', '[CANDIDATE_BOOT][SESSION_LOAD_OK]', { sessionId, status: loadedSession?.status });
+      
+      loadedSessionForDiag = loadedSession; // DIAGNOSTIC: Capture for FATAL log
+      
+      // CQ_TRANSCRIPT_CONTRACT: Session start assertion
+      console.log('[CQ_TRANSCRIPT][SESSION_START]', {
+        sessionId: loadedSession.id,
+        transcriptLen: loadedSession.transcript_snapshot?.length || 0,
+        note: 'Transcript-backed history only (dbTranscript = single source of truth)'
+      });
+
+      if (loadedSession.status === 'paused') {
+        await base44.entities.InterviewSession.update(sessionId, {
+          status: 'in_progress'
+        });
+        loadedSession.status = 'in_progress';
+      }
+
+      setSession(loadedSession);
+      
+      // BOOT DEBUG: One-time session ready log (window-scoped, deduped per sessionId)
+      if (typeof window !== 'undefined' && sessionId && !window[`cqSessionReady_${sessionId}`]) {
+        window[`cqSessionReady_${sessionId}`] = true;
+        console.log('[CQ_BOOT_DEBUG][SESSION_READY]', { sessionId, hasSession: true });
+      }
+
+      try {
+        const departments = await base44.entities.Department.filter({
+          department_code: loadedSession.department_code
+        });
+        if (departments.length > 0) {
+          setDepartment(departments[0]);
+        }
+      } catch (err) {
+        // Silent continue
+      }
+
+      cqLog('INFO', '[CANDIDATE_BOOT][ENGINE_INIT_BEGIN]', { sessionId });
+      
+      console.log('[V3_ONLY][ENFORCED]', {
+        route: 'CandidateInterview',
+        reason: 'Candidate/public interview runtime',
+        v3Only: true,
+        v2PacksDisabled: true
+      });
+      
+      const bootStart = Date.now();
+      const engineData = await bootstrapEngine(base44);
+      const bootMs = Date.now() - bootStart;
+      
+      // V3-ONLY KILL SWITCH: Detect V2 leaks after engine boot (FAIL-FAST)
+      if (engineData) {
+        const v2PacksLoaded = engineData.V2Packs?.length > 0;
+        const packsBootstrapped = Object.keys(engineData.PackStepsById || {}).length;
+        const hasV2Artifacts = v2PacksLoaded || (packsBootstrapped > 0 && !V3_ONLY_MODE);
+        
+        if (hasV2Artifacts) {
+          const stack = new Error().stack?.split('\n').slice(0, 4).join('\n') || 'N/A';
+          console.error('[FATAL][V2_LEAK_DETECTED]', {
+            reason: v2PacksLoaded ? 'v2_packs_loaded' : 'packs_bootstrapped_without_v3_flag',
+            route: 'CandidateInterview',
+            pathname: window.location?.pathname || '',
+            sessionId,
+            v2PacksCount: engineData.V2Packs?.length || 0,
+            packsBootstrappedCount: packsBootstrapped,
+            V3_ONLY_MODE,
+            stack
+          });
+          
+          // FAIL-FAST: Throw immediately (do not self-heal - this is a contract violation)
+          throw new Error('V2_LEAK_DETECTED in candidate/public — V3-only contract violated. Interview cannot proceed.');
+        }
+      }
+      
+      engineDataForDiag = engineData; // DIAGNOSTIC: Capture for FATAL log
+      
+      cqLog('INFO', '[CANDIDATE_BOOT][ENGINE_INIT_OK]', { sessionId, hasEngineData: !!engineData });
+      
+      setEngine(engineData);
+      bootCompletedRef.value = true; // Mark boot complete BEFORE any further async work
+      
+      // BOOT DEBUG: One-time engine ready log (window-scoped, deduped per sessionId)
+      if (typeof window !== 'undefined' && sessionId && !window[`cqEngineReady_${sessionId}`]) {
+        window[`cqEngineReady_${sessionId}`] = true;
+        console.log('[CQ_BOOT_DEBUG][ENGINE_READY]', { sessionId, hasEngine: true });
+      }
+      
+      console.log('[CANDIDATE_INTERVIEW][ENGINE_READY]', {
+        sessionId,
+        bootMs,
+        screenMode: loadedSession.transcript_snapshot?.length > 0 ? 'QUESTION (pending)' : 'WELCOME (pending)',
+        currentItemType: loadedSession.current_item_snapshot?.type || null
+      });
+
+      try {
+        const orderedSections = buildSectionsFromEngine(engineData);
+        setSections(orderedSections);
+
+        if (orderedSections.length > 0) {
+          const initialSectionIndex = determineInitialSectionIndex(orderedSections, loadedSession, engineData);
+          setCurrentSectionIndex(initialSectionIndex);
+
+          // Log section started if not new session
+          if (loadedSession.total_questions_answered > 0 && orderedSections[initialSectionIndex]) {
+            await logSectionStarted(sessionId, {
+              sectionId: orderedSections[initialSectionIndex].id,
+              sectionName: orderedSections[initialSectionIndex].displayName
+            });
+          }
+        }
+      } catch (sectionErr) {
+        console.error('[SECTIONS] Error initializing sections:', sectionErr);
+      }
+
+      const hasValidSnapshots = loadedSession.transcript_snapshot &&
+                                 loadedSession.transcript_snapshot.length > 0;
+
+      const needsRebuild = loadedSession.status === 'in_progress' &&
+                           (!loadedSession.current_item_snapshot || !hasValidSnapshots);
+
+      if (needsRebuild) {
+        await rebuildSessionFromResponses(engineData, loadedSession);
+      } else if (hasValidSnapshots) {
+            const restoreSuccessful = await restoreFromSnapshots(engineData, loadedSession);
+
+        if (!restoreSuccessful) {
+          await rebuildSessionFromResponses(engineData, loadedSession);
+        }
+      } else {
+        // New session - Initialize with intro blocker only
+        // CRITICAL: dbTranscript already initialized as [] - NEVER reset it
+        setQueue([]);
+        setCurrentItem(null); // Will be set after "Got it — Let's Begin"
+        
+        console.log('[CANDIDATE_BOOT][FIRST_ITEM_RESOLVED]', { currentItemType: null, reason: 'new_session' });
+      }
+
+      const hasAnyResponses = loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0;
+      const sessionIsNew = !hasAnyResponses;
+
+      setIsNewSession(sessionIsNew);
+      
+      // STABLE: Set screen mode WITHOUT triggering transcript resets
+      console.log('[INIT][SCREEN_MODE]', {
+        sessionIsNew,
+        transcriptLen: loadedSession.transcript_snapshot?.length || 0,
+        settingMode: sessionIsNew ? 'WELCOME' : 'QUESTION'
+      });
+      setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
+
+      // PART A: Add Welcome to transcript for new sessions (REQUIRED for legal record)
+      if (sessionIsNew) {
+        try {
+          const withWelcome = await ensureWelcomeInTranscript(sessionId, loadedSession.transcript_snapshot || []);
+          if (withWelcome.length > (loadedSession.transcript_snapshot || []).length) {
+            console.log('[WELCOME][TRANSCRIPT_APPENDED]', {
+              sessionId,
+              transcriptLen: withWelcome.length,
+              reason: 'Welcome message added to transcript as legal record'
+            });
+            await refreshTranscriptFromDB('welcome_appended');
+          } else {
+            console.log('[WELCOME][TRANSCRIPT_EXISTS]', {
+              sessionId,
+              transcriptLen: withWelcome.length,
+              reason: 'Welcome message already in transcript'
+            });
+          }
+        } catch (err) {
+          console.error('[WELCOME][TRANSCRIPT_APPEND_ERROR]', { error: err.message });
+        }
+      }
+
+      // Log system events (with idempotency)
+      if (sessionIsNew) {
+        // IDEMPOTENCY: Check if SESSION_CREATED already exists (prevents duplicates)
+        const hasSessionCreated = (loadedSession.transcript_snapshot || []).some(e => 
+          e.messageType === 'SYSTEM_EVENT' && e.eventType === 'SESSION_CREATED'
+        );
+        
+        if (!hasSessionCreated) {
+          await logSystemEventHelper(sessionId, 'SESSION_CREATED', {
+            department_code: loadedSession.department_code,
+            file_number: loadedSession.file_number
+          });
+          console.log('[SESSION_CREATED][LOGGED]', { sessionId });
+        } else {
+          console.log('[SESSION_CREATED][SKIP] Already logged for session');
+        }
+      } else {
+        await logSystemEventHelper(sessionId, 'SESSION_RESUMED', {
+          last_question_id: loadedSession.current_question_id
+        });
+      }
+
+      // Mark boot complete and clear timeout (prevents false timeout after success)
+      bootCompletedRef.value = true;
+      clearTimeout(bootTimeout);
+      console.log('[CANDIDATE_INTERVIEW][LOAD_TIMEOUT_CLEARED]', {
+        sessionId,
+        reason: 'engine_ready',
+        bootMs
+      });
+      
+      setIsLoading(false);
+      setShowLoadingRetry(false);
+      
+      // BOOT DEBUG: One-time isLoading=false log (window-scoped, deduped per sessionId)
+      if (typeof window !== 'undefined' && sessionId && !window[`cqLoadingFalse_${sessionId}`]) {
+        window[`cqLoadingFalse_${sessionId}`] = true;
+        console.log('[CQ_BOOT_DEBUG][LOADING_FALSE]', { sessionId, isLoading: false });
+      }
+      
+      cqLog('INFO', "[CANDIDATE_INTERVIEW][READY]", { 
+        screenMode: sessionIsNew ? 'WELCOME' : 'QUESTION',
+        currentItemType: loadedSession.current_item_snapshot?.type || null,
+        transcriptLen: transcriptSOT.length,
+        engineReady: bootCompletedRef.value
+      });
+
+    } catch (err) {
+      // BOOT DEBUG: Store last error for inspection
+      if (typeof window !== 'undefined') {
+        window.__CQ_BOOT_LAST_ERROR__ = {
+          message: String(err?.message || err),
+          stack: err?.stack || null,
+          at: Date.now(),
+          sessionId
+        };
+      }
+      
+      console.error('[CQ_BOOT][ERROR]', { 
+        sessionId, 
+        message: String(err?.message || err),
+        stack: err?.stack?.substring(0, 200)
+      });
+      
+      bootCompletedRef.value = true; // Mark complete even on error
+      clearTimeout(bootTimeout);
+      
+      console.error('[CANDIDATE_BOOT][FATAL]', {
+        phase: 'initializeInterview',
+        sessionId,
+        errorMessage: err?.message,
+        errorStack: err?.stack?.substring(0, 300),
+        gatingValues: {
+          sessionFetchComplete: !!loadedSessionForDiag,
+          configFetchComplete: !!configForDiag,
+          engineBootstrapComplete: !!engineDataForDiag
+        }
+      });
+      
+      const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
+      setError(`Failed to load interview: ${errorMessage}`);
+    } finally {
+      // CRITICAL: ALWAYS flip isLoading=false (even on error)
+      setIsLoading(false);
+      setShowLoadingRetry(false);
+      
+      // BOOT DEBUG: One-time isLoading=false log (already added above in main flow)
+      // This log fires here in error path too
+      if (typeof window !== 'undefined' && sessionId && !window[`cqLoadingFalse_${sessionId}`]) {
+        window[`cqLoadingFalse_${sessionId}`] = true;
+        console.log('[CQ_BOOT_DEBUG][LOADING_FALSE]', { sessionId, isLoading: false });
+      }
+      
+      console.log('[CQ_BOOT][END]', { sessionId });
+    }
+  };
   
   // ============================================================================
   // BOOT RENDERKICK - Emergency render-time init scheduler (last-resort safety net)
@@ -3375,6 +3914,7 @@ function CandidateInterviewInner() {
       if (!window[cqStartedKey]) {
         try {
           console.warn('[CQ_BOOT_RENDERKICK][CALL_INIT]', { sessionId });
+          console.log('[CQ_BOOT_RENDERKICK][CALL_INIT_TDZ_SAFE]', { hasInit: typeof initializeInterview === 'function' });
           initializeInterview(); // use same call signature as effect path (no args)
         } catch (e) {
           console.error('[CQ_BOOT_RENDERKICK][FAILED]', { sessionId, message: e?.message, stack: e?.stack });
