@@ -2853,6 +2853,10 @@ function CandidateInterviewInner() {
         try {
           console.warn('[CQ_BOOT_RENDERKICK][CALL_INIT]', { sessionId });
           console.log('[CQ_BOOT_RENDERKICK][CALL_INIT_TDZ_SAFE]', { hasInit: typeof initializeInterview === 'function' });
+          if (typeof initializeInterview !== 'function') {
+            console.log('[CQ_BOOT_RENDERKICK][SKIP_INIT_UNDEFINED]', { sessionId, typeofInit: typeof initializeInterview });
+            return;
+          }
           initializeInterview(); // use same call signature as effect path (no args)
         } catch (e) {
           console.error('[CQ_BOOT_RENDERKICK][FAILED]', { sessionId, message: e?.message, stack: e?.stack });
