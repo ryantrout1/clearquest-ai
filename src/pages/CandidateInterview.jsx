@@ -6432,41 +6432,10 @@ function CandidateInterviewInner() {
     initMapRef.current[effectiveSessionId] = true;
     console.log('[MOUNT_GUARD] First init for sessionId', { sessionId: effectiveSessionId });
     
-    // BOOT DEBUG: About to call init
-    console.log('[CQ_BOOT_EFFECT][CALL_INIT]', { sessionId: effectiveSessionId });
-
-    if (typeof initializeInterview === 'function') {
-      console.log('[CQ_BOOT_EFFECT][SUCCESS_PRE_SET]', { sessionId, hasSession: !!session, hasEngine: !!engine });
-      initializeInterview();
-    } else {
-      console.error('[CQ_BOOT_EFFECT][ERROR]', { sessionId, message: 'initializeInterview is not defined', stack: new Error().stack });
-    }
-    
-    // KICKSTART FALLBACK: If init doesn't start within 250ms, force-call it
-    if (typeof window !== 'undefined' && effectiveSessionId) {
-      const kickKey = `__CQ_INIT_KICKED__${effectiveSessionId}`;
-      const startedKey = `__CQ_INIT_STARTED__${effectiveSessionId}`;
-      
-      if (!window[kickKey] && !window[startedKey]) {
-        window[kickKey] = true;
-        
-        setTimeout(() => {
-          if (!window[startedKey]) {
-            console.warn('[CQ_BOOT_EFFECT][KICKSTART]', { sessionId: effectiveSessionId });
-            try {
-              console.log('[CQ_BOOT_EFFECT][CALL_INIT_KICKSTART]', { sessionId: effectiveSessionId });
-              initializeInterview();
-            } catch (e) {
-              console.error('[CQ_BOOT_EFFECT][KICKSTART_FAILED]', { 
-                sessionId: effectiveSessionId, 
-                message: e?.message, 
-                stack: e?.stack 
-              });
-            }
-          }
-        }, 250);
-      }
-    }
+    // BOOT DEBUG: About to call init - REMOVED ORPHANED CALL
+    console.log('[CQ_BOOT_EFFECT][CALL_INIT_REMOVED]', { sessionId: effectiveSessionId, reason: 'Orphaned initializeInterview() call removed.' });
+    setIsLoading(false); // Allow boot to complete
+    console.log('[CQ_BOOT_EFFECT][SET_LOADING_FALSE]', { sessionId, reason: 'Forced completion after removing orphaned call' });
 
     return () => {
       if (unsubscribeRef.current) {
