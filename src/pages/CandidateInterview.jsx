@@ -3007,6 +3007,7 @@ function CandidateInterviewInner() {
       // DO NOT clear initMapRef on unmount - allows detection across remounts
     };
   }, [effectiveSessionId]);
+  console.log('[TDZ_BISECT][P2_AFTER_BOOT_EFFECT_DEF]', { sessionId });
 
   // ============================================================================
   // BOOTSTRAP HELPERS + INITIALIZER (HOISTED)
