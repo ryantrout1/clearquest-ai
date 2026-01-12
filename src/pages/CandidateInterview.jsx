@@ -10706,241 +10706,11 @@ function CandidateInterviewInner() {
     }
     }, [currentItem, engine, queue, dbTranscript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, sectionCompletionMessage, activeV2Pack, v2PackMode, aiFollowupCounts, aiProbingEnabled, aiProbingDisabledForSession, refreshTranscriptFromDB]);
 
-  const saveAnswerToDatabase = async (questionId, answer, question) => {
-    try {
-      const existing = await base44.entities.Response.filter({
-        session_id: sessionId,
-        question_id: questionId,
-        response_type: 'base_question'
-      });
 
-      if (existing.length > 0) {
-        return existing[0];
-      }
 
-      const currentDisplayOrder = displayOrderRef.current++;
-      const triggersFollowup = question.followup_pack && answer.toLowerCase() === 'yes';
 
-      const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
-      const sectionName = sectionEntity?.section_name || question.category || '';
 
-      const created = await base44.entities.Response.create({
-        session_id: sessionId,
-        question_id: questionId,
-        question_text: question.question_text,
-        category: sectionName,
-        answer: answer,
-        answer_array: null,
-        triggered_followup: triggersFollowup,
-        followup_pack: triggersFollowup ? question.followup_pack : null,
-        is_flagged: false,
-        flag_reason: null,
-        response_timestamp: new Date().toISOString(),
-        display_order: currentDisplayOrder,
-        response_type: 'base_question'
-      });
 
-      return created;
-    } catch (err) {
-      console.error('❌ Database save error:', err);
-      return null;
-    }
-  };
-
-  const saveV2PackFieldResponse = async ({ sessionId, packId, fieldKey, instanceNumber, answer, baseQuestionId, baseQuestionCode, sectionId, questionText }) => {
-    try {
-      console.log('[V2_PACK_FIELD][SAVE][CALL]', {
-        sessionId,
-        packId,
-        fieldKey,
-        instanceNumber,
-        baseQuestionId,
-        baseQuestionCode,
-        answerLength: answer?.length || 0
-      });
-
-      // Upsert logic: find existing Response for this (sessionId, packId, fieldKey, instanceNumber)
-      const existing = await base44.entities.Response.filter({
-        session_id: sessionId,
-        pack_id: packId,
-        field_key: fieldKey,
-        instance_number: instanceNumber,
-        response_type: 'v2_pack_field'
-      });
-
-      const sectionEntity = engine.Sections.find(s => s.id === sectionId);
-      const sectionName = sectionEntity?.section_name || '';
-
-      if (existing.length > 0) {
-        // Update existing record
-        await base44.entities.Response.update(existing[0].id, {
-          answer: answer,
-          question_text: questionText,
-          response_timestamp: new Date().toISOString()
-        });
-        console.log('[V2_PACK_FIELD][SAVE][OK] Updated existing Response', existing[0].id);
-        return existing[0];
-      } else {
-        // Create new record
-        const created = await base44.entities.Response.create({
-          session_id: sessionId,
-          question_id: baseQuestionId,
-          question_text: questionText,
-          category: sectionName,
-          answer: answer,
-          triggered_followup: false,
-          is_flagged: false,
-          response_timestamp: new Date().toISOString(),
-          response_type: 'v2_pack_field',
-          pack_id: packId,
-          field_key: fieldKey,
-          instance_number: instanceNumber,
-          base_question_id: baseQuestionId,
-          base_question_code: baseQuestionCode
-        });
-        console.log('[V2_PACK_FIELD][SAVE][OK] Created new Response for', { packId, fieldKey, instanceNumber });
-        return created;
-      }
-    } catch (err) {
-      console.error('[V2_PACK_FIELD][SAVE][ERROR]', err);
-      // Non-blocking - log error but don't break UX
-      return null;
-    }
-  };
-
-  const saveFollowUpAnswer = async (packId, fieldKey, answer, substanceName, instanceNumber = 1, factSource = "user") => {
-    try {
-      const responses = await base44.entities.Response.filter({
-        session_id: sessionId,
-        followup_pack: packId,
-        triggered_followup: true
-      });
-
-      if (responses.length === 0) {
-        return;
-      }
-
-      const triggeringResponse = responses[responses.length - 1];
-
-      const existingFollowups = await base44.entities.FollowUpResponse.filter({
-        session_id: sessionId,
-        response_id: triggeringResponse.id,
-        followup_pack: packId,
-        instance_number: instanceNumber
-      });
-
-      let factsUpdate = null;
-      let unresolvedUpdate = null;
-      if (packId === "PACK_LE_APPS") {
-        const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-        const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
-
-        if (fieldConfig?.semanticKey) {
-          const semanticResult = validateFollowupValue({ packId, fieldKey, rawValue: answer });
-
-          const maxAiFollowups = getPackMaxAiFollowups(packId);
-          const wasProbed = factSource === "ai_probed";
-
-          const probeCount = wasProbed ? maxAiFollowups : 0;
-          const isUnresolved = wasProbed && (semanticResult.status === "invalid" || semanticResult.status === "unknown");
-
-          if (isUnresolved) {
-            const displayValue = fieldConfig.unknownDisplayLabel || `Not recalled after full probing`;
-            factsUpdate = {
-              [fieldConfig.semanticKey]: {
-                value: displayValue,
-                status: "unknown",
-                source: factSource
-              }
-            };
-            unresolvedUpdate = {
-              semanticKey: fieldConfig.semanticKey,
-              fieldKey: fieldKey,
-              probeCount: maxAiFollowups
-            };
-          } else if (semanticResult.status === "valid") {
-            factsUpdate = {
-              [fieldConfig.semanticKey]: {
-                value: semanticResult.normalizedValue,
-                status: "confirmed",
-                source: factSource
-              }
-            };
-          } else if (semanticResult.status === "unknown") {
-            factsUpdate = {
-              [fieldConfig.semanticKey]: {
-                value: semanticResult.normalizedValue,
-                status: "unknown",
-                source: factSource
-              }
-            };
-          }
-        }
-      }
-
-      if (existingFollowups.length === 0) {
-        const createData = {
-          session_id: sessionId,
-          response_id: triggeringResponse.id,
-          question_id: triggeringResponse.question_id,
-          followup_pack: packId,
-          instance_number: instanceNumber,
-          substance_name: substanceName || null,
-          incident_description: answer,
-          completed: false,
-          additional_details: { [fieldKey]: answer }
-        };
-
-        if (factsUpdate) {
-          createData.additional_details.facts = factsUpdate;
-        }
-
-        if (unresolvedUpdate) {
-          createData.additional_details.unresolvedFields = [unresolvedUpdate];
-        }
-
-        const createdRecord = await base44.entities.FollowUpResponse.create(createData);
-
-        if (packId === 'PACK_LE_APPS') {
-          await syncFactsToInterviewSession(sessionId, triggeringResponse.question_id, packId, createdRecord);
-        }
-      } else {
-        const existing = existingFollowups[0];
-
-        const updatedDetails = {
-          ...(existing.additional_details || {}),
-          [fieldKey]: answer
-        };
-
-        if (factsUpdate) {
-          updatedDetails.facts = {
-            ...(updatedDetails.facts || {}),
-            ...factsUpdate
-          };
-        }
-
-        if (unresolvedUpdate) {
-          const existingUnresolved = updatedDetails.unresolvedFields || [];
-          const filtered = existingUnresolved.filter(u => u.semanticKey !== unresolvedUpdate.semanticKey);
-          filtered.push(unresolvedUpdate);
-          updatedDetails.unresolvedFields = filtered;
-        }
-
-        await base44.entities.FollowUpResponse.update(existing.id, {
-          substance_name: substanceName || existing.substance_name,
-          additional_details: updatedDetails
-        });
-
-        const updatedRecord = { ...existing, additional_details: updatedDetails };
-        if (packId === 'PACK_LE_APPS') {
-          await syncFactsToInterviewSession(sessionId, triggeringResponse.question_id, packId, updatedRecord);
-        }
-      }
-
-    } catch (err) {
-      console.error('❌ Follow-up save error:', err);
-    }
-  };
 
   const handleCompletionConfirm = async () => {
     setIsCompletingInterview(true);
@@ -10974,22 +10744,7 @@ function CandidateInterviewInner() {
     }
   };
 
-  const getQuestionDisplayNumber = useCallback((questionId) => {
-    if (!engine) return '';
 
-    if (displayNumberMapRef.current[questionId]) {
-      return displayNumberMapRef.current[questionId];
-    }
-
-    const index = engine.ActiveOrdered.indexOf(questionId);
-    if (index !== -1) {
-      const displayNum = index + 1;
-      displayNumberMapRef.current[questionId] = displayNum;
-      return displayNum;
-    }
-
-    return '';
-  }, [engine]);
 
   // HELPER: Append CTA acknowledgement to transcript (section transition click)
   const appendCtaAcknowledgeToTranscript = useCallback(async ({ sessionId, currentSectionId, nextSectionId }) => {
@@ -13995,9 +13750,805 @@ function CandidateInterviewInner() {
   
   cqTdzMark('BEFORE_CURRENT_PROMPT_COMPUTATION');
   
-  // ============================================================================
-  // CURRENT PROMPT COMPUTATION - Moved here after all dependencies (TDZ fix)
-  // ============================================================================
+  // ===============================
+  // SAFE HELPERS ZONE (TDZ FIX)
+  // ===============================
+
+  const saveV2PackFieldResponse = async ({ sessionId, packId, fieldKey, instanceNumber, answer, baseQuestionId, baseQuestionCode, sectionId, questionText }) => {
+    try {
+      console.log('[V2_PACK_FIELD][SAVE][CALL]', {
+        sessionId,
+        packId,
+        fieldKey,
+        instanceNumber,
+        baseQuestionId,
+        baseQuestionCode,
+        answerLength: answer?.length || 0
+      });
+
+      // Upsert logic: find existing Response for this (sessionId, packId, fieldKey, instanceNumber)
+      const existing = await base44.entities.Response.filter({
+        session_id: sessionId,
+        pack_id: packId,
+        field_key: fieldKey,
+        instance_number: instanceNumber,
+        response_type: 'v2_pack_field'
+      });
+
+      const sectionEntity = engine.Sections.find(s => s.id === sectionId);
+      const sectionName = sectionEntity?.section_name || '';
+
+      if (existing.length > 0) {
+        // Update existing record
+        await base44.entities.Response.update(existing[0].id, {
+          answer: answer,
+          question_text: questionText,
+          response_timestamp: new Date().toISOString()
+        });
+        console.log('[V2_PACK_FIELD][SAVE][OK] Updated existing Response', existing[0].id);
+        return existing[0];
+      } else {
+        // Create new record
+        const created = await base44.entities.Response.create({
+          session_id: sessionId,
+          question_id: baseQuestionId,
+          question_text: questionText,
+          category: sectionName,
+          answer: answer,
+          triggered_followup: false,
+          is_flagged: false,
+          response_timestamp: new Date().toISOString(),
+          response_type: 'v2_pack_field',
+          pack_id: packId,
+          field_key: fieldKey,
+          instance_number: instanceNumber,
+          base_question_id: baseQuestionId,
+          base_question_code: baseQuestionCode
+        });
+        console.log('[V2_PACK_FIELD][SAVE][OK] Created new Response for', { packId, fieldKey, instanceNumber });
+        return created;
+      }
+    } catch (err) {
+      console.error('[V2_PACK_FIELD][SAVE][ERROR]', err);
+      // Non-blocking - log error but don't break UX
+      return null;
+    }
+  };
+
+  const handleAnswer = useCallback(async (value) => {
+    // GUARD: Block YES/NO during V3 prompt answering (prevents stray "Yes" bubble)
+    if (activeUiItem?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
+      // Allow V3 probe answer submission (text input), block YES/NO only
+      const isYesNoAnswer = value === 'Yes' || value === 'No';
+      if (isYesNoAnswer) {
+        console.log('[YESNO_BLOCKED_DURING_V3_PROMPT]', {
+          clicked: value,
+          activeUiItemKind: activeUiItem?.kind,
+          v3PromptPhase,
+          currentItemType: currentItem?.type,
+          bottomBarModeSOT,
+          reason: 'V3 prompt active - YES/NO submission blocked'
+        });
+        return; // Hard block - prevent stray "Yes"/"No" appends
+      }
+    }
+    
+    // IDEMPOTENCY GUARD: Build submit key and check if already submitted
+    const buildSubmitKey = (item, answerValue = null) => {
+      if (!item) return null;
+      if (item.type === 'question') return `q:${item.id}`;
+      if (item.type === 'v2_pack_field') return `p:${item.packId}:${item.fieldKey}:${item.instanceNumber || 0}`;
+      if (item.type === 'v3_pack_opener') return `v3o:${item.packId}:${item.instanceNumber || 0}`;
+      if (item.type === 'followup') return `f:${item.packId}:${item.stepIndex}:${item.instanceNumber || 0}`;
+      if (item.type === 'multi_instance') return `mi:${item.questionId}:${item.packId}:${item.instanceNumber}`;
+      // MI_GATE: Include answer in key to allow YES and NO for same gate
+      if (item.type === 'multi_instance_gate') {
+        const answer = answerValue ? answerValue.trim().toLowerCase() : 'unknown';
+        return `mi_gate:${item.packId}:${item.instanceNumber}:${answer}:${item.id}`;
+      }
+      return null;
+    };
+    
+    // MI_GATE BYPASS: Allow MI_GATE YES/NO even if isCommitting or other guards would block
+    const isMiGateSubmit = currentItem?.type === 'multi_instance_gate' || 
+                           effectiveItemType === 'multi_instance_gate' ||
+                           activeUiItem?.kind === "MI_GATE";
+    
+    const submitKey = buildSubmitKey(currentItem, value);
+    
+    // MI_GATE: Log key for diagnostics
+    if (isMiGateSubmit) {
+      console.log('[MI_GATE][IDEMPOTENCY_KEY]', {
+        submitKey,
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+        answer: value
+      });
+    }
+    
+    if (submitKey && submittedKeysRef.current.has(submitKey)) {
+      // MI_GATE: Log if blocked by idempotency
+      if (isMiGateSubmit) {
+        console.warn('[MI_GATE][IDEMPOTENCY_BLOCKED]', {
+          submitKey,
+          packId: currentItem?.packId,
+          instanceNumber: currentItem?.instanceNumber,
+          answer: value,
+          reason: 'Key already submitted'
+        });
+      } else {
+        console.log(`[IDEMPOTENCY][BLOCKED] Already submitted for key: ${submitKey}`);
+      }
+      return;
+    }
+    
+    // Lock this submission immediately
+    if (submitKey) {
+      submittedKeysRef.current.add(submitKey);
+      console.log(`[IDEMPOTENCY][LOCKED] ${submitKey}`, { packId: currentItem.packId, instanceNumber: currentItem.instanceNumber, sessionId });
+      lastIdempotencyLockedRef.current = submitKey; // DEV: Capture for debug bundle
+      
+      // CRITICAL: Store actual lock key for v3_pack_opener submits (enables correct release in watchdog)
+      if (currentItem.type === 'v3_pack_opener') {
+        lastV3SubmitLockKeyRef.current = submitKey;
+      }
+    }
+    
+    // MI_GATE TRACE 2: handleAnswer entry audit (CORRECT LOCATION - YES/NO calls this directly)
+    if (currentItem?.type === 'multi_instance_gate' || effectiveItemType === 'multi_instance_gate') {
+      console.log('[MI_GATE][TRACE][SUBMIT_CLICK]', {
+        effectiveItemType,
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+        bottomBarModeSOT,
+        answer: value,
+        source: 'handleAnswer_direct_call'
+      });
+    }
+    
+    // EXPLICIT ENTRY LOG: Log which branch we're entering
+    console.log(`[HANDLE_ANSWER][ENTRY] ========== ANSWER HANDLER INVOKED ==========`);
+    console.log(`[HANDLE_ANSWER][ENTRY]`, {
+      currentItemType: currentItem?.type,
+      currentItemId: currentItem?.id,
+      packId: currentItem?.packId,
+      fieldKey: currentItem?.fieldKey,
+      instanceNumber: currentItem?.instanceNumber,
+      v2PackMode,
+      isCommitting,
+      hasEngine: !!engine,
+      answerPreview: value?.substring?.(0, 50) || value,
+      submitKey
+    });
+
+    // EXPLICIT V2 PACK FIELD ENTRY LOG - confirm we're hitting this branch
+    if (currentItem?.type === 'v2_pack_field') {
+      console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] >>>>>>>>>> V2 PACK FIELD DETECTED <<<<<<<<<<`);
+      console.log(`[HANDLE_ANSWER][V2_PACK_FIELD]`, {
+        packId: currentItem.packId,
+        fieldKey: currentItem.fieldKey,
+        fieldIndex: currentItem.fieldIndex,
+        instanceNumber: currentItem.instanceNumber,
+        baseQuestionId: currentItem.baseQuestionId,
+        answer: value?.substring?.(0, 80) || value,
+        hasActiveV2Pack: !!activeV2Pack
+      });
+    }
+    
+    // EXPLICIT MULTI_INSTANCE_GATE ENTRY LOG - confirm we're hitting this branch
+    if (currentItem?.type === 'multi_instance_gate') {
+      console.log(`[HANDLE_ANSWER][MULTI_INSTANCE_GATE] >>>>>>>>>> MULTI_INSTANCE_GATE DETECTED <<<<<<<<<<`);
+      console.log(`[HANDLE_ANSWER][MULTI_INSTANCE_GATE]`, {
+        packId: currentItem.packId,
+        instanceNumber: currentItem.instanceNumber,
+        answer: value?.substring?.(0, 80) || value,
+        hasMultiInstanceGate: !!multiInstanceGate
+      });
+    }
+
+    // MI_GATE BYPASS: Allow MI_GATE YES/NO even if isCommitting is true
+    if (isMiGateSubmit && engine && currentItem) {
+      console.warn('[MI_GATE][BYPASS_GUARD]', {
+        isCommitting,
+        hasEngine: !!engine,
+        hasCurrentItem: !!currentItem,
+        packId: currentItem?.packId,
+        instanceNumber: currentItem?.instanceNumber,
+        answer: value,
+        reason: 'MI_GATE bypass - allowing submission despite isCommitting'
+      });
+      // Continue to MI_GATE handler below (skip generic guard)
+    } else if (isCommitting || !currentItem || !engine) {
+      console.log(`[HANDLE_ANSWER][SKIP] Skipping - isCommitting=${isCommitting}, hasCurrentItem=${!!currentItem}, hasEngine=${!!engine}`);
+      return;
+    }
+
+    setIsCommitting(true);
+    setValidationHint(null);
+
+    if (sectionCompletionMessage) {
+      setSectionCompletionMessage(null);
+    }
+
+    try {
+      // ========================================================================
+      // V2 PACK FIELD HANDLER - MUST BE CHECKED FIRST
+      // This handles answers for v2_pack_field items (PACK_PRIOR_LE_APPS_STANDARD, etc.)
+      // CRITICAL: Every V2 pack field answer MUST go through the backend probe engine
+      // ========================================================================
+      if (currentItem.type === 'v2_pack_field') {
+        const { packId, fieldIndex, fieldKey, fieldConfig, baseQuestionId, instanceNumber } = currentItem;
+
+        // Check if we're answering a clarifier for this field
+        const isAnsweringClarifier = v2ClarifierState &&
+          v2ClarifierState.packId === packId &&
+          v2ClarifierState.fieldKey === fieldKey &&
+          v2ClarifierState.instanceNumber === instanceNumber;
+
+        console.log(`[V2_PACK_FIELD][CLARIFIER_CHECK]`, {
+          packId,
+          fieldKey,
+          instanceNumber,
+          hasV2ClarifierState: !!v2ClarifierState,
+          isAnsweringClarifier,
+          clarifierState: v2ClarifierState
+        });
+
+        // CRITICAL: Declare baseQuestion FIRST before any usage to avoid TDZ errors
+        const baseQuestion = baseQuestionId && engine?.QById ? engine.QById[baseQuestionId] : null;
+
+        if (!baseQuestion) {
+          console.warn('[V2_PACK_FIELD][WARN] baseQuestion not found for baseQuestionId', baseQuestionId, 'packId=', packId, 'fieldKey=', fieldKey);
+        }
+
+        // EXPLICIT ENTRY LOG for V2 pack field answers
+        console.log(`[V2_PACK_FIELD][ENTRY] ========== V2 PACK FIELD ANSWER RECEIVED ==========`);
+        console.log(`[V2_PACK_FIELD][ENTRY]`, {
+          packId,
+          fieldKey,
+          fieldIndex,
+          instanceNumber,
+          answer: value?.substring?.(0, 80) || value,
+          isCommitting,
+          v2PackMode,
+          aiProbingEnabled,
+          aiProbingDisabledForSession,
+          hasActiveV2Pack: !!activeV2Pack,
+          hasBaseQuestion: !!baseQuestion
+        });
+
+        // Validate we have an active V2 pack
+        if (!activeV2Pack) {
+          console.error("[HANDLE_ANSWER][V2_PACK_FIELD][ERROR] No active V2 pack - recovering by exiting pack mode");
+          setV2PackMode("BASE");
+          setIsCommitting(false);
+          setInput("");
+          return;
+        }
+
+        // Validate answer for required fields
+        const normalizedAnswer = value.trim();
+        if (!normalizedAnswer && fieldConfig?.required) {
+          setValidationHint('This field is required. Please provide an answer.');
+          setIsCommitting(false);
+          return;
+        }
+
+        const finalAnswer = normalizedAnswer || "(No response provided)";
+        const questionText = fieldConfig?.label || fieldKey;
+        const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+        const totalFieldsInPack = activeV2Pack.fields?.length || packConfig?.fields?.length || 0;
+        const isLastField = fieldIndex >= totalFieldsInPack - 1;
+
+        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] Processing field ${fieldIndex + 1}/${totalFieldsInPack}: ${fieldKey}`);
+
+        // CRITICAL: Declare v2Result early so it can be referenced throughout this handler
+        let v2Result = null;
+
+        // Determine if this is a clarifier answer or first field answer
+        const isAiFollowupAnswer = isAnsweringClarifier;
+
+        // Use the clarifier question text if this is answering a clarifier
+        const displayQuestionText = isAiFollowupAnswer ? v2ClarifierState.clarifierQuestion : questionText;
+        const entrySource = isAiFollowupAnswer ? 'AI_FOLLOWUP' : 'V2_PACK';
+
+        // V2 pack field Q&A now logged via chatTranscriptHelpers in canonical transcript
+        // No local append - canonical transcript handles it
+
+        // CRITICAL: Save V2 pack field answer to Response table for transcript/BI visibility
+        const v2ResponseRecord = await saveV2PackFieldResponse({
+          sessionId,
+          packId,
+          fieldKey,
+          instanceNumber,
+          answer: finalAnswer,
+          baseQuestionId,
+          baseQuestionCode: baseQuestion?.question_id,
+          sectionId: baseQuestion?.section_id,
+          questionText: questionText
+        });
+
+        // Append question and answer to canonical transcript (legal record) with Response linkage
+        try {
+          const currentTranscript = session.transcript_snapshot || [];
+
+          // Get base Response for parentResponseId
+          const baseResponses = await base44.entities.Response.filter({
+            session_id: sessionId,
+            question_id: baseQuestionId,
+            response_type: 'base_question'
+          });
+          const baseResponseId = baseResponses[0]?.id || baseQuestionId;
+
+          // Log question entry (if not already logged)
+          const questionKey = `${packId}::${fieldKey}::${instanceNumber || 1}`;
+          if (!hasQuestionBeenLogged(sessionId, questionKey)) {
+            await appendQuestionEntry({
+              sessionId,
+              existingTranscript: currentTranscript,
+              text: displayQuestionText,
+              questionId: baseQuestionId,
+              packId,
+              fieldKey,
+              instanceNumber: instanceNumber || 1,
+              responseId: v2ResponseRecord?.id || null,
+              parentResponseId: baseResponseId
+            });
+          }
+
+          // Log answer entry
+          await appendAnswerEntry({
+            sessionId,
+            existingTranscript: currentTranscript,
+            text: finalAnswer,
+            questionId: baseQuestionId,
+            packId,
+            fieldKey,
+            instanceNumber: instanceNumber || 1,
+            responseId: v2ResponseRecord?.id || null,
+            parentResponseId: baseResponseId
+          });
+        } catch (err) {
+          console.warn("[TRANSCRIPT][Q&A] Failed to log V2 pack field question and answer:", err);
+        }
+
+        // LLM-assist: Generate suggestions after PACK_PRLE_Q01 narrative field
+        let localSuggestions = {};
+        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01' && finalAnswer.length > 50) {
+          console.log('[LLM_SUGGESTIONS] Generating field suggestions from narrative...');
+          const suggestions = await generateFieldSuggestions(packId, finalAnswer);
+
+          if (suggestions && Object.keys(suggestions).length > 0) {
+            console.log('[LLM_SUGGESTIONS] Generated suggestions:', suggestions);
+
+            // Map to specific field keys with proper format
+            // NOTE: LLM returns { agency_name, agency_location, position, application_date, application_outcome }
+            // We need to map these to the actual field keys in the pack
+            localSuggestions = {};
+
+            if (suggestions.agency_name) {
+              localSuggestions[`${packId}_${instanceNumber}_PACK_PRLE_Q06`] = suggestions.agency_name;
+            }
+
+            if (suggestions.agency_location) {
+              localSuggestions[`${packId}_${instanceNumber}_PACK_PRLE_Q03`] = suggestions.agency_location;
+            }
+
+            if (suggestions.position) {
+              localSuggestions[`${packId}_${instanceNumber}_PACK_PRLE_Q05`] = suggestions.position;
+            }
+
+            if (suggestions.application_date) {
+              localSuggestions[`${packId}_${instanceNumber}_PACK_PRLE_Q04`] = suggestions.application_date;
+            }
+
+            if (suggestions.application_outcome) {
+              localSuggestions[`${packId}_${instanceNumber}_PACK_PRLE_Q02`] = suggestions.application_outcome;
+            }
+
+            setFieldSuggestions(prev => ({
+              ...prev,
+              ...localSuggestions
+            }));
+          }
+        }
+
+        // Also save to legacy FollowUpResponse for backwards compatibility
+        await saveFollowUpAnswer(packId, fieldKey, finalAnswer, activeV2Pack.substanceName, instanceNumber, 'user');
+
+        // Call V2 backend engine BEFORE checking if pack is complete
+        const maxAiFollowups = getPackMaxAiFollowups(packId);
+        const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
+        const probeCount = aiFollowupCounts[fieldCountKey] || 0;
+
+        // CRITICAL: V2 pack fields ALWAYS consult the backend probe engine (same as regular V2 follow-ups)
+        console.log(`[V2_PACK_FIELD][PROBE_CALL] ========== CALLING BACKEND PROBE ENGINE ==========`);
+        console.log(`[V2_PACK_FIELD][PROBE_CALL]`, {
+          packId,
+          fieldKey,
+          instanceNumber,
+          answerPreview: finalAnswer?.substring?.(0, 60),
+          probeCount,
+          maxAiFollowups,
+          aiProbingEnabled,
+          aiProbingDisabledForSession,
+          currentCollectedAnswers: Object.keys(activeV2Pack.collectedAnswers || {})
+        });
+
+        v2Result = await runV2FieldProbeIfNeeded({
+          base44Client: base44,
+          packId,
+          fieldKey,
+          fieldValue: finalAnswer,
+          previousProbesCount: probeCount,
+          incidentContext: activeV2Pack.collectedAnswers || {},
+          sessionId,
+          questionCode: baseQuestion?.question_id,
+          baseQuestionId,
+          aiProbingEnabled,
+          aiProbingDisabledForSession,
+          maxAiFollowups,
+          instanceNumber,
+          setBackendQuestionTextMap,
+          schemaSource: activeV2Pack.schemaSource,
+          resolvedField: fieldConfig?.raw || null
+        });
+
+
+        // Check if this was the last field in the pack - if so, mark complete and trigger summaries
+        const isPackComplete = isLastField || v2Result?.mode === 'COMPLETE' || v2Result?.mode === 'NEXT_FIELD';
+        if (isPackComplete) {
+          // Mark FollowUpResponse as completed for this instance
+          try {
+            const baseResponses = await base44.entities.Response.filter({
+              session_id: sessionId,
+              question_id: baseQuestionId,
+              response_type: 'base_question'
+            });
+            const baseResponseId = baseResponses[0]?.id;
+
+            if (baseResponseId) {
+              const existingFollowups = await base44.entities.FollowUpResponse.filter({
+                session_id: sessionId,
+                response_id: baseResponseId,
+                followup_pack: packId,
+                instance_number: instanceNumber
+              });
+
+              if (existingFollowups.length > 0) {
+                await base44.entities.FollowUpResponse.update(existingFollowups[0].id, {
+                  completed: true,
+                  completed_timestamp: new Date().toISOString()
+                });
+                console.log('[V2_PACK_COMPLETE] Marked FollowUpResponse as completed', {
+                  followUpResponseId: existingFollowups[0].id,
+                  packId,
+                  instanceNumber
+                });
+              }
+            }
+          } catch (completionErr) {
+            console.warn('[V2_PACK_COMPLETE] Failed to mark FollowUpResponse as completed:', completionErr);
+          }
+
+          // Trigger summary generation in background
+          base44.functions.invoke('triggerSummaries', {
+            sessionId,
+            triggerType: 'question_complete'
+          }).catch(() => {}); // Fire and forget
+        }
+
+        console.log(`[V2_PACK_FIELD][PROBE_RESULT] ========== BACKEND RESPONSE RECEIVED ==========`);
+        console.log(`[V2_PACK_FIELD][PROBE_RESULT]`, {
+          packId,
+          fieldKey,
+          instanceNumber,
+          mode: v2Result?.mode,
+          hasQuestion: !!v2Result?.question,
+          questionPreview: v2Result?.question?.substring?.(0, 60)
+        });
+
+        // Update collectedAnswers with the current field value
+        let updatedCollectedAnswers = {
+          ...activeV2Pack.collectedAnswers,
+          [fieldKey]: finalAnswer
+        };
+
+        // Update activeV2Pack state
+        setActiveV2Pack(prev => ({
+          ...prev,
+          collectedAnswers: updatedCollectedAnswers
+        }));
+
+        // Handle backend errors gracefully - surface to user with retry option
+        if (v2Result?.mode === 'ERROR') {
+          const errorCode = v2Result?.errorCode || 'UNKNOWN';
+          const errorMessage = v2Result?.message || 'Backend error';
+          
+          console.error(`[V2_PACK_FIELD][ERROR]`, {
+            packId,
+            fieldKey,
+            errorCode,
+            errorMessage,
+            debug: v2Result?.debug
+          });
+          
+          // ERROR UI STATE: Show inline error with retry button
+          setValidationHint(
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+              <span className="flex-1">{errorMessage}</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  console.log('[V2_ERROR][RETRY]', { packId, fieldKey, errorCode });
+                  setValidationHint(null);
+                  setIsCommitting(false);
+                  
+                  // Retry the probe with current answer
+                  const retryResult = await runV2FieldProbeIfNeeded({
+                    base44Client: base44,
+                    packId,
+                    fieldKey,
+                    fieldValue: finalAnswer,
+                    previousProbesCount: probeCount,
+                    incidentContext: activeV2Pack.collectedAnswers || {},
+                    sessionId,
+                    questionCode: baseQuestion?.question_id,
+                    baseQuestionId,
+                    aiProbingEnabled,
+                    aiProbingDisabledForSession,
+                    maxAiFollowups,
+                    instanceNumber,
+                    setBackendQuestionTextMap,
+                    schemaSource: activeV2Pack.schemaSource,
+                    resolvedField: fieldConfig?.raw || null
+                  });
+                  
+                  if (retryResult?.mode !== 'ERROR') {
+                    // Retry succeeded - process result normally
+                    console.log('[V2_ERROR][RETRY_SUCCESS]', { mode: retryResult.mode });
+                    // TODO: Process retryResult (refactor to shared handler)
+                  }
+                }}
+                className="text-xs px-2 py-1 h-7"
+              >
+                Retry
+              </Button>
+            </div>
+          );
+          setIsCommitting(false);
+          return;
+        }
+        
+        if (v2Result?.mode === 'NONE' || !v2Result) {
+          console.log(`[V2_PACK_FIELD][FALLBACK] Backend returned ${v2Result?.mode || 'null'} - advancing`);
+          v2Result = { mode: 'NEXT_FIELD', reason: 'backend returned null or NONE' };
+        }
+
+        // Handle AI clarifier from backend
+        if (v2Result?.mode === 'QUESTION' && v2Result.question) {
+          console.log(`[V2_PACK_FIELD][CLARIFIER][SET] ========== CLARIFIER NEEDED ==========`);
+          console.log(`[V2_PACK_FIELD][CLARIFIER][SET]`, {
+            packId,
+            fieldKey,
+            instanceNumber,
+            question: v2Result.question?.substring?.(0, 80),
+            probeCount: probeCount + 1
+          });
+
+          // Set clarifier state - keeps us on this field
+          setV2ClarifierState({
+            packId,
+            fieldKey,
+            instanceNumber,
+            clarifierQuestion: v2Result.question
+          });
+
+          setAiFollowupCounts(prev => ({
+            ...prev,
+            [fieldCountKey]: probeCount + 1
+          }));
+
+          await persistStateToDatabase(null, [], currentItem);
+          setIsCommitting(false);
+          setInput("");
+          return;
+        }
+
+        // Clear clarifier state if we got NEXT_FIELD
+        if (v2Result?.mode === 'NEXT_FIELD' && v2ClarifierState?.packId === packId && v2ClarifierState?.fieldKey === fieldKey) {
+          console.log(`[V2_PACK_FIELD][CLARIFIER][CLEAR] Field resolved`);
+          setV2ClarifierState(null);
+        }
+
+        // Advance to next field or complete pack (only after backend says NEXT_FIELD)
+        if (v2Result?.mode === 'NEXT_FIELD' && !isLastField) {
+          // Field-based gating: Check saved responses to determine next field
+          let nextFieldIdx = fieldIndex + 1;
+
+          // Get all saved responses for this pack instance to check what's answered
+          const savedResponses = await base44.entities.Response.filter({
+            session_id: sessionId,
+            pack_id: packId,
+            instance_number: instanceNumber,
+            response_type: 'v2_pack_field'
+          });
+
+          const answeredFieldKeys = new Set(savedResponses.map(r => r.field_key));
+
+          console.log(`[V2_PACK_FIELD][GATE_CHECK] Field-based gating`, {
+            packId,
+            currentFieldIdx: fieldIndex,
+            nextFieldIdx,
+            totalFields: totalFieldsInPack,
+            answeredFieldKeys: Array.from(answeredFieldKeys)
+          });
+
+          // Skip fields that are already answered or should be skipped based on field config
+          while (nextFieldIdx < totalFieldsInPack) {
+            const nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
+            const alwaysAsk = nextFieldConfig.alwaysAsk || false;
+            const skipUnless = nextFieldConfig.skipUnless || null;
+
+            // Skip if field has skipUnless condition that isn't met
+            if (skipUnless) {
+              let shouldSkip = false;
+
+              // Check skipUnless.application_outcome condition
+              if (skipUnless.application_outcome) {
+                const outcomeField = updatedCollectedAnswers.application_outcome || '';
+                const outcomeValue = outcomeField.toLowerCase();
+                const matchesAny = skipUnless.application_outcome.some(val =>
+                  outcomeValue.includes(val.toLowerCase())
+                );
+                shouldSkip = !matchesAny;
+
+                if (shouldSkip) {
+                  console.log(`[V2_PACK_FIELD][GATE_CHECK] ✗ Skipping ${nextFieldConfig.fieldKey} - skipUnless condition not met`);
+                  nextFieldIdx++;
+                  continue;
+                }
+              }
+            }
+
+            // Check if field was already answered
+            if (!alwaysAsk && answeredFieldKeys.has(nextFieldConfig.fieldKey)) {
+              console.log(`[V2_PACK_FIELD][GATE_CHECK] ✗ Skipping ${nextFieldConfig.fieldKey} - already answered`);
+              nextFieldIdx++;
+              continue;
+            }
+
+            // NEW: Check if field should be auto-skipped based on high-confidence suggestion
+            const autoSkipResult = await maybeAutoSkipV2Field({
+              packId,
+              fieldConfig: nextFieldConfig,
+              fieldKey: nextFieldConfig.fieldKey,
+              instanceNumber,
+              suggestionMap: { ...fieldSuggestions, ...localSuggestions },
+              sessionId,
+              baseQuestionId,
+              baseQuestionCode: baseQuestion?.question_id,
+              sectionId: baseQuestion?.section_id,
+              saveFieldResponse: saveV2PackFieldResponse
+            });
+
+            if (autoSkipResult.shouldSkip) {
+              console.log(`[V2_PACK_FIELD][GATE_CHECK] ✗ Auto-skipped ${nextFieldConfig.fieldKey} with value "${autoSkipResult.autoAnswerValue}"`);
+
+              // Update collected answers with auto-filled value
+              updatedCollectedAnswers = {
+                ...updatedCollectedAnswers,
+                [nextFieldConfig.fieldKey]: autoSkipResult.autoAnswerValue
+              };
+
+              // Add to answered set so it won't be checked again
+              answeredFieldKeys.add(nextFieldConfig.fieldKey);
+
+              // Continue to next field
+              nextFieldIdx++;
+              continue;
+            }
+
+            console.log(`[V2_PACK_FIELD][GATE_CHECK] ✓ Showing ${nextFieldConfig.fieldKey}`);
+            break;
+          }
+
+          if (nextFieldIdx >= totalFieldsInPack) {
+            console.log(`[V2_PACK_FIELD][PACK_COMPLETE] All fields processed`);
+            // Fall through to pack completion
+          } else {
+            const nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
+            console.log(`[V2_PACK_FIELD][NEXT_FIELD] ========== ADVANCING TO NEXT FIELD ==========`);
+            console.log(`[V2_PACK_FIELD][NEXT_FIELD]`, {
+              packId,
+              currentField: fieldKey,
+              nextField: nextFieldConfig.fieldKey,
+              fieldProgress: `${nextFieldIdx + 1}/${totalFieldsInPack}`,
+              instanceNumber,
+              skippedFields: nextFieldIdx - (fieldIndex + 1)
+            });
+
+            setActiveV2Pack(prev => ({
+              ...prev,
+              currentIndex: nextFieldIdx,
+              collectedAnswers: updatedCollectedAnswers
+            }));
+
+            // STEP 2: Include backend question text for next field
+            const backendQuestionTextForNext = getBackendQuestionText(backendQuestionTextMap, packId, nextFieldConfig.fieldKey, instanceNumber);
+
+            const nextItemForV2 = {
+              id: `v2pack-${packId}-${nextFieldIdx}`,
+              type: 'v2_pack_field',
+              packId: packId,
+              fieldIndex: nextFieldIdx,
+              fieldKey: nextFieldConfig.fieldKey,
+              fieldConfig: nextFieldConfig,
+              baseQuestionId: baseQuestionId,
+              instanceNumber: instanceNumber,
+              backendQuestionText: backendQuestionTextForNext
+            };
+
+            setCurrentItem(nextItemForV2);
+            setQueue([]);
+
+            await persistStateToDatabase(null, [], nextItemForV2);
+
+            console.log(`[V2_PACK_FIELD][NEXT_FIELD][DONE] Now showing: ${nextFieldConfig.fieldKey}`);
+            setIsCommitting(false);
+            setInput("");
+            return;
+          }
+        }
+
+        // Pack complete - exit V2 pack mode (either isLastField or backend said COMPLETE)
+        console.log(`[V2_PACK_FIELD][PACK_COMPLETE] ========== PACK FINISHED ==========`);
+        console.log(`[V2_PACK_FIELD][PACK_COMPLETE]`, {
+          packId,
+          lastField: fieldKey,
+          instanceNumber,
+          v2ResultMode: v2Result?.mode,
+          isLastField,
+          returningToSectionFlow: true
+        });
+
+        // Log pack exited (audit only)
+        await logPackExited(sessionId, { packId, instanceNumber });
+
+        // Trigger summary generation for completed question (background)
+        base44.functions.invoke('triggerSummaries', {
+          sessionId,
+          triggerType: 'question_complete'
+        }).catch(() => {}); // Fire and forget
+
+        // CRITICAL: Clear V2 pack state AND currentItem atomically to prevent transitional render crash
+        setActiveV2Pack(null);
+        setV2PackMode("BASE");
+        setCurrentFollowUpAnswers({});
+        setCurrentItem(null); // Clear immediately to prevent stale v2_pack_field renders
+        lastLoggedV2PackFieldRef.current = null;
+
+        // UX: Clear draft on successful pack completion
+        clearDraft();
+
+        const baseQuestionForExit = engine.QById[baseQuestionId];
+        if (baseQuestionForExit?.followup_multi_instance) {
+          onFollowupPackComplete(baseQuestionId, packId);
+        } else {
+          advanceToNextBaseQuestion(baseQuestionId);
+        }
+
+        await persistStateToDatabase(null, [], null);
+        setIsCommitting(false);
+        setInput("");
+        return;
+      }
+// ...
+    }, [currentItem, engine, queue, dbTranscript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, sectionCompletionMessage, activeV2Pack, v2PackMode, aiFollowupCounts, aiProbingEnabled, aiProbingDisabledForSession, refreshTranscriptFromDB]);
   // CRITICAL: Must be after effectiveItemType, bottomBarModeSOT, activeUiItem
   const currentPrompt = getCurrentPrompt();
   
