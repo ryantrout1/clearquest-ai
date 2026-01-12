@@ -6255,6 +6255,449 @@ function CandidateInterviewInner() {
       allStateCleared: true
     });
   }, [sessionId]);
+
+  function getCurrentPrompt() {
+    // PRIORITY 1: V3 prompt active - use hasActiveV3Prompt (TDZ-safe minimal check)
+    if (hasActiveV3Prompt && v3ActivePromptText) {
+      const packConfig = FOLLOWUP_PACK_CONFIGS[v3ProbingContext?.packId];
+      const packLabel = packConfig?.instancesLabel || v3ProbingContext?.categoryLabel || 'AI Follow-Up';
+      
+      console.log('[V3_PROBING][PROMPT_LANE]', {
+        packId: v3ProbingContext?.packId,
+        instanceNumber: v3ProbingContext?.instanceNumber,
+        promptPreview: v3ActivePromptText?.substring(0, 60)
+      });
+      
+      return {
+        type: 'v3_probe',
+        id: `v3-probe-active-${v3ProbingContext?.packId}-${v3ProbingContext?.instanceNumber}`,
+        text: v3ActivePromptText,
+        responseType: 'text',
+        packId: v3ProbingContext?.packId,
+        categoryId: v3ProbingContext?.categoryId,
+        instanceNumber: v3ProbingContext?.instanceNumber,
+        category: packLabel
+      };
+    }
+
+    // PRIORITY 2: V3 gate active - block base question rendering
+    if (v3GateActive) {
+      console.log('[V3_GATE][ACTIVE] Blocking base question rendering + logging');
+      return null;
+    }
+
+    // UX: Stabilize current item while typing - ALIGNED WITH V3 PROMPT PRECEDENCE
+    let effectiveCurrentItem = currentItem;
+
+    if (isUserTyping && currentItemRef.current) {
+      const frozenType = currentItemRef.current?.type;
+      const frozenId = currentItemRef.current?.id;
+      const currentType = currentItem?.type;
+      const currentId = currentItem?.id;
+      
+      // PRECEDENCE: Always use current item if V3 prompt is active
+      // This prevents MI_GATE frozen refs from blocking V3 text input
+      if (hasActiveV3Prompt) {
+        console.log('[FORENSIC][TYPING_LOCK_BYPASS_V3_PROMPT]', {
+          hasActiveV3Prompt: true,
+          frozenType,
+          currentType,
+          reason: 'V3 prompt active - using current item to prevent stale gate refs'
+        });
+        effectiveCurrentItem = currentItem;
+        currentItemRef.current = currentItem; // Sync ref to prevent future bypass
+      } else if (frozenType !== currentType || frozenId !== currentId) {
+        console.log('[FORENSIC][TYPING_LOCK_STALE_REF_BYPASS]', {
+          hasActiveV3Prompt,
+          frozenType,
+          frozenId,
+          currentType,
+          currentId
+        });
+        effectiveCurrentItem = currentItem; // Use current for this render
+      } else {
+        console.log('[FORENSIC][TYPING_LOCK]', { 
+          active: true,
+          hasActiveV3Prompt,
+          frozenItemType: currentItemRef.current?.type,
+          frozenItemId: currentItemRef.current?.id,
+          actualItemType: currentItem?.type,
+          actualItemId: currentItem?.id,
+          promptWillDeriveFrom: 'FROZEN_REF'
+        });
+        effectiveCurrentItem = currentItemRef.current;
+      }
+    } else {
+      console.log('[FORENSIC][TYPING_LOCK]', { active: false, hasActiveV3Prompt, promptWillDeriveFrom: 'CURRENT_STATE' });
+      currentItemRef.current = currentItem;
+    }
+
+    if (inIdeProbingLoop && currentIdeQuestion) {
+      return {
+        type: 'ide_probe',
+        text: currentIdeQuestion,
+        responseType: 'text',
+        category: currentIdeCategoryId || 'Follow-up'
+      };
+    }
+
+    // Use effectiveCurrentItem (stabilized while typing) for all prompt logic below
+    if (!effectiveCurrentItem || !engine) return null;
+
+    // If waiting for agent and we have a field probe question, show it
+    if (isWaitingForAgent && currentFieldProbe) {
+      const packConfig = FOLLOWUP_PACK_CONFIGS[currentFieldProbe.packId];
+      return {
+        type: 'ai_probe',
+        id: `ai-probe-${currentFieldProbe.packId}-${currentFieldProbe.fieldKey}`,
+        text: currentFieldProbe.question,
+        responseType: 'text',
+        packId: currentFieldProbe.packId,
+        fieldKey: currentFieldProbe.fieldKey,
+        instanceNumber: currentFieldProbe.instanceNumber,
+        category: packConfig?.instancesLabel || 'Follow-up'
+      };
+    }
+
+    if (isWaitingForAgent) {
+      return null;
+    }
+
+    if (effectiveCurrentItem.type === 'question') {
+      const question = engine.QById[effectiveCurrentItem.id];
+
+      if (!question) {
+        setCurrentItem(null);
+        setQueue([]);
+        setShowCompletionModal(true);
+        return null;
+      }
+
+      const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
+      const sectionName = sectionEntity?.section_name || question.category || '';
+      const questionNumber = getQuestionDisplayNumber(effectiveCurrentItem.id);
+
+      // FIX C: Guard against logging QUESTION_SHOWN when currentItem is null
+      if (!currentItem || currentItem.type !== 'question') {
+        console.log('[STREAM][GUARD_NO_NULL_CURRENT_ITEM_ON_QUESTION_SHOWN]', {
+          blocked: true,
+          reason: 'currentItem is null or not a question',
+          currentItemType: currentItem?.type,
+          effectiveCurrentItemId: effectiveCurrentItem.id,
+          screenMode
+        });
+        return null; // Skip rendering and logging
+      }
+      
+      console.log('[STREAM][GUARD_NO_NULL_CURRENT_ITEM_ON_QUESTION_SHOWN]', {
+        blocked: false,
+        currentItemType: currentItem.type,
+        questionId: effectiveCurrentItem.id
+      });
+      
+      // RENDER-POINT LOGGING: Log question when it's shown (once per question)
+      const itemSig = `question:${effectiveCurrentItem.id}::`;
+      const lastLoggedSig = lastLoggedFollowupCardIdRef.current;
+
+      if (lastLoggedSig !== itemSig) {
+        lastLoggedFollowupCardIdRef.current = itemSig;
+        logQuestionShown(sessionId, {
+          questionId: effectiveCurrentItem.id,
+          questionText: question.question_text,
+          questionNumber,
+          sectionId: question.section_id,
+          sectionName
+        }).then(() => {
+          // CRITICAL: Refresh transcript after appending prompt message
+          return refreshTranscriptFromDB('question_shown');
+        }).then((freshTranscript) => {
+          const normalizedFresh = Array.isArray(freshTranscript) ? freshTranscript : [];
+          console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { 
+            freshLen: normalizedFresh.length,
+            wasArray: Array.isArray(freshTranscript)
+          });
+          
+          // FIX B: Hard-pin scroll to bottom after QUESTION_SHOWN
+          if (shouldAutoScrollRef.current) {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                const scrollContainer = historyRef.current;
+                if (!scrollContainer) return;
+                
+                const scrollTopBefore = scrollContainer.scrollTop;
+                const scrollHeight = scrollContainer.scrollHeight;
+                const clientHeight = scrollContainer.clientHeight;
+                const targetScrollTop = Math.max(0, scrollHeight - clientHeight);
+                
+                scrollContainer.scrollTop = targetScrollTop;
+                
+                const scrollTopAfter = scrollContainer.scrollTop;
+                const didScroll = Math.abs(scrollTopAfter - scrollTopBefore) > 1;
+                
+                console.log('[SCROLL][PIN_ON_QUESTION_SHOWN]', {
+                  questionNumber,
+                  didScroll,
+                  scrollTopBefore: Math.round(scrollTopBefore),
+                  scrollTopAfter: Math.round(scrollTopAfter),
+                  targetScrollTop: Math.round(targetScrollTop),
+                  scrollHeight: Math.round(scrollHeight),
+                  clientHeight: Math.round(clientHeight)
+                });
+              });
+            });
+          }
+        }).catch(err => console.warn('[LOG_QUESTION] Failed:', err));
+      }
+
+      return {
+        type: 'question',
+        id: effectiveCurrentItem.id,
+        text: question.question_text,
+        responseType: question.response_type,
+        category: sectionName
+      };
+    }
+
+    if (effectiveCurrentItem.type === 'followup') {
+      const { packId, stepIndex, substanceName } = effectiveCurrentItem;
+
+      const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+      if (!packSteps) return null;
+
+      const step = packSteps[stepIndex];
+
+      if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
+        const triggerAutoFill = () => {
+          handleAnswer(step.PrefilledAnswer);
+        };
+        setTimeout(triggerAutoFill, 100);
+        return null;
+      }
+
+      return {
+        type: 'followup',
+        id: effectiveCurrentItem.id,
+        text: step.Prompt,
+        responseType: step.Response_Type || 'text',
+        expectedType: step.Expected_Type || 'TEXT',
+        packId: packId,
+        substanceName: substanceName,
+        stepNumber: stepIndex + 1,
+        totalSteps: packSteps.length
+      };
+    }
+
+    if (effectiveCurrentItem.type === 'multi_instance') {
+      return {
+        type: 'multi_instance',
+        id: effectiveCurrentItem.id,
+        text: effectiveCurrentItem.prompt,
+        responseType: 'yes_no',
+        instanceNumber: effectiveCurrentItem.instanceNumber,
+        maxInstances: effectiveCurrentItem.maxInstances
+      };
+    }
+
+    // Multi-instance gate (V3 post-probing)
+    if (effectiveCurrentItem.type === 'multi_instance_gate') {
+      const gatePackId = effectiveCurrentItem.packId;
+      const gateInstanceNumber = effectiveCurrentItem.instanceNumber;
+      const gatePromptText = effectiveCurrentItem.promptText;
+      const gateCategoryLabel = effectiveCurrentItem.categoryLabel;
+      
+      // PART B: HARD GUARD - derive prompt from currentItem ONLY (never from transcript)
+      const effectivePromptText = gatePromptText || 
+        (gateCategoryLabel ? `Do you have another ${gateCategoryLabel} to report?` : null) ||
+        `Do you have another incident to report?`;
+      
+      // GUARD: Validate gate context
+      if (!gatePackId || !gateInstanceNumber) {
+        console.error('[FORENSIC][GATE_CONTEXT_MISSING]', {
+          currentItemType: effectiveCurrentItem.type,
+          currentItemId: effectiveCurrentItem.id,
+          packId: gatePackId,
+          instanceNumber: gateInstanceNumber
+        });
+        
+        // Derive from currentItemId if possible
+        const idMatch = effectiveCurrentItem.id?.match(/multi-instance-gate-(.+?)-(\d+)/);
+        const derivedPackId = idMatch?.[1] || gatePackId || 'UNKNOWN_PACK';
+        const derivedInstanceNumber = idMatch?.[2] ? parseInt(idMatch[2]) : gateInstanceNumber || 1;
+        
+        return {
+          type: 'multi_instance_gate',
+          id: effectiveCurrentItem.id,
+          text: effectivePromptText,
+          responseType: 'yes_no',
+          packId: derivedPackId,
+          instanceNumber: derivedInstanceNumber
+        };
+      }
+      
+      // PART B: Hard guard - block YES/NO if no prompt text
+      if (!effectivePromptText || effectivePromptText.trim().length === 0) {
+        console.error('[MI_GATE][PROMPT_MISSING_BLOCKED]', {
+          stableKey: `mi-gate:${gatePackId}:${gateInstanceNumber}`,
+          packId: gatePackId,
+          instanceNumber: gateInstanceNumber,
+          reason: 'Gate active but no prompt text available - cannot render YES/NO'
+        });
+        return null; // Force disabled mode (bottomBarModeSOT will be DISABLED)
+      }
+      
+      // PART 2: Log prompt binding for diagnostics
+      console.log('[MI_GATE][PROMPT_BIND]', {
+        stableKey: `mi-gate:${gatePackId}:${gateInstanceNumber}`,
+        hasPromptText: !!effectivePromptText,
+        promptPreview: effectivePromptText?.substring(0, 60),
+        source: 'currentItem.promptText'
+      });
+      
+      return {
+        type: 'multi_instance_gate',
+        id: effectiveCurrentItem.id,
+        text: effectivePromptText,
+        responseType: 'yes_no',
+        packId: gatePackId,
+        categoryId: effectiveCurrentItem.categoryId,
+        instanceNumber: gateInstanceNumber
+      };
+    }
+
+    // V3 Pack opener question (allow even during early V3 setup)
+    if (effectiveCurrentItem.type === 'v3_pack_opener') {
+      const { packId, openerText, exampleNarrative, categoryId, categoryLabel, instanceNumber } = effectiveCurrentItem;
+      const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+      const packLabel = packConfig?.instancesLabel || categoryLabel || categoryId || 'Follow-up';
+
+      // REGRESSION FIX: Log opener state at render time for dead-end diagnosis
+      console.log('[V3_PACK][OPENER_RENDER]', {
+        packId,
+        instanceNumber,
+        hasOpenerText: !!openerText,
+        v3ProbingActive,
+        currentItemId: effectiveCurrentItem.id
+      });
+      
+      // PACK ENTRY FAILSAFE CANCELLATION: Opener is active - cancel entry failsafe
+      if (openerText && packId === v3PackEntryContextRef.current?.packId) {
+        if (v3PackEntryFailsafeTimerRef.current) {
+          clearTimeout(v3PackEntryFailsafeTimerRef.current);
+          v3PackEntryFailsafeTimerRef.current = null;
+          v3PackEntryFailsafeTokenRef.current = null;
+          console.log('[V3_PACK][ENTRY_FAILSAFE_CANCELLED]', {
+            packId,
+            instanceNumber,
+            reason: 'OPENER_ACTIVE'
+          });
+        }
+      }
+
+      // UI CONTRACT: V3 opener MUST append to transcript (visible to candidate)
+      const openerStableKey = `followup-card:${packId}:opener:${instanceNumber}`;
+      if (lastLoggedFollowupCardIdRef.current !== openerStableKey) {
+        lastLoggedFollowupCardIdRef.current = openerStableKey;
+
+        const safeCategoryLabel = effectiveCurrentItem.categoryLabel || packLabel || categoryId || "Follow-up";
+        logFollowupCardShown(sessionId, {
+          packId,
+          variant: 'opener',
+          stableKey: openerStableKey,
+          promptText: openerText,
+          exampleText: exampleNarrative,
+          packLabel,
+          instanceNumber,
+          baseQuestionId: effectiveCurrentItem.baseQuestionId,
+          categoryLabel: safeCategoryLabel
+        }).then(() => refreshTranscriptFromDB('v3_opener_shown'))
+          .catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
+      }
+
+      return {
+        type: 'v3_pack_opener',
+        id: effectiveCurrentItem.id,
+        text: openerText || "In your own words, tell me about your prior law enforcement applications.",
+        exampleNarrative: exampleNarrative,
+        responseType: 'text',
+        packId,
+        categoryId,
+        instanceNumber,
+        category: packLabel
+      };
+    }
+
+    // V2 Pack field question
+    if (effectiveCurrentItem.type === 'v2_pack_field') {
+      const { packId, fieldIndex, fieldConfig, instanceNumber, fieldKey } = effectiveCurrentItem;
+
+      if (!fieldConfig || !packId || !fieldKey) {
+        console.warn('[V2_PACK][PROMPT_GUARD] Missing V2 pack state');
+        return null;
+      }
+
+      const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+      const totalFields = packConfig?.fields?.length || 0;
+
+      const hasClarifierActive = v2ClarifierState &&
+        v2ClarifierState.packId === packId &&
+        v2ClarifierState.fieldKey === fieldKey &&
+        v2ClarifierState.instanceNumber === instanceNumber;
+
+      const backendQuestionText = effectiveCurrentItem.backendQuestionText || null;
+      const displayText = hasClarifierActive
+        ? v2ClarifierState.clarifierQuestion
+        : (backendQuestionText || fieldConfig.label);
+
+      const packLabel = packConfig?.instancesLabel || 'Follow-up';
+
+      // RENDER-POINT LOGGING: Log follow-up card when shown (Guard: log once per canonical ID, non-clarifier only)
+      if (!hasClarifierActive) {
+        const fieldCardId = `followup-card-${sessionId}-${packId}-field-${fieldKey}-${instanceNumber}`;
+        if (lastLoggedFollowupCardIdRef.current !== fieldCardId) {
+          lastLoggedFollowupCardIdRef.current = fieldCardId;
+          logFollowupCardShown(sessionId, {
+            packId,
+            variant: 'field',
+            stableKey: `${fieldKey}-${instanceNumber}`,
+            promptText: displayText,
+            exampleText: null,
+            packLabel,
+            instanceNumber,
+            baseQuestionId: effectiveCurrentItem.baseQuestionId,
+            fieldKey
+          }).then(() => {
+            // CRITICAL: Refresh transcript after appending prompt message
+            return refreshTranscriptFromDB('v2_field_shown');
+          }).then((freshTranscript) => {
+            const normalizedFresh = Array.isArray(freshTranscript) ? freshTranscript : [];
+            console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { 
+              freshLen: normalizedFresh.length,
+              wasArray: Array.isArray(freshTranscript)
+            });
+          }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
+        }
+      }
+
+      return {
+        type: hasClarifierActive ? 'ai_probe' : 'v2_pack_field',
+        id: effectiveCurrentItem.id,
+        text: displayText,
+        responseType: fieldConfig.inputType === 'yes_no' ? 'yes_no' : 'text',
+        inputType: fieldConfig.inputType,
+        placeholder: fieldConfig.placeholder,
+        options: fieldConfig.options,
+        packId,
+        fieldKey,
+        stepNumber: fieldIndex + 1,
+        totalSteps: totalFields,
+        instanceNumber,
+        category: packLabel
+      };
+    }
+
+    return null;
+  }
+
   
   // CQ_GUARD: MI_GATE reconciliation effect (single instance only)
   // Multi-instance gate V3 transcript reconciliation (repair missing probe Q+A)
@@ -15394,447 +15837,7 @@ function CandidateInterviewInner() {
   // CENTRALIZED BOTTOM BAR MODE SELECTION - moved earlier (line 6963) for TDZ-safe footer padding
   // ============================================================================
 
-  function getCurrentPrompt() {
-    // PRIORITY 1: V3 prompt active - use hasActiveV3Prompt (TDZ-safe minimal check)
-    if (hasActiveV3Prompt && v3ActivePromptText) {
-      const packConfig = FOLLOWUP_PACK_CONFIGS[v3ProbingContext?.packId];
-      const packLabel = packConfig?.instancesLabel || v3ProbingContext?.categoryLabel || 'AI Follow-Up';
-      
-      console.log('[V3_PROBING][PROMPT_LANE]', {
-        packId: v3ProbingContext?.packId,
-        instanceNumber: v3ProbingContext?.instanceNumber,
-        promptPreview: v3ActivePromptText?.substring(0, 60)
-      });
-      
-      return {
-        type: 'v3_probe',
-        id: `v3-probe-active-${v3ProbingContext?.packId}-${v3ProbingContext?.instanceNumber}`,
-        text: v3ActivePromptText,
-        responseType: 'text',
-        packId: v3ProbingContext?.packId,
-        categoryId: v3ProbingContext?.categoryId,
-        instanceNumber: v3ProbingContext?.instanceNumber,
-        category: packLabel
-      };
-    }
-
-    // PRIORITY 2: V3 gate active - block base question rendering
-    if (v3GateActive) {
-      console.log('[V3_GATE][ACTIVE] Blocking base question rendering + logging');
-      return null;
-    }
-
-    // UX: Stabilize current item while typing - ALIGNED WITH V3 PROMPT PRECEDENCE
-    let effectiveCurrentItem = currentItem;
-
-    if (isUserTyping && currentItemRef.current) {
-      const frozenType = currentItemRef.current?.type;
-      const frozenId = currentItemRef.current?.id;
-      const currentType = currentItem?.type;
-      const currentId = currentItem?.id;
-      
-      // PRECEDENCE: Always use current item if V3 prompt is active
-      // This prevents MI_GATE frozen refs from blocking V3 text input
-      if (hasActiveV3Prompt) {
-        console.log('[FORENSIC][TYPING_LOCK_BYPASS_V3_PROMPT]', {
-          hasActiveV3Prompt: true,
-          frozenType,
-          currentType,
-          reason: 'V3 prompt active - using current item to prevent stale gate refs'
-        });
-        effectiveCurrentItem = currentItem;
-        currentItemRef.current = currentItem; // Sync ref to prevent future bypass
-      } else if (frozenType !== currentType || frozenId !== currentId) {
-        console.log('[FORENSIC][TYPING_LOCK_STALE_REF_BYPASS]', {
-          hasActiveV3Prompt,
-          frozenType,
-          frozenId,
-          currentType,
-          currentId
-        });
-        effectiveCurrentItem = currentItem; // Use current for this render
-      } else {
-        console.log('[FORENSIC][TYPING_LOCK]', { 
-          active: true,
-          hasActiveV3Prompt,
-          frozenItemType: currentItemRef.current?.type,
-          frozenItemId: currentItemRef.current?.id,
-          actualItemType: currentItem?.type,
-          actualItemId: currentItem?.id,
-          promptWillDeriveFrom: 'FROZEN_REF'
-        });
-        effectiveCurrentItem = currentItemRef.current;
-      }
-    } else {
-      console.log('[FORENSIC][TYPING_LOCK]', { active: false, hasActiveV3Prompt, promptWillDeriveFrom: 'CURRENT_STATE' });
-      currentItemRef.current = currentItem;
-    }
-
-    if (inIdeProbingLoop && currentIdeQuestion) {
-      return {
-        type: 'ide_probe',
-        text: currentIdeQuestion,
-        responseType: 'text',
-        category: currentIdeCategoryId || 'Follow-up'
-      };
-    }
-
-    // Use effectiveCurrentItem (stabilized while typing) for all prompt logic below
-    if (!effectiveCurrentItem || !engine) return null;
-
-    // If waiting for agent and we have a field probe question, show it
-    if (isWaitingForAgent && currentFieldProbe) {
-      const packConfig = FOLLOWUP_PACK_CONFIGS[currentFieldProbe.packId];
-      return {
-        type: 'ai_probe',
-        id: `ai-probe-${currentFieldProbe.packId}-${currentFieldProbe.fieldKey}`,
-        text: currentFieldProbe.question,
-        responseType: 'text',
-        packId: currentFieldProbe.packId,
-        fieldKey: currentFieldProbe.fieldKey,
-        instanceNumber: currentFieldProbe.instanceNumber,
-        category: packConfig?.instancesLabel || 'Follow-up'
-      };
-    }
-
-    if (isWaitingForAgent) {
-      return null;
-    }
-
-    if (effectiveCurrentItem.type === 'question') {
-      const question = engine.QById[effectiveCurrentItem.id];
-
-      if (!question) {
-        setCurrentItem(null);
-        setQueue([]);
-        setShowCompletionModal(true);
-        return null;
-      }
-
-      const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
-      const sectionName = sectionEntity?.section_name || question.category || '';
-      const questionNumber = getQuestionDisplayNumber(effectiveCurrentItem.id);
-
-      // FIX C: Guard against logging QUESTION_SHOWN when currentItem is null
-      if (!currentItem || currentItem.type !== 'question') {
-        console.log('[STREAM][GUARD_NO_NULL_CURRENT_ITEM_ON_QUESTION_SHOWN]', {
-          blocked: true,
-          reason: 'currentItem is null or not a question',
-          currentItemType: currentItem?.type,
-          effectiveCurrentItemId: effectiveCurrentItem.id,
-          screenMode
-        });
-        return null; // Skip rendering and logging
-      }
-      
-      console.log('[STREAM][GUARD_NO_NULL_CURRENT_ITEM_ON_QUESTION_SHOWN]', {
-        blocked: false,
-        currentItemType: currentItem.type,
-        questionId: effectiveCurrentItem.id
-      });
-      
-      // RENDER-POINT LOGGING: Log question when it's shown (once per question)
-      const itemSig = `question:${effectiveCurrentItem.id}::`;
-      const lastLoggedSig = lastLoggedFollowupCardIdRef.current;
-
-      if (lastLoggedSig !== itemSig) {
-        lastLoggedFollowupCardIdRef.current = itemSig;
-        logQuestionShown(sessionId, {
-          questionId: effectiveCurrentItem.id,
-          questionText: question.question_text,
-          questionNumber,
-          sectionId: question.section_id,
-          sectionName
-        }).then(() => {
-          // CRITICAL: Refresh transcript after appending prompt message
-          return refreshTranscriptFromDB('question_shown');
-        }).then((freshTranscript) => {
-          const normalizedFresh = Array.isArray(freshTranscript) ? freshTranscript : [];
-          console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { 
-            freshLen: normalizedFresh.length,
-            wasArray: Array.isArray(freshTranscript)
-          });
-          
-          // FIX B: Hard-pin scroll to bottom after QUESTION_SHOWN
-          if (shouldAutoScrollRef.current) {
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                const scrollContainer = historyRef.current;
-                if (!scrollContainer) return;
-                
-                const scrollTopBefore = scrollContainer.scrollTop;
-                const scrollHeight = scrollContainer.scrollHeight;
-                const clientHeight = scrollContainer.clientHeight;
-                const targetScrollTop = Math.max(0, scrollHeight - clientHeight);
-                
-                scrollContainer.scrollTop = targetScrollTop;
-                
-                const scrollTopAfter = scrollContainer.scrollTop;
-                const didScroll = Math.abs(scrollTopAfter - scrollTopBefore) > 1;
-                
-                console.log('[SCROLL][PIN_ON_QUESTION_SHOWN]', {
-                  questionNumber,
-                  didScroll,
-                  scrollTopBefore: Math.round(scrollTopBefore),
-                  scrollTopAfter: Math.round(scrollTopAfter),
-                  targetScrollTop: Math.round(targetScrollTop),
-                  scrollHeight: Math.round(scrollHeight),
-                  clientHeight: Math.round(clientHeight)
-                });
-              });
-            });
-          }
-        }).catch(err => console.warn('[LOG_QUESTION] Failed:', err));
-      }
-
-      return {
-        type: 'question',
-        id: effectiveCurrentItem.id,
-        text: question.question_text,
-        responseType: question.response_type,
-        category: sectionName
-      };
-    }
-
-    if (effectiveCurrentItem.type === 'followup') {
-      const { packId, stepIndex, substanceName } = effectiveCurrentItem;
-
-      const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
-      if (!packSteps) return null;
-
-      const step = packSteps[stepIndex];
-
-      if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
-        const triggerAutoFill = () => {
-          handleAnswer(step.PrefilledAnswer);
-        };
-        setTimeout(triggerAutoFill, 100);
-        return null;
-      }
-
-      return {
-        type: 'followup',
-        id: effectiveCurrentItem.id,
-        text: step.Prompt,
-        responseType: step.Response_Type || 'text',
-        expectedType: step.Expected_Type || 'TEXT',
-        packId: packId,
-        substanceName: substanceName,
-        stepNumber: stepIndex + 1,
-        totalSteps: packSteps.length
-      };
-    }
-
-    if (effectiveCurrentItem.type === 'multi_instance') {
-      return {
-        type: 'multi_instance',
-        id: effectiveCurrentItem.id,
-        text: effectiveCurrentItem.prompt,
-        responseType: 'yes_no',
-        instanceNumber: effectiveCurrentItem.instanceNumber,
-        maxInstances: effectiveCurrentItem.maxInstances
-      };
-    }
-
-    // Multi-instance gate (V3 post-probing)
-    if (effectiveCurrentItem.type === 'multi_instance_gate') {
-      const gatePackId = effectiveCurrentItem.packId;
-      const gateInstanceNumber = effectiveCurrentItem.instanceNumber;
-      const gatePromptText = effectiveCurrentItem.promptText;
-      const gateCategoryLabel = effectiveCurrentItem.categoryLabel;
-      
-      // PART B: HARD GUARD - derive prompt from currentItem ONLY (never from transcript)
-      const effectivePromptText = gatePromptText || 
-        (gateCategoryLabel ? `Do you have another ${gateCategoryLabel} to report?` : null) ||
-        `Do you have another incident to report?`;
-      
-      // GUARD: Validate gate context
-      if (!gatePackId || !gateInstanceNumber) {
-        console.error('[FORENSIC][GATE_CONTEXT_MISSING]', {
-          currentItemType: effectiveCurrentItem.type,
-          currentItemId: effectiveCurrentItem.id,
-          packId: gatePackId,
-          instanceNumber: gateInstanceNumber
-        });
-        
-        // Derive from currentItemId if possible
-        const idMatch = effectiveCurrentItem.id?.match(/multi-instance-gate-(.+?)-(\d+)/);
-        const derivedPackId = idMatch?.[1] || gatePackId || 'UNKNOWN_PACK';
-        const derivedInstanceNumber = idMatch?.[2] ? parseInt(idMatch[2]) : gateInstanceNumber || 1;
-        
-        return {
-          type: 'multi_instance_gate',
-          id: effectiveCurrentItem.id,
-          text: effectivePromptText,
-          responseType: 'yes_no',
-          packId: derivedPackId,
-          instanceNumber: derivedInstanceNumber
-        };
-      }
-      
-      // PART B: Hard guard - block YES/NO if no prompt text
-      if (!effectivePromptText || effectivePromptText.trim().length === 0) {
-        console.error('[MI_GATE][PROMPT_MISSING_BLOCKED]', {
-          stableKey: `mi-gate:${gatePackId}:${gateInstanceNumber}`,
-          packId: gatePackId,
-          instanceNumber: gateInstanceNumber,
-          reason: 'Gate active but no prompt text available - cannot render YES/NO'
-        });
-        return null; // Force disabled mode (bottomBarModeSOT will be DISABLED)
-      }
-      
-      // PART 2: Log prompt binding for diagnostics
-      console.log('[MI_GATE][PROMPT_BIND]', {
-        stableKey: `mi-gate:${gatePackId}:${gateInstanceNumber}`,
-        hasPromptText: !!effectivePromptText,
-        promptPreview: effectivePromptText?.substring(0, 60),
-        source: 'currentItem.promptText'
-      });
-      
-      return {
-        type: 'multi_instance_gate',
-        id: effectiveCurrentItem.id,
-        text: effectivePromptText,
-        responseType: 'yes_no',
-        packId: gatePackId,
-        categoryId: effectiveCurrentItem.categoryId,
-        instanceNumber: gateInstanceNumber
-      };
-    }
-
-    // V3 Pack opener question (allow even during early V3 setup)
-    if (effectiveCurrentItem.type === 'v3_pack_opener') {
-      const { packId, openerText, exampleNarrative, categoryId, categoryLabel, instanceNumber } = effectiveCurrentItem;
-      const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-      const packLabel = packConfig?.instancesLabel || categoryLabel || categoryId || 'Follow-up';
-
-      // REGRESSION FIX: Log opener state at render time for dead-end diagnosis
-      console.log('[V3_PACK][OPENER_RENDER]', {
-        packId,
-        instanceNumber,
-        hasOpenerText: !!openerText,
-        v3ProbingActive,
-        currentItemId: effectiveCurrentItem.id
-      });
-      
-      // PACK ENTRY FAILSAFE CANCELLATION: Opener is active - cancel entry failsafe
-      if (openerText && packId === v3PackEntryContextRef.current?.packId) {
-        if (v3PackEntryFailsafeTimerRef.current) {
-          clearTimeout(v3PackEntryFailsafeTimerRef.current);
-          v3PackEntryFailsafeTimerRef.current = null;
-          v3PackEntryFailsafeTokenRef.current = null;
-          console.log('[V3_PACK][ENTRY_FAILSAFE_CANCELLED]', {
-            packId,
-            instanceNumber,
-            reason: 'OPENER_ACTIVE'
-          });
-        }
-      }
-
-      // UI CONTRACT: V3 opener MUST append to transcript (visible to candidate)
-      const openerStableKey = `followup-card:${packId}:opener:${instanceNumber}`;
-      if (lastLoggedFollowupCardIdRef.current !== openerStableKey) {
-        lastLoggedFollowupCardIdRef.current = openerStableKey;
-
-        const safeCategoryLabel = effectiveCurrentItem.categoryLabel || packLabel || categoryId || "Follow-up";
-        logFollowupCardShown(sessionId, {
-          packId,
-          variant: 'opener',
-          stableKey: openerStableKey,
-          promptText: openerText,
-          exampleText: exampleNarrative,
-          packLabel,
-          instanceNumber,
-          baseQuestionId: effectiveCurrentItem.baseQuestionId,
-          categoryLabel: safeCategoryLabel
-        }).then(() => refreshTranscriptFromDB('v3_opener_shown'))
-          .catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
-      }
-
-      return {
-        type: 'v3_pack_opener',
-        id: effectiveCurrentItem.id,
-        text: openerText || "In your own words, tell me about your prior law enforcement applications.",
-        exampleNarrative: exampleNarrative,
-        responseType: 'text',
-        packId,
-        categoryId,
-        instanceNumber,
-        category: packLabel
-      };
-    }
-
-    // V2 Pack field question
-    if (effectiveCurrentItem.type === 'v2_pack_field') {
-      const { packId, fieldIndex, fieldConfig, instanceNumber, fieldKey } = effectiveCurrentItem;
-
-      if (!fieldConfig || !packId || !fieldKey) {
-        console.warn('[V2_PACK][PROMPT_GUARD] Missing V2 pack state');
-        return null;
-      }
-
-      const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-      const totalFields = packConfig?.fields?.length || 0;
-
-      const hasClarifierActive = v2ClarifierState &&
-        v2ClarifierState.packId === packId &&
-        v2ClarifierState.fieldKey === fieldKey &&
-        v2ClarifierState.instanceNumber === instanceNumber;
-
-      const backendQuestionText = effectiveCurrentItem.backendQuestionText || null;
-      const displayText = hasClarifierActive
-        ? v2ClarifierState.clarifierQuestion
-        : (backendQuestionText || fieldConfig.label);
-
-      const packLabel = packConfig?.instancesLabel || 'Follow-up';
-
-      // RENDER-POINT LOGGING: Log follow-up card when shown (Guard: log once per canonical ID, non-clarifier only)
-      if (!hasClarifierActive) {
-        const fieldCardId = `followup-card-${sessionId}-${packId}-field-${fieldKey}-${instanceNumber}`;
-        if (lastLoggedFollowupCardIdRef.current !== fieldCardId) {
-          lastLoggedFollowupCardIdRef.current = fieldCardId;
-          logFollowupCardShown(sessionId, {
-            packId,
-            variant: 'field',
-            stableKey: `${fieldKey}-${instanceNumber}`,
-            promptText: displayText,
-            exampleText: null,
-            packLabel,
-            instanceNumber,
-            baseQuestionId: effectiveCurrentItem.baseQuestionId,
-            fieldKey
-          }).then(() => {
-            // CRITICAL: Refresh transcript after appending prompt message
-            return refreshTranscriptFromDB('v2_field_shown');
-          }).then((freshTranscript) => {
-            const normalizedFresh = Array.isArray(freshTranscript) ? freshTranscript : [];
-            console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { 
-              freshLen: normalizedFresh.length,
-              wasArray: Array.isArray(freshTranscript)
-            });
-          }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
-        }
-      }
-
-      return {
-        type: hasClarifierActive ? 'ai_probe' : 'v2_pack_field',
-        id: effectiveCurrentItem.id,
-        text: displayText,
-        responseType: fieldConfig.inputType === 'yes_no' ? 'yes_no' : 'text',
-        inputType: fieldConfig.inputType,
-        placeholder: fieldConfig.placeholder,
-        options: fieldConfig.options,
-        packId,
-        fieldKey,
-        stepNumber: fieldIndex + 1,
-        totalSteps: totalFields,
-        instanceNumber,
-        category: packLabel
-      };
-    }
-
-    return null;
-  }
+// TDZ_FIX: getCurrentPrompt function moved to top of component body to prevent use-before-declare
   
   cqTdzMark('AFTER_GET_CURRENT_PROMPT_DECLARATION_OK');
 
