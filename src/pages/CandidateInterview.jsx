@@ -10747,66 +10747,7 @@ function CandidateInterviewInner() {
     }
   };
 
-  const saveV2PackFieldResponse = async ({ sessionId, packId, fieldKey, instanceNumber, answer, baseQuestionId, baseQuestionCode, sectionId, questionText }) => {
-    try {
-      console.log('[V2_PACK_FIELD][SAVE][CALL]', {
-        sessionId,
-        packId,
-        fieldKey,
-        instanceNumber,
-        baseQuestionId,
-        baseQuestionCode,
-        answerLength: answer?.length || 0
-      });
 
-      // Upsert logic: find existing Response for this (sessionId, packId, fieldKey, instanceNumber)
-      const existing = await base44.entities.Response.filter({
-        session_id: sessionId,
-        pack_id: packId,
-        field_key: fieldKey,
-        instance_number: instanceNumber,
-        response_type: 'v2_pack_field'
-      });
-
-      const sectionEntity = engine.Sections.find(s => s.id === sectionId);
-      const sectionName = sectionEntity?.section_name || '';
-
-      if (existing.length > 0) {
-        // Update existing record
-        await base44.entities.Response.update(existing[0].id, {
-          answer: answer,
-          question_text: questionText,
-          response_timestamp: new Date().toISOString()
-        });
-        console.log('[V2_PACK_FIELD][SAVE][OK] Updated existing Response', existing[0].id);
-        return existing[0];
-      } else {
-        // Create new record
-        const created = await base44.entities.Response.create({
-          session_id: sessionId,
-          question_id: baseQuestionId,
-          question_text: questionText,
-          category: sectionName,
-          answer: answer,
-          triggered_followup: false,
-          is_flagged: false,
-          response_timestamp: new Date().toISOString(),
-          response_type: 'v2_pack_field',
-          pack_id: packId,
-          field_key: fieldKey,
-          instance_number: instanceNumber,
-          base_question_id: baseQuestionId,
-          base_question_code: baseQuestionCode
-        });
-        console.log('[V2_PACK_FIELD][SAVE][OK] Created new Response for', { packId, fieldKey, instanceNumber });
-        return created;
-      }
-    } catch (err) {
-      console.error('[V2_PACK_FIELD][SAVE][ERROR]', err);
-      // Non-blocking - log error but don't break UX
-      return null;
-    }
-  };
 
   const saveFollowUpAnswer = async (packId, fieldKey, answer, substanceName, instanceNumber = 1, factSource = "user") => {
     try {
