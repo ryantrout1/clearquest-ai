@@ -16317,7 +16317,8 @@ function CandidateInterviewInner() {
             
             // STEP 4: Ensure mainPaneRendered is always boolean
             // PART C: mainPaneRendered - use unified detector on final list
-            const miGateInFinalList = finalTranscriptList.some(item => 
+            // TDZ FIX: Use finalListRef.current instead of finalTranscriptList (not yet declared)
+            const miGateInFinalList = finalListRef.current.some(item => 
               isMiGateItem(item, currentItem?.packId, currentItem?.instanceNumber)
             );
             
