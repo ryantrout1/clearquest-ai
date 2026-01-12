@@ -2402,6 +2402,277 @@ function CandidateInterviewInner() {
     });
   }, []);
   
+  // PART D: CANONICAL POST-RENDER VISIBILITY CORRECTION
+  // ChatGPT-style: Ensures active item is ALWAYS fully visible above composer
+  // PART A: Updated signature with YES/NO mode flags (TDZ-safe)
+  const ensureActiveVisibleAfterRender = useCallback((reason, activeKindSOT, isYesNoModeSOT = false, isMiGateSOT = false) => {
+    const scroller = scrollOwnerRef.current || historyRef.current;
+    if (!scroller) return;
+    
+    const composerEl = footerShellRef.current; // PART D: Stable footer shell (all modes)
+    if (!composerEl) return;
+    
+    // PART C: Lock scroll writes for v3_pack_opener settle (extended window)
+    const isV3Opener = activeKindSOT === 'v3_pack_opener' || activeKindSOT === 'V3_OPENER';
+    if (isV3Opener) {
+      lockScrollWrites('V3_PACK_OPENER_SETTLE', 1000);
+    }
+    
+    // RAF for fresh layout (post-render DOM state)
+    requestAnimationFrame(() => {
+      if (!scroller || !composerEl) return;
+      
+      // Find active card element
+      let activeCardEl = scroller.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+      if (!activeCardEl) {
+        activeCardEl = scroller.querySelector('[data-cq-active-card="true"]');
+      }
+      if (!activeCardEl && activeLaneCardRef.current) {
+        activeCardEl = activeLaneCardRef.current;
+      }
+      
+      // No active card - nothing to align
+      if (!activeCardEl) {
+        if (isV3Opener) {
+          unlockScrollWrites('V3_PACK_OPENER_NO_CARD');
+        }
+        return;
+      }
+      
+      // PART A: Measure using composer top as occlusion boundary
+      const activeRect = activeCardEl.getBoundingClientRect();
+      const composerRect = composerEl.getBoundingClientRect();
+      const occlusionTop = composerRect.top;
+      const clearancePx = 8; // Safety buffer
+      const overlapPx = Math.max(0, activeRect.bottom - (occlusionTop - clearancePx));
+      
+      // PART C: Hard align for YES/NO mode (TDZ-safe - uses passed flags)
+      const isYesNoModeAlign = isYesNoModeSOT || isMiGateSOT;
+      
+      if (isYesNoModeAlign && overlapPx > 0) {
+        const scrollTopBefore = scroller.scrollTop;
+        const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+        
+        // Apply exact delta with extra buffer for YES/NO
+        const desiredDelta = overlapPx + 24; // Extra clearance for YES/NO footer
+        scroller.scrollTop = Math.min(maxScrollTop, scroller.scrollTop + desiredDelta);
+        const scrollTopAfter = scroller.scrollTop;
+        
+        console.log('[SCROLL][ALIGN_YESNO_HARD]', {
+          reason,
+          isYesNoModeSOT,
+          isMiGateSOT,
+          overlapPx: Math.round(overlapPx),
+          scrollTopBefore: Math.round(scrollTopBefore),
+          scrollTopAfter: Math.round(scrollTopAfter),
+          maxScrollTop: Math.round(maxScrollTop),
+          deltaCorrectionApplied: Math.round(scrollTopAfter - scrollTopBefore)
+        });
+        
+        // SELF-HEAL: Verify overlap resolved after alignment
+        const itemId = currentItem?.id;
+        const healKey = `${itemId}:${reason}`;
+        
+        if (!footerOverlapSelfHealRef.current.has(healKey)) {
+          footerOverlapSelfHealRef.current.add(healKey);
+          
+          requestAnimationFrame(() => {
+            selfHealFooterOverlap(reason);
+          });
+        }
+        
+        // Unlock after YES/NO align
+        if (isV3Opener) {
+          unlockScrollWrites('YESNO_ALIGN_DONE');
+        }
+        
+        return; // Skip regular overlap handling
+      }
+      
+      // PART B: Apply exact delta correction (no baseline anchor)
+      if (overlapPx > 4) {
+        const bufferPx = isV3Opener ? 32 : 16;
+        const scrollTopBefore = scroller.scrollTop;
+        const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+        
+        // Compute delta and apply
+        const desiredDelta = overlapPx + bufferPx;
+        scroller.scrollTop = Math.min(maxScrollTop, scroller.scrollTop + desiredDelta);
+        const scrollTopAfter = scroller.scrollTop;
+        
+        // PART D: Log once for proof
+        const packId = currentItem?.packId;
+        const instanceNumber = currentItem?.instanceNumber;
+        const logKey = `align_to_composer_${packId}_${instanceNumber}`;
+        
+        logOnce(logKey, () => {
+          console.log('[SCROLL][ALIGN_TO_COMPOSER]', {
+            overlapPx: Math.round(overlapPx),
+            scrollTopBefore: Math.round(scrollTopBefore),
+            scrollTopAfter: Math.round(scrollTopAfter),
+            occlusionTop: Math.round(occlusionTop),
+            activeBottom: Math.round(activeRect.bottom),
+            composerTop: Math.round(composerRect.top),
+            clearancePx,
+            bufferPx,
+            maxScrollTop: Math.round(maxScrollTop),
+            packId,
+            instanceNumber
+          });
+        });
+        
+        console.log('[SCROLL][ENSURE_ACTIVE][PASS1]', {
+          reason,
+          overlapPx: Math.round(overlapPx),
+          bufferPx,
+          scrollTopBefore: Math.round(scrollTopBefore),
+          scrollTopAfter: Math.round(scrollTopAfter),
+          deltaCorrectionApplied: Math.round(scrollTopAfter - scrollTopBefore)
+        });
+        
+        // PART B: Expand spacer when overlap detected (v3_opener only)
+        if (isV3Opener && overlapPx > 4) {
+          const packId = currentItem?.packId;
+          const instanceNumber = currentItem?.instanceNumber;
+          const expansionKey = `${packId}:${instanceNumber}`;
+          
+          // TDZ-SAFE: Capture activeKindSOT in local variable for RAF closure
+          const activeKindForRetry = activeKindSOT;
+          
+          // PART B: Only expand once per instance
+          if (packId && instanceNumber && !expandedInstancesRef.current.has(expansionKey)) {
+            expandedInstancesRef.current.add(expansionKey);
+            
+            const additionalSpacerPx = overlapPx + 32; // Add overlap + buffer
+            
+            setExtraBottomSpacerPx(prev => {
+              const next = Math.min(prev + additionalSpacerPx, 300); // Cap at 300px
+              
+              logOnce(`v3_spacer_expand_${packId}_${instanceNumber}`, () => {
+                console.log('[SPACER][V3_DYNAMIC_EXPAND]', {
+                  packId,
+                  instanceNumber,
+                  overlapPx: Math.round(overlapPx),
+                  extraBottomSpacerPxBefore: Math.round(prev),
+                  extraBottomSpacerPxAfter: Math.round(next),
+                  bottomSpacerPxAfter: Math.round(baseSpacerPx + next),
+                  reason: 'Insufficient scroll range - expanding spacer'
+                });
+              });
+              
+              return next;
+            });
+            
+            // PART B: Schedule retry after spacer expands (TDZ-SAFE: compute at call time)
+            requestAnimationFrame(() => {
+              // TDZ FIX: Use callback parameters (already passed) instead of late-declared consts
+              const isYesNoForRetry = isYesNoModeSOT;
+              const isMiGateForRetry = isMiGateSOT;
+              ensureActiveVisibleAfterRender('V3_OPENER_SPACER_EXPAND_RETRY', activeKindForRetry, isYesNoForRetry, isMiGateForRetry);
+            });
+          }
+        }
+        
+        // PART B: One retry for v3_pack_opener (layout may settle)
+        if (isV3Opener && overlapPx > 4) {
+          requestAnimationFrame(() => {
+            if (!scroller || !composerEl || !activeCardEl) return;
+            
+            // Re-measure after first correction
+            const activeRect2 = activeCardEl.getBoundingClientRect();
+            const composerRect2 = composerEl.getBoundingClientRect();
+            const occlusionTop2 = composerRect2.top;
+            const overlapPx2 = Math.max(0, activeRect2.bottom - (occlusionTop2 - clearancePx));
+            
+            // Compute scroll dimensions for PASS2 (before if/else to avoid TDZ)
+            const scrollTopBefore2 = scroller.scrollTop;
+            const scrollHeight2 = scroller.scrollHeight;
+            const clientHeight2 = scroller.clientHeight;
+            const maxScrollTop2 = Math.max(0, scrollHeight2 - clientHeight2);
+            
+            if (overlapPx2 > 4) {
+              // Apply delta again
+              const desiredDelta2 = overlapPx2 + bufferPx;
+              scroller.scrollTop = Math.min(maxScrollTop2, scroller.scrollTop + desiredDelta2);
+              const scrollTopAfter2 = scroller.scrollTop;
+              
+              console.log('[SCROLL][ENSURE_ACTIVE][PASS2_V3_OPENER]', {
+                reason,
+                overlapPx2: Math.round(overlapPx2),
+                bufferPx,
+                scrollTopBefore2: Math.round(scrollTopBefore2),
+                scrollTopAfter2: Math.round(scrollTopAfter2),
+                maxScrollTop2: Math.round(maxScrollTop2),
+                deltaCorrectionApplied: Math.round(scrollTopAfter2 - scrollTopBefore2)
+              });
+              
+              // PART C: Unlock after PASS 2
+              unlockScrollWrites('V3_PACK_OPENER_SETTLE_PASS2_DONE');
+            } else {
+              console.log('[SCROLL][LOCK_PHASE]', {
+                phase: 'PASS2_CLEAR',
+                overlapPx: Math.round(overlapPx2),
+                scrollTop: Math.round(scroller.scrollTop),
+                maxScrollTop: Math.round(maxScrollTop2)
+              });
+              
+              // PART C: Unlock if no overlap in PASS 2
+              unlockScrollWrites('V3_PACK_OPENER_SETTLE_PASS2_CLEAR');
+            }
+          });
+        } else if (isV3Opener) {
+          console.log('[SCROLL][LOCK_PHASE]', {
+            phase: 'PASS1_CLEAR',
+            overlapPx: Math.round(overlapPx),
+            scrollTop: Math.round(scroller.scrollTop),
+            reason: 'overlap <= 4px after PASS 1'
+          });
+        }
+      } else {
+        // No overlap detected
+        if (isV3Opener) {
+          console.log('[SCROLL][LOCK_PHASE]', {
+            phase: 'NO_OVERLAP',
+            overlapPx: 0,
+            scrollTop: Math.round(scroller.scrollTop),
+            reason: 'No overlap - deferring unlock to timeout'
+          });
+        }
+      }
+    });
+    
+    // PART C: Failsafe unlock after 1000ms (belt-and-suspenders)
+    if (isV3Opener) {
+      setTimeout(() => {
+        if (scrollWriteLockRef.current && scrollWriteLockReasonRef.current === 'V3_PACK_OPENER_SETTLE') {
+          const scrollerNow = scrollOwnerRef.current || historyRef.current;
+          if (scrollerNow) {
+            const scrollTopNow = scrollerNow.scrollTop;
+            const scrollHeightNow = scrollerNow.scrollHeight;
+            const clientHeightNow = scrollerNow.clientHeight;
+            const maxScrollTopNow = Math.max(0, scrollHeightNow - clientHeightNow);
+            
+            unlockScrollWrites('V3_PACK_OPENER_FAILSAFE_TIMEOUT');
+            console.log('[SCROLL][LOCK_PHASE]', {
+              phase: 'UNLOCKED',
+              reason: 'FAILSAFE_TIMEOUT_1000MS',
+              scrollTop: Math.round(scrollTopNow),
+              maxScrollTop: Math.round(maxScrollTopNow)
+            });
+          } else {
+            unlockScrollWrites('V3_PACK_OPENER_FAILSAFE_TIMEOUT');
+            console.log('[SCROLL][LOCK_PHASE]', {
+              phase: 'UNLOCKED',
+              reason: 'FAILSAFE_TIMEOUT_1000MS_NO_SCROLLER'
+            });
+          }
+        }
+      }, 1000);
+    }
+  // TDZ GUARD: Do not reference flags declared later in file (e.g., isYesNoModeSOT).
+  // These are callback PARAMETERS, not closure deps - passed fresh on every call.
+  }, [currentItem, lockScrollWrites, unlockScrollWrites, selfHealFooterOverlap]);
+  
   const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
   const pendingScrollRafRef = useRef(null);
