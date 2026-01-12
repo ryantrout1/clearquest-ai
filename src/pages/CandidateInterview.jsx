@@ -2865,6 +2865,146 @@ function CandidateInterviewInner() {
     return () => clearTimeout(t);
   }, [sessionId, isLoading, session, engine]);
 
+  // SESSION GUARD: Redirect to StartInterview if no sessionId in URL
+  useEffect(() => {
+    console.log('[CQ_BOOT_EFFECT][ENTER_TOP]', { sessionId, effectiveSessionId });
+    // BOOT DEBUG: Effect entry log
+    console.log('[CQ_BOOT_EFFECT][ENTER]', { sessionId, effectiveSessionId });
+    
+    // SESSION LOCK: Suppress redirect if session was locked (prevents mid-interview reset)
+    if (!effectiveSessionId) {
+      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN_TOP]', { sessionId, reason: 'NO_EFFECTIVE_SESSION_ID' });
+      
+      // ONE-SHOT GUARD: Only redirect once (prevent loops)
+      if (didTerminalRedirectRef.current) {
+        console.log('[CQ_BOOT_EFFECT][SKIP]', { 
+          reason: 'ALREADY_REDIRECTED',
+          didTerminalRedirectRef: true
+        });
+        return; // Already redirected - no-op
+      }
+      
+      // Mark redirect as executed
+      didTerminalRedirectRef.current = true;
+      
+      // Preserve ALL query params (hide_badge, server_url, etc.)
+      const currentSearch = window.location.search || '';
+      const redirectUrl = `/StartInterview${currentSearch}`;
+      
+      console.log('[UI_CONTRACT][CANDIDATE_INTERVIEW_NO_SESSION_REDIRECT_EFFECT]', {
+        to: redirectUrl,
+        preservedParams: currentSearch,
+        reason: 'SessionId missing from URL - one-shot redirect in useEffect'
+      });
+      
+      // Prevent redirect loops: only redirect if not already on StartInterview
+      if (window.location.pathname !== '/StartInterview') {
+        navigate(redirectUrl, { replace: true });
+      }
+      
+      // FAILSAFE: Show manual link after 1500ms if redirect doesn't complete
+      const failsafeTimer = setTimeout(() => {
+        setShowRedirectFallback(true);
+      }, 1500);
+      
+      return () => clearTimeout(failsafeTimer);
+    }
+    
+    // CRITICAL: Only initialize once per sessionId (even if component remounts)
+    if (initMapRef.current[effectiveSessionId]) {
+      console.log('[CQ_BOOT_EFFECT][EARLY_RETURN_TOP]', { sessionId: effectiveSessionId, reason: 'ALREADY_INITIALIZED' });
+      console.log('[MOUNT_GUARD] Already initialized for sessionId - skipping init', { sessionId: effectiveSessionId });
+      
+      // Remount recovery: restore state from DB without full init
+      const quickRestore = async () => {
+        try {
+          const loadedSession = await base44.entities.InterviewSession.get(effectiveSessionId);
+          if (loadedSession) {
+            setSession(loadedSession);
+
+            // CHANGE 1: Clean legacy V3 probe prompts on load
+            const rawTranscript = loadedSession.transcript_snapshot || [];
+            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            setDbTranscriptSafe(cleanedTranscript);
+
+            setQueue(loadedSession.queue_snapshot || []);
+            setCurrentItem(loadedSession.current_item_snapshot || null);
+            setIsLoading(false);
+            setShowLoadingRetry(false);
+
+            const hasAnyResponses = cleanedTranscript && cleanedTranscript.length > 0;
+            setIsNewSession(!hasAnyResponses);
+            setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
+
+            console.log('[MOUNT_GUARD][QUICK_RESTORE]', { transcriptLen: cleanedTranscript?.length || 0 });
+          }
+        } catch (err) {
+          console.error('[MOUNT_GUARD][QUICK_RESTORE][ERROR]', err);
+        }
+      };
+      
+      quickRestore();
+      return;
+    }
+    
+    // Mark this sessionId as initialized
+    initMapRef.current[effectiveSessionId] = true;
+    console.log('[MOUNT_GUARD] First init for sessionId', { sessionId: effectiveSessionId });
+    
+    console.log('[CQ_BOOT_EFFECT][INVOKE_DOBOOT]', { sessionId: effectiveSessionId });
+    const doBoot = async () => {
+      try {
+        console.log('[CQ_BOOT_EFFECT][RUN]', { sessionId: effectiveSessionId });
+        const [loadedSession, engineData] = await Promise.all([
+          base44.entities.InterviewSession.get(effectiveSessionId),
+          bootstrapEngine(base44)
+        ]);
+
+        if (!loadedSession) {
+          throw new Error('Session not found during boot');
+        }
+        
+        unstable_batchedUpdates(() => {
+            setSession(loadedSession);
+            setEngine(engineData);
+
+            const rawTranscript = loadedSession.transcript_snapshot || [];
+            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            setDbTranscriptSafe(cleanedTranscript);
+
+            setQueue(loadedSession.queue_snapshot || []);
+            setCurrentItem(loadedSession.current_item_snapshot || null);
+            
+            const hasAnyResponses = cleanedTranscript && cleanedTranscript.length > 0;
+            setIsNewSession(!hasAnyResponses);
+            setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
+
+            console.log('[CQ_BOOT_EFFECT][SUCCESS_PRE_SET]', { sessionId, hasSession: true, hasEngine: true });
+        });
+
+      } catch (e) {
+        console.error('[CQ_BOOT_EFFECT][ERROR]', { sessionId: effectiveSessionId, message: e?.message, stack: e?.stack });
+        setError(e.message);
+      } finally {
+        console.log('[CQ_BOOT_EFFECT][SET_LOADING_FALSE]', { sessionId: effectiveSessionId });
+        setIsLoading(false);
+      }
+    };
+    doBoot();
+
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+      clearTimeout(typingTimeoutRef.current);
+      clearTimeout(aiResponseTimeoutRef.current);
+      clearTimeout(typingLockTimeoutRef.current);
+      setShowLoadingRetry(false);
+      
+      // DO NOT clear initMapRef on unmount - allows detection across remounts
+    };
+  }, [effectiveSessionId]);
+
   // ============================================================================
   // BOOTSTRAP HELPERS + INITIALIZER (HOISTED)
   // ============================================================================
