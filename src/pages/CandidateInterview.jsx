@@ -13994,7 +13994,15 @@ function CandidateInterviewInner() {
   // TDZ ELIMINATED: Late bottomBarMode declaration removed - bottomBarModeSOT is canonical source
   
   cqTdzMark('BEFORE_CURRENT_PROMPT_COMPUTATION');
-  
+ // ===============================
+ // SAFE HELPERS ZONE (TDZ FIX)
+ // ===============================
+
+
+
+
+
+
   // ============================================================================
   // CURRENT PROMPT COMPUTATION - Moved here after all dependencies (TDZ fix)
   // ============================================================================
