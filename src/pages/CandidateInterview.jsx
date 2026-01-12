@@ -2822,6 +2822,7 @@ function CandidateInterviewInner() {
   
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
+  console.log('[TDZ_BISECT][P1_AFTER_HOOKS_OK]', { sessionId });
 
   useEffect(() => {
     console.log('[CQ_BOOT_STATE][SNAPSHOT]', {
@@ -3066,6 +3067,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // BOOT GUARD - Ultra-minimal early return during unstable boot/LOADING
   // ============================================================================
+  console.log('[TDZ_BISECT][P3_BEFORE_BOOT_GUARD]', { sessionId });
   console.log('[CQ_BOOT_GUARD][EVAL]', { sessionId, isLoading, hasSession: !!session, hasEngine: !!engine });
   console.log('[CQ_BOOT_GUARD][EVAL]', { sessionId, isLoading, hasSession: !!session, hasEngine: !!engine });
   const cqBootNotReady = isLoading || !session || !engine;
@@ -3094,6 +3096,7 @@ function CandidateInterviewInner() {
         window[readyKey] = false;
       }
       
+      console.log('[TDZ_BISECT][P4_IN_BOOT_GUARD_RETURN]', { sessionId });
       return (
         <div style={{
           minHeight: '100vh',
@@ -23171,6 +23174,7 @@ function CandidateInterviewInner() {
   );
   
   cqTdzMark('AFTER_MAIN_RETURN_EXPR_SHALLOW', { constructed: true, screenMode, shouldShowFullScreenLoader });
+  console.log('[TDZ_BISECT][P5_BEFORE_MAIN_RETURN]', { sessionId });
   console.log('[CQ_RENDER_PROBE][BEFORE_MAIN_RETURN]', { sessionId, hasSession: !!session, hasEngine: !!engine, isLoading });
   return cqMainReturnJSX;
 }
