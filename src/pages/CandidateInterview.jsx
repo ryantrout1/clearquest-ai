@@ -4380,6 +4380,19 @@ function CandidateInterviewInner() {
   const isYesNoModeSOT = false;
   const isMiGateSOT = false;
   
+  // ============================================================================
+  // TDZ FIX: EFFECTIVEITEMTYPE - HOISTED EARLY (prevents use-before-declare)
+  // ============================================================================
+  // CRITICAL: This must be declared BEFORE line 2569 where it's first used
+  // Step 3: Compute effectiveItemType (UI routing key derived from activeUiItem.kind)
+  // CRITICAL OVERRIDE: Fallback takes absolute precedence over v3_probing
+  const effectiveItemType = activeUiItem.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
+                           activeUiItem.kind === "V3_PROMPT" ? 'v3_probing' : 
+                           activeUiItem.kind === "V3_OPENER" ? 'v3_pack_opener' :
+                           activeUiItem.kind === "MI_GATE" ? 'multi_instance_gate' :
+                           v3ProbingActive ? 'v3_probing' : 
+                           currentItemType;
+  
   // PART C: Reset spacer when leaving V3 opener (moved here - after activeKindSOT exists)
   useEffect(() => {
     const wasV3Opener = lastLoggedActiveKindRef.current === 'V3_OPENER' || 
