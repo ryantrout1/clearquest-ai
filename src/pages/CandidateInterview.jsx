@@ -13478,14 +13478,7 @@ function CandidateInterviewInner() {
                                 activeUiItem.kind === "MI_GATE" ? "MI_GATE" :
                                 "DEFAULT";
   
-  // Step 3: Compute effectiveItemType (UI routing key derived from activeUiItem.kind)
-  // CRITICAL OVERRIDE: Fallback takes absolute precedence over v3_probing
-  const effectiveItemType = activeUiItem.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
-                           activeUiItem.kind === "V3_PROMPT" ? 'v3_probing' : 
-                           activeUiItem.kind === "V3_OPENER" ? 'v3_pack_opener' :
-                           activeUiItem.kind === "MI_GATE" ? 'multi_instance_gate' :
-                           v3ProbingActive ? 'v3_probing' : 
-                           currentItemType;
+  // TDZ FIX: effectiveItemType already hoisted to line ~4382 (after activeUiItem, before first use at 2569)
   
   // PHASE TRANSITION TRACKER: Record phase changes (debug-only, non-PII observability)
   // MOVED HERE: Must be after effectiveItemType declaration (prevents TDZ violation)
