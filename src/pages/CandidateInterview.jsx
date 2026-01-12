@@ -13478,8 +13478,6 @@ function CandidateInterviewInner() {
                                 activeUiItem.kind === "MI_GATE" ? "MI_GATE" :
                                 "DEFAULT";
   
-  // TDZ FIX: effectiveItemType already hoisted to line ~4382 (after activeUiItem, before first use at 2569)
-  
   // PHASE TRANSITION TRACKER: Record phase changes (debug-only, non-PII observability)
   // MOVED HERE: Must be after effectiveItemType declaration (prevents TDZ violation)
   useEffect(() => {
