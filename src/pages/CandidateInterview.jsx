@@ -2673,6 +2673,7 @@ function CandidateInterviewInner() {
   // These are callback PARAMETERS, not closure deps - passed fresh on every call.
   }, [currentItem, lockScrollWrites, unlockScrollWrites, selfHealFooterOverlap]);
   
+  const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
   const pendingScrollRafRef = useRef(null);
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
