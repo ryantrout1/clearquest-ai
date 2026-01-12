@@ -2565,8 +2565,9 @@ function CandidateInterviewInner() {
             
             // PART B: Schedule retry after spacer expands (TDZ-SAFE: compute at call time)
             requestAnimationFrame(() => {
-              const isYesNoForRetry = bottomBarModeSOT === 'YES_NO';
-              const isMiGateForRetry = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+              // TDZ FIX: Use callback parameters (already passed) instead of late-declared consts
+              const isYesNoForRetry = isYesNoModeSOT;
+              const isMiGateForRetry = isMiGateSOT;
               ensureActiveVisibleAfterRender('V3_OPENER_SPACER_EXPAND_RETRY', activeKindForRetry, isYesNoForRetry, isMiGateForRetry);
             });
           }
