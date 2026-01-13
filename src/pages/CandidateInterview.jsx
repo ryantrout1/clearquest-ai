@@ -1339,13 +1339,6 @@ function CandidateInterviewInner() {
   }
   
   const navigate = useNavigate();
-  const handleAnswerRef = useRef();
-  const safeHandleAnswer = useCallback((...args) => {
-    if (handleAnswerRef.current) {
-      return handleAnswerRef.current(...args);
-    }
-    console.error('[CQ_TDZ_FIX][safeHandleAnswer] handleAnswer is not yet available.');
-  }, []);
   
   // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
   const urlParams = new URLSearchParams(window.location.search || "");
@@ -1535,34 +1528,6 @@ function CandidateInterviewInner() {
   // 
   // FORENSIC: TDZ FIX - showRedirectFallback state MUST be before early return
   const [showRedirectFallback, setShowRedirectFallback] = useState(false);
-  const handleAnswerRef = useRef();
-  const safeHandleAnswer = useCallback((...args) => {
-    if (handleAnswerRef.current) {
-      return handleAnswerRef.current(...args);
-    }
-    console.error('[CQ_TDZ_FIX][safeHandleAnswer] handleAnswer is not yet available.');
-  }, []);
-  const handleAnswerRef = useRef();
-  const safeHandleAnswer = useCallback((...args) => {
-    if (handleAnswerRef.current) {
-      return handleAnswerRef.current(...args);
-    }
-    console.error('[CQ_TDZ_FIX][safeHandleAnswer] handleAnswer is not yet available.');
-  }, []);
-  const handleAnswerRef = useRef();
-  const safeHandleAnswer = useCallback((...args) => {
-    if (handleAnswerRef.current) {
-      return handleAnswerRef.current(...args);
-    }
-    console.error('[CQ_TDZ_FIX][safeHandleAnswer] handleAnswer is not yet available.');
-  }, []);
-  const handleAnswerRef = useRef();
-  const safeHandleAnswer = useCallback((...args) => {
-    if (handleAnswerRef.current) {
-      return handleAnswerRef.current(...args);
-    }
-    console.error('[CQ_TDZ_FIX][safeHandleAnswer] handleAnswer is not yet available.');
-  }, []);
   
   // SESSION RECOVERY STATE: Track recovery in-flight to prevent redirect during lookup
   const [isRecoveringSession, setIsRecoveringSession] = useState(false);
@@ -6503,7 +6468,7 @@ function CandidateInterviewInner() {
 
       if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
         const triggerAutoFill = () => {
-          handleAnswerRef.current(step.PrefilledAnswer);
+          handleAnswer(step.PrefilledAnswer);
         };
         setTimeout(triggerAutoFill, 100);
         return null;
@@ -7958,24 +7923,6 @@ function CandidateInterviewInner() {
       }
     }
   };
-
-  const handleAnswerRef = useRef(handleAnswer);
-  useEffect(() => {
-    handleAnswerRef.current = handleAnswer;
-  }, [handleAnswer]);
-  
-  const safeHandleAnswer = useCallback((...args) => {
-    if (handleAnswerRef.current) {
-      return handleAnswerRef.current(...args);
-    }
-    console.error('[CQ_TDZ_FIX][handleAnswer] Attempted to call handleAnswer before it was initialized.');
-  }, []);
-
-  useEffect(() => {
-    handleAnswerRef.current = handleAnswer;
-  }, [handleAnswer]);
-
-    const handleAnswerRef = useRef();
 
   const handleAnswer = useCallback(async (value) => {
     // GUARD: Block YES/NO during V3 prompt answering (prevents stray "Yes" bubble)
@@ -10759,18 +10706,6 @@ function CandidateInterviewInner() {
     }
     }, [currentItem, engine, queue, dbTranscript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, sectionCompletionMessage, activeV2Pack, v2PackMode, aiFollowupCounts, aiProbingEnabled, aiProbingDisabledForSession, refreshTranscriptFromDB]);
 
-  useEffect(() => {
-    handleAnswerRef.current = handleAnswer;
-  }, [handleAnswer]);
-
-  useEffect(() => {
-    handleAnswerRef.current = handleAnswer;
-  }, [handleAnswer]);
-
-  useEffect(() => {
-    handleAnswerRef.current = handleAnswer;
-  }, [handleAnswer]);
-
 
   // HELPER: Append CTA acknowledgement to transcript (section transition click)
   const appendCtaAcknowledgeToTranscript = useCallback(async ({ sessionId, currentSectionId, nextSectionId }) => {
@@ -13245,14 +13180,7 @@ function CandidateInterviewInner() {
 
   // V3 question append moved to commitV3PromptToBottomBar (synchronous, one-time)
   // This effect removed to eliminate repeated DB fetches
-
-  useEffect(() => {
-  handleAnswerRef.current = handleAnswer;
-  }, [handleAnswer]);
-
-  useEffect(() => {
-  handleAnswerRef.current = handleAnswer;
-  }, [handleAnswer]);
+  
   // FIX B4: V3 draft restore - load draft when V3 prompt becomes active (with fallback promptId)
   useEffect(() => {
   if (!v3ProbingActive || !v3ProbingContext) return;
@@ -16951,7 +16879,7 @@ function CandidateInterviewInner() {
     
     // Route to handleAnswer (same path as all other answer types)
     if (!isCommitting) {
-      safeHandleAnswer(answer);
+      handleAnswer(answer);
     }
   };
   
