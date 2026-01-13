@@ -2717,6 +2717,12 @@ if (!V3_ONLY_MODE) {
   throw new Error("V3_ONLY_GUARD: V2 path blocked");
 }
 
+console.log("[V3_ONLY_ATTESTATION]", {
+  v3OnlyMode: V3_ONLY_MODE,
+  guardInvariant: true,
+  v2Reachability: "UNREACHABLE"
+});
+
 // ============================================================================
 // FOLLOW-UP TRIGGER LOGIC (UNCHANGED)
 // ============================================================================
