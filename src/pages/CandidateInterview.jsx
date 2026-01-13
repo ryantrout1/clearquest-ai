@@ -6468,7 +6468,7 @@ function CandidateInterviewInner() {
 
       if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
         const triggerAutoFill = () => {
-          handleAnswer(step.PrefilledAnswer);
+          handleAnswerRef.current(step.PrefilledAnswer);
         };
         setTimeout(triggerAutoFill, 100);
         return null;
@@ -7935,6 +7935,12 @@ function CandidateInterviewInner() {
     }
     console.error('[CQ_TDZ_FIX][handleAnswer] Attempted to call handleAnswer before it was initialized.');
   }, []);
+
+  useEffect(() => {
+    handleAnswerRef.current = handleAnswer;
+  }, [handleAnswer]);
+
+    const handleAnswerRef = useRef();
 
   const handleAnswer = useCallback(async (value) => {
     // GUARD: Block YES/NO during V3 prompt answering (prevents stray "Yes" bubble)
