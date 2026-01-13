@@ -1808,6 +1808,17 @@ function mapResponseTypeToExpectedType(responseType) {
 }
 
 export async function bootstrapEngine(base44) {
+  // [V3_ONLY_GUARD]
+  console.log("[V3_ONLY_GUARD][INIT]", {
+    selectedMode: "V3_ONLY",
+    reason: "Hardcoded V3_ONLY_MODE flag.",
+    inputs: { V3_ONLY_MODE }
+  });
+
+  if (!V3_ONLY_MODE) {
+    console.error('[V3_ONLY_GUARD] V2 path detected and blocked in bootstrapEngine.');
+    throw new Error('V3_ONLY_GUARD: V2 path is not permitted.');
+  }
   // FATAL V2 ENGINE BOOT TRIPWIRE: Fail-fast if V2 path reached on candidate/public
   if (typeof window !== 'undefined') {
     const pathname = window.location?.pathname || '';

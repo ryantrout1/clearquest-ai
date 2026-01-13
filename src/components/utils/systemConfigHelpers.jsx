@@ -223,7 +223,16 @@ export async function getEffectiveInterviewMode(options = {}) {
     return "DETERMINISTIC";
   }
   
-  return config.interviewMode;
+  const finalMode = config.interviewMode;
+  if (finalMode !== "HYBRID") {
+      console.error('[V3_ONLY_GUARD] V2 path detected and blocked in getEffectiveInterviewMode.', { 
+          requestedMode: finalMode,
+          departmentCode,
+          isSandbox
+      });
+      throw new Error('V3_ONLY_GUARD: V2 path blocked by systemConfigHelper. Only HYBRID mode is allowed.');
+  }
+  return finalMode;
 }
 
 // Export constants
