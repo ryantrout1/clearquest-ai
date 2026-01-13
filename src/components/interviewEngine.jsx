@@ -1816,8 +1816,13 @@ export async function bootstrapEngine(base44) {
   });
 
   if (!V3_ONLY_MODE) {
-    console.error('[V3_ONLY_GUARD] V2 path detected and blocked in bootstrapEngine.');
-    throw new Error('V3_ONLY_GUARD: V2 path is not permitted.');
+    console.error("[V3_ONLY_GUARD]", {
+      requestedMode: "V2",
+      resolvedMode: "V2",
+      inputs: { V3_ONLY_MODE },
+      reason: "V3_ONLY_MODE=false at engine entry"
+    });
+    throw new Error("V3_ONLY_GUARD: V2 path blocked");
   }
   // FATAL V2 ENGINE BOOT TRIPWIRE: Fail-fast if V2 path reached on candidate/public
   if (typeof window !== 'undefined') {
