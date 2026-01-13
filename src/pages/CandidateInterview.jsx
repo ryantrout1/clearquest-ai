@@ -1685,6 +1685,7 @@ function CandidateInterviewInner() {
   // FORENSIC: No-session early return guard (prints once per mount)
   const noSessionEarlyReturnLoggedRef = useRef(false);
   const didSessionRepairRef = useRef(false);
+  console.log("[PRE_HOOK_SAFETY][REACHED_SCREENMODE_DECL]");
   const [screenMode, setScreenMode] = useState("LOADING");
   
   console.log("[TDZ_TRACE][BEFORE_EARLY_RETURN_CHECK]");
