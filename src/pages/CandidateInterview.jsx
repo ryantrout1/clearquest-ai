@@ -1676,6 +1676,7 @@ function CandidateInterviewInner() {
   // FORENSIC: No-session early return guard (prints once per mount)
   const noSessionEarlyReturnLoggedRef = useRef(false);
   const didSessionRepairRef = useRef(false);
+  const [screenMode, setScreenMode] = useState("LOADING");
   
   // ============================================================================
   // SESSION URL REPAIR: Auto-fix stripped session param before redirect
@@ -1812,7 +1813,6 @@ function CandidateInterviewInner() {
   const transcriptSOT = canonicalTranscriptRef.current.length > 0 ? canonicalTranscriptRef.current : dbTranscript;
 
   // STATE HOISTED: Must be declared before forensicCheck (prevents TDZ crash)
-  const [screenMode, setScreenMode] = useState("LOADING");
   const [uiBlocker, setUiBlocker] = useState(null);
   const activeBlocker = uiBlocker; // UI-only blocker, not from canonical transcript
   
