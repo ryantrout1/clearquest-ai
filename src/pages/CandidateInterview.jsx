@@ -3069,87 +3069,88 @@ function CandidateInterviewInner() {
   console.log('[CQ_BOOT_GUARD][EVAL]', { sessionId, isLoading, hasSession: !!session, hasEngine: !!engine });
   console.log('[CQ_BOOT_GUARD][EVAL]', { sessionId, isLoading, hasSession: !!session, hasEngine: !!engine });
   const cqBootNotReady = isLoading || !session || !engine;
+  const cqShouldRenderBootBlock = cqBootNotReady;
   
-  if (cqBootNotReady) {
-    console.log('[CQ_BOOT_GUARD][RETURN]', { 
-      isLoading, 
-      hasSession: !!session, 
-      hasEngine: !!engine
-    });
-    
-    // STUCK-BOOT DETECTION: Track boot start timestamp (window-scoped, keyed by sessionId)
-    const bootKey = `cqBootStart_${sessionId}`;
-    if (typeof window !== 'undefined' && sessionId) {
-      if (!window[bootKey]) {
-        window[bootKey] = Date.now();
-        console.log('[CQ_BOOT_GUARD][ARMED]', { sessionId, bootStart: window[bootKey] });
-      }
-      
-      const bootAgeMs = Date.now() - window[bootKey];
-      const isStuck = bootAgeMs > 10000;
-      
-      // READY LOG: One-time log when boot completes (window-scoped flag)
-      const readyKey = `cqBootReady_${sessionId}`;
-      if (!window[readyKey]) {
-        window[readyKey] = false;
-      }
-      
-      return (
-        <div style={{
-          minHeight: '100vh',
-          background: 'linear-gradient(to bottom right, #0f172a, #1e3a8a, #0f172a)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '16px',
-          color: '#cbd5e1',
-          fontFamily: 'system-ui, sans-serif'
-        }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '14px' }}>Loading interview…</div>
-            {isStuck && (
-              <div style={{ marginTop: '16px', fontSize: '13px', color: '#94a3b8' }}>
-                Still loading. 
-                <button 
-                  onClick={() => window.location.reload()}
-                  style={{
-                    marginLeft: '8px',
-                    padding: '4px 12px',
-                    background: '#1e40af',
-                    border: 'none',
-                    borderRadius: '4px',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontSize: '13px'
-                  }}
-                >
-                  Refresh
-                </button>
+  const cqBootBlockUI = (() => {
+      console.log('[CQ_BOOT_GUARD][RETURN]', {
+          isLoading,
+          hasSession: !!session,
+          hasEngine: !!engine
+      });
+
+      // STUCK-BOOT DETECTION: Track boot start timestamp (window-scoped, keyed by sessionId)
+      const bootKey = `cqBootStart_${sessionId}`;
+      if (typeof window !== 'undefined' && sessionId) {
+          if (!window[bootKey]) {
+              window[bootKey] = Date.now();
+              console.log('[CQ_BOOT_GUARD][ARMED]', { sessionId, bootStart: window[bootKey] });
+          }
+
+          const bootAgeMs = Date.now() - window[bootKey];
+          const isStuck = bootAgeMs > 10000;
+
+          // READY LOG: One-time log when boot completes (window-scoped flag)
+          const readyKey = `cqBootReady_${sessionId}`;
+          if (!window[readyKey]) {
+              window[readyKey] = false;
+          }
+
+          return (
+              <div style={{
+                  minHeight: '100vh',
+                  background: 'linear-gradient(to bottom right, #0f172a, #1e3a8a, #0f172a)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '16px',
+                  color: '#cbd5e1',
+                  fontFamily: 'system-ui, sans-serif'
+              }}>
+                  <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '14px' }}>Loading interview…</div>
+                      {isStuck && (
+                          <div style={{ marginTop: '16px', fontSize: '13px', color: '#94a3b8' }}>
+                              Still loading.
+                              <button
+                                  onClick={() => window.location.reload()}
+                                  style={{
+                                      marginLeft: '8px',
+                                      padding: '4px 12px',
+                                      background: '#1e40af',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      color: 'white',
+                                      cursor: 'pointer',
+                                      fontSize: '13px'
+                                  }}
+                              >
+                                  Refresh
+                              </button>
+                          </div>
+                      )}
+                  </div>
               </div>
-            )}
+          );
+      }
+
+      // Fallback (no window or sessionId) - minimal UI
+      return (
+          <div style={{
+              minHeight: '100vh',
+              background: 'linear-gradient(to bottom right, #0f172a, #1e3a8a, #0f172a)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px',
+              color: '#cbd5e1',
+              fontFamily: 'system-ui, sans-serif'
+          }}>
+              <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '14px' }}>Loading interview…</div>
+              </div>
           </div>
-        </div>
       );
-    }
-    
-    // Fallback (no window or sessionId) - minimal UI
-    return (
-      <div style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(to bottom right, #0f172a, #1e3a8a, #0f172a)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '16px',
-        color: '#cbd5e1',
-        fontFamily: 'system-ui, sans-serif'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '14px' }}>Loading interview…</div>
-        </div>
-      </div>
-    );
-  }
+  })();
   
   // BOOT READY LOG: One-time confirmation when guard passes
   if (typeof window !== 'undefined' && sessionId) {
@@ -23191,7 +23192,7 @@ function CandidateInterviewInner() {
   
   cqTdzMark('AFTER_MAIN_RETURN_EXPR_SHALLOW', { constructed: true, screenMode, shouldShowFullScreenLoader });
   console.log('[CQ_RENDER_PROBE][BEFORE_MAIN_RETURN]', { sessionId, hasSession: !!session, hasEngine: !!engine, isLoading });
-  return cqMainReturnJSX;
+  return cqShouldRenderBootBlock ? cqBootBlockUI : cqMainReturnJSX;
 }
 
 // ============================================================================
