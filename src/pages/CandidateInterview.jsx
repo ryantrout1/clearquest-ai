@@ -1034,8 +1034,7 @@ const maybeAutoSkipV2Field = async ({
 }) => {
   try {
     // Check if auto-skip is enabled for this field
-    if (!fieldConfig || !fieldConfig.autoSkipIfConfident) {
-      if (!fieldConfig) console.log(`[V2_AUTO_SKIP][GUARD] Skipped: fieldConfig is null for ${fieldKey}`);
+    if (!fieldConfig?.autoSkipIfConfident) {
       return { shouldSkip: false };
     }
 
@@ -1328,7 +1327,6 @@ const runV2FieldProbeIfNeeded = async ({
 
 function CandidateInterviewInner() {
   cqLog('DEBUG', '[BUILD_OK][CandidateInterview]');
-  console.log("[TDZ_TRACE][RENDER_ENTER]");
   cqLog('DEBUG', '[V3_ONLY][SOT_FLAG][CANDIDATE]', { V3_ONLY_MODE });
   
   // User instruction for verbose logging (visible at WARN level)
@@ -20404,7 +20402,7 @@ function CandidateInterviewInner() {
     }
   });
   
-    let cqMainReturnJSX = null;\n  try {\n    cqMainReturnJSX = (
+  const cqMainReturnJSX = (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
       <header className="bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3 flex-shrink-0">
         <div className="max-w-5xl mx-auto">
@@ -23190,7 +23188,9 @@ function CandidateInterviewInner() {
         );
       })()}
     </div>
-  );\n  } catch (e) {\n    console.error("[TDZ_TRACE][CAUGHT]", e);\n    console.error("[TDZ_TRACE][STACK]", e?.stack);\n    cqMainReturnJSX = <div className="min-h-screen bg-slate-900 flex items-center justify-center"><p className="text-red-400">A critical error occurred during render. See console for details.</p></div>;\n  }\n  \n  cqTdzMark('AFTER_MAIN_RETURN_EXPR_SHALLOW', { constructed: true, screenMode, shouldShowFullScreenLoader });
+  );
+  
+  cqTdzMark('AFTER_MAIN_RETURN_EXPR_SHALLOW', { constructed: true, screenMode, shouldShowFullScreenLoader });
   console.log('[CQ_RENDER_PROBE][BEFORE_MAIN_RETURN]', { sessionId, hasSession: !!session, hasEngine: !!engine, isLoading });
   return cqShouldRenderBootBlock ? cqBootBlockUI : cqMainReturnJSX;
 }
