@@ -1,6 +1,34 @@
 import React from "react";
 import { initAnalyticsSuppression } from "./components/lib/analyticsSuppress";
 
+try {
+  if (typeof window !== "undefined" && !window.__cq_globalCrashLoggerInstalled) {
+    window.__cq_globalCrashLoggerInstalled = true;
+
+    window.addEventListener("error", (e) => {
+      try {
+        console.error("[CQ_BOOT][WINDOW_ERROR_MESSAGE]", e?.message);
+        console.error("[CQ_BOOT][WINDOW_ERROR_FILE]", e?.filename);
+        console.error("[CQ_BOOT][WINDOW_ERROR_LINECOL]", e?.lineno, e?.colno);
+        console.error("[CQ_BOOT][WINDOW_ERROR_STACK]", e?.error?.stack);
+      } catch (_) {}
+    });
+
+    window.addEventListener("unhandledrejection", (e) => {
+      try {
+        console.error("[CQ_BOOT][UNHANDLED_REJECTION_REASON]", e?.reason?.message || e?.reason);
+        console.error("[CQ_BOOT][UNHANDLED_REJECTION_STACK]", e?.reason?.stack);
+      } catch (_) {}
+    });
+
+    if (typeof document !== "undefined" && document?.documentElement) {
+      document.documentElement.setAttribute("data-cq-boot", "GLOBAL_LOGGER_INSTALLED");
+    }
+
+    console.log("[CQ_BOOT][GLOBAL_LOGGER_INSTALLED]");
+  }
+} catch (_) {}
+
 export default function Layout({ children }) {
   // ANALYTICS SUPPRESSION: Disable in preview sandbox (CORS blocked)
   React.useEffect(() => {
