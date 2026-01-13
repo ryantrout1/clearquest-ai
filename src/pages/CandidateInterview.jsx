@@ -7924,6 +7924,18 @@ function CandidateInterviewInner() {
     }
   };
 
+  const handleAnswerRef = useRef(handleAnswer);
+  useEffect(() => {
+    handleAnswerRef.current = handleAnswer;
+  }, [handleAnswer]);
+  
+  const safeHandleAnswer = useCallback((...args) => {
+    if (handleAnswerRef.current) {
+      return handleAnswerRef.current(...args);
+    }
+    console.error('[CQ_TDZ_FIX][handleAnswer] Attempted to call handleAnswer before it was initialized.');
+  }, []);
+
   const handleAnswer = useCallback(async (value) => {
     // GUARD: Block YES/NO during V3 prompt answering (prevents stray "Yes" bubble)
     if (activeUiItem?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
