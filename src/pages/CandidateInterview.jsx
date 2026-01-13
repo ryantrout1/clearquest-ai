@@ -786,7 +786,13 @@ Return ONLY a JSON object with these keys. If any information is not mentioned, 
 
     return result || {};
   } catch (err) {
-    console.warn('[LLM_SUGGESTIONS] Failed to generate suggestions:', err);
+    console.error('[LLM_SUGGESTIONS][ERROR]', { 
+      error: err?.message, 
+      packId, 
+      narrativeLen: narrativeAnswer?.length,
+      note: 'Returning empty suggestions object to prevent crash.',
+      is500Error: err?.response?.status === 500
+    });
     return {};
   }
 };
@@ -20402,7 +20408,10 @@ function CandidateInterviewInner() {
     }
   });
   
-  const cqMainReturnJSX = (
+  console.log("[TDZ_TRACE][RENDER_ENTER]");
+  let __tdzTraceJsx = null;
+  try {
+    __tdzTraceJsx = (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
       <header className="bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3 flex-shrink-0">
         <div className="max-w-5xl mx-auto">
@@ -23191,8 +23200,21 @@ function CandidateInterviewInner() {
   );
   
   cqTdzMark('AFTER_MAIN_RETURN_EXPR_SHALLOW', { constructed: true, screenMode, shouldShowFullScreenLoader });
-  console.log('[CQ_RENDER_PROBE][BEFORE_MAIN_RETURN]', { sessionId, hasSession: !!session, hasEngine: !!engine, isLoading });
-  return cqShouldRenderBootBlock ? cqBootBlockUI : cqMainReturnJSX;
+    console.log('[CQ_RENDER_PROBE][BEFORE_MAIN_RETURN]', { sessionId, hasSession: !!session, hasEngine: !!engine, isLoading });
+    
+  } catch (e) {
+    console.error("[TDZ_TRACE][CAUGHT]", e);
+    console.error("[TDZ_TRACE][STACK]", e?.stack);
+    // You can also log component state here for more context
+    console.error("[TDZ_TRACE][CONTEXT]", {
+      screenMode,
+      effectiveItemType,
+      bottomBarModeSOT,
+      v3ProbingActive
+    });
+  }
+
+  return cqShouldRenderBootBlock ? cqBootBlockUI : __tdzTraceJsx || <div className="min-h-screen bg-slate-900" />;
 }
 
 // ============================================================================
