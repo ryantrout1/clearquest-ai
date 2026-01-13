@@ -1332,6 +1332,7 @@ const runV2FieldProbeIfNeeded = async ({
 // - Welcome / start screens must NEVER reappear mid-session
 
 function CandidateInterviewInner() {
+  console.log("[TDZ_TRACE][FN_ENTER]");
   cqLog('DEBUG', '[BUILD_OK][CandidateInterview]');
   cqLog('DEBUG', '[V3_ONLY][SOT_FLAG][CANDIDATE]', { V3_ONLY_MODE });
   
@@ -1534,6 +1535,8 @@ function CandidateInterviewInner() {
   // 
   // FORENSIC: TDZ FIX - showRedirectFallback state MUST be before early return
   const [showRedirectFallback, setShowRedirectFallback] = useState(false);
+
+  const [engine, setEngine] = useState(null);
   
   // SESSION RECOVERY STATE: Track recovery in-flight to prevent redirect during lookup
   const [isRecoveringSession, setIsRecoveringSession] = useState(false);
@@ -1684,6 +1687,7 @@ function CandidateInterviewInner() {
   const didSessionRepairRef = useRef(false);
   const [screenMode, setScreenMode] = useState("LOADING");
   
+  console.log("[TDZ_TRACE][BEFORE_EARLY_RETURN_CHECK]");
   // ============================================================================
   // SESSION URL REPAIR: Auto-fix stripped session param before redirect
   // ============================================================================
@@ -1792,7 +1796,7 @@ function CandidateInterviewInner() {
   const CTA_FALLBACK_FOOTER_PX = 64; // Conservative minimum
   const CTA_MIN_PADDING_PX = CTA_FALLBACK_FOOTER_PX + CTA_GAP_PX; // 76px hard floor
 
-  const [engine, setEngine] = useState(null);
+
   const [session, setSession] = useState(null);
   const [department, setDepartment] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -23207,10 +23211,10 @@ function CandidateInterviewInner() {
     console.error("[TDZ_TRACE][STACK]", e?.stack);
     // You can also log component state here for more context
     console.error("[TDZ_TRACE][CONTEXT]", {
-      screenMode,
-      effectiveItemType,
-      bottomBarModeSOT,
-      v3ProbingActive
+      screenMode: typeof screenMode !== 'undefined' ? screenMode : 'undefined',
+      effectiveItemType: typeof effectiveItemType !== 'undefined' ? effectiveItemType : 'undefined',
+      bottomBarModeSOT: typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : 'undefined',
+      v3ProbingActive: typeof v3ProbingActive !== 'undefined' ? v3ProbingActive : 'undefined',
     });
   }
 
