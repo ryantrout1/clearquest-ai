@@ -2707,6 +2707,16 @@ function normalizeToYesNo(answer) {
  */
 export const V3_ONLY_MODE = true;
 
+if (!V3_ONLY_MODE) {
+  console.error("[V3_ONLY_GUARD]", {
+    requestedMode: "V2",
+    resolvedMode: "V2",
+    inputs: { V3_ONLY_MODE },
+    reason: "V3_ONLY_MODE constant is false (tamper/invariant)"
+  });
+  throw new Error("V3_ONLY_GUARD: V2 path blocked");
+}
+
 // ============================================================================
 // FOLLOW-UP TRIGGER LOGIC (UNCHANGED)
 // ============================================================================
