@@ -14006,33 +14006,42 @@ function CandidateInterviewInner() {
   // CURRENT PROMPT COMPUTATION - Moved here after all dependencies (TDZ fix)
   // ============================================================================
   // CRITICAL: Must be after effectiveItemType, bottomBarModeSOT, activeUiItem
-  const currentPrompt = getCurrentPrompt();
-  
-  cqTdzMark('AFTER_CURRENT_PROMPT_COMPUTATION_TDZ_POINT_OK');
-  
-  cqTdzMark('AFTER_CURRENT_PROMPT_COMPUTATION', { hasPrompt: !!currentPrompt });
-  
-  cqTdzMark('BEFORE_ACTIVE_PROMPT_TEXT_RESOLUTION');
-  
-  // ============================================================================
-  // ACTIVE PROMPT TEXT RESOLUTION - Consolidated render-time derivations (TDZ-safe)
-  // ============================================================================
-  // CRITICAL: All prompt-related consts consolidated here (after dependencies)
-  const activePromptText = computeActivePromptText({
-    requiredAnchorFallbackActive,
-    requiredAnchorCurrent,
-    v3ProbingContext,
-    v3ProbingActive,
-    v3ActivePromptText,
-    effectiveItemType,
-    currentItem,
-    v2ClarifierState,
-    currentPrompt
-  });
-  
-  cqTdzMark('AFTER_ACTIVE_PROMPT_TEXT_RESOLUTION', { hasText: !!activePromptText });
-  
-  const safeActivePromptText = sanitizeCandidateFacingText(activePromptText, 'ACTIVE_PROMPT_TEXT');
+  let __cqTdzError = null;
+  let currentPrompt = null;
+  let activePromptText = null;
+  let safeActivePromptText = null;
+  try {
+    currentPrompt = getCurrentPrompt();
+    
+    cqTdzMark('AFTER_CURRENT_PROMPT_COMPUTATION_TDZ_POINT_OK');
+    
+    cqTdzMark('AFTER_CURRENT_PROMPT_COMPUTATION', { hasPrompt: !!currentPrompt });
+    
+    cqTdzMark('BEFORE_ACTIVE_PROMPT_TEXT_RESOLUTION');
+    
+    // ============================================================================
+    // ACTIVE PROMPT TEXT RESOLUTION - Consolidated render-time derivations (TDZ-safe)
+    // ============================================================================
+    // CRITICAL: All prompt-related consts consolidated here (after dependencies)
+    activePromptText = computeActivePromptText({
+      requiredAnchorFallbackActive,
+      requiredAnchorCurrent,
+      v3ProbingContext,
+      v3ProbingActive,
+      v3ActivePromptText,
+      effectiveItemType,
+      currentItem,
+      v2ClarifierState,
+      currentPrompt
+    });
+    
+    cqTdzMark('AFTER_ACTIVE_PROMPT_TEXT_RESOLUTION', { hasText: !!activePromptText });
+    
+    safeActivePromptText = sanitizeCandidateFacingText(activePromptText, 'ACTIVE_PROMPT_TEXT');
+  } catch (e) {
+    __cqTdzError = e;
+    console.error('[CQ_TDZ_PROBE][ERROR]', { message: e?.message, stack: e?.stack });
+  }
   
   cqTdzMark('BEFORE_FOOTER_AND_PROMPT_DERIVATIONS');
   
