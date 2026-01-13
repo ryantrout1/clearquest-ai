@@ -756,6 +756,36 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
   }
 }
 
+class CQTdzLocatorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    try {
+      console.error("[TDZ_RENDER_LOCATE][CAUGHT]", error?.message);
+      console.error("[TDZ_RENDER_LOCATE][STACK]", error?.stack);
+      if (this.props.capture) {
+          console.error("[TDZ_RENDER_LOCATE][CAPTURE]", this.props.capture());
+      }
+    } catch (e) {
+        console.error("[TDZ_RENDER_LOCATE][CAPTURE_ERROR]", e?.message);
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null;
+    }
+    return this.props.children;
+  }
+}
+
 // Helper: Generate field suggestions using LLM based on narrative answer
 const generateFieldSuggestions = async (packId, narrativeAnswer) => {
   try {
@@ -23219,7 +23249,23 @@ function CandidateInterviewInner() {
     });
   }
 
-  return cqShouldRenderBootBlock ? cqBootBlockUI : __tdzTraceJsx || <div className="min-h-screen bg-slate-900" />;
+  return (
+    <CQTdzLocatorBoundary
+      capture={() => ({
+        effectiveSessionId: typeof effectiveSessionId !== 'undefined' ? effectiveSessionId : 'undefined',
+        rawSessionId: typeof sessionId !== 'undefined' ? sessionId : 'undefined',
+        isLoading: typeof isLoading !== 'undefined' ? isLoading : 'undefined',
+        hasSession: typeof session !== 'undefined' ? !!session : 'undefined',
+        hasEngine: typeof engine !== 'undefined' ? !!engine : 'undefined',
+        screenMode: typeof screenMode !== 'undefined' ? screenMode : 'undefined',
+        pathname: typeof window !== 'undefined' ? window?.location?.pathname : 'undefined',
+        search: typeof window !== 'undefined' ? window?.location?.search : 'undefined',
+        showRedirectFallback: typeof showRedirectFallback !== 'undefined' ? showRedirectFallback : 'undefined',
+      })}
+    >
+      {cqShouldRenderBootBlock ? cqBootBlockUI : __tdzTraceJsx || <div className="min-h-screen bg-slate-900" />}
+    </CQTdzLocatorBoundary>
+  );
 }
 
 // ============================================================================
