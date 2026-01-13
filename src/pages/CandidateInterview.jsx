@@ -13866,6 +13866,140 @@ function CandidateInterviewInner() {
   };
 
 
+  const saveFollowUpAnswer = async (packId, fieldKey, answer, substanceName, instanceNumber = 1, factSource = "user") => {
+    try {
+      const responses = await base44.entities.Response.filter({
+        session_id: sessionId,
+        followup_pack: packId,
+        triggered_followup: true
+      });
+
+      if (responses.length === 0) {
+        return;
+      }
+
+      const triggeringResponse = responses[responses.length - 1];
+
+      const existingFollowups = await base44.entities.FollowUpResponse.filter({
+        session_id: sessionId,
+        response_id: triggeringResponse.id,
+        followup_pack: packId,
+        instance_number: instanceNumber
+      });
+
+      let factsUpdate = null;
+      let unresolvedUpdate = null;
+      if (packId === "PACK_LE_APPS") {
+        const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+        const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
+
+        if (fieldConfig?.semanticKey) {
+          const semanticResult = validateFollowupValue({ packId, fieldKey, rawValue: answer });
+
+          const maxAiFollowups = getPackMaxAiFollowups(packId);
+          const wasProbed = factSource === "ai_probed";
+
+          const probeCount = wasProbed ? maxAiFollowups : 0;
+          const isUnresolved = wasProbed && (semanticResult.status === "invalid" || semanticResult.status === "unknown");
+
+          if (isUnresolved) {
+            const displayValue = fieldConfig.unknownDisplayLabel || `Not recalled after full probing`;
+            factsUpdate = {
+              [fieldConfig.semanticKey]: {
+                value: displayValue,
+                status: "unknown",
+                source: factSource
+              }
+            };
+            unresolvedUpdate = {
+              semanticKey: fieldConfig.semanticKey,
+              fieldKey: fieldKey,
+              probeCount: maxAiFollowups
+            };
+          } else if (semanticResult.status === "valid") {
+            factsUpdate = {
+              [fieldConfig.semanticKey]: {
+                value: semanticResult.normalizedValue,
+                status: "confirmed",
+                source: factSource
+              }
+            };
+          } else if (semanticResult.status === "unknown") {
+            factsUpdate = {
+              [fieldConfig.semanticKey]: {
+                value: semanticResult.normalizedValue,
+                status: "unknown",
+                source: factSource
+              }
+            };
+          }
+        }
+      }
+
+      if (existingFollowups.length === 0) {
+        const createData = {
+          session_id: sessionId,
+          response_id: triggeringResponse.id,
+          question_id: triggeringResponse.question_id,
+          followup_pack: packId,
+          instance_number: instanceNumber,
+          substance_name: substanceName || null,
+          incident_description: answer,
+          completed: false,
+          additional_details: { [fieldKey]: answer }
+        };
+
+        if (factsUpdate) {
+          createData.additional_details.facts = factsUpdate;
+        }
+
+        if (unresolvedUpdate) {
+          createData.additional_details.unresolvedFields = [unresolvedUpdate];
+        }
+
+        const createdRecord = await base44.entities.FollowUpResponse.create(createData);
+
+        if (packId === 'PACK_LE_APPS') {
+          await syncFactsToInterviewSession(sessionId, triggeringResponse.question_id, packId, createdRecord);
+        }
+      } else {
+        const existing = existingFollowups[0];
+
+        const updatedDetails = {
+          ...(existing.additional_details || {}),
+          [fieldKey]: answer
+        };
+
+        if (factsUpdate) {
+          updatedDetails.facts = {
+            ...(updatedDetails.facts || {}),
+            ...factsUpdate
+          };
+        }
+
+        if (unresolvedUpdate) {
+          const existingUnresolved = updatedDetails.unresolvedFields || [];
+          const filtered = existingUnresolved.filter(u => u.semanticKey !== unresolvedUpdate.semanticKey);
+          filtered.push(unresolvedUpdate);
+          updatedDetails.unresolvedFields = filtered;
+        }
+
+        await base44.entities.FollowUpResponse.update(existing.id, {
+          substance_name: substanceName || existing.substance_name,
+          additional_details: updatedDetails
+        });
+
+        const updatedRecord = { ...existing, additional_details: updatedDetails };
+        if (packId === 'PACK_LE_APPS') {
+          await syncFactsToInterviewSession(sessionId, triggeringResponse.question_id, packId, updatedRecord);
+        }
+      }
+
+    } catch (err) {
+      console.error('❌ Follow-up save error:', err);
+    }
+  };
+
 
 
   // ============================================================================
