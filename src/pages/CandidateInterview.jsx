@@ -1535,6 +1535,13 @@ function CandidateInterviewInner() {
     }
     console.error('[CQ_TDZ_FIX][safeHandleAnswer] handleAnswer is not yet available.');
   }, []);
+  const handleAnswerRef = useRef();
+  const safeHandleAnswer = useCallback((...args) => {
+    if (handleAnswerRef.current) {
+      return handleAnswerRef.current(...args);
+    }
+    console.error('[CQ_TDZ_FIX][safeHandleAnswer] handleAnswer is not yet available.');
+  }, []);
   
   // SESSION RECOVERY STATE: Track recovery in-flight to prevent redirect during lookup
   const [isRecoveringSession, setIsRecoveringSession] = useState(false);
@@ -10730,6 +10737,10 @@ function CandidateInterviewInner() {
       }, 100);
     }
     }, [currentItem, engine, queue, dbTranscript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, sectionCompletionMessage, activeV2Pack, v2PackMode, aiFollowupCounts, aiProbingEnabled, aiProbingDisabledForSession, refreshTranscriptFromDB]);
+
+  useEffect(() => {
+    handleAnswerRef.current = handleAnswer;
+  }, [handleAnswer]);
 
   useEffect(() => {
     handleAnswerRef.current = handleAnswer;
