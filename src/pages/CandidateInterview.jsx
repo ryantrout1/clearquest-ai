@@ -1542,6 +1542,13 @@ function CandidateInterviewInner() {
     }
     console.error('[CQ_TDZ_FIX][safeHandleAnswer] handleAnswer is not yet available.');
   }, []);
+  const handleAnswerRef = useRef();
+  const safeHandleAnswer = useCallback((...args) => {
+    if (handleAnswerRef.current) {
+      return handleAnswerRef.current(...args);
+    }
+    console.error('[CQ_TDZ_FIX][safeHandleAnswer] handleAnswer is not yet available.');
+  }, []);
   
   // SESSION RECOVERY STATE: Track recovery in-flight to prevent redirect during lookup
   const [isRecoveringSession, setIsRecoveringSession] = useState(false);
@@ -13220,7 +13227,10 @@ function CandidateInterviewInner() {
 
   // V3 question append moved to commitV3PromptToBottomBar (synchronous, one-time)
   // This effect removed to eliminate repeated DB fetches
-  
+
+  useEffect(() => {
+  handleAnswerRef.current = handleAnswer;
+  }, [handleAnswer]);
   // FIX B4: V3 draft restore - load draft when V3 prompt becomes active (with fallback promptId)
   useEffect(() => {
   if (!v3ProbingActive || !v3ProbingContext) return;
@@ -16919,7 +16929,7 @@ function CandidateInterviewInner() {
     
     // Route to handleAnswer (same path as all other answer types)
     if (!isCommitting) {
-      handleAnswer(answer);
+      safeHandleAnswer(answer);
     }
   };
   
