@@ -23191,6 +23191,11 @@ function CandidateInterviewInner() {
   
   cqTdzMark('AFTER_MAIN_RETURN_EXPR_SHALLOW', { constructed: true, screenMode, shouldShowFullScreenLoader });
   console.log('[CQ_RENDER_PROBE][BEFORE_MAIN_RETURN]', { sessionId, hasSession: !!session, hasEngine: !!engine, isLoading });
+  
+  if (cqShouldRenderBootBlock) {
+    return cqBootBlockUI;
+  }
+
   return cqMainReturnJSX;
 }
 
