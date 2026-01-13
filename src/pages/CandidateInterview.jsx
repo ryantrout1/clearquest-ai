@@ -1339,6 +1339,13 @@ function CandidateInterviewInner() {
   }
   
   const navigate = useNavigate();
+  const handleAnswerRef = useRef();
+  const safeHandleAnswer = useCallback((...args) => {
+    if (handleAnswerRef.current) {
+      return handleAnswerRef.current(...args);
+    }
+    console.error('[CQ_TDZ_FIX][safeHandleAnswer] handleAnswer is not yet available.');
+  }, []);
   
   // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
   const urlParams = new URLSearchParams(window.location.search || "");
@@ -10751,6 +10758,10 @@ function CandidateInterviewInner() {
       }, 100);
     }
     }, [currentItem, engine, queue, dbTranscript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, sectionCompletionMessage, activeV2Pack, v2PackMode, aiFollowupCounts, aiProbingEnabled, aiProbingDisabledForSession, refreshTranscriptFromDB]);
+
+  useEffect(() => {
+    handleAnswerRef.current = handleAnswer;
+  }, [handleAnswer]);
 
   useEffect(() => {
     handleAnswerRef.current = handleAnswer;
