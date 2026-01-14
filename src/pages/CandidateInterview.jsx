@@ -14052,30 +14052,6 @@ function CandidateInterviewInner() {
       await persistStateToDatabase(null, [], { id: firstQuestionId, type: 'question' });
   };
 
-  const handleWelcomeNext = async () => {
-      console.log("[WELCOME][BEGIN][FALLBACK_CLICK]", { screenMode });
-      const sessionForWelcome = await base44.entities.InterviewSession.get(sessionId);
-      const currentTranscriptForWelcome = sessionForWelcome.transcript_snapshot || [];
-      await appendUserMessageImport(sessionId, currentTranscriptForWelcome, "Got it — Let's Begin", { messageType: 'USER_MESSAGE', visibleToCandidate: true });
-      await refreshTranscriptFromDB('welcome_acknowledged');
-      const firstQuestionId = sections.length > 0 && sections[0]?.questionIds?.length > 0
-          ? sections[0].questionIds[0]
-          : engine?.ActiveOrdered?.[0];
-      if (!firstQuestionId) {
-          setError("Could not load the first question.");
-          return;
-      }
-      const firstQuestion = engine.QById[firstQuestionId];
-       if (!firstQuestion) {
-          setError("Could not load the first question data.");
-          return;
-      }
-      setScreenMode("QUESTION");
-      setCurrentItem({ id: firstQuestionId, type: 'question' });
-      setCurrentSectionIndex(0);
-      await persistStateToDatabase(null, [], { id: firstQuestionId, type: 'question' });
-  };
-
   const getQuestionDisplayNumber = useCallback((questionId) => {
     if (!engine) return '';
 
@@ -23222,8 +23198,6 @@ function CandidateInterviewInner() {
           })()}
           </div>
         </div>
-        );
-      })()}
       </main>
 
       <Dialog open={showCompletionModal} onOpenChange={() => {}}>
