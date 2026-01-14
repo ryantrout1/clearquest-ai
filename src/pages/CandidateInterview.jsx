@@ -23298,8 +23298,8 @@ function CandidateInterviewInner() {
             <div>hasOpenerAnswer: {hasOpenerAnswer ? 'TRUE' : 'FALSE'}</div>
             <div>renderLen: {finalRenderStream.length}</div>
           </div>
-        );
-      })()}
+        )
+      })()
     </div>
   );
   
