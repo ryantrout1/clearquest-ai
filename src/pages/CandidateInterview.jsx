@@ -23288,9 +23288,10 @@ function CandidateInterviewInner() {
             <div>CQDIAG ON</div>
             <div>hasOpenerAnswer: {hasOpenerAnswer ? 'TRUE' : 'FALSE'}</div>
             <div>renderLen: {finalRenderStream.length}</div>
-            </div>
-            )
-            </div>
+          </div>
+        )
+      })()
+    </div>
   );
   
   cqTdzMark('AFTER_MAIN_RETURN_EXPR_SHALLOW', { constructed: true, screenMode, shouldShowFullScreenLoader });
