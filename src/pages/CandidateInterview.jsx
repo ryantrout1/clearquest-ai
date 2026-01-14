@@ -18028,6 +18028,30 @@ function CandidateInterviewInner() {
     await persistStateToDatabase(null, [], { id: firstQuestionId, type: 'question' });
   };
 
+  const handleWelcomeNext = async () => {
+    console.log("[WELCOME][BEGIN][FALLBACK_CLICK]", { screenMode });
+    const sessionForWelcome = await base44.entities.InterviewSession.get(sessionId);
+    const currentTranscriptForWelcome = sessionForWelcome.transcript_snapshot || [];
+    await appendUserMessageImport(sessionId, currentTranscriptForWelcome, "Got it — Let's Begin", { messageType: 'USER_MESSAGE', visibleToCandidate: true });
+    await refreshTranscriptFromDB('welcome_acknowledged');
+    const firstQuestionId = sections.length > 0 && sections[0]?.questionIds?.length > 0
+        ? sections[0].questionIds[0]
+        : engine?.ActiveOrdered?.[0];
+    if (!firstQuestionId) {
+        setError("Could not load the first question.");
+        return;
+    }
+    const firstQuestion = engine.QById[firstQuestionId];
+     if (!firstQuestion) {
+        setError("Could not load the first question data.");
+        return;
+    }
+    setScreenMode("QUESTION");
+    setCurrentItem({ id: firstQuestionId, type: 'question' });
+    setCurrentSectionIndex(0);
+    await persistStateToDatabase(null, [], { id: firstQuestionId, type: 'question' });
+  };
+
   // ============================================================================
   // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
   // ============================================================================
@@ -20554,6 +20578,36 @@ function CandidateInterviewInner() {
           <div className="flex-1" aria-hidden="true" />
           
           <div className="space-y-3">
+            {(() => {
+              // CQ_WELCOME_FALLBACK_CANARY_DO_NOT_REMOVE
+              const isWelcomeHang = screenMode === 'WELCOME' && finalTranscriptList.length === 0 && session && engine && !isLoading;
+
+              if (isWelcomeHang) {
+                console.log('[WELCOME_RENDER][FALLBACK_USED]', {
+                  reason: 'finalTranscriptList is empty on WELCOME render',
+                  finalTranscriptListLen: 0,
+                  dbTranscriptLen: dbTranscript.length
+                });
+                return (
+                  <ContentContainer>
+                    <StartResumeMessage
+                      mode="start"
+                      onNext={handleWelcomeNext}
+                      departmentName={department?.department_name}
+                    />
+                  </ContentContainer>
+                );
+              }
+              
+              if (screenMode === 'WELCOME') {
+                console.log('[WELCOME_RENDER][NORMAL_USED]', {
+                    screenMode,
+                    finalTranscriptListLen: finalTranscriptList.length
+                });
+              }
+
+              return null;
+            })()}
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {/* Active opener suppression: Compute current active opener stableKey */}
             {(() => {
