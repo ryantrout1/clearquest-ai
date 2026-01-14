@@ -23251,7 +23251,8 @@ function CandidateInterviewInner() {
         v3ProbingActive={v3ProbingActive}
         hasPrompt={hasPrompt}
       />
-  );
+  
+  {(cqTdzMark('AFTER_MAIN_RETURN_EXPR_SHALLOW', { constructed: true, screenMode, shouldShowFullScreenLoader }), console.log('[CQ_RENDER_PROBE][BEFORE_MAIN_RETURN]', { sessionId, hasSession: !!session, hasEngine: !!engine, isLoading }), null)}
     
   } catch (e) {
     console.error("[TDZ_TRACE][CAUGHT]", e);
