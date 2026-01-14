@@ -23251,9 +23251,8 @@ function CandidateInterviewInner() {
         v3ProbingActive={v3ProbingActive}
         hasPrompt={hasPrompt}
       />
-  
-
-  );
+      </div>
+      );
     
   } catch (e) {
     console.error("[TDZ_TRACE][CAUGHT]", e);
