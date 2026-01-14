@@ -21584,6 +21584,8 @@ function CandidateInterviewInner() {
                       </div>
                     </ContentContainer>
                   </div>
+                );
+              })()}
 
               {/* V3 probe question and answer now render from transcript (legal record) */}
               {/* Moved to transcript stream above (lines ~9166-9194) - renders with proper styling */}
