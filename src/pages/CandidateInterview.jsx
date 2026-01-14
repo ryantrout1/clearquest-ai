@@ -4418,6 +4418,12 @@ function CandidateInterviewInner() {
   // ============================================================================
   // CRITICAL: Declared AFTER activeUiItem is initialized, prevents TDZ in callbacks
   const activeKindSOT = activeUiItem?.kind || currentItem?.type || 'UNKNOWN';
+
+  // TDZ FIX: Hoisted from component body to prevent use-before-declare in effectiveItemType
+  const currentItemType = v3GateActive ? 'v3_gate' :
+                          v3ProbingActive ? 'v3_probing' :
+                          pendingSectionTransition ? 'section_transition' :
+                          currentItem?.type || null;
   
   // TDZ SAFE DEFAULTS — real values computed later when bottomBarModeSOT/effectiveItemType exist.
   // These are placeholders to prevent "undefined" errors in early code paths.
