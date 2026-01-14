@@ -13674,11 +13674,7 @@ function CandidateInterviewInner() {
   // CRITICAL: DECLARED FIRST - Before all effects that use bottomBarModeSOT/effectiveItemType
   // All variables declared EXACTLY ONCE in this block
   
-  // Step 1: Compute currentItemType (base type before precedence)
-  const currentItemType = v3GateActive ? 'v3_gate' : 
-                          v3ProbingActive ? 'v3_probing' : 
-                          pendingSectionTransition ? 'section_transition' : 
-                          currentItem?.type || null;
+  // Step 1: Compute currentItemType (MOVED to prevent TDZ)
   
   // Step 2: Compute footer controller (determines which UI block controls bottom bar)
   const footerControllerLocal = activeUiItem.kind === "REQUIRED_ANCHOR_FALLBACK" ? "REQUIRED_ANCHOR_FALLBACK" :
