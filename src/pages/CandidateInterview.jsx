@@ -18004,6 +18004,30 @@ function CandidateInterviewInner() {
 
   cqTdzMark('BEFORE_FINAL_TRANSCRIPT_LIST_MEMO');
   
+  const handleWelcomeNext = async () => {
+    console.log("[WELCOME][BEGIN][FALLBACK_CLICK]", { screenMode });
+    const sessionForWelcome = await base44.entities.InterviewSession.get(sessionId);
+    const currentTranscriptForWelcome = sessionForWelcome.transcript_snapshot || [];
+    await appendUserMessageImport(sessionId, currentTranscriptForWelcome, "Got it — Let's Begin", { messageType: 'USER_MESSAGE', visibleToCandidate: true });
+    await refreshTranscriptFromDB('welcome_acknowledged');
+    const firstQuestionId = sections.length > 0 && sections[0]?.questionIds?.length > 0
+        ? sections[0].questionIds[0]
+        : engine?.ActiveOrdered?.[0];
+    if (!firstQuestionId) {
+        setError("Could not load the first question.");
+        return;
+    }
+    const firstQuestion = engine.QById[firstQuestionId];
+     if (!firstQuestion) {
+        setError("Could not load the first question data.");
+        return;
+    }
+    setScreenMode("QUESTION");
+    setCurrentItem({ id: firstQuestionId, type: 'question' });
+    setCurrentSectionIndex(0);
+    await persistStateToDatabase(null, [], { id: firstQuestionId, type: 'question' });
+  };
+
   // ============================================================================
   // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
   // ============================================================================
