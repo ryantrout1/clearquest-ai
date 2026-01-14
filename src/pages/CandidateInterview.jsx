@@ -14028,29 +14028,7 @@ function CandidateInterviewInner() {
     }
   };
 
-  const handleWelcomeNext = async () => {
-      console.log("[WELCOME][BEGIN][FALLBACK_CLICK]", { screenMode });
-      const sessionForWelcome = await base44.entities.InterviewSession.get(sessionId);
-      const currentTranscriptForWelcome = sessionForWelcome.transcript_snapshot || [];
-      await appendUserMessageImport(sessionId, currentTranscriptForWelcome, "Got it — Let's Begin", { messageType: 'USER_MESSAGE', visibleToCandidate: true });
-      await refreshTranscriptFromDB('welcome_acknowledged');
-      const firstQuestionId = sections.length > 0 && sections[0]?.questionIds?.length > 0
-          ? sections[0].questionIds[0]
-          : engine?.ActiveOrdered?.[0];
-      if (!firstQuestionId) {
-          setError("Could not load the first question.");
-          return;
-      }
-      const firstQuestion = engine.QById[firstQuestionId];
-       if (!firstQuestion) {
-          setError("Could not load the first question data.");
-          return;
-      }
-      setScreenMode("QUESTION");
-      setCurrentItem({ id: firstQuestionId, type: 'question' });
-      setCurrentSectionIndex(0);
-      await persistStateToDatabase(null, [], { id: firstQuestionId, type: 'question' });
-  };
+
 
   const getQuestionDisplayNumber = useCallback((questionId) => {
     if (!engine) return '';
@@ -20541,58 +20519,14 @@ function CandidateInterviewInner() {
         ref={historyRef} 
         onScroll={handleTranscriptScroll}
       >
-      {(() => {
-        const isWelcomeHang = screenMode === 'WELCOME' && finalTranscriptList.length === 0 && !isLoading && session && engine;
-        
-        if (isWelcomeHang) {
-          console.log('[WELCOME_RENDER][FALLBACK_USED]', {
-                reason: 'finalTranscriptList is empty on WELCOME render',
-                finalTranscriptListLen: 0,
-                dbTranscriptLen: dbTranscript.length
-            });
-          return (
-              <div className="min-h-0 flex flex-col px-4 pt-6">
-                 {/* TOP SPACER - Pushes content to bottom when short (ChatGPT gravity) */}
-                <div className="flex-1" aria-hidden="true" />
-                <ContentContainer>
-                    <StartResumeMessage
-                        mode="start"
-                        onNext={handleWelcomeNext}
-                        departmentName={department?.department_name}
-                    />
-                </ContentContainer>
-                 {/* BOTTOM SPACER - Reserves space for sticky composer (ChatGPT pattern) */}
-                <div
-                    ref={bottomAnchorRef}
-                    aria-hidden="true"
-                    data-ui-contract-anchor="true"
-                    style={{ 
-                        height: `${bottomSpacerPx}px`, 
-                        flexShrink: 0,
-                        scrollMarginBottom: `${dynamicFooterHeightPx}px`
-                    }}
-                />
-              </div>
-          );
-        }
-
-        if (screenMode === 'WELCOME') {
-             console.log('[WELCOME_RENDER][NORMAL_USED]', {
-                screenMode,
-                finalTranscriptListLen: finalTranscriptList.length
-            });
-        }
-        
-        return (
-          <div 
-            className="min-h-0 flex flex-col px-4 pt-6"
-            style={{
-              paddingBottom: shouldApplyFooterClearance
-                ? `${footerClearancePx}px`
-                : '0px'
-            }}
-          >
-          {/* TOP SPACER - Pushes content to bottom when short (ChatGPT gravity) */}
+        <div 
+          className="min-h-0 flex flex-col px-4 pt-6"
+          style={{
+            paddingBottom: shouldApplyFooterClearance
+              ? `${footerClearancePx}px`
+              : '0px'
+          }}
+        >          {/* TOP SPACER - Pushes content to bottom when short (ChatGPT gravity) */}
           <div className="flex-1" aria-hidden="true" />
           
           <div className="space-y-3">
@@ -21593,8 +21527,6 @@ function CandidateInterviewInner() {
                       </div>
                     </ContentContainer>
                   </div>
-                );
-              })()}
 
               {/* V3 probe question and answer now render from transcript (legal record) */}
               {/* Moved to transcript stream above (lines ~9166-9194) - renders with proper styling */}
