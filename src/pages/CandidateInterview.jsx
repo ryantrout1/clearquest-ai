@@ -23290,6 +23290,7 @@ function CandidateInterviewInner() {
             <div>renderLen: {finalRenderStream.length}</div>
           </div>
         )
+      })()
     </div>
   );
   
