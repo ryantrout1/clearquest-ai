@@ -3101,7 +3101,7 @@ function CandidateInterviewInner() {
     // Priority-ordered evaluation (highest to lowest)
     
     // 1. BOOTSTRAP - Initial loading
-    if (isLoading && !engine && !session) {
+    if (isLoading && !engine_S && !session_S) {
       return {
         phase: "BOOTSTRAP",
         allowedActions: new Set([]),
@@ -20020,7 +20020,7 @@ function CandidateInterviewInner() {
 
 
   // [TDZ_SHIELD] Safe aliases for render-time reads (must stay below all hooks)
-  const finalTranscriptList_S = Array.isArray(finalTranscriptList) ? finalTranscriptList : [];
+  
   const activeUiItem_S = activeUiItem && typeof activeUiItem === 'object' ? activeUiItem : {};
   const currentItem_S = currentItem && typeof currentItem === 'object' ? currentItem : {};
   const dbTranscript_S = Array.isArray(dbTranscript) ? dbTranscript : [];
@@ -20084,6 +20084,18 @@ function CandidateInterviewInner() {
       reason: 'New session started - status refs cleared'
     });
   }, [sessionId]);
+
+  // [TDZ_SHIELD] Safe aliases for render-time reads (must stay below all hooks)
+  const finalTranscriptList_S = Array.isArray(finalTranscriptList) ? finalTranscriptList : [];
+  const activeUiItem_S = activeUiItem && typeof activeUiItem === 'object' ? activeUiItem : {};
+  const currentItem_S = currentItem && typeof currentItem === 'object' ? currentItem : {};
+  const engine_S = engine && typeof engine === 'object' ? engine : {};
+  const session_S = session && typeof session === 'object' ? session : {};
+  const dbTranscript_S = Array.isArray(dbTranscript) ? dbTranscript : [];
+  const sections_S = Array.isArray(sections) ? sections : [];
+  const activeSection_S = activeSection && typeof activeSection === 'object' ? activeSection : {};
+  const department_S = department && typeof department === 'object' ? department : {};
+
 
 
 
