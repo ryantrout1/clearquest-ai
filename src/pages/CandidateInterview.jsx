@@ -20400,6 +20400,13 @@ function CandidateInterviewInner() {
               const transcriptRenderableList = finalTranscriptList.filter(shouldRenderInTranscript);
       
               const filteredCount = finalTranscriptList.length - transcriptRenderableList.length;
+
+              // CHANGE 3: Add final readback log right before the map (debug gated)
+              if (cqDebugGate) {
+                try {
+                  window.console.log('[TDZ_TRACE][ABOUT_TO_RENDER_MAP]', { originalCount: finalTranscriptList?.length, renderableCount: transcriptRenderableList?.length });
+                } catch (_) {}
+              }
               const forceTranscriptFilterDebug = isV3DebugEnabled || false;
 
               if (filteredCount > 0 || forceTranscriptFilterDebug) {
