@@ -8728,26 +8728,9 @@ function CandidateInterviewInner() {
         
         // REGRESSION GUARD: Verify appended entry is in returned transcript
         const foundInReturned = transcriptAfterAnswer.some(e => e.stableKey === openerAnswerStableKey);
-        console.log('[CQ_TRANSCRIPT][SOT_AFTER_USER_APPEND]', {
-          renderSourceLenAfter: transcriptAfterAnswer.length,
-          foundOpenerAnswer: foundInReturned,
-          last2Items: transcriptAfterAnswer.slice(-2).map(e => ({
-            role: e.role,
-            messageType: e.messageType || e.type,
-            stableKey: e.stableKey || e.id,
-            textPreview: (e.text || '').substring(0, 40)
-          })),
-          verifyStableKey: openerAnswerStableKey
-        });
+
         
         if (!foundInReturned) {
-          console.error('[CQ_TRANSCRIPT][USER_APPEND_MISSING]', {
-            stableKey: openerAnswerStableKey,
-            packId,
-            instanceNumber,
-            reason: 'appendUserMessage returned but entry not in transcript array',
-            transcriptLenAfter: transcriptAfterAnswer.length
-          });
         }
         
 
@@ -8997,12 +8980,6 @@ function CandidateInterviewInner() {
           });
           
           if (!foundAfterTransition) {
-            console.error('[CQ_TRANSCRIPT][OPENER_ANSWER_LOST_AFTER_TRANSITION]', {
-              stableKey: openerAnswerStableKey,
-              packId,
-              instanceNumber,
-              reason: 'Opener answer missing after v3_probing transition'
-            });
           }
           
           return prev; // No mutation - just logging
