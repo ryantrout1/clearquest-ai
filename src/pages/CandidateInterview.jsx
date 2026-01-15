@@ -2967,7 +2967,7 @@ function CandidateInterviewInner() {
 
             // CHANGE 1: Clean legacy V3 probe prompts on load
             const rawTranscript = loadedSession.transcript_snapshot || [];
-            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            const cleanedTranscript = rawTranscript;
             setDbTranscriptSafe(cleanedTranscript);
 
             setQueue(loadedSession.queue_snapshot || []);
@@ -3012,7 +3012,7 @@ function CandidateInterviewInner() {
             setEngine(engineData);
 
             const rawTranscript = loadedSession.transcript_snapshot || [];
-            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            const cleanedTranscript = rawTranscript;
             setDbTranscriptSafe(cleanedTranscript);
 
             setQueue(loadedSession.queue_snapshot || []);
@@ -7052,7 +7052,7 @@ function CandidateInterviewInner() {
 
             // CHANGE 1: Clean legacy V3 probe prompts on load
             const rawTranscript = loadedSession.transcript_snapshot || [];
-            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            const cleanedTranscript = rawTranscript;
             setDbTranscriptSafe(cleanedTranscript);
 
             setQueue(loadedSession.queue_snapshot || []);
@@ -7097,7 +7097,7 @@ function CandidateInterviewInner() {
             setEngine(engineData);
 
             const rawTranscript = loadedSession.transcript_snapshot || [];
-            const cleanedTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+            const cleanedTranscript = rawTranscript;
             setDbTranscriptSafe(cleanedTranscript);
 
             setQueue(loadedSession.queue_snapshot || []);
@@ -7354,7 +7354,7 @@ function CandidateInterviewInner() {
       
       // CHANGE 1: Clean legacy V3 probe prompts on resume
       const rawTranscript = loadedSession.transcript_snapshot || [];
-      const freshTranscript = cleanLegacyV3ProbePrompts(rawTranscript, sessionId);
+      const freshTranscript = rawTranscript;
       
       // MERGE STRATEGY: Use functional update to guarantee latest canonical state
       setDbTranscriptSafe(prev => {
