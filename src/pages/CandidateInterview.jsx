@@ -142,7 +142,7 @@ const isMiGateItem = (item, packId, instanceNumber) => {
   if (!item || !packId || instanceNumber === undefined) return false;
   
   // Match active card gates
-  if (item.__activeCard && item.kind === 'multi_instance_gate') {
+  if (item.__activeCard_S && item.kind === 'multi_instance_gate') {
     const itemPackId = item.packId || item.meta?.packId;
     const itemInstance = item.instanceNumber || item.meta?.instanceNumber;
     return itemPackId === packId && itemInstance === instanceNumber;
@@ -483,11 +483,11 @@ const ContentContainer = ({ children, className = "" }) => (
 // SECTION-BASED HELPER FUNCTIONS (HOISTED)
 // ============================================================================
 
-function buildSectionsFromEngine(engineData) {
+function buildSectionsFromEngine(engine_SData) {
   try {
-    const sectionEntities = engineData.Sections || [];
-    const sectionOrder = engineData.sectionOrder || [];
-    const questionsBySection = engineData.questionsBySection || {};
+    const sectionEntities = engine_SData.Sections || [];
+    const sectionOrder = engine_SData.sectionOrder || [];
+    const questionsBySection = engine_SData.questionsBySection || {};
 
     if (sectionEntities.length > 0) {
       const orderedSections = sectionEntities
@@ -603,13 +603,13 @@ function getNextQuestionInSectionFlow({ sections, currentSectionIndex, currentQu
   return { mode: 'DONE' };
 }
 
-function determineInitialSectionIndex(orderedSections, sessionData, engineData) {
+function determineInitialSectionIndex(orderedSections, sessionData, engine_SData) {
   if (!orderedSections || orderedSections.length === 0) return 0;
 
-  const currentItemSnapshot = sessionData.current_item_snapshot;
-  if (currentItemSnapshot?.id && currentItemSnapshot?.type === 'question') {
-    const questionId = currentItemSnapshot.id;
-    const location = engineData.questionIdToSection?.[questionId];
+  const currentItem_SSnapshot = sessionData.current_item_snapshot;
+  if (currentItem_SSnapshot?.id && currentItem_SSnapshot?.type === 'question') {
+    const questionId = currentItem_SSnapshot.id;
+    const location = engine_SData.questionIdToSection?.[questionId];
 
     if (location?.sectionId) {
       const sectionIndex = orderedSections.findIndex(s => s.id === location.sectionId);
@@ -1460,18 +1460,18 @@ function CandidateInterviewInner() {
     const {
       requiredAnchorFallbackActive,
       requiredAnchorCurrent,
-      v3ProbingContext,
+      v3ProbingContext_S,
       v3ProbingActive,
       v3ActivePromptText,
       effectiveItemType,
-      currentItem,
+      currentItem_S,
       v2ClarifierState,
       currentPrompt
     } = params;
     
     // OPENER OVERRIDE: v3_pack_opener must never use fallback priority
     if (effectiveItemType === 'v3_pack_opener') {
-      const openerText = (currentItem?.openerText || '').trim();
+      const openerText = (currentItem_S?.openerText || '').trim();
       if (openerText) {
         console.log('[ACTIVE_PROMPT_TEXT][OPENER_OVERRIDE]', {
           effectiveItemType,
@@ -1490,7 +1490,7 @@ function CandidateInterviewInner() {
     
     // Priority 0: Required anchor fallback
     if (requiredAnchorFallbackActive && requiredAnchorCurrent) {
-      return resolveAnchorToHumanQuestion(requiredAnchorCurrent, v3ProbingContext?.packId);
+      return resolveAnchorToHumanQuestion(requiredAnchorCurrent, v3ProbingContext_S?.packId);
     }
     
     // Priority 1: V3 active prompt
@@ -1499,19 +1499,19 @@ function CandidateInterviewInner() {
     }
     
     // Priority 2: V2 pack field
-    if (effectiveItemType === 'v2_pack_field' && currentItem) {
-      const backendText = currentItem.backendQuestionText;
-      const clarifierText = v2ClarifierState?.packId === currentItem.packId && 
-                           v2ClarifierState?.fieldKey === currentItem.fieldKey && 
-                           v2ClarifierState?.instanceNumber === currentItem.instanceNumber
+    if (effectiveItemType === 'v2_pack_field' && currentItem_S) {
+      const backendText = currentItem_S.backendQuestionText;
+      const clarifierText = v2ClarifierState?.packId === currentItem_S.packId && 
+                           v2ClarifierState?.fieldKey === currentItem_S.fieldKey && 
+                           v2ClarifierState?.instanceNumber === currentItem_S.instanceNumber
                            ? v2ClarifierState.clarifierQuestion
                            : null;
-      return clarifierText || backendText || currentItem.fieldConfig?.label || null;
+      return clarifierText || backendText || currentItem_S.fieldConfig?.label || null;
     }
     
     // Priority 3: V3 pack opener
-    if (effectiveItemType === 'v3_pack_opener' && currentItem) {
-      const openerText = currentItem.openerText;
+    if (effectiveItemType === 'v3_pack_opener' && currentItem_S) {
+      const openerText = currentItem_S.openerText;
       const usingFallback = !openerText || openerText.trim() === '';
       return usingFallback 
         ? "Please describe the details for this section in your own words."
@@ -1535,7 +1535,7 @@ function CandidateInterviewInner() {
   // FORENSIC: TDZ FIX - showRedirectFallback state MUST be before early return
   const [showRedirectFallback, setShowRedirectFallback] = useState(false);
 
-  const [engine, setEngine] = useState(null);
+  const [engine_S, setEngine] = useState(null);
   
   // SESSION RECOVERY STATE: Track recovery in-flight to prevent redirect during lookup
   const [isRecoveringSession, setIsRecoveringSession] = useState(false);
@@ -1732,13 +1732,13 @@ function CandidateInterviewInner() {
   // CRITICAL: Initialize with empty array ONCE - never reset during session
   const [dbTranscript, setDbTranscript] = useState([]);
   const [queue, setQueue] = useState([]);
-  const [currentItem, setCurrentItem] = useState(null);
+  const [currentItem_S, setCurrentItem] = useState(null);
   
   // STABLE: Track if transcript has been initialized to prevent resets
   const transcriptInitializedRef = useRef(false);
   
   // TRANSCRIPT SOT: Single source of truth for all rendering and metrics
-  const transcriptSOT = canonicalTranscriptRef.current.length > 0 ? canonicalTranscriptRef.current : dbTranscript;
+  const transcriptSOT_S = canonicalTranscriptRef.current.length > 0 ? canonicalTranscriptRef.current : dbTranscript;
 
   // STATE HOISTED: Must be declared before forensicCheck (prevents TDZ crash)
   const [uiBlocker, setUiBlocker] = useState(null);
@@ -2087,7 +2087,7 @@ function CandidateInterviewInner() {
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
   
   // V3 UI-ONLY HISTORY: Moved here to prevent TDZ error (used in refreshTranscriptFromDB below)
-  const [v3ProbeDisplayHistory, setV3ProbeDisplayHistory] = useState([]);
+  const [v3ProbeDisplayHistory_S, setV3ProbeDisplayHistory] = useState([]);
   const lastPersistedV3OpenerKeyRef = useRef(null);
 
   const [aiSessionId, setAiSessionId] = useState(null);
@@ -2131,7 +2131,7 @@ function CandidateInterviewInner() {
   // UX: Typing lock to prevent preview refreshes while user is typing
   const [isUserTyping, setIsUserTyping] = useState(false);
   const typingLockTimeoutRef = useRef(null);
-  const currentItemRef = useRef(null);
+  const currentItem_SRef = useRef(null);
   const frozenPreviewRef = useRef(null);
 
   const triggeredPacksRef = useRef(new Set());
@@ -2224,13 +2224,13 @@ function CandidateInterviewInner() {
     const scroller = scrollOwnerRef.current || historyRef.current;
     if (!scroller) return;
     
-    const activeCardEl = scroller.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
-    if (!activeCardEl) return;
+    const activeCard_SEl = scroller.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+    if (!activeCard_SEl) return;
     
     const composerEl = footerShellRef.current;
     if (!composerEl) return;
     
-    const activeRect = activeCardEl.getBoundingClientRect();
+    const activeRect = activeCard_SEl.getBoundingClientRect();
     const composerRect = composerEl.getBoundingClientRect();
     const footerTop = composerRect.top;
     const overlapPx = Math.max(0, activeRect.bottom - footerTop);
@@ -2346,16 +2346,16 @@ function CandidateInterviewInner() {
       if (!scroller || !composerEl) return;
       
       // Find active card element
-      let activeCardEl = scroller.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
-      if (!activeCardEl) {
-        activeCardEl = scroller.querySelector('[data-cq-active-card="true"]');
+      let activeCard_SEl = scroller.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+      if (!activeCard_SEl) {
+        activeCard_SEl = scroller.querySelector('[data-cq-active-card="true"]');
       }
-      if (!activeCardEl && activeLaneCardRef.current) {
-        activeCardEl = activeLaneCardRef.current;
+      if (!activeCard_SEl && activeLaneCardRef.current) {
+        activeCard_SEl = activeLaneCardRef.current;
       }
       
       // No active card - nothing to align
-      if (!activeCardEl) {
+      if (!activeCard_SEl) {
         if (isV3Opener) {
           unlockScrollWrites('V3_PACK_OPENER_NO_CARD');
         }
@@ -2363,7 +2363,7 @@ function CandidateInterviewInner() {
       }
       
       // PART A: Measure using composer top as occlusion boundary
-      const activeRect = activeCardEl.getBoundingClientRect();
+      const activeRect = activeCard_SEl.getBoundingClientRect();
       const composerRect = composerEl.getBoundingClientRect();
       const occlusionTop = composerRect.top;
       const clearancePx = 8; // Safety buffer
@@ -2393,7 +2393,7 @@ function CandidateInterviewInner() {
         });
         
         // SELF-HEAL: Verify overlap resolved after alignment
-        const itemId = currentItem?.id;
+        const itemId = currentItem_S?.id;
         const healKey = `${itemId}:${reason}`;
         
         if (!footerOverlapSelfHealRef.current.has(healKey)) {
@@ -2424,8 +2424,8 @@ function CandidateInterviewInner() {
         const scrollTopAfter = scroller.scrollTop;
         
         // PART D: Log once for proof
-        const packId = currentItem?.packId;
-        const instanceNumber = currentItem?.instanceNumber;
+        const packId = currentItem_S?.packId;
+        const instanceNumber = currentItem_S?.instanceNumber;
         const logKey = `align_to_composer_${packId}_${instanceNumber}`;
         
         logOnce(logKey, () => {
@@ -2455,8 +2455,8 @@ function CandidateInterviewInner() {
         
         // PART B: Expand spacer when overlap detected (v3_opener only)
         if (isV3Opener && overlapPx > 4) {
-          const packId = currentItem?.packId;
-          const instanceNumber = currentItem?.instanceNumber;
+          const packId = currentItem_S?.packId;
+          const instanceNumber = currentItem_S?.instanceNumber;
           const expansionKey = `${packId}:${instanceNumber}`;
           
           // TDZ-SAFE: Capture activeKindSOT in local variable for RAF closure
@@ -2499,10 +2499,10 @@ function CandidateInterviewInner() {
         // PART B: One retry for v3_pack_opener (layout may settle)
         if (isV3Opener && overlapPx > 4) {
           requestAnimationFrame(() => {
-            if (!scroller || !composerEl || !activeCardEl) return;
+            if (!scroller || !composerEl || !activeCard_SEl) return;
             
             // Re-measure after first correction
-            const activeRect2 = activeCardEl.getBoundingClientRect();
+            const activeRect2 = activeCard_SEl.getBoundingClientRect();
             const composerRect2 = composerEl.getBoundingClientRect();
             const occlusionTop2 = composerRect2.top;
             const overlapPx2 = Math.max(0, activeRect2.bottom - (occlusionTop2 - clearancePx));
@@ -2594,7 +2594,7 @@ function CandidateInterviewInner() {
     }
   // TDZ GUARD: Do not reference flags declared later in file (e.g., isYesNoModeSOT).
   // These are callback PARAMETERS, not closure deps - passed fresh on every call.
-  }, [currentItem, lockScrollWrites, unlockScrollWrites, selfHealFooterOverlap]);
+  }, [currentItem_S, lockScrollWrites, unlockScrollWrites, selfHealFooterOverlap]);
   
   const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
@@ -2674,9 +2674,9 @@ function CandidateInterviewInner() {
     return () => window.removeEventListener('resize', handleResize);
   }, [
     dbTranscript?.length ?? 0,
-    v3ProbeDisplayHistory?.length ?? 0,
-    currentItem?.type,
-    currentItem?.id,
+    v3ProbeDisplayHistory_S?.length ?? 0,
+    currentItem_S?.type,
+    currentItem_S?.id,
     footerHeightPx
   ]);
 
@@ -2696,7 +2696,7 @@ function CandidateInterviewInner() {
 
   // V3 Probing state
   const [v3ProbingActive, setV3ProbingActive] = useState(false);
-  const [v3ProbingContext, setV3ProbingContext] = useState(null);
+  const [v3ProbingContext_S, setV3ProbingContext] = useState(null);
   const [v3ActivePromptText, setV3ActivePromptText] = useState(null); // NEW: Active probe question for input placeholder
   const v3AnswerHandlerRef = useRef(null); // NEW: Ref to V3ProbingLoop's answer handler
   const [v3PendingAnswer, setV3PendingAnswer] = useState(null); // NEW: Answer to route to V3ProbingLoop
@@ -2751,9 +2751,9 @@ function CandidateInterviewInner() {
       sessionId,
       isLoading,
       hasSession: !!session,
-      hasEngine: !!engine
+      hasEngine: !!engine_S
     });
-  }, [sessionId, isLoading, session, engine]);
+  }, [sessionId, isLoading, session, engine_S]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -2762,20 +2762,20 @@ function CandidateInterviewInner() {
         sessionId,
         isLoading,
         hasSession: !!session,
-        hasEngine: !!engine
+        hasEngine: !!engine_S
       });
     }, 5000);
     return () => clearTimeout(t);
-  }, [sessionId, isLoading, session, engine]);
+  }, [sessionId, isLoading, session, engine_S]);
 
   useEffect(() => {
     console.log('[CQ_BOOT_STATE][SNAPSHOT]', {
       sessionId,
       isLoading,
       hasSession: !!session,
-      hasEngine: !!engine
+      hasEngine: !!engine_S
     });
-  }, [sessionId, isLoading, session, engine]);
+  }, [sessionId, isLoading, session, engine_S]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -2784,11 +2784,11 @@ function CandidateInterviewInner() {
         sessionId,
         isLoading,
         hasSession: !!session,
-        hasEngine: !!engine
+        hasEngine: !!engine_S
       });
     }, 5000);
     return () => clearTimeout(t);
-  }, [sessionId, isLoading, session, engine]);
+  }, [sessionId, isLoading, session, engine_S]);
 
   // SESSION GUARD: Redirect to StartInterview if no sessionId in URL
   useEffect(() => {
@@ -2880,7 +2880,7 @@ function CandidateInterviewInner() {
     const doBoot = async () => {
       try {
         console.log('[CQ_BOOT_EFFECT][RUN]', { sessionId: effectiveSessionId });
-        const [loadedSession, engineData] = await Promise.all([
+        const [loadedSession, engine_SData] = await Promise.all([
           base44.entities.InterviewSession.get(effectiveSessionId),
           bootstrapEngine(base44)
         ]);
@@ -2891,7 +2891,7 @@ function CandidateInterviewInner() {
         
         unstable_batchedUpdates(() => {
             setSession(loadedSession);
-            setEngine(engineData);
+            setEngine(engine_SData);
 
             const rawTranscript = loadedSession.transcript_snapshot || [];
             const cleanedTranscript = rawTranscript;
@@ -2982,23 +2982,23 @@ function CandidateInterviewInner() {
   if (cqTdzIsolate) {
     console.log('[TDZ_ISOLATE][ENABLED]', { 
       mode: 'BYPASS_FINAL_TRANSCRIPT_LIST',
-      reason: 'Diagnostic mode - isolating finalTranscriptList useMemo'
+      reason: 'Diagnostic mode - isolating finalTranscriptList_S useMemo'
     });
   }
   
   // ============================================================================
   // BOOT GUARD - Ultra-minimal early return during unstable boot/LOADING
   // ============================================================================
-  console.log('[CQ_BOOT_GUARD][EVAL]', { sessionId, isLoading, hasSession: !!session, hasEngine: !!engine });
-  console.log('[CQ_BOOT_GUARD][EVAL]', { sessionId, isLoading, hasSession: !!session, hasEngine: !!engine });
-  const cqBootNotReady = isLoading || !session || !engine;
+  console.log('[CQ_BOOT_GUARD][EVAL]', { sessionId, isLoading, hasSession: !!session, hasEngine: !!engine_S });
+  console.log('[CQ_BOOT_GUARD][EVAL]', { sessionId, isLoading, hasSession: !!session, hasEngine: !!engine_S });
+  const cqBootNotReady = isLoading || !session || !engine_S;
   const cqShouldRenderBootBlock = cqBootNotReady;
   
   const cqBootBlockUI = (() => {
       console.log('[CQ_BOOT_GUARD][RETURN]', {
           isLoading,
           hasSession: !!session,
-          hasEngine: !!engine
+          hasEngine: !!engine_S
       });
 
       // STUCK-BOOT DETECTION: Track boot start timestamp (window-scoped, keyed by sessionId)
@@ -3084,7 +3084,7 @@ function CandidateInterviewInner() {
         sessionId, 
         isLoading, 
         hasSession: !!session, 
-        hasEngine: !!engine 
+        hasEngine: !!engine_S 
       });
     }
   }
@@ -3101,7 +3101,7 @@ function CandidateInterviewInner() {
     // Priority-ordered evaluation (highest to lowest)
     
     // 1. BOOTSTRAP - Initial loading
-    if (isLoading && !engine && !session) {
+    if (isLoading && !engine_S && !session) {
       return {
         phase: "BOOTSTRAP",
         allowedActions: new Set([]),
@@ -3152,7 +3152,7 @@ function CandidateInterviewInner() {
     }
     
     // 4. WELCOME - New session start screen
-    if (screenMode === "WELCOME" && !currentItem) {
+    if (screenMode === "WELCOME" && !currentItem_S) {
       return {
         phase: "WELCOME",
         allowedActions: new Set([]),
@@ -3186,7 +3186,7 @@ function CandidateInterviewInner() {
     }
     
     // 6. MI_GATE - Multi-instance gate (when not blocked by higher priority states)
-    if (currentItem?.type === 'multi_instance_gate' || 
+    if (currentItem_S?.type === 'multi_instance_gate' || 
         (multiInstanceGate && !v3ProbingActive && !requiredAnchorFallbackActive)) {
       return {
         phase: "MI_GATE",
@@ -3203,13 +3203,13 @@ function CandidateInterviewInner() {
       };
     }
     
-    // 7. V3_PROCESSING - V3 answer submitted, engine deciding
+    // 7. V3_PROCESSING - V3 answer submitted, engine_S deciding
     if (v3PromptPhase === "PROCESSING" || 
         (v3ProbingActive && !hasActiveV3Prompt && bottomBarModeSOT === "V3_WAITING")) {
       return {
         phase: "V3_PROCESSING",
         allowedActions: new Set([]),
-        blockedReasons: ["V3 engine processing"],
+        blockedReasons: ["V3 engine_S processing"],
         derivedFlags: {
           canSubmitText: false,
           canClickYesNo: false,
@@ -3239,7 +3239,7 @@ function CandidateInterviewInner() {
     }
     
     // 9. V3_OPENER - V3 pack opener narrative
-    if (currentItem?.type === 'v3_pack_opener') {
+    if (currentItem_S?.type === 'v3_pack_opener') {
       return {
         phase: "V3_OPENER",
         allowedActions: new Set(["SUBMIT", "TEXT"]),
@@ -3256,7 +3256,7 @@ function CandidateInterviewInner() {
     }
     
     // 10. V2_PACK_ACTIVE - V2 deterministic pack field
-    if (v2PackMode === "V2_PACK" && activeV2Pack !== null && currentItem?.type === 'v2_pack_field') {
+    if (v2PackMode === "V2_PACK" && activeV2Pack !== null && currentItem_S?.type === 'v2_pack_field') {
       return {
         phase: "V2_PACK_ACTIVE",
         allowedActions: new Set(["SUBMIT", "TEXT"]),
@@ -3273,7 +3273,7 @@ function CandidateInterviewInner() {
     }
     
     // 11. BASE_QUESTION - Regular question (V2 or no pack)
-    if (currentItem?.type === 'question' && !v3ProbingActive) {
+    if (currentItem_S?.type === 'question' && !v3ProbingActive) {
       return {
         phase: "BASE_QUESTION",
         allowedActions: new Set(["SUBMIT", "YES_NO"]),
@@ -3324,9 +3324,9 @@ function CandidateInterviewInner() {
     // Derive V3 pack context (safe boolean - no metadata loading)
     const isV3PackContext = Boolean(
       v3ProbingActive || 
-      v3ProbingContext || 
-      currentItem?.type === 'v3_pack_opener' || 
-      currentItem?.type === 'v3_probing'
+      v3ProbingContext_S || 
+      currentItem_S?.type === 'v3_pack_opener' || 
+      currentItem_S?.type === 'v3_probing'
     );
     
     // Compute current phase (single source of truth)
@@ -3343,10 +3343,10 @@ function CandidateInterviewInner() {
       phase: phaseSOT.phase,
       
       // ROUTING STATE
-      currentItemType: currentItem?.type || null,
-      currentItemId: currentItem?.id || null,
+      currentItem_SType: currentItem_S?.type || null,
+      currentItem_SId: currentItem_S?.id || null,
       effectiveItemType: effectiveItemType,
-      activeUiItemKind: activeUiItem?.kind || null,
+      activeUiItem_SKind: activeUiItem_S?.kind || null,
       
       // FOOTER CONTROLLER
       bottomBarModeSOT: bottomBarModeSOT,
@@ -3356,7 +3356,7 @@ function CandidateInterviewInner() {
       v3PromptPhase: v3PromptPhase,
       v3ProbingActive: v3ProbingActive,
       hasActiveV3Prompt: hasActiveV3Prompt,
-      v3ProbingLoopKey: v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null,
+      v3ProbingLoopKey: v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null,
       
       // FALLBACK STATE
       requiredAnchorFallbackActive: requiredAnchorFallbackActive,
@@ -3373,8 +3373,8 @@ function CandidateInterviewInner() {
       pendingTransitionType: pendingTransition?.type || null,
       
       // COUNTS ONLY (no content)
-      transcriptLen: transcriptSOT?.length || 0,
-      v3UiHistoryLen: v3ProbeDisplayHistory?.length || 0,
+      transcriptLen: transcriptSOT_S?.length || 0,
+      v3UiHistoryLen: v3ProbeDisplayHistory_S?.length || 0,
       dbTranscriptLen: dbTranscript?.length || 0,
       canonicalTranscriptLen: canonicalTranscriptRef.current?.length || 0,
       
@@ -3383,9 +3383,9 @@ function CandidateInterviewInner() {
       committingItemId: committingItemIdRef.current,
       
       // CONTEXT (safe metadata)
-      packId: currentItem?.packId || v3ProbingContext?.packId || null,
-      instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber || null,
-      categoryId: v3ProbingContext?.categoryId || null,
+      packId: currentItem_S?.packId || v3ProbingContext_S?.packId || null,
+      instanceNumber: currentItem_S?.instanceNumber || v3ProbingContext_S?.instanceNumber || null,
+      categoryId: v3ProbingContext_S?.categoryId || null,
       isV3PackContext: isV3PackContext,
       
       // CALLER PASSTHROUGH
@@ -3423,8 +3423,8 @@ function CandidateInterviewInner() {
     // Use module-scope logOnce (already declared above)
     logOnce(snapshotKey, () => {
       // PART D: Skip active card measurement for MI gate (expected behavior)
-      const isMiGateContext = (currentItem?.type === 'multi_instance_gate') || 
-                             (activeUiItem?.kind === 'MI_GATE');
+      const isMiGateContext = (currentItem_S?.type === 'multi_instance_gate') || 
+                             (activeUiItem_S?.kind === 'MI_GATE');
       
       if (isMiGateContext) {
         console.log('[MI_GATE][SCROLL_STRATEGY]', {
@@ -3461,7 +3461,7 @@ function CandidateInterviewInner() {
       let clientHeight = 0;
       let scrollHeight = 0;
       let footerTop = 0;
-      let activeCardBottom = null;
+      let activeCard_SBottom = null;
       let overlapPx = 0;
       let measurementMethod = 'none';
       
@@ -3482,31 +3482,31 @@ function CandidateInterviewInner() {
         }
         
         // PART B: Multi-location active card detection (scroll container OR active lane)
-        let activeCardEl = null;
+        let activeCard_SEl = null;
         
         // Location 1: Try scroll container first (tier 1: strict, tier 2: loose, tier 3: stableKey)
-        activeCardEl = scrollContainer.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+        activeCard_SEl = scrollContainer.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
         measurementMethod = 'scroll_attr_cq_active';
         
-        if (!activeCardEl) {
-          activeCardEl = scrollContainer.querySelector('[data-cq-active-card="true"]');
+        if (!activeCard_SEl) {
+          activeCard_SEl = scrollContainer.querySelector('[data-cq-active-card="true"]');
           measurementMethod = 'scroll_attr_cq_active_loose';
         }
         
-        if (!activeCardEl && currentItem?.id) {
-          const stableKey = currentItem.type === 'question' ? `question-shown:${currentItem.id}` :
-                           currentItem.type === 'multi_instance_gate' ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}:q` :
+        if (!activeCard_SEl && currentItem_S?.id) {
+          const stableKey = currentItem_S.type === 'question' ? `question-shown:${currentItem_S.id}` :
+                           currentItem_S.type === 'multi_instance_gate' ? `mi-gate:${currentItem_S.packId}:${currentItem_S.instanceNumber}:q` :
                            null;
           
           if (stableKey) {
-            activeCardEl = scrollContainer.querySelector(`[data-stablekey="${stableKey}"]`);
+            activeCard_SEl = scrollContainer.querySelector(`[data-stablekey="${stableKey}"]`);
             measurementMethod = 'scroll_stablekey_fallback';
           }
         }
         
         // PART B: Location 2: Try active lane ref if scroll container search failed
-        if (!activeCardEl && activeLaneCardRef.current) {
-          activeCardEl = activeLaneCardRef.current;
+        if (!activeCard_SEl && activeLaneCardRef.current) {
+          activeCard_SEl = activeLaneCardRef.current;
           measurementMethod = 'active_lane_ref';
           console.log('[CQ_VIOLATION][ACTIVE_LANE_REF_USED]', {
             reason: 'Active card not in scroll container - using active lane ref',
@@ -3514,36 +3514,36 @@ function CandidateInterviewInner() {
           });
         }
         
-        if (activeCardEl && footerEl) {
-          const activeRect = activeCardEl.getBoundingClientRect();
+        if (activeCard_SEl && footerEl) {
+          const activeRect = activeCard_SEl.getBoundingClientRect();
           const footerRect = footerEl.getBoundingClientRect();
-          activeCardBottom = Math.round(activeRect.bottom);
+          activeCard_SBottom = Math.round(activeRect.bottom);
           overlapPx = Math.max(0, activeRect.bottom - footerRect.top);
           
           // PART C: Log exact stableKey we searched for when using fallback
           if (measurementMethod === 'scroll_stablekey_fallback' || measurementMethod === 'active_lane_ref') {
-            const searchedStableKey = currentItem?.type === 'question' ? `question-shown:${currentItem.id}` :
-                                     currentItem?.type === 'multi_instance_gate' ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}:q` :
+            const searchedStableKey = currentItem_S?.type === 'question' ? `question-shown:${currentItem_S.id}` :
+                                     currentItem_S?.type === 'multi_instance_gate' ? `mi-gate:${currentItem_S.packId}:${currentItem_S.instanceNumber}:q` :
                                      null;
             
             console.log('[CQ_VIOLATION][STABLEKEY_SEARCH_DETAIL]', {
               measurementMethod,
               searchedStableKey,
-              foundElement: !!activeCardEl,
-              elementTag: activeCardEl?.tagName,
-              elementHasStablekey: activeCardEl?.hasAttribute?.('data-stablekey'),
-              elementStablekey: activeCardEl?.getAttribute?.('data-stablekey')
+              foundElement: !!activeCard_SEl,
+              elementTag: activeCard_SEl?.tagName,
+              elementHasStablekey: activeCard_SEl?.hasAttribute?.('data-stablekey'),
+              elementStablekey: activeCard_SEl?.getAttribute?.('data-stablekey')
             });
           }
         } else {
           // PART D: Do not pretend overlapPx=0 when measurement fails
-          activeCardBottom = null;
+          activeCard_SBottom = null;
           overlapPx = -1; // Sentinel value (measurement failed)
           
           // PART B: Log missing active card (deduped)
-          logOnce(`active_card_missing_${currentItem?.type}_${currentItem?.id}`, () => {
-            const searchedStableKey = currentItem?.type === 'question' ? `question-shown:${currentItem.id}` :
-                                     currentItem?.type === 'multi_instance_gate' ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}:q` :
+          logOnce(`active_card_missing_${currentItem_S?.type}_${currentItem_S?.id}`, () => {
+            const searchedStableKey = currentItem_S?.type === 'question' ? `question-shown:${currentItem_S.id}` :
+                                     currentItem_S?.type === 'multi_instance_gate' ? `mi-gate:${currentItem_S.packId}:${currentItem_S.instanceNumber}:q` :
                                      null;
             
             // PART C: Check if ANY element with this stableKey exists in DOM
@@ -3553,10 +3553,10 @@ function CandidateInterviewInner() {
             }
             
             console.error('[CQ_ACTIVE_CARD_NOT_FOUND_ANYWHERE]', {
-              activeKind: currentItem?.type,
-              currentItemId: currentItem?.id,
-              packId: currentItem?.packId,
-              instanceNumber: currentItem?.instanceNumber,
+              activeKind: currentItem_S?.type,
+              currentItem_SId: currentItem_S?.id,
+              packId: currentItem_S?.packId,
+              instanceNumber: currentItem_S?.instanceNumber,
               searchedStableKey,
               foundAnywhere,
               triedScrollContainer: true,
@@ -3572,7 +3572,7 @@ function CandidateInterviewInner() {
       }
       
       // 3) STATE TRUTH (minimal)
-      const activeKind = currentItem?.type || 'none';
+      const activeKind = currentItem_S?.type || 'none';
       const typingLock = isUserTyping || false;
       
       // HEADLINE LOG: All key fields as primitives (no nested objects)
@@ -3587,7 +3587,7 @@ function CandidateInterviewInner() {
         `trailingCount=${trailingCount} ` +
         `overlapPx=${overlapPx} ` +
         `footerTop=${footerTop} ` +
-        `activeBottom=${activeCardBottom === null ? 'none' : activeCardBottom} ` +
+        `activeBottom=${activeCard_SBottom === null ? 'none' : activeCard_SBottom} ` +
         `scrollTop=${scrollTop} ` +
         `clientH=${clientHeight} ` +
         `scrollH=${scrollHeight} ` +
@@ -3618,13 +3618,13 @@ function CandidateInterviewInner() {
         trailingItems,
         overlapPx,
         footerTop,
-        activeBottom: activeCardBottom || null,
+        activeBottom: activeCard_SBottom || null,
         scrollTop,
         clientHeight,
         scrollHeight,
         isUserTyping: typingLock,
         activeItemId: activeItemId || null,
-        promptId: currentItem?.promptId || null
+        promptId: currentItem_S?.promptId || null
       };
       
       console.log('[CQ_VIOLATION_JSON]', JSON.stringify(safeSnapshot));
@@ -3669,7 +3669,7 @@ function CandidateInterviewInner() {
           clientHeight,
           scrollHeight,
           footerTop,
-          activeCardBottom,
+          activeCard_SBottom,
           overlapPx
         },
         stateTruth: {
@@ -3680,7 +3680,7 @@ function CandidateInterviewInner() {
         }
       });
     });
-  }, [isUserTyping, currentItem]);
+  }, [isUserTyping, currentItem_S]);
   
   const lastQuestionShownIdRef = useRef(null); // Track last question shown for force-scroll dedupe
   
@@ -3719,7 +3719,7 @@ function CandidateInterviewInner() {
   // Pending gate prompt (prevents setState during render)
   const [pendingGatePrompt, setPendingGatePrompt] = useState(null);
   
-  // Multi-instance gate state (first-class currentItemType)
+  // Multi-instance gate state (first-class currentItem_SType)
   const [multiInstanceGate, setMultiInstanceGate] = useState(null);
 
   // V3 EXIT: Idempotency guard + baseQuestionId retention
@@ -3727,7 +3727,7 @@ function CandidateInterviewInner() {
   const exitV3HandledRef = useRef(false);
   const exitV3InProgressRef = useRef(false);
   
-  // V3 ENGINE DECISION CACHE: Store last engine result per loopKey (for MI_GATE payload)
+  // V3 ENGINE DECISION CACHE: Store last engine_S result per loopKey (for MI_GATE payload)
   const lastV3DecisionByLoopKeyRef = useRef({}); // Map<loopKey, { missingFields, miGateBlocked, stopReason, packId, instanceNumber, ts }>
   
   // PROMPT MISSING DIAGNOSTIC: Ref for de-duped logging (MUST be top-level hook)
@@ -3748,7 +3748,7 @@ function CandidateInterviewInner() {
   const bottomBarModeSOTRef = useRef(null);
   const v3ActivePromptTextRef = useRef(null);
   const v3ProbingActiveRef = useRef(null);
-  const v3ProbingContextRef = useRef(null);
+  const v3ProbingContext_SRef = useRef(null);
   
   // DEV DEBUG: Capture last-seen events for one-click evidence bundle
   const lastIdempotencyLockedRef = useRef(null);
@@ -4067,7 +4067,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // V3 PROMPT DETECTION + ACTIVE UI ITEM RESOLVER (TDZ-safe early placement)
   // ============================================================================
-  // CRITICAL: These must be declared BEFORE useEffect that depends on activeUiItem
+  // CRITICAL: These must be declared BEFORE useEffect that depends on activeUiItem_S
   // Multi-signal detection: V3 prompt is active if ANY of these signals are present
   const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
   const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
@@ -4088,19 +4088,19 @@ function CandidateInterviewInner() {
                        hasV3PromptText;
   
   // TASK A: V3 VISIBLE PROMPT CARD SIGNAL - Prevents MI_GATE from jumping ahead during transitions
-  // Check if v3ProbeDisplayHistory has an unanswered question (Q exists but no matching A)
+  // Check if v3ProbeDisplayHistory_S has an unanswered question (Q exists but no matching A)
   const v3HasVisiblePromptCard = (() => {
-    if (!v3ProbeDisplayHistory || v3ProbeDisplayHistory.length === 0) return false;
+    if (!v3ProbeDisplayHistory_S || v3ProbeDisplayHistory_S.length === 0) return false;
     
     // Get current loopKey from active context
-    const activeLoopKey = v3ProbingContext 
-      ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`
+    const activeLoopKey = v3ProbingContext_S 
+      ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`
       : null;
     
     if (!activeLoopKey) return false;
     
     // Check if there's an unanswered question for this loopKey
-    const loopEntries = v3ProbeDisplayHistory.filter(e => e.loopKey === activeLoopKey);
+    const loopEntries = v3ProbeDisplayHistory_S.filter(e => e.loopKey === activeLoopKey);
     if (loopEntries.length === 0) return false;
     
     // Group by sequence number from stableKey (v3-ui:<loopKey>:<n>:q/a)
@@ -4129,8 +4129,8 @@ function CandidateInterviewInner() {
   
   cqLog('DEBUG', "[ORDER][V3_VISIBLE_PROMPT_CARD]", {
     v3HasVisiblePromptCard,
-    v3UiHistoryLen: v3ProbeDisplayHistory?.length || 0,
-    lastKeysPreview: (v3ProbeDisplayHistory || []).slice(-4).map(x => x.stableKey)
+    v3UiHistoryLen: v3ProbeDisplayHistory_S?.length || 0,
+    lastKeysPreview: (v3ProbeDisplayHistory_S || []).slice(-4).map(x => x.stableKey)
   });
 
   // CANONICAL ACTIVE UI ITEM RESOLVER - Single source of truth
@@ -4142,21 +4142,21 @@ function CandidateInterviewInner() {
     
     // Priority 0: Required anchor fallback (deadlock breaker)
     // GUARD: Never allow fallback to override v3_pack_opener (instance start takes precedence)
-    if (requiredAnchorFallbackActive && requiredAnchorCurrent && currentItem?.type !== 'v3_pack_opener') {
+    if (requiredAnchorFallbackActive && requiredAnchorCurrent && currentItem_S?.type !== 'v3_pack_opener') {
       return {
         kind: "REQUIRED_ANCHOR_FALLBACK",
-        packId: v3ProbingContext?.packId || currentItem?.packId,
-        categoryId: v3ProbingContext?.categoryId || currentItem?.categoryId,
-        instanceNumber: v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1,
+        packId: v3ProbingContext_S?.packId || currentItem_S?.packId,
+        categoryId: v3ProbingContext_S?.categoryId || currentItem_S?.categoryId,
+        instanceNumber: v3ProbingContext_S?.instanceNumber || currentItem_S?.instanceNumber || 1,
         promptText: null, // Computed separately in activePromptText resolution
         anchor: requiredAnchorCurrent,
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id
+        currentItem_SType: currentItem_S?.type,
+        currentItem_SId: currentItem_S?.id
       };
     }
     
     // GUARD LOG: If opener suppressed fallback, log once
-    if (requiredAnchorFallbackActive && requiredAnchorCurrent && currentItem?.type === 'v3_pack_opener') {
+    if (requiredAnchorFallbackActive && requiredAnchorCurrent && currentItem_S?.type === 'v3_pack_opener') {
 
     }
     
@@ -4165,13 +4165,13 @@ function CandidateInterviewInner() {
     if (hasActiveV3Prompt) {
       return {
         kind: "V3_PROMPT",
-        packId: v3ProbingContext?.packId || currentItem?.packId,
-        categoryId: v3ProbingContext?.categoryId || currentItem?.categoryId,
-        instanceNumber: v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1,
+        packId: v3ProbingContext_S?.packId || currentItem_S?.packId,
+        categoryId: v3ProbingContext_S?.categoryId || currentItem_S?.categoryId,
+        instanceNumber: v3ProbingContext_S?.instanceNumber || currentItem_S?.instanceNumber || 1,
         promptText: v3ActivePromptText || v3ActiveProbeQuestionRef.current || "",
         loopKey: v3ActiveProbeQuestionLoopKeyRef.current,
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id
+        currentItem_SType: currentItem_S?.type,
+        currentItem_SId: currentItem_S?.id
       };
     }
     
@@ -4181,7 +4181,7 @@ function CandidateInterviewInner() {
     if (v3ProbingActive && !hasActiveV3Prompt && !requiredAnchorFallbackActive) {
       const forcedKind = "V3_WAITING";
       console.log('[V3_CONTROLLER][FORCE_ACTIVE_KIND]', {
-        effectiveItemType: currentItem?.type === 'v3_probing' ? 'v3_probing' : currentItem?.type,
+        effectiveItemType: currentItem_S?.type === 'v3_probing' ? 'v3_probing' : currentItem_S?.type,
         v3ProbingActive,
         v3PromptPhase,
         forcedKind,
@@ -4190,13 +4190,13 @@ function CandidateInterviewInner() {
       
       return {
         kind: forcedKind,
-        packId: v3ProbingContext?.packId || currentItem?.packId,
-        categoryId: v3ProbingContext?.categoryId || currentItem?.categoryId,
-        instanceNumber: v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1,
+        packId: v3ProbingContext_S?.packId || currentItem_S?.packId,
+        categoryId: v3ProbingContext_S?.categoryId || currentItem_S?.categoryId,
+        instanceNumber: v3ProbingContext_S?.instanceNumber || currentItem_S?.instanceNumber || 1,
         promptText: null,
-        loopKey: v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null,
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id
+        loopKey: v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null,
+        currentItem_SType: currentItem_S?.type,
+        currentItem_SId: currentItem_S?.id
       };
     }
     
@@ -4210,26 +4210,26 @@ function CandidateInterviewInner() {
     
     // Priority 2: V3 pack opener (must not be superseded by MI_GATE or REQUIRED_ANCHOR_FALLBACK)
     // INSTANCE START RULE: For multi-instance packs, ALWAYS show opener first for new instances
-    if (currentItem?.type === 'v3_pack_opener') {
-      const isMultiInstancePack = currentItem?.packId === 'PACK_PRIOR_LE_APPS_STANDARD';
-      const isInstance2OrHigher = (currentItem?.instanceNumber || 1) > 1;
+    if (currentItem_S?.type === 'v3_pack_opener') {
+      const isMultiInstancePack = currentItem_S?.packId === 'PACK_PRIOR_LE_APPS_STANDARD';
+      const isInstance2OrHigher = (currentItem_S?.instanceNumber || 1) > 1;
       
       if (isMultiInstancePack && isInstance2OrHigher) {
         // Check if opener has been answered for this instance
-        const openerAnswerStableKey = `v3-opener-a:${sessionId}:${currentItem.packId}:${currentItem.instanceNumber}`;
-        const openerAnswered = transcriptSOT.some(e => e.stableKey === openerAnswerStableKey);
+        const openerAnswerStableKey = `v3-opener-a:${sessionId}:${currentItem_S.packId}:${currentItem_S.instanceNumber}`;
+        const openerAnswered = transcriptSOT_S.some(e => e.stableKey === openerAnswerStableKey);
         
         if (!openerAnswered) {
           console.log('[INSTANCE_START][FORCE_DETERMINISTIC_OPENER]', {
-            packId: currentItem.packId,
-            instanceNumber: currentItem.instanceNumber,
+            packId: currentItem_S.packId,
+            instanceNumber: currentItem_S.instanceNumber,
             reason: 'opener_not_answered'
           });
           
           // SUPPRESS any competing UI (fallback, V3 prompt, etc.)
           if (requiredAnchorFallbackActive) {
             console.log('[INSTANCE_START][SUPPRESS_FOLLOWUPS_UNTIL_OPENER]', {
-              instanceNumber: currentItem.instanceNumber,
+              instanceNumber: currentItem_S.instanceNumber,
               suppressedKind: 'REQUIRED_ANCHOR_FALLBACK'
             });
           }
@@ -4238,23 +4238,23 @@ function CandidateInterviewInner() {
       
       return {
         kind: "V3_OPENER",
-        packId: currentItem.packId,
-        categoryId: currentItem.categoryId,
-        instanceNumber: currentItem.instanceNumber || 1,
-        promptText: currentItem.openerText || "",
-        currentItemType: currentItem.type,
-        currentItemId: currentItem.id
+        packId: currentItem_S.packId,
+        categoryId: currentItem_S.categoryId,
+        instanceNumber: currentItem_S.instanceNumber || 1,
+        promptText: currentItem_S.openerText || "",
+        currentItem_SType: currentItem_S.type,
+        currentItem_SId: currentItem_S.id
       };
     }
     
     // TASK B: Priority 3: Multi-instance gate (ONLY if phase allows)
     // PHASE ALIGNMENT: Block MI_GATE based on phase authority
-    if (currentItem?.type === 'multi_instance_gate') {
+    if (currentItem_S?.type === 'multi_instance_gate') {
       if (resolverPhaseSOT.derivedFlags.shouldSuppressMiGate) {
         console.log('[FLOW][MI_GATE_STAGED_BUT_BLOCKED_BY_V3]', {
           phase: resolverPhaseSOT.phase,
-          packId: currentItem.packId,
-          instanceNumber: currentItem.instanceNumber,
+          packId: currentItem_S.packId,
+          instanceNumber: currentItem_S.instanceNumber,
           v3PromptPhase,
           v3ProbingActive,
           hasActiveV3Prompt,
@@ -4263,45 +4263,45 @@ function CandidateInterviewInner() {
         // Return DEFAULT kind to prevent MI_GATE from activating
         return {
           kind: "DEFAULT",
-          currentItemType: currentItem?.type,
-          currentItemId: currentItem?.id,
+          currentItem_SType: currentItem_S?.type,
+          currentItem_SId: currentItem_S?.id,
           promptText: null
         };
       }
       
       return {
         kind: "MI_GATE",
-        packId: currentItem.packId,
-        categoryId: currentItem.categoryId,
-        instanceNumber: currentItem.instanceNumber || 1,
-        promptText: currentItem.promptText || multiInstanceGate?.promptText || "",
-        currentItemType: currentItem.type,
-        currentItemId: currentItem.id
+        packId: currentItem_S.packId,
+        categoryId: currentItem_S.categoryId,
+        instanceNumber: currentItem_S.instanceNumber || 1,
+        promptText: currentItem_S.promptText || multiInstanceGate?.promptText || "",
+        currentItem_SType: currentItem_S.type,
+        currentItem_SId: currentItem_S.id
       };
     }
     
     // Priority 4: Default (regular questions, v2 pack fields, etc.)
     return {
       kind: "DEFAULT",
-      currentItemType: currentItem?.type,
-      currentItemId: currentItem?.id,
+      currentItem_SType: currentItem_S?.type,
+      currentItem_SId: currentItem_S?.id,
       promptText: null
     };
   };
   
-  const activeUiItem = resolveActiveUiItem();
+  const activeUiItem_S = resolveActiveUiItem();
   
   // ============================================================================
   // ACTIVE KIND SOT - Derived primitive for scroll helpers (prevents TDZ)
   // ============================================================================
-  // CRITICAL: Declared AFTER activeUiItem is initialized, prevents TDZ in callbacks
-  const activeKindSOT = activeUiItem?.kind || currentItem?.type || 'UNKNOWN';
+  // CRITICAL: Declared AFTER activeUiItem_S is initialized, prevents TDZ in callbacks
+  const activeKindSOT = activeUiItem_S?.kind || currentItem_S?.type || 'UNKNOWN';
 
   // TDZ FIX: Hoisted from component body to prevent use-before-declare in effectiveItemType
-  const currentItemType = v3GateActive ? 'v3_gate' :
+  const currentItem_SType = v3GateActive ? 'v3_gate' :
                           v3ProbingActive ? 'v3_probing' :
                           pendingSectionTransition ? 'section_transition' :
-                          currentItem?.type || null;
+                          currentItem_S?.type || null;
   
   // TDZ SAFE DEFAULTS — real values computed later when bottomBarModeSOT/effectiveItemType exist.
   // These are placeholders to prevent "undefined" errors in early code paths.
@@ -4312,14 +4312,14 @@ function CandidateInterviewInner() {
   // TDZ FIX: EFFECTIVEITEMTYPE - HOISTED EARLY (prevents use-before-declare)
   // ============================================================================
   // CRITICAL: This must be declared BEFORE line 2569 where it's first used
-  // Step 3: Compute effectiveItemType (UI routing key derived from activeUiItem.kind)
+  // Step 3: Compute effectiveItemType (UI routing key derived from activeUiItem_S.kind)
   // CRITICAL OVERRIDE: Fallback takes absolute precedence over v3_probing
-  const effectiveItemType = activeUiItem.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
-                           activeUiItem.kind === "V3_PROMPT" ? 'v3_probing' : 
-                           activeUiItem.kind === "V3_OPENER" ? 'v3_pack_opener' :
-                           activeUiItem.kind === "MI_GATE" ? 'multi_instance_gate' :
+  const effectiveItemType = activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
+                           activeUiItem_S.kind === "V3_PROMPT" ? 'v3_probing' : 
+                           activeUiItem_S.kind === "V3_OPENER" ? 'v3_pack_opener' :
+                           activeUiItem_S.kind === "MI_GATE" ? 'multi_instance_gate' :
                            v3ProbingActive ? 'v3_probing' : 
-                           currentItemType;
+                           currentItem_SType;
   
   // PART C: Reset spacer when leaving V3 opener (moved here - after activeKindSOT exists)
   useEffect(() => {
@@ -4342,32 +4342,32 @@ function CandidateInterviewInner() {
   // ============================================================================
   // ACTIVE CARD KEY SOT - Single source of truth for active card identifier
   // ============================================================================
-  const activeCardKeySOT = (() => {
-    if (activeUiItem.kind === "V3_PROMPT") {
-      const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+  const activeCard_SKeySOT = (() => {
+    if (activeUiItem_S.kind === "V3_PROMPT") {
+      const promptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
       return promptId ? `v3-prompt:${promptId}` : null;
     }
-    if (activeUiItem.kind === "V3_OPENER") {
-      return buildV3OpenerStableKey(currentItem.packId, currentItem.instanceNumber || 1);
+    if (activeUiItem_S.kind === "V3_OPENER") {
+      return buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
     }
-    if (activeUiItem.kind === "V3_WAITING") {
-      const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+    if (activeUiItem_S.kind === "V3_WAITING") {
+      const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
       return loopKey ? `v3-waiting:${loopKey}` : null;
     }
-    if (activeUiItem.kind === "MI_GATE") {
-      return currentItem?.id || `mi-gate:${currentItem?.packId}:${currentItem?.instanceNumber}`;
+    if (activeUiItem_S.kind === "MI_GATE") {
+      return currentItem_S?.id || `mi-gate:${currentItem_S?.packId}:${currentItem_S?.instanceNumber}`;
     }
-    if (activeUiItem.kind === "DEFAULT" && currentItem?.type === "question") {
-      return currentItem?.id;
+    if (activeUiItem_S.kind === "DEFAULT" && currentItem_S?.type === "question") {
+      return currentItem_S?.id;
     }
     return null;
   })();
   
-  const hasActiveCardSOT = Boolean(activeCardKeySOT);
+  const hasActiveCardSOT = Boolean(activeCard_SKeySOT);
   
   cqLog('DEBUG', '[ACTIVE_CARD_KEY_SOT]', {
-    activeUiItemKind: activeUiItem.kind,
-    activeCardKeySOT,
+    activeUiItem_SKind: activeUiItem_S.kind,
+    activeCard_SKeySOT,
     hasActiveCardSOT
   });
   
@@ -4375,53 +4375,53 @@ function CandidateInterviewInner() {
   // ACTIVE CARD COMPUTATION - MUST precede footer mode (prevents TDZ)
   // ============================================================================
   // TDZ GUARD: Use dbTranscript for early dedupe (renderedTranscript not yet initialized)
-  // This is ONLY for activeCard dedupe checks - canonical render uses renderedTranscript later
+  // This is ONLY for activeCard_S dedupe checks - canonical render uses renderedTranscript later
   const transcriptRenderable = renderedTranscriptSnapshotRef.current || dbTranscript || [];
   
   console.log('[TDZ_GUARD][TRANSCRIPT_EARLY_FALLBACK]', {
     usedSnapshot: !!renderedTranscriptSnapshotRef.current,
     usedDb: !renderedTranscriptSnapshotRef.current && !!dbTranscript,
     len: transcriptRenderable.length,
-    reason: 'renderedTranscript not yet initialized - using early sources for activeCard dedupe'
+    reason: 'renderedTranscript not yet initialized - using early sources for activeCard_S dedupe'
   });
   
-  // Initialize activeCard (assigned below, read by footer mode computation)
-  let activeCard = null;
+  // Initialize activeCard_S (assigned below, read by footer mode computation)
+  let activeCard_S = null;
   
   // CHANGE 3: Track last rendered promptId to prevent duplicate active cards
-  const currentPromptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+  const currentPromptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
   
   // PART A: Enforce mutual exclusion in render stream (kind-based, unconditional)
-  if (activeUiItem.kind === "V3_PROMPT") {
+  if (activeUiItem_S.kind === "V3_PROMPT") {
     console.log('[STREAM_SUPPRESS]', {
       suppressed: 'MI_GATE',
       reason: 'ACTIVE_KIND_V3_PROMPT',
-      activeKind: activeUiItem.kind,
-      currentItemType: currentItem?.type,
-      packId: currentItem?.packId,
-      instanceNumber: currentItem?.instanceNumber
+      activeKind: activeUiItem_S.kind,
+      currentItem_SType: currentItem_S?.type,
+      packId: currentItem_S?.packId,
+      instanceNumber: currentItem_S?.instanceNumber
     });
   }
   
-  if (activeUiItem.kind === "MI_GATE") {
+  if (activeUiItem_S.kind === "MI_GATE") {
     console.log('[STREAM_SUPPRESS]', {
       suppressed: 'V3_PROMPT',
       reason: 'ACTIVE_KIND_MI_GATE',
-      activeKind: activeUiItem.kind,
-      currentItemType: currentItem?.type,
-      packId: currentItem?.packId,
-      instanceNumber: currentItem?.instanceNumber
+      activeKind: activeUiItem_S.kind,
+      currentItem_SType: currentItem_S?.type,
+      packId: currentItem_S?.packId,
+      instanceNumber: currentItem_S?.instanceNumber
     });
   }
   
-  if (activeUiItem.kind === "V3_PROMPT") {
+  if (activeUiItem_S.kind === "V3_PROMPT") {
     const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
-    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
     const promptId = currentPromptId || `${loopKey}:fallback`;
     
     // SINGLE SOURCE: Check if transcript already has V3_PROBE_QUESTION for this promptId
     const qStableKey = `v3-probe-q:${promptId}`;
-    const transcriptHasThisProbeQ = transcriptSOT.some(e => 
+    const transcriptHasThisProbeQ = transcriptSOT_S.some(e => 
       (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
       (e.meta?.promptId === promptId || e.stableKey === qStableKey)
     );
@@ -4470,14 +4470,14 @@ function CandidateInterviewInner() {
       const normalizedPromptText = (v3PromptText || "").toLowerCase().trim().replace(/\s+/g, " ");
       const stableKey = loopKey ? `v3-active:${loopKey}:${promptId}:${normalizedPromptText.slice(0,32)}` : null;
       
-      activeCard = {
-        __activeCard: true,
+      activeCard_S = {
+        __activeCard_S: true,
         isEphemeralPromptLaneCard: true,
         kind: "v3_probe_q",
         stableKey,
         text: v3PromptText,
-        packId: v3ProbingContext?.packId,
-        instanceNumber: v3ProbingContext?.instanceNumber,
+        packId: v3ProbingContext_S?.packId,
+        instanceNumber: v3ProbingContext_S?.instanceNumber,
         source: 'prompt_lane_temporary'
       };
       
@@ -4494,36 +4494,36 @@ function CandidateInterviewInner() {
     }
     
     // Clear tracker when not actively rendering V3_PROMPT card
-    if (!activeCard && lastRenderedV3PromptKeyRef.current) {
+    if (!activeCard_S && lastRenderedV3PromptKeyRef.current) {
       lastRenderedV3PromptKeyRef.current = null;
     }
-  } else if (activeUiItem.kind === "V3_WAITING") {
+  } else if (activeUiItem_S.kind === "V3_WAITING") {
     // V3_WAITING: Show thinking placeholder card
-    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
-    activeCard = {
-      __activeCard: true,
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
+    activeCard_S = {
+      __activeCard_S: true,
       isEphemeralPromptLaneCard: true,
       kind: "v3_thinking",
       stableKey: `v3-thinking:${loopKey}`,
       text: "Processing your response...",
-      packId: v3ProbingContext?.packId,
-      instanceNumber: v3ProbingContext?.instanceNumber || 1,
+      packId: v3ProbingContext_S?.packId,
+      instanceNumber: v3ProbingContext_S?.instanceNumber || 1,
       source: 'prompt_lane_temporary'
     };
     
     console.log("[V3_WAITING][ACTIVE_CARD_ADDED]", {
       loopKey,
-      packId: v3ProbingContext?.packId,
-      instanceNumber: v3ProbingContext?.instanceNumber,
+      packId: v3ProbingContext_S?.packId,
+      instanceNumber: v3ProbingContext_S?.instanceNumber,
       reason: "V3 deciding - showing thinking card"
     });
-  } else if (activeUiItem.kind === "V3_OPENER") {
-    const openerText = currentItem?.openerText || "";
-    const stableKey = buildV3OpenerStableKey(currentItem.packId, currentItem.instanceNumber || 1);
+  } else if (activeUiItem_S.kind === "V3_OPENER") {
+    const openerText = currentItem_S?.openerText || "";
+    const stableKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
     
     // DEDUPE: Check if opener already in prompt-lane history (NOT transcript)
-    const expectedKey = buildV3OpenerStableKey(currentItem.packId, currentItem.instanceNumber || 1);
-    const alreadyInHistory = v3ProbeDisplayHistory.some(e => e.stableKey === expectedKey);
+    const expectedKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
+    const alreadyInHistory = v3ProbeDisplayHistory_S.some(e => e.stableKey === expectedKey);
     
     // ACTIVE OPENER ENFORCEMENT: ALWAYS render active card when V3_OPENER is active, even if in history
     // Active UI items MUST render - history presence does NOT satisfy active requirement
@@ -4531,16 +4531,16 @@ function CandidateInterviewInner() {
       if (alreadyInHistory) {
       }
       
-      activeCard = {
-        __activeCard: true,
+      activeCard_S = {
+        __activeCard_S: true,
         isEphemeralPromptLaneCard: true,
         kind: "v3_pack_opener",
         stableKey,
         text: openerText,
-        packId: currentItem.packId,
-        categoryLabel: currentItem.categoryLabel,
-        instanceNumber: currentItem.instanceNumber || 1,
-        exampleNarrative: currentItem.exampleNarrative,
+        packId: currentItem_S.packId,
+        categoryLabel: currentItem_S.categoryLabel,
+        instanceNumber: currentItem_S.instanceNumber || 1,
+        exampleNarrative: currentItem_S.exampleNarrative,
         source: 'prompt_lane_temporary'
       };
       
@@ -4548,60 +4548,60 @@ function CandidateInterviewInner() {
     } else if (!openerText) {
     }
   } else if (
-    activeUiItem.kind === "DEFAULT" && 
-    currentItem?.type === "question" && 
-    engine?.QById?.[currentItem.id]?.response_type === "yes_no"
+    activeUiItem_S.kind === "DEFAULT" && 
+    currentItem_S?.type === "question" && 
+    engine_S?.QById?.[currentItem_S.id]?.response_type === "yes_no"
   ) {
     // ACTIVE YES/NO QUESTION: Create active card for base questions in YES/NO mode
     // TDZ-SAFE: Inline detection with optional chaining (no separate variables)
-    const question = engine?.QById?.[currentItem.id];
+    const question = engine_S?.QById?.[currentItem_S.id];
     const questionText = question?.question_text || "(Question)";
-    const stableKey = `question-shown:${currentItem.id}`;
+    const stableKey = `question-shown:${currentItem_S.id}`;
     
     console.log("[TDZ_FIX][ACTIVE_CARD_YESNO_INLINE]", { 
-      qid: currentItem.id, 
+      qid: currentItem_S.id, 
       rt: question?.response_type 
     });
     
-    activeCard = {
-      __activeCard: true,
+    activeCard_S = {
+      __activeCard_S: true,
       isEphemeralPromptLaneCard: true,
       kind: "base_question_yesno",
       stableKey,
       text: questionText,
-      questionId: currentItem.id,
-      questionDbId: currentItem.id,
+      questionId: currentItem_S.id,
+      questionDbId: currentItem_S.id,
       questionNumber: question?.question_number,
-      sectionName: engine?.Sections?.find(s => s.id === question?.section_id)?.section_name,
+      sectionName: engine_S?.Sections?.find(s => s.id === question?.section_id)?.section_name,
       source: 'prompt_lane_temporary'
     };
     
     console.log("[BASE_YESNO][ACTIVE_CARD_ADDED]", {
-      questionId: currentItem.id,
+      questionId: currentItem_S.id,
       questionCode: question?.question_id,
       stableKey,
       questionNumber: question?.question_number,
-      activeUiItemKind: activeUiItem.kind
+      activeUiItem_SKind: activeUiItem_S.kind
     });
-  } else if (activeUiItem.kind === "REQUIRED_ANCHOR_FALLBACK") {
+  } else if (activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK") {
     // REQUIRED_ANCHOR_FALLBACK: Render prompt card in main pane (not footer)
     // TDZ-SAFE: Use hoisted resolver (single source of truth)
     const questionText = resolveAnchorToHumanQuestion(
       requiredAnchorCurrent, 
-      v3ProbingContext?.packId
+      v3ProbingContext_S?.packId
     );
     
-    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
     const stableKey = loopKey ? `fallback-prompt:${loopKey}:${requiredAnchorCurrent}` : null;
     
-    activeCard = {
-      __activeCard: true,
+    activeCard_S = {
+      __activeCard_S: true,
       isEphemeralPromptLaneCard: false,
       kind: "required_anchor_fallback_prompt",
       stableKey,
       text: questionText,
-      packId: v3ProbingContext?.packId,
-      instanceNumber: v3ProbingContext?.instanceNumber || 1,
+      packId: v3ProbingContext_S?.packId,
+      instanceNumber: v3ProbingContext_S?.instanceNumber || 1,
       anchor: requiredAnchorCurrent,
       source: 'prompt_lane_temporary'
     };
@@ -4616,29 +4616,29 @@ function CandidateInterviewInner() {
       promptPreview: questionText,
       stableKey
     });
-  } else if (activeUiItem.kind === "MI_GATE") {
-    // FIX: Use currentItem directly when activeUiItem.kind is MI_GATE
-    // activeUiItem resolver already handles V3 blocking precedence correctly
-    let miGateItem = currentItem;
+  } else if (activeUiItem_S.kind === "MI_GATE") {
+    // FIX: Use currentItem_S directly when activeUiItem_S.kind is MI_GATE
+    // activeUiItem_S resolver already handles V3 blocking precedence correctly
+    let miGateItem = currentItem_S;
     
-    // INVARIANT CHECK: Ensure currentItem is a valid gate when activeUiItem says MI_GATE
+    // INVARIANT CHECK: Ensure currentItem_S is a valid gate when activeUiItem_S says MI_GATE
     if (!miGateItem || miGateItem.type !== 'multi_instance_gate' || !miGateItem.packId || !miGateItem.instanceNumber) {
       console.error('[MI_GATE][INVARIANT_FAIL][CURRENT_ITEM_NOT_GATE]', {
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-        activeUiItemKind: activeUiItem?.kind,
+        currentItem_SType: currentItem_S?.type,
+        currentItem_SId: currentItem_S?.id,
+        activeUiItem_SKind: activeUiItem_S?.kind,
         expected: 'multi_instance_gate',
-        packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber,
+        packId: currentItem_S?.packId,
+        instanceNumber: currentItem_S?.instanceNumber,
       });
       
-      // FALLBACK: Attempt to use activeUiItem payload if it carries gate metadata
-      if (activeUiItem.packId && activeUiItem.instanceNumber) {
+      // FALLBACK: Attempt to use activeUiItem_S payload if it carries gate metadata
+      if (activeUiItem_S.packId && activeUiItem_S.instanceNumber) {
         miGateItem = {
           type: 'multi_instance_gate',
-          packId: activeUiItem.packId,
-          instanceNumber: activeUiItem.instanceNumber,
-          promptText: activeUiItem.promptText || multiInstanceGate?.promptText
+          packId: activeUiItem_S.packId,
+          instanceNumber: activeUiItem_S.instanceNumber,
+          promptText: activeUiItem_S.promptText || multiInstanceGate?.promptText
         };
       }
     }
@@ -4646,21 +4646,21 @@ function CandidateInterviewInner() {
     // Resolve prompt text with cascading fallbacks
     const miGatePrompt = miGateItem?.promptText || 
                          multiInstanceGate?.promptText || 
-                         activeUiItem?.promptText ||
+                         activeUiItem_S?.promptText ||
                          `Do you have another item to report in this section?`;
     
-    const packId = miGateItem?.packId || activeUiItem?.packId;
-    const instanceNumber = miGateItem?.instanceNumber || activeUiItem?.instanceNumber;
+    const packId = miGateItem?.packId || activeUiItem_S?.packId;
+    const instanceNumber = miGateItem?.instanceNumber || activeUiItem_S?.instanceNumber;
     
     if (packId && instanceNumber && miGatePrompt) {
       // CANONICAL STABLEKEY: Use builder for consistency
       const stableKey = buildMiGateQStableKey(packId, instanceNumber);
       const itemId = buildMiGateItemId(packId, instanceNumber);
       
-      // ALWAYS render active MI_GATE card when activeUiItem.kind is MI_GATE
+      // ALWAYS render active MI_GATE card when activeUiItem_S.kind is MI_GATE
       // The active gate MUST be visible as the current question in main pane
-      activeCard = {
-        __activeCard: true,
+      activeCard_S = {
+        __activeCard_S: true,
         isEphemeralPromptLaneCard: true,
         kind: "multi_instance_gate",
         id: itemId,
@@ -4677,27 +4677,27 @@ function CandidateInterviewInner() {
         instanceNumber,
         stableKey,
         promptPreview: miGatePrompt.substring(0, 60),
-        activeUiItemKind: activeUiItem.kind,
-        usedFallback: miGateItem !== currentItem
+        activeUiItem_SKind: activeUiItem_S.kind,
+        usedFallback: miGateItem !== currentItem_S
       });
     } else {
       console.error('[MI_GATE][BUG][MAIN_PANE_NOT_RENDERED]', {
-        currentItemId: currentItem?.id,
+        currentItem_SId: currentItem_S?.id,
         packId,
         instanceNumber,
-        activeUiItemKind: activeUiItem.kind,
+        activeUiItem_SKind: activeUiItem_S.kind,
         reason: 'Cannot resolve gate metadata for rendering'
       });
     }
   }
   
   // Clear V3 prompt tracker when kind changes away from V3_PROMPT
-  if (activeUiItem.kind !== "V3_PROMPT" && lastRenderedV3PromptKeyRef.current) {
+  if (activeUiItem_S.kind !== "V3_PROMPT" && lastRenderedV3PromptKeyRef.current) {
     lastRenderedV3PromptKeyRef.current = null;
   }
   
   // PART 2: V3 Prompt Active SOT (single source of truth boolean)
-  const v3PromptIdSOT = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId || null;
+  const v3PromptIdSOT = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId || null;
   const isV3PromptActiveSOT =
     v3PromptPhase === 'ANSWER_NEEDED' && Boolean(v3ActivePromptText) && Boolean(v3PromptIdSOT);
   
@@ -4717,16 +4717,16 @@ function CandidateInterviewInner() {
   });
   
   // PART A: MI_GATE suppression helper (deterministic, phase-based)
-  const shouldSuppressMiGateSOT = isV3UiBlockingSOT && currentItem?.type === 'multi_instance_gate';
+  const shouldSuppressMiGateSOT = isV3UiBlockingSOT && currentItem_S?.type === 'multi_instance_gate';
   
   // Log suppression state changes using ref (no hooks)
   const lastMiGateSuppressKeyRef = useRef(null);
   
   if (shouldSuppressMiGateSOT) {
-    const key = `${currentItem?.packId || 'na'}:${currentItem?.instanceNumber || 'na'}`;
+    const key = `${currentItem_S?.packId || 'na'}:${currentItem_S?.instanceNumber || 'na'}`;
     if (lastMiGateSuppressKeyRef.current !== key) {
       lastMiGateSuppressKeyRef.current = key;
-      console.log('[MI_GATE][SUPPRESSED_BY_V3]', { v3PromptPhase, packId: currentItem?.packId, instanceNumber: currentItem?.instanceNumber });
+      console.log('[MI_GATE][SUPPRESSED_BY_V3]', { v3PromptPhase, packId: currentItem_S?.packId, instanceNumber: currentItem_S?.instanceNumber });
     }
   } else if (lastMiGateSuppressKeyRef.current) {
     lastMiGateSuppressKeyRef.current = null;
@@ -4734,27 +4734,27 @@ function CandidateInterviewInner() {
   
   // PART A: activePromptKind SOT (single consolidated log)
   console.log('[PROMPT_KIND_SOT]', {
-    activePromptKind: activeUiItem.kind,
+    activePromptKind: activeUiItem_S.kind,
     v3PromptPhase,
     hasActiveV3Prompt,
-    isMultiInstanceGate: currentItem?.type === 'multi_instance_gate',
-    currentItemType: currentItem?.type,
-    currentItemId: currentItem?.id
+    isMultiInstanceGate: currentItem_S?.type === 'multi_instance_gate',
+    currentItem_SType: currentItem_S?.type,
+    currentItem_SId: currentItem_S?.id
   });
   
   // TASK B: ACTIVE KIND PRECEDENCE LOG: Only log when kind changes (reduce spam)
-  if (activeUiItem.kind !== lastLoggedActiveKindRef.current) {
-    lastLoggedActiveKindRef.current = activeUiItem.kind;
+  if (activeUiItem_S.kind !== lastLoggedActiveKindRef.current) {
+    lastLoggedActiveKindRef.current = activeUiItem_S.kind;
     console.log('[ORDER][ACTIVE_KIND_PRECEDENCE]', {
-      currentActiveKind: activeUiItem.kind,
+      currentActiveKind: activeUiItem_S.kind,
       hasActiveV3Prompt,
       v3HasVisiblePromptCard,
       v3PromptPhase,
-      currentItemType: currentItem?.type,
-      effectiveItemType: v3ProbingActive ? 'v3_probing' : currentItem?.type,
-      currentItemId: currentItem?.id,
-      packId: currentItem?.packId || v3ProbingContext?.packId,
-      instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber
+      currentItem_SType: currentItem_S?.type,
+      effectiveItemType: v3ProbingActive ? 'v3_probing' : currentItem_S?.type,
+      currentItem_SId: currentItem_S?.id,
+      packId: currentItem_S?.packId || v3ProbingContext_S?.packId,
+      instanceNumber: currentItem_S?.instanceNumber || v3ProbingContext_S?.instanceNumber
     });
   }
 
@@ -4764,18 +4764,18 @@ function CandidateInterviewInner() {
   // CRITICAL: Declared at top-level so ALL render code can access it
   const bottomBarRenderTypeSOT = (() => {
     // PRIORITY 0: Required anchor fallback (highest precedence - must show prompt)
-    if (activeUiItem?.kind === "REQUIRED_ANCHOR_FALLBACK") return "required_anchor_fallback";
+    if (activeUiItem_S?.kind === "REQUIRED_ANCHOR_FALLBACK") return "required_anchor_fallback";
     
     // PRIORITY 1: V3 states (highest precedence)
-    if (activeUiItem?.kind === "V3_PROMPT") return "v3_probing";
-    if (activeUiItem?.kind === "V3_WAITING") return "v3_waiting";
-    if (activeUiItem?.kind === "V3_OPENER") return "v3_pack_opener";
-    if (activeUiItem?.kind === "MI_GATE") return "multi_instance_gate";
+    if (activeUiItem_S?.kind === "V3_PROMPT") return "v3_probing";
+    if (activeUiItem_S?.kind === "V3_WAITING") return "v3_waiting";
+    if (activeUiItem_S?.kind === "V3_OPENER") return "v3_pack_opener";
+    if (activeUiItem_S?.kind === "MI_GATE") return "multi_instance_gate";
     
     // PRIORITY 2: Base yes/no questions (FIX #1)
-    if (activeUiItem?.kind === "DEFAULT" && 
-        currentItem?.type === "question" && 
-        engine?.QById?.[currentItem.id]?.response_type === "yes_no") {
+    if (activeUiItem_S?.kind === "DEFAULT" && 
+        currentItem_S?.type === "question" && 
+        engine_S?.QById?.[currentItem_S.id]?.response_type === "yes_no") {
       return "yes_no";
     }
     
@@ -4785,14 +4785,14 @@ function CandidateInterviewInner() {
   
   // Sanity log: confirm variable exists before render
   cqLog('DEBUG', "[BOTTOM_BAR_RENDER_TYPE][SOT_TOP]", { 
-    activeUiItemKind: activeUiItem?.kind, 
+    activeUiItem_SKind: activeUiItem_S?.kind, 
     bottomBarRenderTypeSOT,
     v3PromptPhase,
     hasV3PromptText,
     hasActiveV3Prompt,
-    activeCardKind: activeCard?.kind,
-    currentItemId: currentItem?.id,
-    currentItemResponseType: currentItem?.type === "question" ? engine?.QById?.[currentItem.id]?.response_type : null
+    activeCard_SKind: activeCard_S?.kind,
+    currentItem_SId: currentItem_S?.id,
+    currentItem_SResponseType: currentItem_S?.type === "question" ? engine_S?.QById?.[currentItem_S.id]?.response_type : null
   });
   
   // ============================================================================
@@ -4824,12 +4824,12 @@ function CandidateInterviewInner() {
   // FIX #1: Diagnostic log for base yes/no routing (TDZ-SAFE: uses only early variables)
   if (bottomBarRenderTypeSOT === "yes_no") {
     console.log('[UI_CONTRACT][BASE_YESNO_BOTTOM_BAR_ROUTE]', {
-      activeCardKind: activeCard?.kind,
+      activeCard_SKind: activeCard_S?.kind,
       bottomBarRenderTypeSOT,
       bottomBarModeSOTSafe,
-      currentItemId: currentItem?.id,
-      currentItemType: currentItem?.type,
-      questionResponseType: engine?.QById?.[currentItem?.id]?.response_type
+      currentItem_SId: currentItem_S?.id,
+      currentItem_SType: currentItem_S?.type,
+      questionResponseType: engine_S?.QById?.[currentItem_S?.id]?.response_type
     });
   }
   
@@ -4858,7 +4858,7 @@ function CandidateInterviewInner() {
         promptTextPreview: v3ActivePromptText?.substring(0, 40) || null,
         hasV3PromptText,
         hasActiveV3Prompt,
-        activeUiItemKind: activeUiItem?.kind,
+        activeUiItem_SKind: activeUiItem_S?.kind,
         loopKeyPreview: v3ActiveProbeQuestionLoopKeyRef.current || null,
         promptIdPreview: lastV3PromptSnapshotRef.current?.promptId || null
       });
@@ -4867,13 +4867,13 @@ function CandidateInterviewInner() {
     
     // EDIT 1: Clear V3_WAITING failopen guard when real prompt arrives
     if (v3PromptPhase === 'ANSWER_NEEDED' && hasActiveV3Prompt && v3ProbingActive) {
-      const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+      const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
       if (loopKey && v3WaitingFailopenFiredRef.current.has(loopKey)) {
         v3WaitingFailopenFiredRef.current.delete(loopKey);
         console.log('[V3_WAITING][FAILOPEN_CLEARED]', { loopKey, reason: 'prompt_arrived' });
       }
     }
-  }, [v3PromptPhase, v3ActivePromptText, hasV3PromptText, hasActiveV3Prompt, activeUiItem, v3ProbingActive, v3ProbingContext, sessionId]);
+  }, [v3PromptPhase, v3ActivePromptText, hasV3PromptText, hasActiveV3Prompt, activeUiItem_S, v3ProbingActive, v3ProbingContext_S, sessionId]);
   
   // V3 WAITING WATCHDOG: Detect stuck state and force fallback prompt
   const v3WaitingWatchdogRef = useRef(null);
@@ -4881,7 +4881,7 @@ function CandidateInterviewInner() {
   const v3WaitingFailopenFiredRef = useRef(new Set());
   
   useEffect(() => {
-    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
     const isStuck = v3ProbingActive && 
                     bottomBarModeSOT === 'V3_WAITING' && 
                     !hasActiveV3Prompt && 
@@ -4961,7 +4961,7 @@ function CandidateInterviewInner() {
         clearTimeout(v3WaitingWatchdogRef.current);
       }
     };
-  }, [v3ProbingActive, bottomBarModeSOT, hasActiveV3Prompt, screenMode, v3ProbingContext, sessionId]);
+  }, [v3ProbingActive, bottomBarModeSOT, hasActiveV3Prompt, screenMode, v3ProbingContext_S, sessionId]);
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
@@ -5016,7 +5016,7 @@ function CandidateInterviewInner() {
         packData: v3Context?.packData
       });
 
-      // Also set currentItem to multi_instance_gate type
+      // Also set currentItem_S to multi_instance_gate type
       setCurrentItem({
         id: `multi-instance-gate-${v3Context?.packId}-${v3Context?.instanceNumber || 1}`,
         type: 'multi_instance_gate',
@@ -5038,10 +5038,10 @@ function CandidateInterviewInner() {
 
   const displayNumberMapRef = useRef({});
 
-  const totalQuestionsAllSections = engine?.TotalQuestions || 0;
+  const totalQuestionsAllSections = engine_S?.TotalQuestions || 0;
   const answeredQuestionsAllSections = React.useMemo(
-    () => transcriptSOT.filter(t => t.type === 'question').length,
-    [transcriptSOT]
+    () => transcriptSOT_S.filter(t => t.type === 'question').length,
+    [transcriptSOT_S]
   );
   const questionCompletionPct = totalQuestionsAllSections > 0
     ? Math.round((answeredQuestionsAllSections / totalQuestionsAllSections) * 100)
@@ -5055,7 +5055,7 @@ function CandidateInterviewInner() {
   // Compute next renderable (dedupe + filter)
   // CRITICAL: This memo MUST NOT trigger component remount
   const nextRenderable = React.useMemo(() => {
-    const base = Array.isArray(transcriptSOT) ? transcriptSOT : [];
+    const base = Array.isArray(transcriptSOT_S) ? transcriptSOT_S : [];
     
     // V3 probe Q/A now allowed in transcript (no longer filtered)
     const baseWithoutV3Probes = base;
@@ -5099,7 +5099,7 @@ function CandidateInterviewInner() {
     if (baseWithoutV3Probes.length > 0 && deduped.length === 0) {
       console.warn('[TRANSCRIPT_FILTER_FALLBACK]', {
         canonicalLen: baseWithoutV3Probes.length,
-        currentItemType: currentItem?.type,
+        currentItem_SType: currentItem_S?.type,
         screenMode,
         messageTypeCounts: baseWithoutV3Probes.reduce((acc, e) => {
           const mt = e.messageType || e.type || 'unknown';
@@ -5111,7 +5111,7 @@ function CandidateInterviewInner() {
     }
     
     return deduped;
-  }, [transcriptSOT]);
+  }, [transcriptSOT_S]);
 
   // Loading watchdog state
   const [showLoadingRetry, setShowLoadingRetry] = useState(false);
@@ -5188,7 +5188,7 @@ function CandidateInterviewInner() {
 
   // STABLE RENDER LIST: Pure deterministic filtering (no UI-state-dependent shrink/grow)
   const renderedTranscript = useMemo(() => {
-    const base = Array.isArray(transcriptSOT) ? transcriptSOT : [];
+    const base = Array.isArray(transcriptSOT_S) ? transcriptSOT_S : [];
     
     // V3 probe Q/A now allowed in transcript (no longer filtered)
     const baseFiltered = base;
@@ -5268,9 +5268,9 @@ function CandidateInterviewInner() {
     // Gate questions now append ONLY after answer, so no double-render conflict
     // Keep activeGateStableKey for compatibility but don't filter
     const activeGateStableKey = (() => {
-      if (currentItem?.type !== 'multi_instance_gate') return null;
-      const gatePackId = currentItem.packId || multiInstanceGate?.packId;
-      const gateInstanceNumber = currentItem.instanceNumber || multiInstanceGate?.instanceNumber;
+      if (currentItem_S?.type !== 'multi_instance_gate') return null;
+      const gatePackId = currentItem_S.packId || multiInstanceGate?.packId;
+      const gateInstanceNumber = currentItem_S.instanceNumber || multiInstanceGate?.instanceNumber;
       if (!gatePackId || !gateInstanceNumber) return null;
       return `mi-gate:${gatePackId}:${gateInstanceNumber}`;
     })();
@@ -5345,7 +5345,7 @@ function CandidateInterviewInner() {
       filteredLen: finalFiltered.length,
       activeGateRemovedCount,
       screenMode,
-      currentItemType: currentItem?.type
+      currentItem_SType: currentItem_S?.type
     });
     
     // AUDIT: Verify no synthetic injection (append-only contract) - CORRECTED
@@ -5417,7 +5417,7 @@ function CandidateInterviewInner() {
         renderedLen: finalFiltered.length,
         hiddenCount,
         screenMode,
-        currentItemType: currentItem?.type,
+        currentItem_SType: currentItem_S?.type,
         hiddenKeys: hiddenEntries.map(e => ({
           key: e.stableKey || e.id,
           type: e.messageType || e.type,
@@ -5428,7 +5428,7 @@ function CandidateInterviewInner() {
     }
     
     return finalFiltered;
-  }, [transcriptSOT, currentItem, multiInstanceGate]);
+  }, [transcriptSOT_S, currentItem_S, multiInstanceGate]);
 
   // Render-time freeze: Capture/clear snapshot based on isUserTyping
   useEffect(() => {
@@ -5465,7 +5465,7 @@ function CandidateInterviewInner() {
     }
     
     prevKeysSetRef.current = nextKeys;
-  }, [transcriptSOT]);
+  }, [transcriptSOT_S]);
 
   // Verification instrumentation (moved above early returns)
   const uiContractViolationKeyRef = useRef(null);
@@ -5474,7 +5474,7 @@ function CandidateInterviewInner() {
     const last = renderedTranscript[renderedTranscript.length - 1];
     if (!last || last.messageType !== 'MULTI_INSTANCE_GATE_SHOWN') return;
 
-    const effectiveType = v3ProbingActive ? 'v3_probing' : (currentItem?.type || null);
+    const effectiveType = v3ProbingActive ? 'v3_probing' : (currentItem_S?.type || null);
     const isGate = effectiveType === 'multi_instance_gate';
     const footerIsYesNo = isGate; // simplified to avoid TDZ on currentPrompt
 
@@ -5490,11 +5490,11 @@ function CandidateInterviewInner() {
         });
       }
     }
-  }, [renderedTranscript, currentItem, v3ProbingActive]);
+  }, [renderedTranscript, currentItem_S, v3ProbingActive]);
 
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
-  // uiCurrentItem removed: use currentItem directly everywhere to avoid TDZ
+  // uiCurrentItem removed: use currentItem_S directly everywhere to avoid TDZ
   const uiCurrentItem = React.useMemo(() => {
     // Priority 1: V3 gate
     if (v3GateActive) {
@@ -5512,8 +5512,8 @@ function CandidateInterviewInner() {
     if (v3ProbingActive) {
       return {
         type: 'v3_probing',
-        id: `v3-probing-${v3ProbingContext?.packId}`,
-        packId: v3ProbingContext?.packId
+        id: `v3-probing-${v3ProbingContext_S?.packId}`,
+        packId: v3ProbingContext_S?.packId
       };
     }
 
@@ -5526,8 +5526,8 @@ function CandidateInterviewInner() {
     }
 
     // Priority 4: Base current item
-    return currentItem;
-  }, [v3GateActive, v3Gate, v3ProbingActive, v3ProbingContext, pendingSectionTransition, currentItem]);
+    return currentItem_S;
+  }, [v3GateActive, v3Gate, v3ProbingActive, v3ProbingContext_S, pendingSectionTransition, currentItem_S]);
 
   const MAX_PROBE_TURNS = 6;
   const AI_RESPONSE_TIMEOUT_MS = 45000;
@@ -5561,7 +5561,7 @@ function CandidateInterviewInner() {
     return distanceFromBottom <= thresholdPx;
   };
   
-  // TDZ GUARD: Safe length counter for bottom-anchor effect (avoids finalTranscriptList TDZ)
+  // TDZ GUARD: Safe length counter for bottom-anchor effect (avoids finalTranscriptList_S TDZ)
   const bottomAnchorLenRef = React.useRef(0);
   
   // TDZ GUARD: Hooks/memos must not reference finalList before it is initialized. Use finalListRef/finalListLenRef.
@@ -5849,7 +5849,7 @@ function CandidateInterviewInner() {
     if (!bottomAnchorRef.current || !historyRef.current) return;
     
     // Gate on transcript growth: only scroll when canonical transcript grows
-    const currentLen = Array.isArray(transcriptSOT) ? transcriptSOT.length : 0;
+    const currentLen = Array.isArray(transcriptSOT_S) ? transcriptSOT_S.length : 0;
     if (currentLen <= lastAutoScrollLenRef.current) {
       return; // No growth, no scroll (prevents snap on rerenders)
     }
@@ -5887,7 +5887,7 @@ function CandidateInterviewInner() {
         isProgrammaticScrollRef.current = false;
       });
     });
-  }, [footerHeightPx, transcriptSOT]);
+  }, [footerHeightPx, transcriptSOT_S]);
 
   const autoScrollToBottom = useCallback(() => {
     if (isUserTyping) return;
@@ -5922,9 +5922,9 @@ function CandidateInterviewInner() {
   const saveDraft = useCallback((value) => {
     if (!sessionId) return;
 
-    const packId = currentItem?.packId || activeV2Pack?.packId || null;
-    const fieldKey = currentItem?.fieldKey || currentItem?.id || null;
-    const instanceNumber = currentItem?.instanceNumber || activeV2Pack?.instanceNumber || 0;
+    const packId = currentItem_S?.packId || activeV2Pack?.packId || null;
+    const fieldKey = currentItem_S?.fieldKey || currentItem_S?.id || null;
+    const instanceNumber = currentItem_S?.instanceNumber || activeV2Pack?.instanceNumber || 0;
     const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
 
     try {
@@ -5949,15 +5949,15 @@ function CandidateInterviewInner() {
       });
       console.warn("[UX][DRAFT] Failed to save draft", e);
     }
-  }, [sessionId, currentItem, activeV2Pack, buildDraftKey]);
+  }, [sessionId, currentItem_S, activeV2Pack, buildDraftKey]);
 
   // UX: Clear draft from sessionStorage
   const clearDraft = useCallback(() => {
     if (!sessionId) return;
 
-    const packId = currentItem?.packId || activeV2Pack?.packId || null;
-    const fieldKey = currentItem?.fieldKey || currentItem?.id || null;
-    const instanceNumber = currentItem?.instanceNumber || activeV2Pack?.instanceNumber || 0;
+    const packId = currentItem_S?.packId || activeV2Pack?.packId || null;
+    const fieldKey = currentItem_S?.fieldKey || currentItem_S?.id || null;
+    const instanceNumber = currentItem_S?.instanceNumber || activeV2Pack?.instanceNumber || 0;
     const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
 
     try {
@@ -5970,15 +5970,15 @@ function CandidateInterviewInner() {
     } catch (e) {
       console.warn("[UX][DRAFT] Failed to clear draft", e);
     }
-  }, [sessionId, currentItem, activeV2Pack, buildDraftKey]);
+  }, [sessionId, currentItem_S, activeV2Pack, buildDraftKey]);
 
   // Track last logged V2 pack field to prevent duplicates (logging happens on answer, not render)
   // This ref is used when logging answers to check for duplicates
   useEffect(() => {
     if (v2PackMode !== "V2_PACK") return;
-    if (!activeV2Pack || !currentItem || currentItem.type !== 'v2_pack_field') return;
+    if (!activeV2Pack || !currentItem_S || currentItem_S.type !== 'v2_pack_field') return;
     // Just track the current field - actual logging happens in handleAnswer
-  }, [v2PackMode, activeV2Pack, currentItem]);
+  }, [v2PackMode, activeV2Pack, currentItem_S]);
 
   // FULL SESSION RESET: Cleanup all interview-local state when sessionId changes (prevent cross-session leakage)
   useEffect(() => {
@@ -5998,7 +5998,7 @@ function CandidateInterviewInner() {
       sessionId,
       transcriptLenBefore: canonicalTranscriptRef.current.length,
       dbTranscriptLenBefore: dbTranscript.length,
-      v3ProbeHistoryLenBefore: v3ProbeDisplayHistory.length
+      v3ProbeHistoryLenBefore: v3ProbeDisplayHistory_S.length
     });
     
     // CRITICAL: Reset canonical transcript ref (prevents cross-session contamination)
@@ -6091,23 +6091,23 @@ function CandidateInterviewInner() {
   function getCurrentPrompt() {
     // PRIORITY 1: V3 prompt active - use hasActiveV3Prompt (TDZ-safe minimal check)
     if (hasActiveV3Prompt && v3ActivePromptText) {
-      const packConfig = FOLLOWUP_PACK_CONFIGS[v3ProbingContext?.packId];
-      const packLabel = packConfig?.instancesLabel || v3ProbingContext?.categoryLabel || 'AI Follow-Up';
+      const packConfig = FOLLOWUP_PACK_CONFIGS[v3ProbingContext_S?.packId];
+      const packLabel = packConfig?.instancesLabel || v3ProbingContext_S?.categoryLabel || 'AI Follow-Up';
       
       console.log('[V3_PROBING][PROMPT_LANE]', {
-        packId: v3ProbingContext?.packId,
-        instanceNumber: v3ProbingContext?.instanceNumber,
+        packId: v3ProbingContext_S?.packId,
+        instanceNumber: v3ProbingContext_S?.instanceNumber,
         promptPreview: v3ActivePromptText?.substring(0, 60)
       });
       
       return {
         type: 'v3_probe',
-        id: `v3-probe-active-${v3ProbingContext?.packId}-${v3ProbingContext?.instanceNumber}`,
+        id: `v3-probe-active-${v3ProbingContext_S?.packId}-${v3ProbingContext_S?.instanceNumber}`,
         text: v3ActivePromptText,
         responseType: 'text',
-        packId: v3ProbingContext?.packId,
-        categoryId: v3ProbingContext?.categoryId,
-        instanceNumber: v3ProbingContext?.instanceNumber,
+        packId: v3ProbingContext_S?.packId,
+        categoryId: v3ProbingContext_S?.categoryId,
+        instanceNumber: v3ProbingContext_S?.instanceNumber,
         category: packLabel
       };
     }
@@ -6119,13 +6119,13 @@ function CandidateInterviewInner() {
     }
 
     // UX: Stabilize current item while typing - ALIGNED WITH V3 PROMPT PRECEDENCE
-    let effectiveCurrentItem = currentItem;
+    let effectiveCurrentItem = currentItem_S;
 
-    if (isUserTyping && currentItemRef.current) {
-      const frozenType = currentItemRef.current?.type;
-      const frozenId = currentItemRef.current?.id;
-      const currentType = currentItem?.type;
-      const currentId = currentItem?.id;
+    if (isUserTyping && currentItem_SRef.current) {
+      const frozenType = currentItem_SRef.current?.type;
+      const frozenId = currentItem_SRef.current?.id;
+      const currentType = currentItem_S?.type;
+      const currentId = currentItem_S?.id;
       
       // PRECEDENCE: Always use current item if V3 prompt is active
       // This prevents MI_GATE frozen refs from blocking V3 text input
@@ -6136,8 +6136,8 @@ function CandidateInterviewInner() {
           currentType,
           reason: 'V3 prompt active - using current item to prevent stale gate refs'
         });
-        effectiveCurrentItem = currentItem;
-        currentItemRef.current = currentItem; // Sync ref to prevent future bypass
+        effectiveCurrentItem = currentItem_S;
+        currentItem_SRef.current = currentItem_S; // Sync ref to prevent future bypass
       } else if (frozenType !== currentType || frozenId !== currentId) {
         console.log('[FORENSIC][TYPING_LOCK_STALE_REF_BYPASS]', {
           hasActiveV3Prompt,
@@ -6146,22 +6146,22 @@ function CandidateInterviewInner() {
           currentType,
           currentId
         });
-        effectiveCurrentItem = currentItem; // Use current for this render
+        effectiveCurrentItem = currentItem_S; // Use current for this render
       } else {
         console.log('[FORENSIC][TYPING_LOCK]', { 
           active: true,
           hasActiveV3Prompt,
-          frozenItemType: currentItemRef.current?.type,
-          frozenItemId: currentItemRef.current?.id,
-          actualItemType: currentItem?.type,
-          actualItemId: currentItem?.id,
+          frozenItemType: currentItem_SRef.current?.type,
+          frozenItemId: currentItem_SRef.current?.id,
+          actualItemType: currentItem_S?.type,
+          actualItemId: currentItem_S?.id,
           promptWillDeriveFrom: 'FROZEN_REF'
         });
-        effectiveCurrentItem = currentItemRef.current;
+        effectiveCurrentItem = currentItem_SRef.current;
       }
     } else {
       console.log('[FORENSIC][TYPING_LOCK]', { active: false, hasActiveV3Prompt, promptWillDeriveFrom: 'CURRENT_STATE' });
-      currentItemRef.current = currentItem;
+      currentItem_SRef.current = currentItem_S;
     }
 
     if (inIdeProbingLoop && currentIdeQuestion) {
@@ -6174,7 +6174,7 @@ function CandidateInterviewInner() {
     }
 
     // Use effectiveCurrentItem (stabilized while typing) for all prompt logic below
-    if (!effectiveCurrentItem || !engine) return null;
+    if (!effectiveCurrentItem || !engine_S) return null;
 
     // If waiting for agent and we have a field probe question, show it
     if (isWaitingForAgent && currentFieldProbe) {
@@ -6196,7 +6196,7 @@ function CandidateInterviewInner() {
     }
 
     if (effectiveCurrentItem.type === 'question') {
-      const question = engine.QById[effectiveCurrentItem.id];
+      const question = engine_S.QById[effectiveCurrentItem.id];
 
       if (!question) {
         setCurrentItem(null);
@@ -6205,16 +6205,16 @@ function CandidateInterviewInner() {
         return null;
       }
 
-      const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
+      const sectionEntity = engine_S.Sections.find(s => s.id === question.section_id);
       const sectionName = sectionEntity?.section_name || question.category || '';
       const questionNumber = getQuestionDisplayNumber(effectiveCurrentItem.id);
 
-      // FIX C: Guard against logging QUESTION_SHOWN when currentItem is null
-      if (!currentItem || currentItem.type !== 'question') {
+      // FIX C: Guard against logging QUESTION_SHOWN when currentItem_S is null
+      if (!currentItem_S || currentItem_S.type !== 'question') {
         console.log('[STREAM][GUARD_NO_NULL_CURRENT_ITEM_ON_QUESTION_SHOWN]', {
           blocked: true,
-          reason: 'currentItem is null or not a question',
-          currentItemType: currentItem?.type,
+          reason: 'currentItem_S is null or not a question',
+          currentItem_SType: currentItem_S?.type,
           effectiveCurrentItemId: effectiveCurrentItem.id,
           screenMode
         });
@@ -6223,7 +6223,7 @@ function CandidateInterviewInner() {
       
       console.log('[STREAM][GUARD_NO_NULL_CURRENT_ITEM_ON_QUESTION_SHOWN]', {
         blocked: false,
-        currentItemType: currentItem.type,
+        currentItem_SType: currentItem_S.type,
         questionId: effectiveCurrentItem.id
       });
       
@@ -6293,7 +6293,7 @@ function CandidateInterviewInner() {
     if (effectiveCurrentItem.type === 'followup') {
       const { packId, stepIndex, substanceName } = effectiveCurrentItem;
 
-      const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+      const packSteps = injectSubstanceIntoPackSteps(engine_S, packId, substanceName);
       if (!packSteps) return null;
 
       const step = packSteps[stepIndex];
@@ -6337,7 +6337,7 @@ function CandidateInterviewInner() {
       const gatePromptText = effectiveCurrentItem.promptText;
       const gateCategoryLabel = effectiveCurrentItem.categoryLabel;
       
-      // PART B: HARD GUARD - derive prompt from currentItem ONLY (never from transcript)
+      // PART B: HARD GUARD - derive prompt from currentItem_S ONLY (never from transcript)
       const effectivePromptText = gatePromptText || 
         (gateCategoryLabel ? `Do you have another ${gateCategoryLabel} to report?` : null) ||
         `Do you have another incident to report?`;
@@ -6345,13 +6345,13 @@ function CandidateInterviewInner() {
       // GUARD: Validate gate context
       if (!gatePackId || !gateInstanceNumber) {
         console.error('[FORENSIC][GATE_CONTEXT_MISSING]', {
-          currentItemType: effectiveCurrentItem.type,
-          currentItemId: effectiveCurrentItem.id,
+          currentItem_SType: effectiveCurrentItem.type,
+          currentItem_SId: effectiveCurrentItem.id,
           packId: gatePackId,
           instanceNumber: gateInstanceNumber
         });
         
-        // Derive from currentItemId if possible
+        // Derive from currentItem_SId if possible
         const idMatch = effectiveCurrentItem.id?.match(/multi-instance-gate-(.+?)-(\d+)/);
         const derivedPackId = idMatch?.[1] || gatePackId || 'UNKNOWN_PACK';
         const derivedInstanceNumber = idMatch?.[2] ? parseInt(idMatch[2]) : gateInstanceNumber || 1;
@@ -6382,7 +6382,7 @@ function CandidateInterviewInner() {
         stableKey: `mi-gate:${gatePackId}:${gateInstanceNumber}`,
         hasPromptText: !!effectivePromptText,
         promptPreview: effectivePromptText?.substring(0, 60),
-        source: 'currentItem.promptText'
+        source: 'currentItem_S.promptText'
       });
       
       return {
@@ -6408,7 +6408,7 @@ function CandidateInterviewInner() {
         instanceNumber,
         hasOpenerText: !!openerText,
         v3ProbingActive,
-        currentItemId: effectiveCurrentItem.id
+        currentItem_SId: effectiveCurrentItem.id
       });
       
       // PACK ENTRY FAILSAFE CANCELLATION: Opener is active - cancel entry failsafe
@@ -6535,7 +6535,7 @@ function CandidateInterviewInner() {
   // Multi-instance gate V3 transcript reconciliation (repair missing probe Q+A)
   useEffect(() => {
     // Only trigger when entering MI_GATE (not on every multiInstanceGate change)
-    if (!multiInstanceGate || activeUiItem?.kind !== "MI_GATE") return;
+    if (!multiInstanceGate || activeUiItem_S?.kind !== "MI_GATE") return;
     
     const urlSessionId = new URLSearchParams(window.location.search).get("session");
     if (!urlSessionId || urlSessionId !== sessionId) return;
@@ -6543,18 +6543,18 @@ function CandidateInterviewInner() {
     // Check if we have a stored payload from last V3 submit
     const payload = lastV3SubmittedAnswerRef.current;
     
-    // METADATA PAYLOAD: Check for engine decision metadata (required for gate validation)
+    // METADATA PAYLOAD: Check for engine_S decision metadata (required for gate validation)
     const loopKey = `${sessionId}:${multiInstanceGate?.categoryId}:${multiInstanceGate?.instanceNumber}`;
-    const enginePayload = lastV3DecisionByLoopKeyRef.current[loopKey];
+    const engine_SPayload = lastV3DecisionByLoopKeyRef.current[loopKey];
     
     if (!payload) {
       console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
         sessionId,
         hasPayload: false,
-        hasEnginePayload: !!enginePayload,
-        missingCount: enginePayload?.missingFields?.length || 'unknown',
-        miGateBlocked: enginePayload?.miGateBlocked || false,
-        stopReason: enginePayload?.stopReason || null,
+        hasEnginePayload: !!engine_SPayload,
+        missingCount: engine_SPayload?.missingFields?.length || 'unknown',
+        miGateBlocked: engine_SPayload?.miGateBlocked || false,
+        stopReason: engine_SPayload?.stopReason || null,
         actionTaken: 'SKIP_NO_PAYLOAD'
       });
       return;
@@ -6703,10 +6703,10 @@ function CandidateInterviewInner() {
       });
       lastV3SubmittedAnswerRef.current = null;
     }
-  }, [multiInstanceGate, activeUiItem, sessionId, dbTranscript, setDbTranscriptSafe]);
+  }, [multiInstanceGate, activeUiItem_S, sessionId, dbTranscript, setDbTranscriptSafe]);
   // CQ_GUARD_END: MI_GATE reconciliation effect
 
-  // ACTIVE UI ITEM CHANGE TRACE: Moved to render section (after activeUiItem is initialized)
+  // ACTIVE UI ITEM CHANGE TRACE: Moved to render section (after activeUiItem_S is initialized)
   // This avoids TDZ error while keeping hook order consistent
 
   // STABLE: Single mount per session - track by sessionId (survives remounts)
@@ -6867,7 +6867,7 @@ function CandidateInterviewInner() {
     const doBoot = async () => {
       try {
         console.log('[CQ_BOOT_EFFECT][RUN]', { sessionId: effectiveSessionId });
-        const [loadedSession, engineData] = await Promise.all([
+        const [loadedSession, engine_SData] = await Promise.all([
           base44.entities.InterviewSession.get(effectiveSessionId),
           bootstrapEngine(base44)
         ]);
@@ -6878,7 +6878,7 @@ function CandidateInterviewInner() {
         
         unstable_batchedUpdates(() => {
             setSession(loadedSession);
-            setEngine(engineData);
+            setEngine(engine_SData);
 
             const rawTranscript = loadedSession.transcript_snapshot || [];
             const cleanedTranscript = rawTranscript;
@@ -7004,10 +7004,10 @@ function CandidateInterviewInner() {
         message: event.message || event.error?.message,
         stack: event.error?.stack,
         screenMode,
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-        packId: currentItem?.packId || v3ProbingContext?.packId,
-        instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
+        currentItem_SType: currentItem_S?.type,
+        currentItem_SId: currentItem_S?.id,
+        packId: currentItem_S?.packId || v3ProbingContext_S?.packId,
+        instanceNumber: currentItem_S?.instanceNumber || v3ProbingContext_S?.instanceNumber,
         v3ProbingActive,
         canonicalLen: dbTranscript?.length || 0,
         visibleLen: nextRenderable?.length || 0,
@@ -7030,10 +7030,10 @@ function CandidateInterviewInner() {
         message: event.reason?.message || String(event.reason),
         stack: event.reason?.stack,
         screenMode,
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-        packId: currentItem?.packId || v3ProbingContext?.packId,
-        instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
+        currentItem_SType: currentItem_S?.type,
+        currentItem_SId: currentItem_S?.id,
+        packId: currentItem_S?.packId || v3ProbingContext_S?.packId,
+        instanceNumber: currentItem_S?.instanceNumber || v3ProbingContext_S?.instanceNumber,
         v3ProbingActive,
         canonicalLen: dbTranscript?.length || 0,
         visibleLen: nextRenderable?.length || 0,
@@ -7161,7 +7161,7 @@ function CandidateInterviewInner() {
       
       console.log('[BOOT][RESUME][OK]', { 
         transcriptLen: freshTranscript.length,
-        currentItemType: loadedSession.current_item_snapshot?.type
+        currentItem_SType: loadedSession.current_item_snapshot?.type
       });
     } catch (err) {
       console.error('[BOOT][RESUME][ERROR]', err.message);
@@ -7206,7 +7206,7 @@ function CandidateInterviewInner() {
     } catch (err) {
       // Silently fail
     }
-  }, [sessionId, engine]);
+  }, [sessionId, engine_S]);
 
   const persistStateToDatabase = useCallback(async (ignoredTranscript, newQueue, newCurrentItem) => {
     // TRANSCRIPT GUARD: Warn if transcript argument is passed (should always be null)
@@ -7248,7 +7248,7 @@ function CandidateInterviewInner() {
     if (isV3Blocking) {
       console.log('[FLOW][BLOCKED_ADVANCE_DUE_TO_V3]', {
         reason: 'V3_BLOCKING',
-        currentItemType: currentItem?.type,
+        currentItem_SType: currentItem_S?.type,
         v3PromptPhase,
         v3ProbingActive,
         hasActiveV3Prompt,
@@ -7259,8 +7259,8 @@ function CandidateInterviewInner() {
     
     // FIX C: Guard advance - require V3 UI fully cleared
     if (v3ProbingActive && !isV3Blocking) {
-      const v3UiHistoryLen = v3ProbeDisplayHistory.length;
-      const hasV3Context = !!v3ProbingContext;
+      const v3UiHistoryLen = v3ProbeDisplayHistory_S.length;
+      const hasV3Context = !!v3ProbingContext_S;
       const hasV3UiArtifacts = v3UiHistoryLen > 0 || hasV3Context;
       
       if (hasV3UiArtifacts) {
@@ -7286,7 +7286,7 @@ function CandidateInterviewInner() {
       });
     }
     
-    const currentQuestion = engine.QById[baseQuestionId];
+    const currentQuestion = engine_S.QById[baseQuestionId];
     if (!currentQuestion) {
       setShowCompletionModal(true);
       return;
@@ -7319,7 +7319,7 @@ function CandidateInterviewInner() {
         setCompletedSectionsCount(prev => Math.max(prev, nextResult.nextSectionIndex));
 
         const totalSectionsCount = sections.length;
-        const totalQuestionsCount = engine?.TotalQuestions || 0;
+        const totalQuestionsCount = engine_S?.TotalQuestions || 0;
         
         // FIX A: Count from Response entities (authoritative source)
         const completedSectionResponses = await base44.entities.Response.filter({
@@ -7399,8 +7399,8 @@ function CandidateInterviewInner() {
       }
     }
 
-    const nextQuestionId = computeNextQuestionId(engine, baseQuestionId, 'Yes');
-    if (nextQuestionId && engine.QById[nextQuestionId]) {
+    const nextQuestionId = computeNextQuestionId(engine_S, baseQuestionId, 'Yes');
+    if (nextQuestionId && engine_S.QById[nextQuestionId]) {
       setQueue([]);
       setCurrentItem({ id: nextQuestionId, type: 'question' });
       await persistStateToDatabase(null, [], { id: nextQuestionId, type: 'question' });
@@ -7410,10 +7410,10 @@ function CandidateInterviewInner() {
       await persistStateToDatabase(dbTranscript, [], null);
       setShowCompletionModal(true);
     }
-  }, [engine, dbTranscript, sections, currentSectionIndex, refreshTranscriptFromDB]);
+  }, [engine_S, dbTranscript, sections, currentSectionIndex, refreshTranscriptFromDB]);
 
   const onFollowupPackComplete = useCallback(async (baseQuestionId, packId) => {
-    const question = engine.QById[baseQuestionId];
+    const question = engine_S.QById[baseQuestionId];
     if (!question) {
       advanceToNextBaseQuestion(baseQuestionId);
       return;
@@ -7435,7 +7435,7 @@ function CandidateInterviewInner() {
           'Do you have another instance we should discuss for this question?';
 
         // PART A: DO NOT append gate to transcript while active (prevents flicker)
-        // Gate renders from currentItem.promptText - will append Q+A ONLY after user answers
+        // Gate renders from currentItem_S.promptText - will append Q+A ONLY after user answers
         const gateStableKey = `mi-gate:${packId}:${currentInstanceCount + 1}`;
         console.log('[MI_GATE][TRANSCRIPT_SUPPRESS_ON_SHOW]', {
           stableKey: gateStableKey,
@@ -7465,10 +7465,10 @@ function CandidateInterviewInner() {
     }
 
     advanceToNextBaseQuestion(baseQuestionId);
-  }, [engine, sessionId, dbTranscript, advanceToNextBaseQuestion]);
+  }, [engine_S, sessionId, dbTranscript, advanceToNextBaseQuestion]);
 
   // SHARED MI_GATE HANDLER: Deduplicated logic for YES/NO (inline function)
-  const handleMiGateYesNo = async ({ answer, gate, sessionId, engine }) => {
+  const handleMiGateYesNo = async ({ answer, gate, sessionId, engine_S }) => {
     // PART C: Append gate Q+A to transcript after user answers
     // STATIC IMPORT: Use top-level imports (prevents React context duplication)
     const appendUserMessage = appendUserMessageImport;
@@ -7523,15 +7523,15 @@ function CandidateInterviewInner() {
     // FIX A: Clear gate state + set next question ATOMICALLY (no null frame)
     if (answer === 'No') {
       // FIX A: Compute next question SYNCHRONOUSLY before clearing gate
-      const nextQuestionId = computeNextQuestionId(engine, gate.baseQuestionId, 'Yes');
+      const nextQuestionId = computeNextQuestionId(engine_S, gate.baseQuestionId, 'Yes');
       
-      if (!nextQuestionId || !engine.QById[nextQuestionId]) {
+      if (!nextQuestionId || !engine_S.QById[nextQuestionId]) {
         console.log('[MI_GATE][NO_NEXT_QUESTION]', { 
           baseQuestionId: gate.baseQuestionId,
           reason: 'No next question - completing interview' 
         });
         
-        // ATOMIC: Clear gate + set null currentItem
+        // ATOMIC: Clear gate + set null currentItem_S
         unstable_batchedUpdates(() => {
           setMultiInstanceGate(null);
           setCurrentItem(null);
@@ -7542,7 +7542,7 @@ function CandidateInterviewInner() {
         return;
       }
       
-      const nextQuestion = engine.QById[nextQuestionId];
+      const nextQuestion = engine_S.QById[nextQuestionId];
       const nextItem = { id: nextQuestionId, type: 'question' };
       
       console.log('[MI_GATE][ADVANCE_ATOMIC]', {
@@ -7550,11 +7550,11 @@ function CandidateInterviewInner() {
         toQuestionId: nextQuestionId,
         toQuestionNumber: nextQuestion.question_number,
         hadNullFrame: false,
-        reason: 'Atomic transition - no intermediate null currentItem'
+        reason: 'Atomic transition - no intermediate null currentItem_S'
       });
       
       // FIX B: Cleanup V3 UI state before advancing to prevent stale cards
-      const v3UiHistoryLen = v3ProbeDisplayHistory.length;
+      const v3UiHistoryLen = v3ProbeDisplayHistory_S.length;
       const loopKey = `${sessionId}:${gate.categoryId}:${gate.instanceNumber}`;
       
       console.log('[V3_UI][CLEANUP_ON_PACK_EXIT]', {
@@ -7670,8 +7670,8 @@ function CandidateInterviewInner() {
         openerText: opener.text,
         exampleNarrative: opener.example,
         baseQuestionId: gate.baseQuestionId,
-        questionCode: engine.QById[gate.baseQuestionId]?.question_id,
-        sectionId: engine.QById[gate.baseQuestionId]?.section_id,
+        questionCode: engine_S.QById[gate.baseQuestionId]?.question_id,
+        sectionId: engine_S.QById[gate.baseQuestionId]?.section_id,
         instanceNumber: nextInstanceNumber,
         packData: packDataForOpener
       };
@@ -7709,7 +7709,7 @@ function CandidateInterviewInner() {
           console.log('[MI_GATE][ADVANCE_VERIFIED]', {
             packId: gate.packId,
             toInstanceNumber: nextInstanceNumber,
-            currentItemType: checkCurrentItem.type
+            currentItem_SType: checkCurrentItem.type
           });
         }
       }, 200);
@@ -7727,15 +7727,15 @@ function CandidateInterviewInner() {
       });
       
       // FIX B: Cleanup V3 UI state when exiting pack via legacy path (if somehow reached)
-      const legacyV3UiHistoryLen = v3ProbeDisplayHistory.length;
-      if (legacyV3UiHistoryLen > 0 || v3ProbingActive || v3ProbingContext) {
+      const legacyV3UiHistoryLen = v3ProbeDisplayHistory_S.length;
+      if (legacyV3UiHistoryLen > 0 || v3ProbingActive || v3ProbingContext_S) {
         const legacyLoopKey = `${sessionId}:${gate.categoryId}:${gate.instanceNumber}`;
         
         console.log('[V3_UI][CLEANUP_ON_PACK_EXIT_LEGACY]', {
           packId: gate.packId,
           instanceNumber: gate.instanceNumber,
           clearedHistoryLen: legacyV3UiHistoryLen,
-          clearedContext: !!v3ProbingContext,
+          clearedContext: !!v3ProbingContext_S,
           loopKey: legacyLoopKey,
           reason: 'LEGACY_EXIT_PATH'
         });
@@ -7758,15 +7758,15 @@ function CandidateInterviewInner() {
 
   const handleAnswer = useCallback(async (value) => {
     // GUARD: Block YES/NO during V3 prompt answering (prevents stray "Yes" bubble)
-    if (activeUiItem?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
+    if (activeUiItem_S?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
       // Allow V3 probe answer submission (text input), block YES/NO only
       const isYesNoAnswer = value === 'Yes' || value === 'No';
       if (isYesNoAnswer) {
         console.log('[YESNO_BLOCKED_DURING_V3_PROMPT]', {
           clicked: value,
-          activeUiItemKind: activeUiItem?.kind,
+          activeUiItem_SKind: activeUiItem_S?.kind,
           v3PromptPhase,
-          currentItemType: currentItem?.type,
+          currentItem_SType: currentItem_S?.type,
           bottomBarModeSOT,
           reason: 'V3 prompt active - YES/NO submission blocked'
         });
@@ -7791,18 +7791,18 @@ function CandidateInterviewInner() {
     };
     
     // MI_GATE BYPASS: Allow MI_GATE YES/NO even if isCommitting or other guards would block
-    const isMiGateSubmit = currentItem?.type === 'multi_instance_gate' || 
+    const isMiGateSubmit = currentItem_S?.type === 'multi_instance_gate' || 
                            effectiveItemType === 'multi_instance_gate' ||
-                           activeUiItem?.kind === "MI_GATE";
+                           activeUiItem_S?.kind === "MI_GATE";
     
-    const submitKey = buildSubmitKey(currentItem, value);
+    const submitKey = buildSubmitKey(currentItem_S, value);
     
     // MI_GATE: Log key for diagnostics
     if (isMiGateSubmit) {
       console.log('[MI_GATE][IDEMPOTENCY_KEY]', {
         submitKey,
-        packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber,
+        packId: currentItem_S?.packId,
+        instanceNumber: currentItem_S?.instanceNumber,
         answer: value
       });
     }
@@ -7812,8 +7812,8 @@ function CandidateInterviewInner() {
       if (isMiGateSubmit) {
         console.warn('[MI_GATE][IDEMPOTENCY_BLOCKED]', {
           submitKey,
-          packId: currentItem?.packId,
-          instanceNumber: currentItem?.instanceNumber,
+          packId: currentItem_S?.packId,
+          instanceNumber: currentItem_S?.instanceNumber,
           answer: value,
           reason: 'Key already submitted'
         });
@@ -7826,23 +7826,23 @@ function CandidateInterviewInner() {
     // Lock this submission immediately
     if (submitKey) {
       submittedKeysRef.current.add(submitKey);
-      console.log(`[IDEMPOTENCY][LOCKED] ${submitKey}`, { packId: currentItem.packId, instanceNumber: currentItem.instanceNumber, sessionId });
+      console.log(`[IDEMPOTENCY][LOCKED] ${submitKey}`, { packId: currentItem_S.packId, instanceNumber: currentItem_S.instanceNumber, sessionId });
       lastIdempotencyLockedRef.current = submitKey; // DEV: Capture for debug bundle
       
       // CRITICAL: Store actual lock key for v3_pack_opener submits (enables correct release in watchdog)
-      if (currentItem.type === 'v3_pack_opener') {
+      if (currentItem_S.type === 'v3_pack_opener') {
         lastV3SubmitLockKeyRef.current = submitKey;
       }
     }
     
     // MI_GATE TRACE 2: handleAnswer entry audit (CORRECT LOCATION - YES/NO calls this directly)
-    if (currentItem?.type === 'multi_instance_gate' || effectiveItemType === 'multi_instance_gate') {
+    if (currentItem_S?.type === 'multi_instance_gate' || effectiveItemType === 'multi_instance_gate') {
       console.log('[MI_GATE][TRACE][SUBMIT_CLICK]', {
         effectiveItemType,
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-        packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber,
+        currentItem_SType: currentItem_S?.type,
+        currentItem_SId: currentItem_S?.id,
+        packId: currentItem_S?.packId,
+        instanceNumber: currentItem_S?.instanceNumber,
         bottomBarModeSOT,
         answer: value,
         source: 'handleAnswer_direct_call'
@@ -7852,57 +7852,57 @@ function CandidateInterviewInner() {
     // EXPLICIT ENTRY LOG: Log which branch we're entering
     console.log(`[HANDLE_ANSWER][ENTRY] ========== ANSWER HANDLER INVOKED ==========`);
     console.log(`[HANDLE_ANSWER][ENTRY]`, {
-      currentItemType: currentItem?.type,
-      currentItemId: currentItem?.id,
-      packId: currentItem?.packId,
-      fieldKey: currentItem?.fieldKey,
-      instanceNumber: currentItem?.instanceNumber,
+      currentItem_SType: currentItem_S?.type,
+      currentItem_SId: currentItem_S?.id,
+      packId: currentItem_S?.packId,
+      fieldKey: currentItem_S?.fieldKey,
+      instanceNumber: currentItem_S?.instanceNumber,
       v2PackMode,
       isCommitting,
-      hasEngine: !!engine,
+      hasEngine: !!engine_S,
       answerPreview: value?.substring?.(0, 50) || value,
       submitKey
     });
 
     // EXPLICIT V2 PACK FIELD ENTRY LOG - confirm we're hitting this branch
-    if (currentItem?.type === 'v2_pack_field') {
+    if (currentItem_S?.type === 'v2_pack_field') {
       console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] >>>>>>>>>> V2 PACK FIELD DETECTED <<<<<<<<<<`);
       console.log(`[HANDLE_ANSWER][V2_PACK_FIELD]`, {
-        packId: currentItem.packId,
-        fieldKey: currentItem.fieldKey,
-        fieldIndex: currentItem.fieldIndex,
-        instanceNumber: currentItem.instanceNumber,
-        baseQuestionId: currentItem.baseQuestionId,
+        packId: currentItem_S.packId,
+        fieldKey: currentItem_S.fieldKey,
+        fieldIndex: currentItem_S.fieldIndex,
+        instanceNumber: currentItem_S.instanceNumber,
+        baseQuestionId: currentItem_S.baseQuestionId,
         answer: value?.substring?.(0, 80) || value,
         hasActiveV2Pack: !!activeV2Pack
       });
     }
     
     // EXPLICIT MULTI_INSTANCE_GATE ENTRY LOG - confirm we're hitting this branch
-    if (currentItem?.type === 'multi_instance_gate') {
+    if (currentItem_S?.type === 'multi_instance_gate') {
       console.log(`[HANDLE_ANSWER][MULTI_INSTANCE_GATE] >>>>>>>>>> MULTI_INSTANCE_GATE DETECTED <<<<<<<<<<`);
       console.log(`[HANDLE_ANSWER][MULTI_INSTANCE_GATE]`, {
-        packId: currentItem.packId,
-        instanceNumber: currentItem.instanceNumber,
+        packId: currentItem_S.packId,
+        instanceNumber: currentItem_S.instanceNumber,
         answer: value?.substring?.(0, 80) || value,
         hasMultiInstanceGate: !!multiInstanceGate
       });
     }
 
     // MI_GATE BYPASS: Allow MI_GATE YES/NO even if isCommitting is true
-    if (isMiGateSubmit && engine && currentItem) {
+    if (isMiGateSubmit && engine_S && currentItem_S) {
       console.warn('[MI_GATE][BYPASS_GUARD]', {
         isCommitting,
-        hasEngine: !!engine,
-        hasCurrentItem: !!currentItem,
-        packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber,
+        hasEngine: !!engine_S,
+        hasCurrentItem: !!currentItem_S,
+        packId: currentItem_S?.packId,
+        instanceNumber: currentItem_S?.instanceNumber,
         answer: value,
         reason: 'MI_GATE bypass - allowing submission despite isCommitting'
       });
       // Continue to MI_GATE handler below (skip generic guard)
-    } else if (isCommitting || !currentItem || !engine) {
-      console.log(`[HANDLE_ANSWER][SKIP] Skipping - isCommitting=${isCommitting}, hasCurrentItem=${!!currentItem}, hasEngine=${!!engine}`);
+    } else if (isCommitting || !currentItem_S || !engine_S) {
+      console.log(`[HANDLE_ANSWER][SKIP] Skipping - isCommitting=${isCommitting}, hasCurrentItem=${!!currentItem_S}, hasEngine=${!!engine_S}`);
       return;
     }
 
@@ -7917,10 +7917,10 @@ function CandidateInterviewInner() {
       // ========================================================================
       // V2 PACK FIELD HANDLER - MUST BE CHECKED FIRST
       // This handles answers for v2_pack_field items (PACK_PRIOR_LE_APPS_STANDARD, etc.)
-      // CRITICAL: Every V2 pack field answer MUST go through the backend probe engine
+      // CRITICAL: Every V2 pack field answer MUST go through the backend probe engine_S
       // ========================================================================
-      if (currentItem.type === 'v2_pack_field') {
-        const { packId, fieldIndex, fieldKey, fieldConfig, baseQuestionId, instanceNumber } = currentItem;
+      if (currentItem_S.type === 'v2_pack_field') {
+        const { packId, fieldIndex, fieldKey, fieldConfig, baseQuestionId, instanceNumber } = currentItem_S;
 
         // Check if we're answering a clarifier for this field
         const isAnsweringClarifier = v2ClarifierState &&
@@ -7938,7 +7938,7 @@ function CandidateInterviewInner() {
         });
 
         // CRITICAL: Declare baseQuestion FIRST before any usage to avoid TDZ errors
-        const baseQuestion = baseQuestionId && engine?.QById ? engine.QById[baseQuestionId] : null;
+        const baseQuestion = baseQuestionId && engine_S?.QById ? engine_S.QById[baseQuestionId] : null;
 
         if (!baseQuestion) {
           console.warn('[V2_PACK_FIELD][WARN] baseQuestion not found for baseQuestionId', baseQuestionId, 'packId=', packId, 'fieldKey=', fieldKey);
@@ -8099,12 +8099,12 @@ function CandidateInterviewInner() {
         // Also save to legacy FollowUpResponse for backwards compatibility
         await saveFollowUpAnswer(packId, fieldKey, finalAnswer, activeV2Pack.substanceName, instanceNumber, 'user');
 
-        // Call V2 backend engine BEFORE checking if pack is complete
+        // Call V2 backend engine_S BEFORE checking if pack is complete
         const maxAiFollowups = getPackMaxAiFollowups(packId);
         const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
         const probeCount = aiFollowupCounts[fieldCountKey] || 0;
 
-        // CRITICAL: V2 pack fields ALWAYS consult the backend probe engine (same as regular V2 follow-ups)
+        // CRITICAL: V2 pack fields ALWAYS consult the backend probe engine_S (same as regular V2 follow-ups)
         console.log(`[V2_PACK_FIELD][PROBE_CALL] ========== CALLING BACKEND PROBE ENGINE ==========`);
         console.log(`[V2_PACK_FIELD][PROBE_CALL]`, {
           packId,
@@ -8294,7 +8294,7 @@ function CandidateInterviewInner() {
             [fieldCountKey]: probeCount + 1
           }));
 
-          await persistStateToDatabase(null, [], currentItem);
+          await persistStateToDatabase(null, [], currentItem_S);
           setIsCommitting(false);
           setInput("");
           return;
@@ -8466,7 +8466,7 @@ function CandidateInterviewInner() {
           triggerType: 'question_complete'
         }).catch(() => {}); // Fire and forget
 
-        // CRITICAL: Clear V2 pack state AND currentItem atomically to prevent transitional render crash
+        // CRITICAL: Clear V2 pack state AND currentItem_S atomically to prevent transitional render crash
         setActiveV2Pack(null);
         setV2PackMode("BASE");
         setCurrentFollowUpAnswers({});
@@ -8476,7 +8476,7 @@ function CandidateInterviewInner() {
         // UX: Clear draft on successful pack completion
         clearDraft();
 
-        const baseQuestionForExit = engine.QById[baseQuestionId];
+        const baseQuestionForExit = engine_S.QById[baseQuestionId];
         if (baseQuestionForExit?.followup_multi_instance) {
           onFollowupPackComplete(baseQuestionId, packId);
         } else {
@@ -8492,10 +8492,10 @@ function CandidateInterviewInner() {
       // ========================================================================
       // V3 PACK OPENER HANDLER - Deterministic opener answered, now enter AI probing
       // ========================================================================
-      if (currentItem.type === 'v3_pack_opener') {
+      if (currentItem_S.type === 'v3_pack_opener') {
         // INSTRUMENTATION: Log IMMEDIATELY before any async work
         
-        const { packId, categoryId, categoryLabel, openerText, baseQuestionId, questionCode, sectionId, instanceNumber, packData } = currentItem;
+        const { packId, categoryId, categoryLabel, openerText, baseQuestionId, questionCode, sectionId, instanceNumber, packData } = currentItem_S;
         
         // DEFENSIVE: Log if openerText was missing (fallback used)
         if (!openerText || openerText.trim() === '') {
@@ -8506,8 +8506,8 @@ function CandidateInterviewInner() {
         console.log('[PROCESSING][START]', {
           traceId,
           sessionId,
-          currentItemId: currentItem.id,
-          currentItemType: 'v3_pack_opener',
+          currentItem_SId: currentItem_S.id,
+          currentItem_SType: 'v3_pack_opener',
           screenMode: 'QUESTION',
           packId,
           categoryId
@@ -8584,7 +8584,7 @@ function CandidateInterviewInner() {
               packId,
               categoryLabel,
               instanceNumber,
-              exampleNarrative: currentItem.exampleNarrative,
+              exampleNarrative: currentItem_S.exampleNarrative,
               source: 'prompt_lane_history',
               createdAt: Date.now()
             }
@@ -8659,9 +8659,9 @@ function CandidateInterviewInner() {
         const loopKey = `${sessionId}:${categoryId}:${instanceNumber}`;
         
         // ITEM-SCOPED COMMIT: Mark this specific opener item as committing
-        committingItemIdRef.current = currentItem.id;
+        committingItemIdRef.current = currentItem_S.id;
         console.log('[V3_OPENER][COMMIT_START]', {
-          currentItemId: currentItem.id,
+          currentItem_SId: currentItem_S.id,
           packId,
           instanceNumber,
           loopKey
@@ -8721,13 +8721,13 @@ function CandidateInterviewInner() {
         
         // CQ_RULE: TRANSCRIPT LIFECYCLE BARRIER - Commit base Q+A BEFORE V3 activation
         // This prevents "lost first question" when V3 starts without base pair in transcript
-        const baseQuestion = engine?.QById?.[baseQuestionId];
+        const baseQuestion = engine_S?.QById?.[baseQuestionId];
         if (!baseQuestion) {
           console.error('[V3_OPENER][SUBMIT_ERROR_CONTEXT]', {
             baseQuestionId,
-            currentItemType: currentItem?.type,
-            currentItemId: currentItem?.id,
-            note: 'missing base question ref from engine - using fallback'
+            currentItem_SType: currentItem_S?.type,
+            currentItem_SId: currentItem_S?.id,
+            note: 'missing base question ref from engine_S - using fallback'
           });
         }
         
@@ -8766,7 +8766,7 @@ function CandidateInterviewInner() {
         // Track probing start
         v3ProbingStartedRef.current.set(loopKey, true);
 
-        // CRITICAL: Set currentItem to v3_probing type (enables correct bottom bar binding)
+        // CRITICAL: Set currentItem_S to v3_probing type (enables correct bottom bar binding)
         // REGRESSION GUARD: This state change does NOT modify transcript
         const probingItem = {
           id: `v3-probing-${packId}-${instanceNumber}`,
@@ -8778,12 +8778,12 @@ function CandidateInterviewInner() {
         };
         
         console.log('[V3_PROBING][ITEM_TRANSITION]', {
-          from: currentItem?.type,
+          from: currentItem_S?.type,
           to: 'v3_probing',
           packId,
           instanceNumber,
           transcriptLenBeforeTransition: dbTranscript.length,
-          action: 'Setting currentItem only - transcript preserved'
+          action: 'Setting currentItem_S only - transcript preserved'
         });
         
         setCurrentItem(probingItem);
@@ -8835,9 +8835,9 @@ function CandidateInterviewInner() {
             return;
           }
           
-          // GUARD: Verify context still matches (use stable fallback from currentItem)
-          const currentPackId = v3ProbingContextRef.current?.packId || currentItem?.packId;
-          const currentInstanceNumber = v3ProbingContextRef.current?.instanceNumber || currentItem?.instanceNumber;
+          // GUARD: Verify context still matches (use stable fallback from currentItem_S)
+          const currentPackId = v3ProbingContext_SRef.current?.packId || currentItem_S?.packId;
+          const currentInstanceNumber = v3ProbingContext_SRef.current?.instanceNumber || currentItem_S?.instanceNumber;
           
           if (currentPackId !== capturedPackId || currentInstanceNumber !== capturedInstanceNumber) {
             console.log('[V3_FAILSAFE][CANCELLED_OR_STALE]', {
@@ -8878,7 +8878,7 @@ function CandidateInterviewInner() {
           }
           
           // All guards passed - execute recovery
-          const stillOnOpener = currentItem?.type === 'v3_pack_opener' && currentItem?.packId === capturedPackId;
+          const stillOnOpener = currentItem_S?.type === 'v3_pack_opener' && currentItem_S?.packId === capturedPackId;
           const probingActiveNow = v3ProbingActiveRef.current;
           const hasPromptNow = !!v3ActivePromptTextRef.current;
 
@@ -8954,18 +8954,18 @@ function CandidateInterviewInner() {
       // ========================================================================
       // REGULAR QUESTION HANDLER
       // ========================================================================
-      if (currentItem.type === 'question') {
-        const question = engine.QById[currentItem.id];
+      if (currentItem_S.type === 'question') {
+        const question = engine_S.QById[currentItem_S.id];
         if (!question) {
-          throw new Error(`Question ${currentItem.id} not found`);
+          throw new Error(`Question ${currentItem_S.id} not found`);
         }
 
-        const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
+        const sectionEntity = engine_S.Sections.find(s => s.id === question.section_id);
         const sectionName = sectionEntity?.section_name || question.category || '';
-        const questionNumber = getQuestionDisplayNumber(currentItem.id);
+        const questionNumber = getQuestionDisplayNumber(currentItem_S.id);
 
         // Save answer first to get Response ID
-        const savedResponse = await saveAnswerToDatabase(currentItem.id, value, question);
+        const savedResponse = await saveAnswerToDatabase(currentItem_S.id, value, question);
 
         // Normalize answer display text (Yes/No for boolean, raw text otherwise)
         const answerDisplayText = question.response_type === 'yes_no'
@@ -8976,19 +8976,19 @@ function CandidateInterviewInner() {
         // STATIC IMPORT: Use top-level imports (prevents React context duplication)
         const appendUserMessage = appendUserMessageImport;
         const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
-        const questionStableKey = `question-shown:${currentItem.id}`;
+        const questionStableKey = `question-shown:${currentItem_S.id}`;
         
         // DETERMINISTIC STABLEKEY: Base question answers use canonical format
-        const baseAnswerStableKey = `answer:${sessionId}:${currentItem.id}:0`;
+        const baseAnswerStableKey = `answer:${sessionId}:${currentItem_S.id}:0`;
         
         console.log('[BASE_YESNO][STABLEKEY_OVERRIDE]', {
-          questionId: currentItem.id,
+          questionId: currentItem_S.id,
           aStableKey: baseAnswerStableKey,
           clicked: answerDisplayText
         });
         
         console.log('[BASE_YESNO][ANSWER_APPEND_SOT]', {
-          questionId: currentItem.id,
+          questionId: currentItem_S.id,
           stableKey: baseAnswerStableKey,
           anchorKey: questionStableKey,
           hasQuestionId: true,
@@ -8998,8 +8998,8 @@ function CandidateInterviewInner() {
         await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], answerDisplayText, {
           stableKey: baseAnswerStableKey,
           messageType: 'ANSWER',
-          questionDbId: currentItem.id,
-          questionId: currentItem.id,
+          questionDbId: currentItem_S.id,
+          questionId: currentItem_S.id,
           questionCode: question.question_id,
           responseId: savedResponse?.id,
           sectionId: question.section_id,
@@ -9012,16 +9012,16 @@ function CandidateInterviewInner() {
         // CQ_TRANSCRIPT_CONTRACT: Invariant check after base answer append
         if (ENFORCE_TRANSCRIPT_CONTRACT) {
           const freshCheck = await base44.entities.InterviewSession.get(sessionId);
-          const expectedAKey = `answer:${sessionId}:${currentItem.id}`;
+          const expectedAKey = `answer:${sessionId}:${currentItem_S.id}`;
           const found = (freshCheck.transcript_snapshot || []).some(e => 
-            (e.stableKey && e.stableKey.includes(currentItem.id)) ||
-            (e.messageType === 'ANSWER' && e.meta?.questionDbId === currentItem.id)
+            (e.stableKey && e.stableKey.includes(currentItem_S.id)) ||
+            (e.messageType === 'ANSWER' && e.meta?.questionDbId === currentItem_S.id)
           );
           
           if (!found) {
             console.error('[CQ_TRANSCRIPT][VIOLATION]', {
               messageType: 'ANSWER',
-              questionId: currentItem.id,
+              questionId: currentItem_S.id,
               transcriptLen: (freshCheck.transcript_snapshot || []).length,
               reason: 'Base answer not found in transcript after append',
               stack: new Error().stack?.split('\n').slice(1, 4).join(' | ')
@@ -9031,7 +9031,7 @@ function CandidateInterviewInner() {
 
         // Log answer submitted (audit only)
         await logAnswerSubmitted(sessionId, {
-          questionDbId: currentItem.id,
+          questionDbId: currentItem_S.id,
           responseId: savedResponse?.id,
           packId: null
         });
@@ -9052,8 +9052,8 @@ function CandidateInterviewInner() {
         const normalizedTranscript = Array.isArray(newTranscript) ? newTranscript : [];
         if (!Array.isArray(newTranscript)) {
           console.error('[ANSWER_PROCESSING][GUARD] newTranscript was not an array, normalized to []', {
-            currentItemType: currentItem?.type,
-            currentItemId: currentItem?.id,
+            currentItem_SType: currentItem_S?.type,
+            currentItem_SId: currentItem_S?.id,
             questionCode: question?.question_id,
             value: newTranscript,
             returnedBy: 'refreshTranscriptFromDB',
@@ -9066,7 +9066,7 @@ function CandidateInterviewInner() {
           sessionId,
           currentQuestion: question,
           answer: value,
-          engine,
+          engine_S,
           currentSectionIndex,
           sections,
           answeredQuestionIds: new Set(normalizedTranscript.filter(t => t.type === 'question').map(t => t.questionId))
@@ -9099,7 +9099,7 @@ function CandidateInterviewInner() {
           setCompletedSectionsCount(prev => Math.max(prev, gateResult.nextSectionIndex));
 
           const totalSectionsCount = sections.length;
-          const totalQuestionsCount = engine?.TotalQuestions || 0;
+          const totalQuestionsCount = engine_S?.TotalQuestions || 0;
           
           // FIX A: Count from Response entities (authoritative source)
           const gateCompletedResponses = await base44.entities.Response.filter({
@@ -9173,7 +9173,7 @@ function CandidateInterviewInner() {
         }
 
         if (value === 'Yes') {
-          const followUpResult = checkFollowUpTrigger(engine, currentItem.id, value, interviewMode);
+          const followUpResult = checkFollowUpTrigger(engine_S, currentItem_S.id, value, interviewMode);
 
           if (followUpResult) {
             const { packId, substanceName, isV3Pack } = followUpResult;
@@ -9181,10 +9181,10 @@ function CandidateInterviewInner() {
             console.log(`[FOLLOWUP-TRIGGER] Pack triggered: ${packId}, checking versions...`);
             
             // IDEMPOTENCY RELEASE: Base question routed to V3 pack - release lock
-            const baseQuestionKey = `q:${currentItem.id}`;
+            const baseQuestionKey = `q:${currentItem_S.id}`;
             if (submittedKeysRef.current.has(baseQuestionKey)) {
               submittedKeysRef.current.delete(baseQuestionKey);
-              const questionCode = question?.question_id || currentItem.id;
+              const questionCode = question?.question_id || currentItem_S.id;
               console.log('[IDEMPOTENCY][RELEASE]', { 
                 lockKey: baseQuestionKey, 
                 packId,
@@ -9224,7 +9224,7 @@ function CandidateInterviewInner() {
               packId,
               isV2Pack: isV2PackFinal,
               isV3Pack: isV3PackFinal,
-              ideVersion: packConfig?.engineVersion || 'unknown',
+              ideVersion: packConfig?.engine_SVersion || 'unknown',
               reason: isV3PackExplicit ? 'isV3Pack=true' : isV2PackExplicit ? 'isV2Pack=true' : packId === 'PACK_INTEGRITY_APPS' ? 'forced_v3_guard' : 'heuristic',
               route: routePath
             });
@@ -9239,9 +9239,9 @@ function CandidateInterviewInner() {
               console.log(`[V3_PACK][ENTER]`, {
                 packId,
                 categoryId,
-                baseQuestionId: currentItem.id,
+                baseQuestionId: currentItem_S.id,
                 questionCode: question.question_id,
-                ideVersion: packConfig?.engineVersion || 'v3'
+                ideVersion: packConfig?.engine_SVersion || 'v3'
               });
 
               if (!categoryId) {
@@ -9250,8 +9250,8 @@ function CandidateInterviewInner() {
                   reason: 'No categoryId mapping found - cannot route to V3',
                   action: 'advancing to next question'
                 });
-                saveAnswerToDatabase(currentItem.id, value, question);
-                advanceToNextBaseQuestion(currentItem.id);
+                saveAnswerToDatabase(currentItem_S.id, value, question);
+                advanceToNextBaseQuestion(currentItem_S.id);
                 setIsCommitting(false);
                 setInput("");
                 return;
@@ -9301,7 +9301,7 @@ function CandidateInterviewInner() {
               await logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: true });
 
               // Save base question answer
-              saveAnswerToDatabase(currentItem.id, value, question);
+              saveAnswerToDatabase(currentItem_S.id, value, question);
 
               // STEP 1: Show deterministic opener (non-AI)
               const openerItemId = `v3-opener-${packId}-1`;
@@ -9313,7 +9313,7 @@ function CandidateInterviewInner() {
                 categoryLabel,
                 openerText: opener.text,
                 exampleNarrative: opener.example,
-                baseQuestionId: currentItem.id,
+                baseQuestionId: currentItem_S.id,
                 questionCode: question.question_id,
                 sectionId: question.section_id,
                 instanceNumber: 1,
@@ -9323,8 +9323,8 @@ function CandidateInterviewInner() {
               console.log('[V3_PACK][ENTER_STATE_SET]', {
                 packId,
                 instanceNumber: 1,
-                currentItemType: 'v3_pack_opener',
-                currentItemId: openerItemId,
+                currentItem_SType: 'v3_pack_opener',
+                currentItem_SId: openerItemId,
                 openerTextPreview: opener.text?.substring(0, 60)
               });
 
@@ -9403,7 +9403,7 @@ function CandidateInterviewInner() {
                   
                   // Check if we're still stuck on the base question or no current item
                   const isStuck = !currentSnapshot || 
-                                  (currentSnapshot.type === 'question' && currentSnapshot.id === currentItem.id) ||
+                                  (currentSnapshot.type === 'question' && currentSnapshot.id === currentItem_S.id) ||
                                   (currentSnapshot.type !== 'v3_pack_opener' && currentSnapshot.type !== 'v3_probing');
                   
                   if (isStuck) {
@@ -9429,7 +9429,7 @@ function CandidateInterviewInner() {
                         console.error('[V3_PACK][FAILSAFE_ADVANCE_BLOCKED]', {
                           packId,
                           instanceNumber: 1,
-                          fromQuestionId: currentItem.id,
+                          fromQuestionId: currentItem_S.id,
                           reason: 'V3 pack must not auto-advance - routing deterministically instead'
                         });
                         
@@ -9513,7 +9513,7 @@ function CandidateInterviewInner() {
             if (isV2PackFinal) {
               // SCHEMA RESOLUTION: Use centralized resolver (DB-first for standard clusters)
               const staticConfig = FOLLOWUP_PACK_CONFIGS[packId];
-              const dbPackMeta = engine?.v2PacksById?.[packId]?.meta || null;
+              const dbPackMeta = engine_S?.v2PacksById?.[packId]?.meta || null;
               
               const { schemaSource, fields, packConfig } = resolvePackSchema(dbPackMeta, staticConfig);
               
@@ -9532,8 +9532,8 @@ function CandidateInterviewInner() {
                   fieldsCount: fields.length
                 });
                 // Fallback: advance to next question
-                saveAnswerToDatabase(currentItem.id, value, question);
-                advanceToNextBaseQuestion(currentItem.id);
+                saveAnswerToDatabase(currentItem_S.id, value, question);
+                advanceToNextBaseQuestion(currentItem_S.id);
                 setIsCommitting(false);
                 setInput("");
                 return;
@@ -9541,7 +9541,7 @@ function CandidateInterviewInner() {
               
               console.log('[V2_PACK][ENTER]', {
                 packId,
-                baseQuestionId: currentItem.id,
+                baseQuestionId: currentItem_S.id,
                 questionCode: question.question_id,
                 schemaSource,
                 fieldsCount: fields.length
@@ -9578,7 +9578,7 @@ function CandidateInterviewInner() {
               console.log(`[V2_PACK][ENTER] ========== ENTERING V2 PACK MODE ==========`);
               console.log(`[V2_PACK][ENTER] pack=${packId} firstField=${orderedFields[0].fieldKey}`);
               console.log(`[V2_PACK][ENTER] totalFields=${orderedFields.length}, fields=[${orderedFields.map(f => f.fieldKey).join(', ')}]`);
-              console.log(`[V2_PACK][ENTER] triggeredByQuestion=${currentItem.id} (${question.question_id}), instanceNumber=1`);
+              console.log(`[V2_PACK][ENTER] triggeredByQuestion=${currentItem_S.id} (${question.question_id}), instanceNumber=1`);
               console.log(`[V2_PACK][ENTER] AI-driven mode - backend will control progression`);
 
               // Log pack entered (audit only)
@@ -9592,21 +9592,21 @@ function CandidateInterviewInner() {
               }
 
               // Save the base question answer first and get Response ID
-              const baseResponse = await saveAnswerToDatabase(currentItem.id, value, question);
+              const baseResponse = await saveAnswerToDatabase(currentItem_S.id, value, question);
 
               // Set up V2 pack mode
               setActiveV2Pack({
                 packId,
                 fields: orderedFields,
                 currentIndex: 0,
-                baseQuestionId: currentItem.id,
+                baseQuestionId: currentItem_S.id,
                 instanceNumber: 1,
                 substanceName: substanceName,
                 collectedAnswers: {},
                 schemaSource: packState.schemaSource,
                 dbPackMeta: packState.dbPackMeta
               });
-              setV2PackTriggerQuestionId(currentItem.id);
+              setV2PackTriggerQuestionId(currentItem_S.id);
               setV2PackMode("V2_PACK");
               setCurrentFollowUpAnswers({});
 
@@ -9616,12 +9616,12 @@ function CandidateInterviewInner() {
 
               const firstField = orderedFields[0];
 
-              // Compute effective opening strategy from pack meta (read from engine state)
-              const packMeta = engine?.v2PacksById?.[packId]?.meta || null;
+              // Compute effective opening strategy from pack meta (read from engine_S state)
+              const packMeta = engine_S?.v2PacksById?.[packId]?.meta || null;
 
               if (!packMeta) {
                 console.warn(`[V2_PACK][CLUSTER_INIT] No V2 pack meta found for packId ${packId}`, {
-                  availablePackIds: Object.keys(engine?.v2PacksById || {})
+                  availablePackIds: Object.keys(engine_S?.v2PacksById || {})
                 });
               }
 
@@ -9654,7 +9654,7 @@ function CandidateInterviewInner() {
                 incidentContext: {},
                 sessionId,
                 questionCode: question?.question_id,
-                baseQuestionId: currentItem.id,
+                baseQuestionId: currentItem_S.id,
                 aiProbingEnabled,
                 aiProbingDisabledForSession,
                 maxAiFollowups: getPackMaxAiFollowups(packId),
@@ -9680,7 +9680,7 @@ function CandidateInterviewInner() {
                   || initialCallResult.questionText
                   || initialCallResult.question;
 
-                // Immediately set currentItem to v2_pack_field to show the pack question
+                // Immediately set currentItem_S to v2_pack_field to show the pack question
                 const firstPackItem = {
                   id: `v2pack-${packId}-0`,
                   type: 'v2_pack_field',
@@ -9688,7 +9688,7 @@ function CandidateInterviewInner() {
                   fieldIndex: 0,
                   fieldKey: firstField.fieldKey,
                   fieldConfig: firstField,
-                  baseQuestionId: currentItem.id,
+                  baseQuestionId: currentItem_S.id,
                   instanceNumber: 1,
                   backendQuestionText: backendQuestionTextForFirst
                 };
@@ -9726,7 +9726,7 @@ function CandidateInterviewInner() {
                   packId,
                   fieldKey: firstField.fieldKey,
                   instanceNumber: 1,
-                  baseQuestionId: currentItem.id,
+                  baseQuestionId: currentItem_S.id,
                   visibleToCandidate: true
                 });
                 await refreshTranscriptFromDB('v2_cluster_opening_shown');
@@ -9738,9 +9738,9 @@ function CandidateInterviewInner() {
                   packId,
                   instanceNumber: 1,
                   fieldKey: firstField.fieldKey,
-                  baseQuestionId: currentItem.id,
+                  baseQuestionId: currentItem_S.id,
                   substanceName: substanceName,
-                  currentItem: {
+                  currentItem_S: {
                     id: `v2pack-${packId}-0`,
                     type: 'v2_pack_field',
                     packId,
@@ -9751,7 +9751,7 @@ function CandidateInterviewInner() {
                   isClusterOpening: true
                 });
 
-                // Keep currentItem as the first field - but it won't be shown until after AI probe
+                // Keep currentItem_S as the first field - but it won't be shown until after AI probe
                 // STEP 2: Include backend question text for first field
                 const backendQuestionTextForFirst = getBackendQuestionText(backendQuestionTextMap, packId, firstField.fieldKey, 1);
 
@@ -9762,7 +9762,7 @@ function CandidateInterviewInner() {
                   fieldIndex: 0,
                   fieldKey: firstField.fieldKey,
                   fieldConfig: firstField,
-                  baseQuestionId: currentItem.id,
+                  baseQuestionId: currentItem_S.id,
                   instanceNumber: 1,
                   backendQuestionText: backendQuestionTextForFirst // STEP 2: Wire backend question
                 });
@@ -9776,7 +9776,7 @@ function CandidateInterviewInner() {
                 });
               } else {
                 // No special opening - go directly to first field
-                // STEP 2: Include backend question text in currentItem
+                // STEP 2: Include backend question text in currentItem_S
                 const backendQuestionText = getBackendQuestionText(backendQuestionTextMap, packId, firstField.fieldKey, 1);
 
                 setCurrentItem({
@@ -9786,7 +9786,7 @@ function CandidateInterviewInner() {
                   fieldIndex: 0,
                   fieldKey: firstField.fieldKey,
                   fieldConfig: firstField,
-                  baseQuestionId: currentItem.id,
+                  baseQuestionId: currentItem_S.id,
                   instanceNumber: 1,
                   backendQuestionText // STEP 2: Wire backend question
                 });
@@ -9828,14 +9828,14 @@ function CandidateInterviewInner() {
                       console.log("[V3 PROBING] Triggering V3 probing loop", { packId, categoryId });
 
                     // Save base question answer
-                    saveAnswerToDatabase(currentItem.id, value, question);
+                    saveAnswerToDatabase(currentItem_S.id, value, question);
 
                     // Enter V3 probing mode
                     setV3ProbingActive(true);
                     setV3ProbingContext({
                       packId,
                       categoryId,
-                      baseQuestionId: currentItem.id,
+                      baseQuestionId: currentItem_S.id,
                       questionCode: question.question_id,
                       sectionId: question.section_id,
                       instanceNumber: 1,
@@ -9848,7 +9848,7 @@ function CandidateInterviewInner() {
                       type: 'v3_probing',
                       packId,
                       categoryId,
-                      baseQuestionId: currentItem.id
+                      baseQuestionId: currentItem_S.id
                     });
 
                     setIsCommitting(false);
@@ -9863,8 +9863,8 @@ function CandidateInterviewInner() {
             }
 
             if (interviewMode === "AI_PROBING") {
-              saveAnswerToDatabase(currentItem.id, value, question);
-              advanceToNextBaseQuestion(currentItem.id);
+              saveAnswerToDatabase(currentItem_S.id, value, question);
+              advanceToNextBaseQuestion(currentItem_S.id);
               setIsCommitting(false);
               setInput("");
               return;
@@ -9881,7 +9881,7 @@ function CandidateInterviewInner() {
                     incidentId: null,
                     latestAnswer: value,
                     questionContext: {
-                      questionId: currentItem.id,
+                      questionId: currentItem_S.id,
                       questionCode: question.question_id,
                       sectionId: question.section_id
                     }
@@ -9893,29 +9893,29 @@ function CandidateInterviewInner() {
                     setCurrentIdeQuestion(ideResult.nextQuestion);
                     setInIdeProbingLoop(true);
 
-                    await persistStateToDatabase(newTranscript, [], currentItem);
+                    await persistStateToDatabase(newTranscript, [], currentItem_S);
                     setIsCommitting(false);
                     setInput("");
                     return;
                   } else if (ideResult.reason === "FACT_MODEL_NOT_READY" && interviewMode === "HYBRID") {
                     // Continue to deterministic
                   } else {
-                    advanceToNextBaseQuestion(currentItem.id);
+                    advanceToNextBaseQuestion(currentItem_S.id);
                     setIsCommitting(false);
                     setInput("");
-                    saveAnswerToDatabase(currentItem.id, value, question);
+                    saveAnswerToDatabase(currentItem_S.id, value, question);
                     return;
                   }
                 } catch (ideError) {
-                  console.error("[IDE] Error calling decision engine", ideError);
+                  console.error("[IDE] Error calling decision engine_S", ideError);
 
                   if (interviewMode === "HYBRID") {
                     // Continue to deterministic
                   } else {
-                    advanceToNextBaseQuestion(currentItem.id);
+                    advanceToNextBaseQuestion(currentItem_S.id);
                     setIsCommitting(false);
                     setInput("");
-                    saveAnswerToDatabase(currentItem.id, value, question);
+                    saveAnswerToDatabase(currentItem_S.id, value, question);
                     return;
                   }
                 }
@@ -9924,10 +9924,10 @@ function CandidateInterviewInner() {
               }
             }
 
-            const triggerKey = `${currentItem.id}:${packId}`;
+            const triggerKey = `${currentItem_S.id}:${packId}`;
             if (triggeredPacksRef.current.has(triggerKey)) {
-              const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
-              if (nextQuestionId && engine.QById[nextQuestionId]) {
+              const nextQuestionId = computeNextQuestionId(engine_S, currentItem_S.id, value);
+              if (nextQuestionId && engine_S.QById[nextQuestionId]) {
                 setQueue([]);
                 setCurrentItem({ id: nextQuestionId, type: 'question' });
                 await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
@@ -9939,13 +9939,13 @@ function CandidateInterviewInner() {
               }
               setIsCommitting(false);
               setInput("");
-              saveAnswerToDatabase(currentItem.id, value, question);
+              saveAnswerToDatabase(currentItem_S.id, value, question);
               return;
             }
 
             triggeredPacksRef.current.add(triggerKey);
 
-            const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+            const packSteps = injectSubstanceIntoPackSteps(engine_S, packId, substanceName);
 
             if (packSteps && packSteps.length > 0) {
               setCurrentFollowUpAnswers({});
@@ -9959,7 +9959,7 @@ function CandidateInterviewInner() {
                   stepIndex: i,
                   substanceName: substanceName,
                   totalSteps: packSteps.length,
-                  baseQuestionId: currentItem.id
+                  baseQuestionId: currentItem_S.id
                 });
               }
 
@@ -9971,8 +9971,8 @@ function CandidateInterviewInner() {
 
               await persistStateToDatabase(null, remainingQueue, firstItem);
             } else {
-              const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
-              if (nextQuestionId && engine.QById[nextQuestionId]) {
+              const nextQuestionId = computeNextQuestionId(engine_S, currentItem_S.id, value);
+              if (nextQuestionId && engine_S.QById[nextQuestionId]) {
                 setQueue([]);
                 setCurrentItem({ id: nextQuestionId, type: 'question' });
                 await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
@@ -9985,26 +9985,26 @@ function CandidateInterviewInner() {
             }
           } else {
             const freshAfterCheck = await refreshTranscriptFromDB('before_advance_check');
-            advanceToNextBaseQuestion(currentItem.id, freshAfterCheck);
+            advanceToNextBaseQuestion(currentItem_S.id, freshAfterCheck);
           }
         } else {
           const freshAfterNoFollowup = await refreshTranscriptFromDB('no_followup_advance');
-          advanceToNextBaseQuestion(currentItem.id, freshAfterNoFollowup);
+          advanceToNextBaseQuestion(currentItem_S.id, freshAfterNoFollowup);
         }
 
         // Note: saveAnswerToDatabase already called above before setting newTranscript
 
-      } else if (currentItem.type === 'followup') {
-        const { packId, stepIndex, substanceName, baseQuestionId } = currentItem;
+      } else if (currentItem_S.type === 'followup') {
+        const { packId, stepIndex, substanceName, baseQuestionId } = currentItem_S;
 
-        const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+        const packSteps = injectSubstanceIntoPackSteps(engine_S, packId, substanceName);
 
         if (!packSteps || !packSteps[stepIndex]) {
           throw new Error(`Follow-up pack ${packId} step ${stepIndex} not found`);
         }
         const step = packSteps[stepIndex];
 
-        const instanceNumber = currentItem.instanceNumber || 1;
+        const instanceNumber = currentItem_S.instanceNumber || 1;
         const fieldKey = step.Field_Key;
 
         console.log('[FOLLOWUP ANSWER]', {
@@ -10028,7 +10028,7 @@ function CandidateInterviewInner() {
           let nextItem = updatedQueue.shift() || null;
 
           while (nextItem && nextItem.type === 'followup') {
-            const nextPackSteps = injectSubstanceIntoPackSteps(engine, nextItem.packId, nextItem.substanceName);
+            const nextPackSteps = injectSubstanceIntoPackSteps(engine_S, nextItem.packId, nextItem.substanceName);
             const nextStep = nextPackSteps[nextItem.stepIndex];
 
             if (shouldSkipFollowUpStep(nextStep, updatedFollowUpAnswers)) {
@@ -10042,7 +10042,7 @@ function CandidateInterviewInner() {
           setCurrentItem(nextItem);
 
           await persistStateToDatabase(null, updatedQueue, nextItem);
-          await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName, currentItem.instanceNumber || 1);
+          await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName, currentItem_S.instanceNumber || 1);
 
           setIsCommitting(false);
           setInput("");
@@ -10092,7 +10092,7 @@ function CandidateInterviewInner() {
           const maxAiFollowups = getPackMaxAiFollowups(packId);
           const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
           const probeCount = aiFollowupCounts[fieldCountKey] || 0;
-          const question = engine.QById[baseQuestionId];
+          const question = engine_S.QById[baseQuestionId];
 
           // Run V2 probe
           const v2Result = await runV2FieldProbeIfNeeded({
@@ -10126,7 +10126,7 @@ function CandidateInterviewInner() {
 
             // Add current answer to transcript
             const followupQuestionEvent = createChatEvent('followup_question', {
-              questionId: currentItem.id,
+              questionId: currentItem_S.id,
               questionText: step.Prompt,
               packId: packId,
               substanceName: substanceName,
@@ -10157,7 +10157,7 @@ function CandidateInterviewInner() {
               fieldKey,
               baseQuestionId,
               substanceName,
-              currentItem,
+              currentItem_S,
               question: v2Result.question
             });
 
@@ -10171,7 +10171,7 @@ function CandidateInterviewInner() {
 
         // === STANDARD FOLLOWUP FLOW (Both V2 and non-V2) ===
         const followupQuestionEvent = createChatEvent('followup_question', {
-          questionId: currentItem.id,
+          questionId: currentItem_S.id,
           questionText: step.Prompt,
           packId: packId,
           substanceName: substanceName,
@@ -10181,7 +10181,7 @@ function CandidateInterviewInner() {
           fieldKey: step.Field_Key,
           followupPackId: packId,
           instanceNumber: instanceNumber,
-          baseQuestionId: currentItem.baseQuestionId
+          baseQuestionId: currentItem_S.baseQuestionId
         });
 
         // Save answer to DB
@@ -10197,7 +10197,7 @@ function CandidateInterviewInner() {
         let nextItem = updatedQueue.shift() || null;
 
         while (nextItem && nextItem.type === 'followup') {
-          const nextPackSteps = injectSubstanceIntoPackSteps(engine, nextItem.packId, nextItem.substanceName);
+          const nextPackSteps = injectSubstanceIntoPackSteps(engine_S, nextItem.packId, nextItem.substanceName);
           const nextStep = nextPackSteps?.[nextItem.stepIndex];
 
           if (nextStep && shouldSkipFollowUpStep(nextStep, updatedFollowUpAnswers)) {
@@ -10213,16 +10213,16 @@ function CandidateInterviewInner() {
           if (shouldSkipProbingForHired(packId, updatedFollowUpAnswers)) {
             const triggeringQuestion = [...newTranscript].reverse().find(t =>
               t.type === 'question' &&
-              engine.QById[t.questionId]?.followup_pack === packId &&
+              engine_S.QById[t.questionId]?.followup_pack === packId &&
               t.answer === 'Yes'
             );
 
             if (triggeringQuestion) {
-              const nextQuestionId = computeNextQuestionId(engine, triggeringQuestion.questionId, 'Yes');
+              const nextQuestionId = computeNextQuestionId(engine_S, triggeringQuestion.questionId, 'Yes');
 
               setCurrentFollowUpAnswers({});
 
-              if (nextQuestionId && engine.QById[nextQuestionId]) {
+              if (nextQuestionId && engine_S.QById[nextQuestionId]) {
                 setQueue([]);
                 setCurrentItem({ id: nextQuestionId, type: 'question' });
                 await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
@@ -10243,7 +10243,7 @@ function CandidateInterviewInner() {
             setCurrentItem(null);
             setQueue([]);
             await persistStateToDatabase(newTranscript, [], null);
-            onFollowupPackComplete(currentItem.baseQuestionId, packId);
+            onFollowupPackComplete(currentItem_S.baseQuestionId, packId);
           }
         } else {
           setQueue(updatedQueue);
@@ -10251,12 +10251,12 @@ function CandidateInterviewInner() {
 
           await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
         }
-      } else if (currentItem.type === 'multi_instance_gate') {
+      } else if (currentItem_S.type === 'multi_instance_gate') {
         // MI_GATE TRACE 3: Handler entry audit
         console.log('[MI_GATE][TRACE][HANDLER_ENTER]', {
-          currentItemId: currentItem.id,
-          packId: currentItem.packId,
-          instanceNumber: currentItem.instanceNumber,
+          currentItem_SId: currentItem_S.id,
+          packId: currentItem_S.packId,
+          instanceNumber: currentItem_S.instanceNumber,
           answer: value,
           source: 'handleAnswer'
         });
@@ -10270,7 +10270,7 @@ function CandidateInterviewInner() {
         }
 
         const answer = normalized === 'yes' ? 'Yes' : 'No';
-        const gate = multiInstanceGate || currentItem;
+        const gate = multiInstanceGate || currentItem_S;
 
         // GUARD: Validate gate context
         if (!gate || !gate.packId || !gate.instanceNumber) {
@@ -10308,8 +10308,8 @@ function CandidateInterviewInner() {
           packId: gate.packId,
           instanceNumber: gate.instanceNumber,
           answerYesNo: answer,
-          activeUiItemKind: activeUiItem?.kind,
-          currentItemId: currentItem?.id,
+          activeUiItem_SKind: activeUiItem_S?.kind,
+          currentItem_SId: currentItem_S?.id,
           stableKey: `mi-gate:${gate.packId}:${gate.instanceNumber}`
         });
 
@@ -10321,14 +10321,14 @@ function CandidateInterviewInner() {
         });
 
         // Extract shared MI_GATE handler logic
-        await handleMiGateYesNo({ answer, gate, sessionId, engine });
+        await handleMiGateYesNo({ answer, gate, sessionId, engine_S });
 
         setIsCommitting(false);
         setInput("");
         return;
-      } else if (currentItem.type === 'multi_instance') {
+      } else if (currentItem_S.type === 'multi_instance') {
 
-        const { questionId, packId, instanceNumber } = currentItem;
+        const { questionId, packId, instanceNumber } = currentItem_S;
 
         const normalized = value.trim().toLowerCase();
         if (normalized !== 'yes' && normalized !== 'no') {
@@ -10339,7 +10339,7 @@ function CandidateInterviewInner() {
 
         const answer = normalized === 'yes' ? 'Yes' : 'No';
 
-        const question = engine.QById[questionId];
+        const question = engine_S.QById[questionId];
 
         console.log('[PRIOR_LE_APPS][MULTI_INSTANCE]', {
           questionId,
@@ -10365,7 +10365,7 @@ function CandidateInterviewInner() {
 
         if (answer === 'Yes') {
           const substanceName = question?.substance_name || null;
-          const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+          const packSteps = injectSubstanceIntoPackSteps(engine_S, packId, substanceName);
 
           if (packSteps && packSteps.length > 0) {
             setCurrentFollowUpAnswers({});
@@ -10403,11 +10403,11 @@ function CandidateInterviewInner() {
       console.error('❌ Error processing answer:', err);
       
       // V3 OPENER SPECIFIC ERROR LOGGING
-      if (currentItem?.type === 'v3_pack_opener') {
+      if (currentItem_S?.type === 'v3_pack_opener') {
         console.error('[V3_OPENER][SUBMIT_ERROR]', {
           sessionId,
-          packId: currentItem.packId,
-          instanceNumber: currentItem.instanceNumber,
+          packId: currentItem_S.packId,
+          instanceNumber: currentItem_S.instanceNumber,
           errMessage: err.message,
           errStack: err.stack?.substring(0, 200)
         });
@@ -10430,7 +10430,7 @@ function CandidateInterviewInner() {
         });
       }, 100);
     }
-    }, [currentItem, engine, queue, dbTranscript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, sectionCompletionMessage, activeV2Pack, v2PackMode, aiFollowupCounts, aiProbingEnabled, aiProbingDisabledForSession, refreshTranscriptFromDB]);
+    }, [currentItem_S, engine_S, queue, dbTranscript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, sectionCompletionMessage, activeV2Pack, v2PackMode, aiFollowupCounts, aiProbingEnabled, aiProbingDisabledForSession, refreshTranscriptFromDB]);
 
 
   // HELPER: Append CTA acknowledgement to transcript (section transition click)
@@ -10529,7 +10529,7 @@ function CandidateInterviewInner() {
 
   // HELPER: Transition to multi-instance "another instance?" gate (reusable)
   const transitionToAnotherInstanceGate = useCallback(async (v3Context) => {
-    const { packId, categoryId, categoryLabel, instanceNumber, packData } = v3Context || v3ProbingContext;
+    const { packId, categoryId, categoryLabel, instanceNumber, packData } = v3Context || v3ProbingContext_S;
     const baseQuestionId = v3BaseQuestionIdRef.current;
     
     console.log('[V3_PACK][ASK_ANOTHER_INSTANCE]', {
@@ -10575,7 +10575,7 @@ function CandidateInterviewInner() {
     
     // MINIMAL MI_GATE GUARD: Block if required fields incomplete (V3 packs only)
     const packConfig = FOLLOWUP_PACK_CONFIGS?.[packId];
-    const isV3Pack = packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3';
+    const isV3Pack = packConfig?.isV3Pack === true || packConfig?.engine_SVersion === 'v3';
     
     if (isV3Pack) {
       // REQUIRED-FIELD AUDIT: Check incident data directly (do not trust opener merge status)
@@ -10629,9 +10629,9 @@ function CandidateInterviewInner() {
       } catch (err) {
         console.warn('[MI_GATE][REQUIRED_FIELD_AUDIT_ERROR]', {
           error: err.message,
-          fallback: 'Using engine payload metadata'
+          fallback: 'Using engine_S payload metadata'
         });
-        // Fallback to engine payload if incident fetch fails
+        // Fallback to engine_S payload if incident fetch fails
         const payloadMissing = v3Context?.missingFields || [];
         missingRequired = Array.isArray(payloadMissing) 
           ? payloadMissing.map(f => f.field_id || f)
@@ -10654,7 +10654,7 @@ function CandidateInterviewInner() {
           reason: 'Required fields incomplete - V3 probing must complete first'
         });
         
-        // DEADLOCK DETECTION: Check if V3 is headless (engine won't prompt)
+        // DEADLOCK DETECTION: Check if V3 is headless (engine_S won't prompt)
         const isV3Headless = v3ProbingActive && !hasActiveV3Prompt && bottomBarModeSOT === 'V3_WAITING';
 
         if (isV3Headless && missingRequired.length > 0) {
@@ -10979,15 +10979,15 @@ function CandidateInterviewInner() {
           reason: 'Re-activating V3 probing after fallback incomplete'
         });
         
-        // RE-ACTIVATE V3 PROBING: Ensure engine continues collecting facts
+        // RE-ACTIVATE V3 PROBING: Ensure engine_S continues collecting facts
         setV3ProbingActive(true);
         setV3ProbingContext({
           packId,
           categoryId,
           categoryLabel,
           baseQuestionId,
-          questionCode: engine?.QById?.[baseQuestionId]?.question_id,
-          sectionId: engine?.QById?.[baseQuestionId]?.section_id,
+          questionCode: engine_S?.QById?.[baseQuestionId]?.question_id,
+          sectionId: engine_S?.QById?.[baseQuestionId]?.section_id,
           instanceNumber,
           incidentId: existingIncidentId, // Reuse existing incident (prevents duplicate INCIDENT_CREATED)
           packData
@@ -11029,7 +11029,7 @@ function CandidateInterviewInner() {
     
     // FIX F: Check if gate already answered (prevent re-show)
     const gateAnswerKey = `mi-gate:${packId}:${instanceNumber}:a`;
-    const alreadyAnswered = transcriptSOT.some(e => e.stableKey === gateAnswerKey);
+    const alreadyAnswered = transcriptSOT_S.some(e => e.stableKey === gateAnswerKey);
     
     if (alreadyAnswered) {
       console.log('[MI_GATE][SKIP_ALREADY_ANSWERED]', {
@@ -11110,7 +11110,7 @@ function CandidateInterviewInner() {
         reason: 'Entering MI_GATE - preventing stale V3 prompt cards'
       });
 
-      // Set up multi-instance gate as first-class currentItem
+      // Set up multi-instance gate as first-class currentItem_S
       const gateItem = {
         id: gateItemId,
         type: 'multi_instance_gate',
@@ -11150,7 +11150,7 @@ function CandidateInterviewInner() {
     });
     
     // PART A: DO NOT append gate to transcript while active (prevents flicker)
-    // Gate renders from currentItem.promptText (PROMPT_LANE source)
+    // Gate renders from currentItem_S.promptText (PROMPT_LANE source)
     // Will append Q+A to transcript ONLY after user answers
     console.log('[MI_GATE][RENDER_SOURCE]', {
       source: 'PROMPT_LANE',
@@ -11160,13 +11160,13 @@ function CandidateInterviewInner() {
       humanLabel: humanCategoryLabel
     });
     
-    // State is set - gate will render from currentItem, not transcript
+    // State is set - gate will render from currentItem_S, not transcript
     await persistStateToDatabase(null, [], {
       id: gateItemId,
       type: 'multi_instance_gate',
       packId
     });
-  }, [v3ProbingContext, sessionId, persistStateToDatabase]);
+  }, [v3ProbingContext_S, sessionId, persistStateToDatabase]);
 
   // V3 EXIT: Idempotent exit function (only runs once)
   const exitV3Once = useCallback((reason, payload) => {
@@ -11197,21 +11197,21 @@ function CandidateInterviewInner() {
 
   // V3 OPENER PERSISTENCE: DISABLED - Append on submit only (prevents duplicate during active state)
   useEffect(() => {
-    if (!activeUiItem || activeUiItem.kind !== "V3_OPENER" || !currentItem) return;
+    if (!activeUiItem_S || activeUiItem_S.kind !== "V3_OPENER" || !currentItem_S) return;
 
-    const stableKey = buildV3OpenerStableKey(currentItem.packId, currentItem.instanceNumber || 1);
+    const stableKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
 
     // DISABLED: Do NOT append during active opener step - submit handler owns this
     console.log('[V3_OPENER][PERSIST_EFFECT_DISABLED]', { 
       stableKey,
-      packId: currentItem.packId,
-      instanceNumber: currentItem.instanceNumber,
+      packId: currentItem_S.packId,
+      instanceNumber: currentItem_S.instanceNumber,
       reason: 'Persist on submit only' 
     });
     
     // Effect is now a NO-OP for history persistence
     // History append happens in handleAnswer after submission
-  }, [activeUiItem?.kind, currentItem]);
+  }, [activeUiItem_S?.kind, currentItem_S]);
 
   // V3 probing completion handler - ENFORCES required fields completion before MI_GATE
   const handleV3ProbingComplete = useCallback(async (result) => {
@@ -11476,7 +11476,7 @@ function CandidateInterviewInner() {
     // LIFECYCLE: Set phase to ANSWER_NEEDED (prompt is now active)
     setV3PromptPhase("ANSWER_NEEDED");
     
-    // Store promptId in v3ProbingContext and snapshot ref for answer linking
+    // Store promptId in v3ProbingContext_S and snapshot ref for answer linking
     setV3ProbingContext(prev => ({
       ...prev,
       promptId,
@@ -11526,9 +11526,9 @@ function CandidateInterviewInner() {
     const promptText = typeof promptData === 'string' ? promptData : promptData?.promptText;
     let canonicalPromptId = typeof promptData === 'object' ? promptData?.promptId : null;
     const loopKey = typeof promptData === 'object' ? promptData?.loopKey : null;
-    const packId = typeof promptData === 'object' ? promptData?.packId : (v3ProbingContext?.packId || currentItem?.packId);
-    const instanceNumber = typeof promptData === 'object' ? promptData?.instanceNumber : (v3ProbingContext?.instanceNumber || currentItem?.instanceNumber || 1);
-    const categoryId = typeof promptData === 'object' ? promptData?.categoryId : v3ProbingContext?.categoryId;
+    const packId = typeof promptData === 'object' ? promptData?.packId : (v3ProbingContext_S?.packId || currentItem_S?.packId);
+    const instanceNumber = typeof promptData === 'object' ? promptData?.instanceNumber : (v3ProbingContext_S?.instanceNumber || currentItem_S?.instanceNumber || 1);
+    const categoryId = typeof promptData === 'object' ? promptData?.categoryId : v3ProbingContext_S?.categoryId;
     
     // STABILITY SNAPSHOT: V3 phase change
     if (lastV3PromptPhaseRef.current !== v3PromptPhase) {
@@ -11665,7 +11665,7 @@ function CandidateInterviewInner() {
       promptText,
       promptId: canonicalPromptId
     });
-  }, [commitV3PromptToBottomBar, v3ProbingContext, currentItem, sessionId, setDbTranscriptSafe]);
+  }, [commitV3PromptToBottomBar, v3ProbingContext_S, currentItem_S, sessionId, setDbTranscriptSafe]);
 
   // Helper: Normalize text for signature matching (shared by guard and commit)
   const normalizeForSignature = (s) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
@@ -11674,21 +11674,21 @@ function CandidateInterviewInner() {
   const handleV3AnswerSubmit = useCallback(async (answerText) => {
     try {
     // PART 3A: Send click trace
-    const v3PromptIdSOT = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+    const v3PromptIdSOT = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
     
     console.log('[V3_SEND][CLICK]', {
       promptId: v3PromptIdSOT,
       textLen: answerText?.length || 0,
       hasText: !!answerText?.trim(),
       v3PromptPhase,
-      activeUiItemKind: activeUiItem?.kind
+      activeUiItem_SKind: activeUiItem_S?.kind
     });
     
     // PART 3A: Block if no promptId
     if (!v3PromptIdSOT) {
       console.error('[V3_SEND][BLOCKED_NO_PROMPT_ID]', {
         v3PromptPhase,
-        hasV3Context: !!v3ProbingContext,
+        hasV3Context: !!v3ProbingContext_S,
         hasSnapshot: !!lastV3PromptSnapshotRef.current,
         reason: 'Cannot persist without stable promptId'
       });
@@ -11696,16 +11696,16 @@ function CandidateInterviewInner() {
     }
     
     // TDZ FIX: Compute effectiveItemType locally (not from closure deps)
-    const localEffectiveItemType = v3ProbingActive ? 'v3_probing' : currentItem?.type;
+    const localEffectiveItemType = v3ProbingActive ? 'v3_probing' : currentItem_S?.type;
     
     v3SubmitCounterRef.current++;
     const submitId = v3SubmitCounterRef.current;
     
     // IDENTIFIER FALLBACK CHAIN: Use context first, snapshot second
-    const categoryId = v3ProbingContext?.categoryId || lastV3PromptSnapshotRef.current?.categoryId;
-    const instanceNumber = v3ProbingContext?.instanceNumber || lastV3PromptSnapshotRef.current?.instanceNumber || 1;
-    const packId = v3ProbingContext?.packId || lastV3PromptSnapshotRef.current?.packId;
-    const loopKey = v3ProbingContext ? `${sessionId}:${categoryId}:${instanceNumber}` : null;
+    const categoryId = v3ProbingContext_S?.categoryId || lastV3PromptSnapshotRef.current?.categoryId;
+    const instanceNumber = v3ProbingContext_S?.instanceNumber || lastV3PromptSnapshotRef.current?.instanceNumber || 1;
+    const packId = v3ProbingContext_S?.packId || lastV3PromptSnapshotRef.current?.packId;
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${categoryId}:${instanceNumber}` : null;
     
     // EDIT 3: Diagnostic log - prove answer submitted to loop
     console.log('[V3_ANSWER][SUBMIT_TO_LOOP]', {
@@ -11722,7 +11722,7 @@ function CandidateInterviewInner() {
         categoryId,
         packId,
         instanceNumber,
-        hasContext: !!v3ProbingContext,
+        hasContext: !!v3ProbingContext_S,
         hasSnapshot: !!lastV3PromptSnapshotRef.current,
         reason: 'Cannot commit without categoryId and packId'
       });
@@ -11745,7 +11745,7 @@ function CandidateInterviewInner() {
       createdAt: Date.now()
     };
     
-    const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+    const promptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
     const qStableKey = buildV3ProbeQStableKey(sessionId, categoryId, instanceNumber, probeIndex);
     let aStableKey = buildV3ProbeAStableKey(sessionId, categoryId, instanceNumber, probeIndex);
     
@@ -11848,7 +11848,7 @@ function CandidateInterviewInner() {
       if (!v3PromptIdSOT) {
         console.error('[V3_TRANSCRIPT][APPEND_FAILED_NO_PROMPTID]', {
           loopKey,
-          hasV3Context: !!v3ProbingContext,
+          hasV3Context: !!v3ProbingContext_S,
           hasSnapshot: !!lastV3PromptSnapshotRef.current,
           reason: 'Cannot append without stable promptId'
         });
@@ -12154,7 +12154,7 @@ function CandidateInterviewInner() {
       });
       throw err;
     }
-  }, [v3ProbingContext, sessionId, v3ActivePromptText, currentItem, setDbTranscriptSafe, dbTranscript]);
+  }, [v3ProbingContext_S, sessionId, v3ActivePromptText, currentItem_S, setDbTranscriptSafe, dbTranscript]);
   
   // V3 REFRESH RUNNER: Safe post-commit transcript refresh
   useEffect(() => {
@@ -12638,7 +12638,7 @@ function CandidateInterviewInner() {
       }
       
       // AUTHORITATIVE MULTI-INCIDENT DETECTION: Use pack metadata (no guessing)
-      const packData = v3ProbingContext?.packData;
+      const packData = v3ProbingContext_S?.packData;
       
       // Source of truth: packData fields (DB-first, then static config fallback)
       const isMultiIncident = packData?.behavior_type === 'multi_incident' || 
@@ -12669,7 +12669,7 @@ function CandidateInterviewInner() {
         lastRecoveryAnotherInstanceRef.current = recoveryPayload; // DEV: Capture for debug bundle
         
         // Trigger transition to multi-instance gate (reuses existing gate UI)
-        transitionToAnotherInstanceGate(v3ProbingContext);
+        transitionToAnotherInstanceGate(v3ProbingContext_S);
       } else {
         // Non-multi-instance pack: advance to next question
         console.log('[V3_PROMPT_WATCHDOG][RECOVERY_ADVANCE]', {
@@ -12682,13 +12682,13 @@ function CandidateInterviewInner() {
         if (baseQuestionId) {
           exitV3Once('WATCHDOG_RECOVERY', {
             incidentId: answerContext?.incidentId,
-            categoryId: v3ProbingContext?.categoryId,
+            categoryId: v3ProbingContext_S?.categoryId,
             completionReason: 'STOP',
             messages: [],
             reason: 'WATCHDOG_RECOVERY',
             shouldOfferAnotherInstance: false,
             packId: snapshot.packId,
-            categoryLabel: v3ProbingContext?.categoryLabel,
+            categoryLabel: v3ProbingContext_S?.categoryLabel,
             instanceNumber: snapshot.instanceNumber,
             packData
           });
@@ -12709,7 +12709,7 @@ function CandidateInterviewInner() {
       }
       exitV3HandledRef.current = false;
     });
-  }, [v3ProbingActive, v3ActivePromptText, v3ProbingContext, sessionId, exitV3Once, transitionToAnotherInstanceGate]);
+  }, [v3ProbingActive, v3ActivePromptText, v3ProbingContext_S, sessionId, exitV3Once, transitionToAnotherInstanceGate]);
 
   // Deferred transition handler (fixes React warning)
   useEffect(() => {
@@ -12798,7 +12798,7 @@ function CandidateInterviewInner() {
             reason: 'Inline gate transition - preventing stale V3 prompt cards'
           });
 
-          // Set up multi-instance gate as first-class currentItem
+          // Set up multi-instance gate as first-class currentItem_S
           const gateItem = {
             id: gateItemId,
             type: 'multi_instance_gate',
@@ -12872,10 +12872,10 @@ function CandidateInterviewInner() {
         v3ActiveProbeQuestionLoopKeyRef.current = null;
 
         // Log pack exited (audit only)
-        if (v3ProbingContext?.packId) {
+        if (v3ProbingContext_S?.packId) {
           await logPackExited(sessionId, {
-            packId: v3ProbingContext.packId,
-            instanceNumber: v3ProbingContext.instanceNumber || 1
+            packId: v3ProbingContext_S.packId,
+            instanceNumber: v3ProbingContext_S.instanceNumber || 1
           });
         }
         
@@ -12899,7 +12899,7 @@ function CandidateInterviewInner() {
     };
 
     executePendingTransition();
-  }, [pendingTransition, dbTranscript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId, v3ProbingContext, multiInstanceGate, engine, refreshTranscriptFromDB]);
+  }, [pendingTransition, dbTranscript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId, v3ProbingContext_S, multiInstanceGate, engine_S, refreshTranscriptFromDB]);
 
   // ITEM-SCOPED COMMIT TRACKING: Track which item is being submitted
   const committingItemIdRef = useRef(null);
@@ -12909,18 +12909,18 @@ function CandidateInterviewInner() {
   
   // FIX B4: V3 draft restore - load draft when V3 prompt becomes active (with fallback promptId)
   useEffect(() => {
-  if (!v3ProbingActive || !v3ProbingContext) return;
+  if (!v3ProbingActive || !v3ProbingContext_S) return;
 
-  const loopKey = `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`;
-  let promptId = v3ProbingContext.promptId || lastV3PromptSnapshotRef.current?.promptId;
+  const loopKey = `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`;
+  let promptId = v3ProbingContext_S.promptId || lastV3PromptSnapshotRef.current?.promptId;
 
   // B4: Generate fallback promptId if missing (use probeIndex)
   if (!promptId || promptId === 'noid') {
   const probeIndex = dbTranscript.filter(e => 
     (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
     e.meta?.sessionId === sessionId &&
-    e.meta?.categoryId === v3ProbingContext.categoryId &&
-    e.meta?.instanceNumber === (v3ProbingContext.instanceNumber || 1)
+    e.meta?.categoryId === v3ProbingContext_S.categoryId &&
+    e.meta?.instanceNumber === (v3ProbingContext_S.instanceNumber || 1)
   ).length;
   promptId = `${loopKey}:${probeIndex}`;
 
@@ -12957,22 +12957,22 @@ function CandidateInterviewInner() {
       console.warn('[V3_DRAFT][LOAD_FAILED]', { error: e.message });
       setInput("");
     }
-  }, [v3ProbingActive, v3ProbingContext?.promptId, sessionId]);
+  }, [v3ProbingActive, v3ProbingContext_S?.promptId, sessionId]);
   
   // FIX B4: V3 draft save - persist draft on input change during V3 probing (with fallback promptId)
   useEffect(() => {
-    if (!v3ProbingActive || !v3ProbingContext) return;
+    if (!v3ProbingActive || !v3ProbingContext_S) return;
     
-    const loopKey = `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`;
-    let promptId = v3ProbingContext.promptId || lastV3PromptSnapshotRef.current?.promptId;
+    const loopKey = `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`;
+    let promptId = v3ProbingContext_S.promptId || lastV3PromptSnapshotRef.current?.promptId;
     
     // B4: Generate fallback promptId if missing
     if (!promptId || promptId === 'noid') {
       const probeIndex = dbTranscript.filter(e => 
         (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
         e.meta?.sessionId === sessionId &&
-        e.meta?.categoryId === v3ProbingContext.categoryId &&
-        e.meta?.instanceNumber === (v3ProbingContext.instanceNumber || 1)
+        e.meta?.categoryId === v3ProbingContext_S.categoryId &&
+        e.meta?.instanceNumber === (v3ProbingContext_S.instanceNumber || 1)
       ).length;
       promptId = `${loopKey}:${probeIndex}`;
     }
@@ -12993,29 +12993,29 @@ function CandidateInterviewInner() {
     } catch (e) {
       console.warn('[V3_DRAFT][SAVE_FAILED]', { error: e.message });
     }
-  }, [input, v3ProbingActive, v3ProbingContext?.promptId, sessionId]);
+  }, [input, v3ProbingActive, v3ProbingContext_S?.promptId, sessionId]);
   
   // FIX C: V3 UI history persistence - save to localStorage
   useEffect(() => {
-    if (!v3ProbingActive || !v3ProbingContext) return;
-    if (v3ProbeDisplayHistory.length === 0) return;
+    if (!v3ProbingActive || !v3ProbingContext_S) return;
+    if (v3ProbeDisplayHistory_S.length === 0) return;
     
-    const loopKey = `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`;
+    const loopKey = `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`;
     const storageKey = `cq_v3ui_${sessionId}_${loopKey}`;
     
     try {
-      window.localStorage.setItem(storageKey, JSON.stringify(v3ProbeDisplayHistory));
-      console.log('[V3_UI_HISTORY][SAVE]', { len: v3ProbeDisplayHistory.length });
+      window.localStorage.setItem(storageKey, JSON.stringify(v3ProbeDisplayHistory_S));
+      console.log('[V3_UI_HISTORY][SAVE]', { len: v3ProbeDisplayHistory_S.length });
     } catch (e) {
       console.warn('[V3_UI_HISTORY][SAVE_FAILED]', { error: e.message });
     }
-  }, [v3ProbeDisplayHistory, v3ProbingActive, v3ProbingContext?.categoryId, sessionId]);
+  }, [v3ProbeDisplayHistory_S, v3ProbingActive, v3ProbingContext_S?.categoryId, sessionId]);
   
   // FIX C: V3 UI history restore - load from localStorage on mount
   useEffect(() => {
-    if (!v3ProbingActive || !v3ProbingContext) return;
+    if (!v3ProbingActive || !v3ProbingContext_S) return;
     
-    const loopKey = `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`;
+    const loopKey = `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`;
     const storageKey = `cq_v3ui_${sessionId}_${loopKey}`;
     
     try {
@@ -13032,11 +13032,11 @@ function CandidateInterviewInner() {
     } catch (e) {
       console.warn('[V3_UI_HISTORY][LOAD_FAILED]', { error: e.message });
     }
-  }, [v3ProbingActive, v3ProbingContext?.categoryId, v3ProbingContext?.instanceNumber, sessionId]);
+  }, [v3ProbingActive, v3ProbingContext_S?.categoryId, v3ProbingContext_S?.instanceNumber, sessionId]);
 
-  // UX: Restore draft when currentItem changes
+  // UX: Restore draft when currentItem_S changes
   useEffect(() => {
-    if (!currentItem || !sessionId) return;
+    if (!currentItem_S || !sessionId) return;
     
     // FIX B: Skip normal draft restore for V3 probing (uses V3-specific draft above)
     if (v3ProbingActive) {
@@ -13044,24 +13044,24 @@ function CandidateInterviewInner() {
       return;
     }
 
-    const packId = currentItem?.packId || null;
-    const fieldKey = currentItem?.fieldKey || currentItem?.id || null;
-    const instanceNumber = currentItem?.instanceNumber || 0;
+    const packId = currentItem_S?.packId || null;
+    const fieldKey = currentItem_S?.fieldKey || currentItem_S?.id || null;
+    const instanceNumber = currentItem_S?.instanceNumber || 0;
     const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
     
     // V3 OPENER: Use dedicated openerDraft state (isolated from shared input)
-    if (currentItem.type === 'v3_pack_opener') {
+    if (currentItem_S.type === 'v3_pack_opener') {
       try {
         const savedDraft = window.sessionStorage.getItem(draftKey);
         
         // GUARD: Never seed openerDraft with prompt text
-        const openerPromptText = currentItem.openerText || "";
+        const openerPromptText = currentItem_S.openerText || "";
         const draftMatchesPrompt = savedDraft && savedDraft.trim() === openerPromptText.trim() && savedDraft.length > 10;
         
         if (draftMatchesPrompt) {
           console.error('[V3_UI_CONTRACT][OPENER_DRAFT_SEEDED_BLOCKED]', {
-            packId: currentItem.packId,
-            instanceNumber: currentItem.instanceNumber,
+            packId: currentItem_S.packId,
+            instanceNumber: currentItem_S.instanceNumber,
             reason: 'Attempted to seed openerDraft with prompt text - clearing to enforce contract',
             savedDraftLen: savedDraft?.length || 0,
             promptLen: openerPromptText?.length || 0
@@ -13135,7 +13135,7 @@ function CandidateInterviewInner() {
       console.warn("[UX][DRAFT] Failed to restore draft", e);
       setInput(""); // UI CONTRACT: NEVER use prompt as fallback
     }
-  }, [currentItem, sessionId, buildDraftKey, v3ProbingActive]);
+  }, [currentItem_S, sessionId, buildDraftKey, v3ProbingActive]);
 
   // Measure question card height dynamically
   useEffect(() => {
@@ -13148,7 +13148,7 @@ function CandidateInterviewInner() {
       resizeObserver.observe(questionCardRef.current);
       return () => resizeObserver.disconnect();
     }
-  }, [currentItem, validationHint]);
+  }, [currentItem_S, validationHint]);
 
   // AUTO-GROWING INPUT: Sync cqDiagEnabled to ref for stable logging in long-lived callbacks
   useEffect(() => {
@@ -13352,13 +13352,13 @@ function CandidateInterviewInner() {
   // CRITICAL: DECLARED FIRST - Before all effects that use bottomBarModeSOT/effectiveItemType
   // All variables declared EXACTLY ONCE in this block
   
-  // Step 1: Compute currentItemType (MOVED to prevent TDZ)
+  // Step 1: Compute currentItem_SType (MOVED to prevent TDZ)
   
   // Step 2: Compute footer controller (determines which UI block controls bottom bar)
-  const footerControllerLocal = activeUiItem.kind === "REQUIRED_ANCHOR_FALLBACK" ? "REQUIRED_ANCHOR_FALLBACK" :
-                                activeUiItem.kind === "V3_PROMPT" ? "V3_PROMPT" :
-                                activeUiItem.kind === "V3_OPENER" ? "V3_OPENER" :
-                                activeUiItem.kind === "MI_GATE" ? "MI_GATE" :
+  const footerControllerLocal = activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK" ? "REQUIRED_ANCHOR_FALLBACK" :
+                                activeUiItem_S.kind === "V3_PROMPT" ? "V3_PROMPT" :
+                                activeUiItem_S.kind === "V3_OPENER" ? "V3_OPENER" :
+                                activeUiItem_S.kind === "MI_GATE" ? "MI_GATE" :
                                 "DEFAULT";
   
   // PHASE TRANSITION TRACKER: Record phase changes (debug-only, non-PII observability)
@@ -13372,11 +13372,11 @@ function CandidateInterviewInner() {
     // Compute current phase
     const phaseSOT = computeInterviewPhaseSOT();
     const currentPhase = phaseSOT.phase;
-    const currentItemTypeNow = currentItem?.type || null;
+    const currentItem_STypeNow = currentItem_S?.type || null;
     
-    // Only record when phase OR currentItemType changes
+    // Only record when phase OR currentItem_SType changes
     const phaseChanged = lastRecordedPhaseRef.current !== currentPhase;
-    const itemTypeChanged = lastRecordedCurrentItemTypeRef.current !== currentItemTypeNow;
+    const itemTypeChanged = lastRecordedCurrentItemTypeRef.current !== currentItem_STypeNow;
     
     if (!phaseChanged && !itemTypeChanged) {
       return; // No change - skip recording
@@ -13384,15 +13384,15 @@ function CandidateInterviewInner() {
     
     // Update tracking refs
     lastRecordedPhaseRef.current = currentPhase;
-    lastRecordedCurrentItemTypeRef.current = currentItemTypeNow;
+    lastRecordedCurrentItemTypeRef.current = currentItem_STypeNow;
     
     // Build safe, non-PII entry
     const entry = {
       ts: Date.now(),
       phase: currentPhase,
       reason: phaseChanged ? 'PHASE_CHANGE' : 'ITEM_TYPE_CHANGE',
-      currentItemType: currentItemTypeNow,
-      activeUiItemKind: activeUiItem?.kind || null,
+      currentItem_SType: currentItem_STypeNow,
+      activeUiItem_SKind: activeUiItem_S?.kind || null,
       effectiveItemType: effectiveItemType,
       bottomBarModeSOT: bottomBarModeSOT,
       v3PromptPhase: v3PromptPhase,
@@ -13414,7 +13414,7 @@ function CandidateInterviewInner() {
     // Debug log
     console.log('[PHASE_HISTORY][PUSH]', entry);
   }, [
-    currentItem,
+    currentItem_S,
     effectiveItemType,
     bottomBarModeSOT,
     v3PromptPhase,
@@ -13426,7 +13426,7 @@ function CandidateInterviewInner() {
     isLoading,
     showCompletionModal,
     error,
-    activeUiItem
+    activeUiItem_S
   ]);
   
   // TDZ ELIMINATED: Late bottomBarMode declaration removed - bottomBarModeSOT is canonical source
@@ -13457,7 +13457,7 @@ function CandidateInterviewInner() {
         response_type: 'v2_pack_field'
       });
 
-      const sectionEntity = engine.Sections.find(s => s.id === sectionId);
+      const sectionEntity = engine_S.Sections.find(s => s.id === sectionId);
       const sectionName = sectionEntity?.section_name || '';
 
       if (existing.length > 0) {
@@ -13647,7 +13647,7 @@ function CandidateInterviewInner() {
       const currentDisplayOrder = displayOrderRef.current++;
       const triggersFollowup = question.followup_pack && answer.toLowerCase() === 'yes';
 
-      const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
+      const sectionEntity = engine_S.Sections.find(s => s.id === question.section_id);
       const sectionName = sectionEntity?.section_name || question.category || '';
 
       const created = await base44.entities.Response.create({
@@ -13709,13 +13709,13 @@ function CandidateInterviewInner() {
 
 
   const getQuestionDisplayNumber = useCallback((questionId) => {
-    if (!engine) return '';
+    if (!engine_S) return '';
 
     if (displayNumberMapRef.current[questionId]) {
       return displayNumberMapRef.current[questionId];
     }
 
-    const index = engine.ActiveOrdered.indexOf(questionId);
+    const index = engine_S.ActiveOrdered.indexOf(questionId);
     if (index !== -1) {
       const displayNum = index + 1;
       displayNumberMapRef.current[questionId] = displayNum;
@@ -13723,13 +13723,13 @@ function CandidateInterviewInner() {
     }
 
     return '';
-  }, [engine]);
+  }, [engine_S]);
 
 
   // ============================================================================
   // CURRENT PROMPT COMPUTATION - Moved here after all dependencies (TDZ fix)
   // ============================================================================
-  // CRITICAL: Must be after effectiveItemType, bottomBarModeSOT, activeUiItem
+  // CRITICAL: Must be after effectiveItemType, bottomBarModeSOT, activeUiItem_S
   let __cqTdzError = null;
   let currentPrompt = null;
   let activePromptText = null;
@@ -13750,11 +13750,11 @@ function CandidateInterviewInner() {
     activePromptText = computeActivePromptText({
       requiredAnchorFallbackActive,
       requiredAnchorCurrent,
-      v3ProbingContext,
+      v3ProbingContext_S,
       v3ProbingActive,
       v3ActivePromptText,
       effectiveItemType,
-      currentItem,
+      currentItem_S,
       v2ClarifierState,
       currentPrompt
     });
@@ -13786,9 +13786,9 @@ function CandidateInterviewInner() {
   
   // CLEARANCE ENABLEMENT: Only apply footer clearance when there's interview content to protect
   const hasInterviewContent = Boolean(
-    transcriptSOT?.length > 0 || 
+    transcriptSOT_S?.length > 0 || 
     hasActiveCardSOT || 
-    activeUiItem?.kind !== 'DEFAULT' ||
+    activeUiItem_S?.kind !== 'DEFAULT' ||
     screenMode === 'QUESTION'
   );
   
@@ -13800,7 +13800,7 @@ function CandidateInterviewInner() {
   // FOOTER CLEARANCE COMPUTATION - Stable, unconditional (prevents overlap)
   // ============================================================================
   const footerClearancePx = Math.max(dynamicFooterHeightPx + 32, 96);
-  const activeCardScrollMarginBottomPx = footerClearancePx;
+  const activeCard_SScrollMarginBottomPx = footerClearancePx;
   
   cqTdzMark('AFTER_FOOTER_CLEARANCE_PX', { clearancePx: footerClearancePx });
   
@@ -13820,7 +13820,7 @@ function CandidateInterviewInner() {
   
   // REGRESSION LOGGING: Clearance SOT (once per active item, deduped)
   const clearanceLogKeyRef = React.useRef(null);
-  const clearanceLogKey = `${currentItem?.id || 'none'}:${bottomBarModeSOTSafe}`;
+  const clearanceLogKey = `${currentItem_S?.id || 'none'}:${bottomBarModeSOTSafe}`;
   if (shouldRenderFooter && clearanceLogKey !== clearanceLogKeyRef.current) {
     clearanceLogKeyRef.current = clearanceLogKey;
     console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SOT]', { 
@@ -13845,7 +13845,7 @@ function CandidateInterviewInner() {
   // SAFE DIAGNOSTIC: Log footer position and clearance when it changes
   const lastFooterPositionLogKeyRef = React.useRef(null);
   React.useEffect(() => {
-    const logKey = `${bottomBarModeSOTSafe}:${shouldApplyFooterClearance}:${transcriptSOT?.length || 0}`;
+    const logKey = `${bottomBarModeSOTSafe}:${shouldApplyFooterClearance}:${transcriptSOT_S?.length || 0}`;
     if (logKey !== lastFooterPositionLogKeyRef.current) {
       lastFooterPositionLogKeyRef.current = logKey;
       
@@ -13855,23 +13855,23 @@ function CandidateInterviewInner() {
         footerClearancePx,
         dynamicFooterHeightPx,
         bottomBarMode: bottomBarModeSOTSafe,
-        transcriptLen: transcriptSOT?.length || 0,
+        transcriptLen: transcriptSOT_S?.length || 0,
         hasActiveCardSOT,
-        activeUiItemKind: activeUiItem?.kind
+        activeUiItem_SKind: activeUiItem_S?.kind
       });
     }
-  }, [shouldRenderFooter, shouldApplyFooterClearance, footerClearancePx, dynamicFooterHeightPx, bottomBarModeSOTSafe, transcriptSOT?.length, hasActiveCardSOT, activeUiItem?.kind]);
+  }, [shouldRenderFooter, shouldApplyFooterClearance, footerClearancePx, dynamicFooterHeightPx, bottomBarModeSOTSafe, transcriptSOT_S?.length, hasActiveCardSOT, activeUiItem_S?.kind]);
   
   // Step 6: Compute footer padding (TDZ-safe - unified across all modes including WELCOME)
   
   // ACTIVE CARD DETECTION: Determine if an active card is currently present
   const hasActiveCard = 
     screenMode === 'WELCOME' || // WELCOME card active
-    (currentItem?.type === 'question' && !v3ProbingActive) || // Base question active
-    (currentItem?.type === 'v2_pack_field') || // V2 field active
-    (currentItem?.type === 'v3_pack_opener') || // V3 opener active
+    (currentItem_S?.type === 'question' && !v3ProbingActive) || // Base question active
+    (currentItem_S?.type === 'v2_pack_field') || // V2 field active
+    (currentItem_S?.type === 'v3_pack_opener') || // V3 opener active
     (v3ProbingActive && hasActiveV3Prompt) || // V3 probe active
-    (currentItem?.type === 'multi_instance_gate'); // MI_GATE active
+    (currentItem_S?.type === 'multi_instance_gate'); // MI_GATE active
   
   // UNIFIED PADDING FORMULA: Reduced ~75% for active cards, special case for CTA
   // CTA: footer + 12px gap (tight), Active: footer + 8px gap, History: footer + 16px gap
@@ -13907,8 +13907,8 @@ function CandidateInterviewInner() {
   const baseSpacerPx = Math.max(footerShellHeightPx + 16, 80); // 80px minimum for safe clearance
   
   // PART B: Mode-aware spacer computation (YES/NO needs more clearance)
-  const isV3OpenerForSpacer = (activeUiItem?.kind === 'V3_OPENER') || 
-                              (currentItem?.type === 'v3_pack_opener');
+  const isV3OpenerForSpacer = (activeUiItem_S?.kind === 'V3_OPENER') || 
+                              (currentItem_S?.type === 'v3_pack_opener');
   
   // Intermediate: V3 opener expansion
   const spacerWithV3Expansion = isV3OpenerForSpacer 
@@ -13918,7 +13918,7 @@ function CandidateInterviewInner() {
   // PART B: YES/NO mode override (needs extra clearance for button footer)
   // TDZ-SAFE: Compute locally from available late variables (bottomBarModeSOT exists here)
   const isYesNoModeDerived = bottomBarModeSOT === 'YES_NO';
-  const isMiGateDerived = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+  const isMiGateDerived = effectiveItemType === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
   
   // DYNAMIC CLEARANCE: Use measured footer height + extra margin for YES/NO
   const yesNoModeClearance = dynamicFooterHeightPx + 32;
@@ -14073,7 +14073,7 @@ function CandidateInterviewInner() {
 
         // YES_NO ACTIVE CARD VERIFICATION: Log active question stableKey for diagnostics
         if (screenMode === 'QUESTION' && bottomBarModeSOT === 'YES_NO' && effectiveItemType === 'question') {
-          const activeQuestionStableKey = currentItem?.id ? `question-shown:${currentItem.id}` : null;
+          const activeQuestionStableKey = currentItem_S?.id ? `question-shown:${currentItem_S.id}` : null;
           
           if (activeQuestionStableKey) {
             const foundInDom = scrollContainer.querySelectorAll(
@@ -14085,7 +14085,7 @@ function CandidateInterviewInner() {
               foundInDomCount: foundInDom,
               screenMode,
               bottomBarModeSOT,
-              currentItemId: currentItem?.id
+              currentItem_SId: currentItem_S?.id
             });
             
             // RUNTIME ASSERTION: Verify exactly 1 active card in QUESTION+YES_NO mode
@@ -14104,7 +14104,7 @@ function CandidateInterviewInner() {
               screenMode,
               bottomBarModeSOT,
               effectiveItemType,
-              currentItemId: currentItem?.id,
+              currentItem_SId: currentItem_S?.id,
               action: 'NO_ACTIVE_CARD_THIS_FRAME'
             });
           }
@@ -14114,13 +14114,13 @@ function CandidateInterviewInner() {
         // WELCOME mode has no active interview cards in scroll history (only welcome message)
         const isWelcomeCta = screenMode === 'WELCOME' && 
                             bottomBarModeSOT === 'CTA' && 
-                            activeUiItem?.kind === 'DEFAULT';
+                            activeUiItem_S?.kind === 'DEFAULT';
         
         if (isWelcomeCta) {
           console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SKIP]', {
             mode: bottomBarModeSOT,
             screenMode,
-            activeUiItemKind: activeUiItem?.kind,
+            activeUiItem_SKind: activeUiItem_S?.kind,
             reason: 'WELCOME_CTA_NO_SCROLL_ACTIVE_CARD - welcome screen has no active interview cards to protect',
             action: 'SKIP'
           });
@@ -14166,7 +14166,7 @@ function CandidateInterviewInner() {
             console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SKIP]', {
               mode: bottomBarModeSOT,
               screenMode,
-              activeUiItemKind: activeUiItem?.kind,
+              activeUiItem_SKind: activeUiItem_S?.kind,
               hasActiveCard,
               hasRealActiveCardInDom,
               reason: 'HAS_ACTIVE_CARD_TRUE_BUT_NONE_IN_DOM - non-question mode',
@@ -14188,16 +14188,16 @@ function CandidateInterviewInner() {
         
         // STRUCTURAL ASSERTION: Verify active card is in scroll container
         if (hasActiveCard) {
-          const activeCardsInContainer = scrollContainer.querySelectorAll('[data-cq-active-card="true"]');
+          const activeCard_SsInContainer = scrollContainer.querySelectorAll('[data-cq-active-card="true"]');
           
-          if (activeCardsInContainer.length === 0) {
+          if (activeCard_SsInContainer.length === 0) {
             // Dedupe: Only log once per unique mode+kind combo
-            const errorKey = `${bottomBarModeSOT}:${activeUiItem?.kind}`;
+            const errorKey = `${bottomBarModeSOT}:${activeUiItem_S?.kind}`;
             if (lastClearanceErrorKeyRef.current !== errorKey) {
               lastClearanceErrorKeyRef.current = errorKey;
               console.warn('[UI_CONTRACT][ACTIVE_CARD_NOT_IN_SCROLL_CONTAINER]', {
                 mode: bottomBarModeSOT,
-                activeUiItemKind: activeUiItem?.kind,
+                activeUiItem_SKind: activeUiItem_S?.kind,
                 hasActiveCard,
                 screenMode,
                 reason: 'Active card not found in DOM yet (timing) or mounted outside scroll container',
@@ -14217,15 +14217,15 @@ function CandidateInterviewInner() {
 
         if (hasActiveCard) {
           // Priority 1: Measure active card (most likely to be clipped)
-          const activeCards = scrollContainer.querySelectorAll('[data-cq-active-card="true"][data-ui-contract-card="true"]');
-          const activeCardsArray = Array.from(activeCards).filter(el => !isUiContractNonCard(el));
+          const activeCard_Ss = scrollContainer.querySelectorAll('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+          const activeCard_SsArray = Array.from(activeCard_Ss).filter(el => !isUiContractNonCard(el));
           
-          if (activeCardsArray.length > 0) {
-            lastItem = activeCardsArray[activeCardsArray.length - 1];
+          if (activeCard_SsArray.length > 0) {
+            lastItem = activeCard_SsArray[activeCard_SsArray.length - 1];
             console.log('[UI_CONTRACT][FOOTER_MEASURE_TARGET_PRIORITY]', {
               strategy: 'ACTIVE_CARD_FIRST',
               hasActiveCard,
-              activeCardCount: activeCardsArray.length,
+              activeCard_SCount: activeCard_SsArray.length,
               selectedTag: lastItem.tagName,
               hasStablekey: lastItem.hasAttribute('data-stablekey'),
               hasCardMarker: lastItem.hasAttribute('data-ui-contract-card'),
@@ -14294,7 +14294,7 @@ function CandidateInterviewInner() {
           // THROTTLED DIAGNOSTIC: Log suspect element details once per 2s
           logSuspectElement(lastItem, {
             hasActiveCard,
-            activeCardCount: hasActiveCard ? scrollContainer.querySelectorAll('[data-cq-active-card="true"]').length : 0,
+            activeCard_SCount: hasActiveCard ? scrollContainer.querySelectorAll('[data-cq-active-card="true"]').length : 0,
             selectorUsed: hasActiveCard ? 'ACTIVE_CARD_FIRST' : 'TRANSCRIPT_FALLBACK'
           });
           
@@ -14552,7 +14552,7 @@ function CandidateInterviewInner() {
       return;
     }
     
-    // GUARD D: Skip during V3_WAITING (engine deciding)
+    // GUARD D: Skip during V3_WAITING (engine_S deciding)
     if (bottomBarModeSOT === 'V3_WAITING') {
       console.log('[SCROLL][GLIDE_SKIPPED]', {
         reason: 'v3_waiting_mode',
@@ -14600,7 +14600,7 @@ function CandidateInterviewInner() {
       if (!bottomAnchorRef.current || !scrollContainer) return;
       
       const lenBefore = lastRenderStreamLenRef.current;
-      const lenNow = transcriptSOT.length;
+      const lenNow = transcriptSOT_S.length;
       const lenDelta = lenNow - lenBefore;
       
       // GUARD E: Only scroll on small transcript appends (1-2 entries)
@@ -14643,7 +14643,7 @@ function CandidateInterviewInner() {
       lastRenderStreamLenRef.current = lenNow;
     });
   }, [
-    transcriptSOT.length,
+    transcriptSOT_S.length,
     isUserTyping,
     bottomBarModeSOT
   ]);
@@ -14734,7 +14734,7 @@ function CandidateInterviewInner() {
       
       recentAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
     });
-  }, [transcriptSOT.length, bottomBarModeSOT, effectiveItemType, dynamicBottomPaddingPx, cqDiagEnabled]);
+  }, [transcriptSOT_S.length, bottomBarModeSOT, effectiveItemType, dynamicBottomPaddingPx, cqDiagEnabled]);
   
   // ANCHOR V3 PROBE QUESTION: Keep just-appended question visible (ChatGPT-style)
   React.useLayoutEffect(() => {
@@ -14808,7 +14808,7 @@ function CandidateInterviewInner() {
       
       v3ScrollAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
     });
-  }, [transcriptSOT.length, bottomBarModeSOT, dynamicBottomPaddingPx, cqDiagEnabled]);
+  }, [transcriptSOT_S.length, bottomBarModeSOT, dynamicBottomPaddingPx, cqDiagEnabled]);
   
   // TDZ GUARD: Track previous render list length for append detection (using ref, not direct variable)
   const prevFinalListLenForScrollRef = useRef(0);
@@ -14817,24 +14817,24 @@ function CandidateInterviewInner() {
   React.useLayoutEffect(() => {
     if (!shouldRenderFooter) return;
     
-    // Build active key from currentItem or V3 context
-    const activeKey = activeCardKeySOT || currentItem?.id || `${currentItem?.packId}:${currentItem?.instanceNumber}`;
+    // Build active key from currentItem_S or V3 context
+    const activeKey = activeCard_SKeySOT || currentItem_S?.id || `${currentItem_S?.packId}:${currentItem_S?.instanceNumber}`;
     if (!activeKey) return;
     
     // REGRESSION-PROOF: Use safe wrapper (validates mode before use)
     const isYesNoModeFresh = bottomBarModeSOTSafe === 'YES_NO';
-    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender("ACTIVE_ITEM_CHANGED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [activeCardKeySOT, currentItem?.id, currentItem?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT, bottomBarModeSOTSafe, effectiveItemType, activeUiItem]);
+  }, [activeCard_SKeySOT, currentItem_S?.id, currentItem_S?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT, bottomBarModeSOTSafe, effectiveItemType, activeUiItem_S]);
   
-  // PART B: RENDER LIST APPENDED - TDZ-safe using ref (no direct finalTranscriptList reference)
+  // PART B: RENDER LIST APPENDED - TDZ-safe using ref (no direct finalTranscriptList_S reference)
   React.useLayoutEffect(() => {
     if (!shouldRenderFooter) return;
     
-    // TDZ-SAFE: Use ref that's synced AFTER finalTranscriptList is computed
+    // TDZ-SAFE: Use ref that's synced AFTER finalTranscriptList_S is computed
     const currentLen = finalListLenRef.current;
     const prevLen = prevFinalListLenForScrollRef.current;
     
@@ -14845,12 +14845,12 @@ function CandidateInterviewInner() {
     
     // REGRESSION-PROOF: Use safe wrapper (validates mode before use)
     const isYesNoModeFresh = bottomBarModeSOTSafe === 'YES_NO';
-    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender("RENDER_LIST_APPENDED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCardKeySOT, activeKindSOT, bottomBarModeSOTSafe, effectiveItemType, activeUiItem]);
+  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCard_SKeySOT, activeKindSOT, bottomBarModeSOTSafe, effectiveItemType, activeUiItem_S]);
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
@@ -14861,11 +14861,11 @@ function CandidateInterviewInner() {
     
     // Only run for base questions with footer visible
     if (effectiveItemType !== 'question' || !shouldRenderFooter) return;
-    if (!currentItem?.id || currentItem.type !== 'question') return;
+    if (!currentItem_S?.id || currentItem_S.type !== 'question') return;
     
     // Dedupe: Only run once per question
-    if (lastQuestionShownIdRef.current === currentItem.id) return;
-    lastQuestionShownIdRef.current = currentItem.id;
+    if (lastQuestionShownIdRef.current === currentItem_S.id) return;
+    lastQuestionShownIdRef.current = currentItem_S.id;
     
     const scrollContainer = historyRef.current;
     if (!scrollContainer || !bottomAnchorRef.current) return;
@@ -14885,7 +14885,7 @@ function CandidateInterviewInner() {
         const scrollTopAfter = scrollContainer.scrollTop;
         
         console.log('[SCROLL][FORCE_ANCHOR_ON_QUESTION_SHOWN]', {
-          questionId: currentItem.id,
+          questionId: currentItem_S.id,
           scrollTopBefore: Math.round(scrollTopBefore),
           scrollTopAfter: Math.round(scrollTopAfter),
           footerHeight: footerMeasuredHeightPx,
@@ -14899,8 +14899,8 @@ function CandidateInterviewInner() {
           if (!scrollContainer || !footerRootRef.current) return;
           
           // PART B: MI gate uses bottom anchor strategy (skip card measurement)
-          const isMiGateActive = currentItem?.type === 'multi_instance_gate' || 
-                                activeUiItem?.kind === 'MI_GATE';
+          const isMiGateActive = currentItem_S?.type === 'multi_instance_gate' || 
+                                activeUiItem_S?.kind === 'MI_GATE';
           
           if (isMiGateActive) {
             // Bottom-anchor strategy: use shared helper
@@ -14931,7 +14931,7 @@ function CandidateInterviewInner() {
               list: finalListRef.current,
               packId: null,
               instanceNumber: null,
-              activeItemId: currentItem?.id
+              activeItemId: currentItem_S?.id
             });
             
             // PART C: Apply corrective scroll (bypass typing lock)
@@ -14952,7 +14952,7 @@ function CandidateInterviewInner() {
         });
       });
     });
-  }, [effectiveItemType, shouldRenderFooter, currentItem?.id, currentItem?.type, footerMeasuredHeightPx, dynamicBottomPaddingPx]);
+  }, [effectiveItemType, shouldRenderFooter, currentItem_S?.id, currentItem_S?.type, footerMeasuredHeightPx, dynamicBottomPaddingPx]);
   
   // FOOTER PADDING COMPENSATION: Prevent jump when footer height changes
   React.useLayoutEffect(() => {
@@ -14999,7 +14999,7 @@ function CandidateInterviewInner() {
     const scrollContainer = historyRef.current;
     if (!scrollContainer) return;
     
-    // Skip during V3_WAITING (no scroll adjustments during engine decide)
+    // Skip during V3_WAITING (no scroll adjustments during engine_S decide)
     if (bottomBarModeSOT === 'V3_WAITING') {
       console.log('[SCROLL][PADDING_COMPENSATE_SKIP]', {
         reason: 'v3_waiting_mode',
@@ -15032,7 +15032,7 @@ function CandidateInterviewInner() {
     });
   }, [dynamicBottomPaddingPx, screenMode, isUserTyping, bottomBarModeSOT]);
   
-  // TDZ GUARD: Do not reference finalTranscriptList in hook deps before it is initialized.
+  // TDZ GUARD: Do not reference finalTranscriptList_S in hook deps before it is initialized.
   // DETERMINISTIC BOTTOM ANCHOR ENFORCEMENT: Keep transcript pinned to bottom when expected
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block bottom anchor during any scroll lock
@@ -15071,8 +15071,8 @@ function CandidateInterviewInner() {
     }
   }, [
     bottomAnchorLenRef.current,
-    activeUiItem?.kind,
-    activeCard?.stableKey,
+    activeUiItem_S?.kind,
+    activeCard_S?.stableKey,
     scrollToBottom
   ]);
   
@@ -15092,7 +15092,7 @@ function CandidateInterviewInner() {
     if (!nearBottom) {
       console.log('[SCROLL][GRAVITY_FOLLOW_SKIP]', {
         reason: 'user_scrolled_up',
-        activeCardKeySOT,
+        activeCard_SKeySOT,
         bottomBarModeSOT
       });
       return;
@@ -15105,7 +15105,7 @@ function CandidateInterviewInner() {
     if (!hasActiveCardSOT) return;
     
     // Dedupe: Only scroll when active card key actually changes
-    const gravityKey = `${activeCardKeySOT}:${bottomBarModeSOT}:${screenMode}`;
+    const gravityKey = `${activeCard_SKeySOT}:${bottomBarModeSOT}:${screenMode}`;
     if (lastGravityFollowKeyRef.current === gravityKey) {
       return; // Already scrolled for this card+mode combo
     }
@@ -15122,12 +15122,12 @@ function CandidateInterviewInner() {
         let didScroll = false;
         
         // Strategy A: Scroll active card into view (preferred)
-        const activeCardEl = scrollContainer.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
-        if (activeCardEl) {
-          activeCardEl.scrollIntoView({ block: "end", behavior: "auto" });
+        const activeCard_SEl = scrollContainer.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+        if (activeCard_SEl) {
+          activeCard_SEl.scrollIntoView({ block: "end", behavior: "auto" });
           didScroll = true;
           console.log('[SCROLL][GRAVITY_FOLLOW_APPLIED]', {
-            activeCardKeySOT,
+            activeCard_SKeySOT,
             mode: bottomBarModeSOT,
             screenMode,
             strategy: 'ACTIVE_CARD_SCROLL_INTO_VIEW',
@@ -15139,7 +15139,7 @@ function CandidateInterviewInner() {
           bottomAnchorRef.current.scrollIntoView({ block: "end", behavior: "auto" });
           didScroll = true;
           console.log('[SCROLL][GRAVITY_FOLLOW_APPLIED]', {
-            activeCardKeySOT,
+            activeCard_SKeySOT,
             mode: bottomBarModeSOT,
             screenMode,
             strategy: 'BOTTOM_ANCHOR_FALLBACK',
@@ -15160,14 +15160,14 @@ function CandidateInterviewInner() {
           
           // GUARDRAIL: Detect if active card still below footer after scroll
           requestAnimationFrame(() => {
-            if (!scrollContainer || !footerRef.current || !activeCardEl) return;
+            if (!scrollContainer || !footerRef.current || !activeCard_SEl) return;
             
-            const questionRect = activeCardEl.getBoundingClientRect();
+            const questionRect = activeCard_SEl.getBoundingClientRect();
             const footerRect = footerRef.current.getBoundingClientRect();
             const overlapPx = Math.max(0, questionRect.bottom - footerRect.top);
             
             if (overlapPx > 4) {
-              const overlapLogKey = `${activeCardKeySOT}:${Math.round(overlapPx)}`;
+              const overlapLogKey = `${activeCard_SKeySOT}:${Math.round(overlapPx)}`;
               if (lastClearanceErrorKeyRef.current !== overlapLogKey) {
                 lastClearanceErrorKeyRef.current = overlapLogKey;
                 
@@ -15175,9 +15175,9 @@ function CandidateInterviewInner() {
                 captureViolationSnapshot({
                   reason: 'ACTIVE_BEHIND_FOOTER',
                   list: finalListRef.current,
-                  packId: currentItem?.packId,
-                  instanceNumber: currentItem?.instanceNumber,
-                  activeItemId: currentItem?.id
+                  packId: currentItem_S?.packId,
+                  instanceNumber: currentItem_S?.instanceNumber,
+                  activeItemId: currentItem_S?.id
                 });
                 
                 // PART C: Apply corrective scroll (bypass typing lock for explicit navigation)
@@ -15204,8 +15204,8 @@ function CandidateInterviewInner() {
       });
     });
   }, [
-    activeCardKeySOT,
-    transcriptSOT.length,
+    activeCard_SKeySOT,
+    transcriptSOT_S.length,
     bottomBarModeSOT,
     screenMode,
     isUserTyping,
@@ -15219,12 +15219,12 @@ function CandidateInterviewInner() {
     
     requestAnimationFrame(() => {
       const scroller = scrollOwnerRef.current || historyRef.current;
-      const activeCardEl = scroller?.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+      const activeCard_SEl = scroller?.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
       const composerEl = footerShellRef.current;
       
-      if (!activeCardEl || !composerEl) return;
+      if (!activeCard_SEl || !composerEl) return;
       
-      const activeRect = activeCardEl.getBoundingClientRect();
+      const activeRect = activeCard_SEl.getBoundingClientRect();
       const composerRect = composerEl.getBoundingClientRect();
       const overlapPx = Math.max(0, activeRect.bottom - (composerRect.top - 8));
       
@@ -15241,7 +15241,7 @@ function CandidateInterviewInner() {
         });
       }
     });
-  }, [shouldRenderFooter, hasActiveCardSOT, activeCardKeySOT, dynamicFooterHeightPx]);
+  }, [shouldRenderFooter, hasActiveCardSOT, activeCard_SKeySOT, dynamicFooterHeightPx]);
   
   // ACTIVE CARD OVERLAP NUDGE: Ensure active card never hides behind footer when footer changes
   React.useLayoutEffect(() => {
@@ -15259,8 +15259,8 @@ function CandidateInterviewInner() {
     
     requestAnimationFrame(() => {
       // Find active card element
-      const activeCardEl = scrollContainer.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
-      if (!activeCardEl) {
+      const activeCard_SEl = scrollContainer.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+      if (!activeCard_SEl) {
         if (CQ_DEBUG_FOOTER_ANCHOR) {
           console.log('[UI_CONTRACT][FOOTER_OVERLAP_NUDGE_SKIP]', {
             reason: 'active_card_not_found',
@@ -15288,11 +15288,11 @@ function CandidateInterviewInner() {
       }
       
       // Measure overlap using footer root ref (stable DOM node)
-      const activeCardRect = activeCardEl.getBoundingClientRect();
+      const activeCard_SRect = activeCard_SEl.getBoundingClientRect();
       const footerRect = footerEl.getBoundingClientRect();
       const clearancePx = SAFE_FOOTER_CLEARANCE_PX || 8;
       const targetFooterTop = footerRect.top - clearancePx;
-      const overlapPx = Math.max(0, activeCardRect.bottom - targetFooterTop);
+      const overlapPx = Math.max(0, activeCard_SRect.bottom - targetFooterTop);
       
       if (overlapPx > 2) {
         // Overlap detected - nudge scroll to reveal card
@@ -15305,7 +15305,7 @@ function CandidateInterviewInner() {
           footerMeasuredHeightPx,
           footerDomHeightPx: Math.round(footerRect.height),
           bottomBarModeSOT,
-          stableKey: activeCardEl.getAttribute('data-stablekey'),
+          stableKey: activeCard_SEl.getAttribute('data-stablekey'),
           scrollTopBefore: Math.round(scrollTopBefore),
           scrollTopAfter: Math.round(scrollTopAfter),
           nudged: Math.abs(scrollTopAfter - scrollTopBefore) > 1
@@ -15313,15 +15313,15 @@ function CandidateInterviewInner() {
         
         // GUARDRAIL: Detect if card still below footer after nudge
         requestAnimationFrame(() => {
-          if (!scrollContainer || !footerEl || !activeCardEl) return;
+          if (!scrollContainer || !footerEl || !activeCard_SEl) return;
 
-          const finalCardRect = activeCardEl.getBoundingClientRect();
+          const finalCardRect = activeCard_SEl.getBoundingClientRect();
           const finalFooterRect = footerEl.getBoundingClientRect();
           const finalOverlapPx = Math.max(0, finalCardRect.bottom - (finalFooterRect.top - clearancePx));
 
           // PART B: MI gate uses bottom anchor strategy (skip card measurement)
-          const isMiGateActiveOverlap = currentItem?.type === 'multi_instance_gate' || 
-                                       activeUiItem?.kind === 'MI_GATE';
+          const isMiGateActiveOverlap = currentItem_S?.type === 'multi_instance_gate' || 
+                                       activeUiItem_S?.kind === 'MI_GATE';
           
           if (isMiGateActiveOverlap) {
             // Bottom-anchor strategy for MI gate
@@ -15330,8 +15330,8 @@ function CandidateInterviewInner() {
               
               console.log('[SCROLL][MI_GATE_BOTTOM_ANCHOR]', {
                 reason: 'OVERLAP_NUDGE',
-                packId: currentItem?.packId,
-                instanceNumber: currentItem?.instanceNumber,
+                packId: currentItem_S?.packId,
+                instanceNumber: currentItem_S?.instanceNumber,
                 strategy: 'BOTTOM_ANCHOR',
                 bypassedTypingLock: isUserTyping && forceAutoScrollOnceRef.current
               });
@@ -15349,13 +15349,13 @@ function CandidateInterviewInner() {
             captureViolationSnapshot({
               reason: 'ACTIVE_BEHIND_FOOTER_AFTER_NUDGE',
               list: finalListRef.current,
-              packId: currentItem?.packId,
-              instanceNumber: currentItem?.instanceNumber,
-              activeItemId: currentItem?.id
+              packId: currentItem_S?.packId,
+              instanceNumber: currentItem_S?.instanceNumber,
+              activeItemId: currentItem_S?.id
             });
 
             // PART C: Second corrective nudge (bypass typing lock) - MI gate uses shared helper
-            const isMiGateRetry = currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+            const isMiGateRetry = currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
             
             if ((!isUserTyping || forceAutoScrollOnceRef.current) && scrollContainer && !isMiGateRetry) {
               scrollContainer.scrollTop += finalOverlapPx + 16;
@@ -15391,9 +15391,9 @@ function CandidateInterviewInner() {
     shouldRenderFooter,
     hasActiveCard,
     footerMeasuredHeightPx,
-    activeCard?.stableKey,
+    activeCard_S?.stableKey,
     bottomBarModeSOT,
-    activeCardKeySOT,
+    activeCard_SKeySOT,
     dynamicBottomPaddingPx
   ]);
 
@@ -15419,7 +15419,7 @@ function CandidateInterviewInner() {
       return;
     }
     
-    // GUARD A: Skip during V3_WAITING (engine deciding)
+    // GUARD A: Skip during V3_WAITING (engine_S deciding)
     if (bottomBarModeSOT === 'V3_WAITING') {
       console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
         reason: 'v3_waiting_mode',
@@ -15547,9 +15547,9 @@ function CandidateInterviewInner() {
     if (screenMode !== "WELCOME") return; // Only act if we're in WELCOME
     
     // Check if we should exit WELCOME based on state
-    const hasCurrentItem = currentItem && currentItem.type;
+    const hasCurrentItem = currentItem_S && currentItem_S.type;
     const hasV3Probing = v3ProbingActive;
-    const hasProgressMarkers = transcriptSOT?.some(t => 
+    const hasProgressMarkers = transcriptSOT_S?.some(t => 
       t.messageType === 'QUESTION_SHOWN' || 
       t.messageType === 'ANSWER' ||
       t.messageType === 'v3_probe_question' ||
@@ -15559,16 +15559,16 @@ function CandidateInterviewInner() {
     
     if (hasCurrentItem || hasV3Probing || hasProgressMarkers) {
       console.log('[WELCOME][GUARD_EXIT]', {
-        reason: hasCurrentItem ? 'currentItem exists' : hasV3Probing ? 'V3 probing active' : 'progress markers in transcript',
+        reason: hasCurrentItem ? 'currentItem_S exists' : hasV3Probing ? 'V3 probing active' : 'progress markers in transcript',
         screenModeBefore: screenMode,
-        currentItemType: currentItem?.type,
-        transcriptLen: transcriptSOT?.length || 0,
+        currentItem_SType: currentItem_S?.type,
+        transcriptLen: transcriptSOT_S?.length || 0,
         action: 'forcing QUESTION mode'
       });
       
       setScreenMode("QUESTION");
     }
-  }, [screenMode, currentItem, v3ProbingActive, transcriptSOT]);
+  }, [screenMode, currentItem_S, v3ProbingActive, transcriptSOT_S]);
 
   // Transcript logging is now handled in answer saving functions where we have Response IDs
   // This prevents logging questions with null responseId
@@ -15582,10 +15582,10 @@ function CandidateInterviewInner() {
   cqTdzMark('AFTER_GET_CURRENT_PROMPT_DECLARATION_OK');
 
   // Compute guard states (no early returns before JSX to maintain hook order)
-  cqTdzMark('BEFORE_GUARD_FLAGS_COMPUTE', { isLoading, hasEngine: !!engine, hasSession: !!session, hasError: !!error });
+  cqTdzMark('BEFORE_GUARD_FLAGS_COMPUTE', { isLoading, hasEngine: !!engine_S, hasSession: !!session, hasError: !!error });
   const cqRenderPhaseTag = 'PRE_RETURN_FLAGS';
   const showMissingSession = !sessionId;
-  const shouldShowFullScreenLoader = isLoading && !engine && !session;
+  const shouldShowFullScreenLoader = isLoading && !engine_S && !session;
   const showError = !!error;
 
   // Calculate currentPrompt (after all hooks declared)
@@ -15602,16 +15602,16 @@ function CandidateInterviewInner() {
   // ============================================================================
   // PART A: Build unified stream from DB transcript only (no ephemeral UI history)
   // V3 UPDATE: V3 probe Q/A now in DB transcript, v3UiRenderable deprecated for display
-  // NOTE: transcriptRenderable and activeCard now computed earlier (after activeUiItem, before footer mode)
+  // NOTE: transcriptRenderable and activeCard_S now computed earlier (after activeUiItem_S, before footer mode)
   // TDZ FIX: This assignment moved to line ~2020 to prevent "Cannot access before initialization"
   
   // V3 UPDATE: v3UiRenderable deprecated (always empty - all content from transcript)
   const v3UiRenderable = [];
   
   // PART B: Suppress MI_GATE from render if V3 UI blocking (treat as null for rendering)
-  const currentItemForRender = shouldSuppressMiGateSOT ? null : currentItem;
+  const currentItem_SForRender = shouldSuppressMiGateSOT ? null : currentItem_S;
   
-  // TDZ FIX: activeCard, transcriptRenderable, currentPromptId already declared earlier (line ~2020)
+  // TDZ FIX: activeCard_S, transcriptRenderable, currentPromptId already declared earlier (line ~2020)
   // No redeclaration here - using existing variables
   
   // A) V3_PROBE_QA_ATTACH DISABLED: Do NOT inject V3 probe Q/A when MI gate is active
@@ -15623,13 +15623,13 @@ function CandidateInterviewInner() {
   // HARD-DISABLED: v3ProbeEntriesForGate always empty (no injection)
   const v3ProbeEntriesForGate = [];
   
-  if (activeCard?.kind === "multi_instance_gate") {
-    const activeGateId = currentItem?.id;
-    const activeStableKeyBase = `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}`;
+  if (activeCard_S?.kind === "multi_instance_gate") {
+    const activeGateId = currentItem_S?.id;
+    const activeStableKeyBase = `mi-gate:${currentItem_S.packId}:${currentItem_S.instanceNumber}`;
     
     console.log('[MI_GATE][V3_PROBE_QA_ATTACH_DISABLED]', {
-      packId: currentItem.packId,
-      instanceNumber: currentItem.instanceNumber,
+      packId: currentItem_S.packId,
+      instanceNumber: currentItem_S.instanceNumber,
       reason: 'MI gate renders standalone - V3 history in transcript only',
       v3ProbeEntriesForGate: []
     });
@@ -15644,7 +15644,7 @@ function CandidateInterviewInner() {
         e.id === activeGateId ||
         e.stableKey === activeStableKeyBase ||
         e.stableKey === `${activeStableKeyBase}:q` ||
-        (e.meta?.packId === currentItem.packId && e.meta?.instanceNumber === currentItem.instanceNumber);
+        (e.meta?.packId === currentItem_S.packId && e.meta?.instanceNumber === currentItem_S.instanceNumber);
       
       if (matchesActiveGate) {
         removedCount++;
@@ -15663,21 +15663,21 @@ function CandidateInterviewInner() {
     }
   }
   
-  // Build base stream: filtered transcript + v3UI + activeCard
+  // Build base stream: filtered transcript + v3UI + activeCard_S
   // B) ORDERING RULE: If MI_GATE is active, it MUST be last (no items after it)
   const baseRenderStream = [
     ...filteredTranscriptRenderable,
     // v3ProbeEntriesForGate removed - no injection (A)
     ...v3UiRenderable,
-    ...(activeCard ? [activeCard] : [])
+    ...(activeCard_S ? [activeCard_S] : [])
   ];
   
   // PART B: ENFORCE - MI gate is last (REORDER items before gate, don't drop)
   let orderedStream = baseRenderStream;
   let miGateReorderCount = 0;
   
-  if (activeCard?.kind === "multi_instance_gate") {
-    const miGateIndex = baseRenderStream.findIndex(e => e.__activeCard && e.kind === "multi_instance_gate");
+  if (activeCard_S?.kind === "multi_instance_gate") {
+    const miGateIndex = baseRenderStream.findIndex(e => e.__activeCard_S && e.kind === "multi_instance_gate");
     
     if (miGateIndex !== -1 && miGateIndex < baseRenderStream.length - 1) {
       // Items exist after MI_GATE - REORDER them before gate (don't drop)
@@ -15690,10 +15690,10 @@ function CandidateInterviewInner() {
       miGateReorderCount = itemsAfter.length;
       
       // PART A: Log reorder once (in-memory dedupe)
-      logOnce(`migate_reorder_${currentItem?.packId}_${currentItem?.instanceNumber}`, () => {
+      logOnce(`migate_reorder_${currentItem_S?.packId}_${currentItem_S?.instanceNumber}`, () => {
         console.warn('[MI_GATE][REORDER_APPLIED]', {
-          packId: currentItem?.packId,
-          instanceNumber: currentItem?.instanceNumber,
+          packId: currentItem_S?.packId,
+          instanceNumber: currentItem_S?.instanceNumber,
           movedCount: itemsAfter.length,
           movedKinds: itemsAfter.map(e => ({ kind: e.kind || e.messageType, key: e.stableKey || e.id })),
           reason: 'Items moved before MI gate to enforce last-item ordering'
@@ -15771,12 +15771,12 @@ function CandidateInterviewInner() {
   }
   
   // FIX D: SAFETY NET - Add missing V3 probe answer to render if not present
-  if (currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === "MI_GATE") {
-  const packId = currentItem?.packId;
-  const instanceNumber = currentItem?.instanceNumber || 1;
+  if (currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S?.kind === "MI_GATE") {
+  const packId = currentItem_S?.packId;
+  const instanceNumber = currentItem_S?.instanceNumber || 1;
 
   // Find most recent V3 probe answer in dbTranscript for this pack/instance
-  const v3ProbeAnswersInDb = transcriptSOT.filter(e => 
+  const v3ProbeAnswersInDb = transcriptSOT_S.filter(e => 
     (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER' || e.stableKey?.startsWith('v3-probe-a:')) &&
     e.meta?.packId === packId &&
     e.meta?.instanceNumber === instanceNumber
@@ -15854,7 +15854,7 @@ function CandidateInterviewInner() {
   
   // Use renderableTranscriptStream for all rendering below (immutable - safe for React)
   
-  // PART B: MI_GATE alignment check moved to post-enforcement (finalTranscriptList useMemo)
+  // PART B: MI_GATE alignment check moved to post-enforcement (finalTranscriptList_S useMemo)
   // Intermediate pre-enforcement checks removed - canonical enforcement at line ~15402 is single source of truth
   
   // PART E: Stream snapshot log (only on length changes, with array guard)
@@ -15864,33 +15864,33 @@ function CandidateInterviewInner() {
       len: renderStreamLen,
       transcriptLen: transcriptRenderable.length,
       v3UiLen: v3UiRenderable.length,
-      hasActiveCard: !!activeCard,
-      activeCardKind: activeCard?.kind || null,
+      hasActiveCard: !!activeCard_S,
+      activeCard_SKind: activeCard_S?.kind || null,
       isFrozen: isUserTyping && !!frozenRenderStreamRef.current,
       tail: renderableTranscriptStream.slice(-6).map(x => ({
         type: x.messageType || x.type || x.kind,
         key: x.stableKey || x.id || x.__canonicalKey,
-        isActive: x.__activeCard || false
+        isActive: x.__activeCard_S || false
       }))
     });
     lastRenderStreamLenRef.current = renderStreamLen;
   }
   
   // PART E: Assert-style log - V3_PROMPT and MI_GATE mutual exclusion at tail
-  if (activeUiItem.kind === "V3_PROMPT" && activeCard?.kind === "multi_instance_gate") {
+  if (activeUiItem_S.kind === "V3_PROMPT" && activeCard_S?.kind === "multi_instance_gate") {
     console.error("[STREAM][VIOLATION]", {
-      reason: "activeKind=V3_PROMPT but activeCard is MI_GATE",
-      activeUiItemKind: activeUiItem.kind,
-      activeCardKind: activeCard.kind,
+      reason: "activeKind=V3_PROMPT but activeCard_S is MI_GATE",
+      activeUiItem_SKind: activeUiItem_S.kind,
+      activeCard_SKind: activeCard_S.kind,
       tail: finalRenderStream.slice(-3).map(x => ({ kind: x.kind, key: x.stableKey }))
     });
   }
   
-  if (activeUiItem.kind === "MI_GATE" && activeCard?.kind === "v3_probe_q") {
+  if (activeUiItem_S.kind === "MI_GATE" && activeCard_S?.kind === "v3_probe_q") {
     console.error("[STREAM][VIOLATION]", {
-      reason: "activeKind=MI_GATE but activeCard is V3_PROBE",
-      activeUiItemKind: activeUiItem.kind,
-      activeCardKind: activeCard.kind,
+      reason: "activeKind=MI_GATE but activeCard_S is V3_PROBE",
+      activeUiItem_SKind: activeUiItem_S.kind,
+      activeCard_SKind: activeCard_S.kind,
       tail: finalRenderStream.slice(-3).map(x => ({ kind: x.kind, key: x.stableKey }))
     });
   }
@@ -15903,9 +15903,9 @@ function CandidateInterviewInner() {
   const isWelcomeScreen = screenMode === "WELCOME";
 
   // RENDER GUARD: Prevent null prompt crashes (log-once per stable key)
-  if (currentItem && !currentPrompt && !v3ProbingActive && !activeBlocker && !pendingSectionTransition && screenMode !== 'WELCOME') {
+  if (currentItem_S && !currentPrompt && !v3ProbingActive && !activeBlocker && !pendingSectionTransition && screenMode !== 'WELCOME') {
     // Compute stable key for deduplication
-    const guardKey = `${currentItem?.type || 'none'}:${currentItem?.id || 'none'}:${currentItem?.packId || 'none'}:${currentItem?.instanceNumber || 'none'}:${screenMode || 'none'}`;
+    const guardKey = `${currentItem_S?.type || 'none'}:${currentItem_S?.id || 'none'}:${currentItem_S?.packId || 'none'}:${currentItem_S?.instanceNumber || 'none'}:${screenMode || 'none'}`;
     
     // Log once per unique state combination
     if (!promptNullGuardSeenRef.current.has(guardKey)) {
@@ -15913,10 +15913,10 @@ function CandidateInterviewInner() {
       
       const snapshot = {
         key: guardKey,
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-        packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber,
+        currentItem_SType: currentItem_S?.type,
+        currentItem_SId: currentItem_S?.id,
+        packId: currentItem_S?.packId,
+        instanceNumber: currentItem_S?.instanceNumber,
         screenMode,
         note: 'V3 probing item without active prompt text; expected during fallback/mismatch states'
       };
@@ -15940,7 +15940,7 @@ function CandidateInterviewInner() {
   if (activePromptText) {
     logOnce(`active_prompt_sot_${sessionId}`, () => {
       console.log('[FORENSIC][ACTIVE_PROMPT_TEXT_SOT_OK]', {
-        activeUiItemKind: activeUiItem?.kind,
+        activeUiItem_SKind: activeUiItem_S?.kind,
         preview: activePromptText?.slice(0, 60) || null,
         isResolved: !activePromptText.includes('Please provide:'),
         usesResolver: requiredAnchorFallbackActive
@@ -15968,44 +15968,44 @@ function CandidateInterviewInner() {
   useLayoutEffect(() => {
     // TDZ-SAFE: Use bottomBarModeSOTSafe (early, always available)
     const isYesNoModeFresh = bottomBarModeSOTSafe === 'YES_NO';
-    const isMiGateFresh = currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+    const isMiGateFresh = currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
     
     if (!isYesNoModeFresh) return;
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [bottomBarModeSOTSafe, ensureActiveVisibleAfterRender, activeKindSOT, currentItem, activeUiItem]);
+  }, [bottomBarModeSOTSafe, ensureActiveVisibleAfterRender, activeKindSOT, currentItem_S, activeUiItem_S]);
 
   // Auto-focus control props (pure values, no hooks)
   const focusEnabled = screenMode === 'QUESTION';
-  const focusShouldTrigger = focusEnabled && bottomBarModeSOT === 'TEXT_INPUT' && (hasPrompt || v3ProbingActive || currentItem?.type === 'v3_pack_opener');
+  const focusShouldTrigger = focusEnabled && bottomBarModeSOT === 'TEXT_INPUT' && (hasPrompt || v3ProbingActive || currentItem_S?.type === 'v3_pack_opener');
   const focusKey = v3ProbingActive 
-    ? `v3:${v3ProbingContext?.packId}:${v3ProbingContext?.instanceNumber}:${v3ActivePromptText?.substring(0, 20)}`
-    : currentItem?.type === 'v3_pack_opener'
-    ? `opener:${currentItem?.id}`
-    : currentItem?.id
-    ? `item:${currentItem.id}:${hasPrompt ? '1' : '0'}`
+    ? `v3:${v3ProbingContext_S?.packId}:${v3ProbingContext_S?.instanceNumber}:${v3ActivePromptText?.substring(0, 20)}`
+    : currentItem_S?.type === 'v3_pack_opener'
+    ? `opener:${currentItem_S?.id}`
+    : currentItem_S?.id
+    ? `item:${currentItem_S.id}:${hasPrompt ? '1' : '0'}`
     : 'none';
   
   // MI_GATE TRACE 1: Mode derivation audit
-  if (effectiveItemType === 'multi_instance_gate' || currentItemType === 'multi_instance_gate' || isMultiInstanceGate) {
+  if (effectiveItemType === 'multi_instance_gate' || currentItem_SType === 'multi_instance_gate' || isMultiInstanceGate) {
     console.log('[MI_GATE][TRACE][MODE]', {
       effectiveItemType,
-      currentItemType,
+      currentItem_SType,
       bottomBarModeSOT,
       isMultiInstanceGate,
-      currentItemId: currentItem?.id,
-      packId: currentItem?.packId,
-      instanceNumber: currentItem?.instanceNumber,
+      currentItem_SId: currentItem_S?.id,
+      packId: currentItem_S?.packId,
+      instanceNumber: currentItem_S?.instanceNumber,
       v3GateActive,
       v3ProbingActive,
       pendingSectionTransition: !!pendingSectionTransition
     });
     
     // REGRESSION SUMMARY: Single log per gate activation (once per itemId)
-    // FIX: Derive itemId same way as activeCard renderer (consistent with tracker setter)
-    const gateItemId = currentItem?.id || `multi-instance-gate-${currentItem?.packId}-${currentItem?.instanceNumber}`;
+    // FIX: Derive itemId same way as activeCard_S renderer (consistent with tracker setter)
+    const gateItemId = currentItem_S?.id || `multi-instance-gate-${currentItem_S?.packId}-${currentItem_S?.instanceNumber}`;
     if (gateItemId) {
       const tracker = miGateTestTrackerRef.current.get(gateItemId) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
       
@@ -16013,8 +16013,8 @@ function CandidateInterviewInner() {
         // Log regression summary on first activation
         console.log('[MI_GATE][REGRESSION_SUMMARY]', {
           itemId: gateItemId,
-          packId: currentItem?.packId,
-          instanceNumber: currentItem?.instanceNumber,
+          packId: currentItem_S?.packId,
+          instanceNumber: currentItem_S?.instanceNumber,
           mainPaneListFilterEnabled: true,
           footerPromptEnabled: true,
           selfTestEnabled: ENABLE_MI_GATE_UI_CONTRACT_SELFTEST
@@ -16023,10 +16023,10 @@ function CandidateInterviewInner() {
     }
     
     // UI CONTRACT SELF-TEST: Start test when MI_GATE becomes active (use canonical stableKey)
-    if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.packId && currentItem?.instanceNumber) {
+    if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem_S?.packId && currentItem_S?.instanceNumber) {
       // CANONICAL TRACKER KEY: Use stableKey for consistency with render logic
-      const trackerKey = buildMiGateQStableKey(currentItem.packId, currentItem.instanceNumber);
-      const gateItemId = buildMiGateItemId(currentItem.packId, currentItem.instanceNumber);
+      const trackerKey = buildMiGateQStableKey(currentItem_S.packId, currentItem_S.instanceNumber);
+      const gateItemId = buildMiGateItemId(currentItem_S.packId, currentItem_S.instanceNumber);
       
       const tracker = miGateTestTrackerRef.current.get(trackerKey) || { footerWired: false, activeGateSuppressed: false, testStarted: false };
       
@@ -16037,8 +16037,8 @@ function CandidateInterviewInner() {
         console.log('[MI_GATE][UI_CONTRACT_TEST_START]', {
           trackerKey,
           itemId: gateItemId,
-          packId: currentItem.packId,
-          instanceNumber: currentItem.instanceNumber
+          packId: currentItem_S.packId,
+          instanceNumber: currentItem_S.instanceNumber
         });
         
         // Clear any existing timeout
@@ -16056,8 +16056,8 @@ function CandidateInterviewInner() {
               console.warn('[MI_GATE][UI_CONTRACT_TEST]', {
                 trackerKey,
                 itemId: gateItemId,
-                packId: currentItem?.packId,
-                instanceNumber: currentItem?.instanceNumber,
+                packId: currentItem_S?.packId,
+                instanceNumber: currentItem_S?.instanceNumber,
                 result: 'NO_TRACKER',
                 reason: 'Tracker was cleared or never created'
               });
@@ -16066,9 +16066,9 @@ function CandidateInterviewInner() {
             
             // STEP 4: Ensure mainPaneRendered is always boolean
             // PART C: mainPaneRendered - use unified detector on final list
-            // TDZ FIX: Use finalListRef.current instead of finalTranscriptList (not yet declared)
+            // TDZ FIX: Use finalListRef.current instead of finalTranscriptList_S (not yet declared)
             const miGateInFinalList = finalListRef.current.some(item => 
-              isMiGateItem(item, currentItem?.packId, currentItem?.instanceNumber)
+              isMiGateItem(item, currentItem_S?.packId, currentItem_S?.instanceNumber)
             );
             
             const mainPaneRendered = miGateInFinalList; // ALWAYS boolean (from unified detector)
@@ -16081,8 +16081,8 @@ function CandidateInterviewInner() {
               console.log('[MI_GATE][UI_CONTRACT_PASS]', {
                 trackerKey,
                 itemId: gateItemId,
-                packId: currentItem?.packId,
-                instanceNumber: currentItem?.instanceNumber,
+                packId: currentItem_S?.packId,
+                instanceNumber: currentItem_S?.instanceNumber,
                 mainPaneRendered: true,
                 footerButtonsOnly: true
               });
@@ -16094,8 +16094,8 @@ function CandidateInterviewInner() {
                 console.error('[MI_GATE][UI_CONTRACT_FAIL]', {
                   trackerKey,
                   itemId: gateItemId,
-                  packId: currentItem?.packId,
-                  instanceNumber: currentItem?.instanceNumber,
+                  packId: currentItem_S?.packId,
+                  instanceNumber: currentItem_S?.instanceNumber,
                   mainPaneRendered,
                   footerButtonsOnly,
                   reason: !mainPaneRendered ? 'Main pane did not render active MI_GATE card' : 
@@ -16103,8 +16103,8 @@ function CandidateInterviewInner() {
                           'Unknown failure',
                   diagnosticSnapshot: {
                     finalRenderListLen: finalRenderList.length,
-                    activeCardInStream: finalRenderList.some(it => 
-                      it.__activeCard === true && 
+                    activeCard_SInStream: finalRenderList.some(it => 
+                      it.__activeCard_S === true && 
                       it.kind === 'multi_instance_gate' &&
                       it.stableKey === trackerKey
                     )
@@ -16130,7 +16130,7 @@ function CandidateInterviewInner() {
   
   // Log final mode selection (minimal log - full snapshot already in unified block)
   console.log('[BOTTOM_BAR_MODE]', { 
-    activeUiItemKind: activeUiItem.kind,
+    activeUiItem_SKind: activeUiItem_S.kind,
     bottomBarModeSOT,
     effectiveItemType,
     screenMode
@@ -16141,15 +16141,15 @@ function CandidateInterviewInner() {
   bottomBarModeSOTRef.current = bottomBarModeSOT;
   v3ActivePromptTextRef.current = v3ActivePromptText;
   v3ProbingActiveRef.current = v3ProbingActive;
-  v3ProbingContextRef.current = v3ProbingContext;
+  v3ProbingContext_SRef.current = v3ProbingContext_S;
   
   // UI CONTRACT DIAGNOSTIC: Confirm YES/NO renderer + probing mode (once per session)
-  if (bottomBarModeSOT === 'YES_NO' && currentItem?.type === 'question') {
+  if (bottomBarModeSOT === 'YES_NO' && currentItem_S?.type === 'question') {
     logOnce(`yesno_renderer_sot_${sessionId}`, () => {
       console.log('[UI_CONTRACT][YESNO_RENDERER_SOT]', {
-        currentItemType: currentItem?.type,
-        questionId: currentItem?.id,
-        questionCode: engine?.QById?.[currentItem?.id]?.question_id,
+        currentItem_SType: currentItem_S?.type,
+        questionId: currentItem_S?.id,
+        questionCode: engine_S?.QById?.[currentItem_S?.id]?.question_id,
         bottomBarRenderTypeSOT,
         bottomBarModeSOT,
         renderer: 'YesNoControls_modern_neutral',
@@ -16160,18 +16160,18 @@ function CandidateInterviewInner() {
   }
   
   // PACK PATH DIAGNOSTIC: Log once when entering a pack to confirm routing
-  if (v3ProbingActive || currentItem?.type === 'v3_pack_opener') {
-    const packId = currentItem?.packId || v3ProbingContext?.packId;
+  if (v3ProbingActive || currentItem_S?.type === 'v3_pack_opener') {
+    const packId = currentItem_S?.packId || v3ProbingContext_S?.packId;
     const packConfig = packId ? FOLLOWUP_PACK_CONFIGS[packId] : null;
-    const isV3Pack = packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3';
+    const isV3Pack = packConfig?.isV3Pack === true || packConfig?.engine_SVersion === 'v3';
     
     logOnce(`pack_path_sot_${packId}`, () => {
       console.log('[UI_CONTRACT][PACK_PATH_SOT]', {
         packId,
         isV3Pack,
-        engineVersion: packConfig?.engineVersion || 'unknown',
-        activeUiItemKind: activeUiItem?.kind || 'DEFAULT',
-        currentItemType: currentItem?.type,
+        engine_SVersion: packConfig?.engine_SVersion || 'unknown',
+        activeUiItem_SKind: activeUiItem_S?.kind || 'DEFAULT',
+        currentItem_SType: currentItem_S?.type,
         v3ProbingActive,
         bottomBarModeSOT,
         reason: isV3Pack 
@@ -16187,16 +16187,16 @@ function CandidateInterviewInner() {
       effectiveItemType !== lastEffectiveItemTypeRef.current) {
     
     console.log('[FRAME_TRACE][FOOTER_CONTROLLER]', {
-      activeUiItemKind: activeUiItem.kind,
+      activeUiItem_SKind: activeUiItem_S.kind,
       footerController: footerControllerLocal,
       hasActiveV3Prompt,
       v3PromptPreview: v3ActivePromptText?.substring(0, 40) || null,
-      currentItemType,
+      currentItem_SType,
       effectiveItemType,
       bottomBarModeSOT,
       bottomBarRenderTypeSOT,
-      packId: currentItem?.packId || v3ProbingContext?.packId,
-      instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
+      packId: currentItem_S?.packId || v3ProbingContext_S?.packId,
+      instanceNumber: currentItem_S?.instanceNumber || v3ProbingContext_S?.instanceNumber,
       requiredAnchorFallbackActive,
       requiredAnchorCurrent,
       changed: {
@@ -16212,17 +16212,17 @@ function CandidateInterviewInner() {
   }
   
   // YES/NO RENDERER ASSERTION: Detect legacy by code path + expanded DOM verification
-  if (bottomBarModeSOT === 'YES_NO' && currentItem) {
+  if (bottomBarModeSOT === 'YES_NO' && currentItem_S) {
     const rendererName = 'YesNoControls';
     const isLegacyV2 = false; // Code path uses modern neutral renderer
     
-    logOnce(`yesno_renderer_selected_${sessionId}:${currentItem?.id}`, () => {
+    logOnce(`yesno_renderer_selected_${sessionId}:${currentItem_S?.id}`, () => {
       console.log('[YESNO_RENDERER_SELECTED]', {
         rendererName,
         isLegacy: isLegacyV2,
-        questionId: currentItem?.id,
-        questionCode: engine?.QById?.[currentItem?.id]?.question_id || 'N/A',
-        currentItemType: currentItem?.type,
+        questionId: currentItem_S?.id,
+        questionCode: engine_S?.QById?.[currentItem_S?.id]?.question_id || 'N/A',
+        currentItem_SType: currentItem_S?.type,
         bottomBarModeSOT,
         note: 'Modern neutral YesNoControls - no green/red legacy buttons'
       });
@@ -16318,8 +16318,8 @@ function CandidateInterviewInner() {
           const matchedBg = matchedElement ? window.getComputedStyle(matchedElement).backgroundColor : 'N/A';
           
           console.error('[FATAL][LEGACY_YESNO_RENDERED]', {
-            questionId: currentItem?.id,
-            questionCode: engine?.QById?.[currentItem?.id]?.question_id || 'N/A',
+            questionId: currentItem_S?.id,
+            questionCode: engine_S?.QById?.[currentItem_S?.id]?.question_id || 'N/A',
             matchedElementTag: matchedElement?.tagName,
             matchedElementClass: matchedElement?.className,
             computedBackgroundColor: matchedBg,
@@ -16332,7 +16332,7 @@ function CandidateInterviewInner() {
           throw new Error('LEGACY_YESNO_RENDERED on candidate/public - V3-only contract violated');
         } else {
           console.log('[YESNO_DOM_VERIFIED]', {
-            questionId: currentItem?.id,
+            questionId: currentItem_S?.id,
             legacyDetected: false,
             rendererConfirmed: 'YesNoControls_neutral',
             isCandidateRoute
@@ -16351,7 +16351,7 @@ function CandidateInterviewInner() {
     } else {
       console.warn("[UI_CONTRACT] CTA_OUTSIDE_WELCOME_BLOCKED", { 
         screenMode, 
-        currentItemType, 
+        currentItem_SType, 
         effectiveItemType, 
         v3ProbingActive,
         note: 'Invalid state - bottomBarModeSOTSafe will use DEFAULT fallback'
@@ -16367,18 +16367,18 @@ function CandidateInterviewInner() {
   
   // TASK A: Single MI_GATE active boolean (UI contract sentinel)
   const isMiGateActive =
-    activeUiItem?.kind === "MI_GATE" &&
+    activeUiItem_S?.kind === "MI_GATE" &&
     effectiveItemType === "multi_instance_gate" &&
     bottomBarModeSOT === "YES_NO" &&
-    currentItem?.type === "multi_instance_gate";
+    currentItem_S?.type === "multi_instance_gate";
   
-  // Log once per activation (de-duped by currentItem.id) - using ref declared at top-level (line 1476)
-  if (isMiGateActive && miGateActiveLogKeyRef.current !== currentItem?.id) {
-    miGateActiveLogKeyRef.current = currentItem?.id;
+  // Log once per activation (de-duped by currentItem_S.id) - using ref declared at top-level (line 1476)
+  if (isMiGateActive && miGateActiveLogKeyRef.current !== currentItem_S?.id) {
+    miGateActiveLogKeyRef.current = currentItem_S?.id;
     console.log("[MI_GATE][ACTIVE_STATE]", {
-      currentItemId: currentItem?.id,
-      packId: currentItem?.packId,
-      instanceNumber: currentItem?.instanceNumber,
+      currentItem_SId: currentItem_S?.id,
+      packId: currentItem_S?.packId,
+      instanceNumber: currentItem_S?.instanceNumber,
       sentinelArmed: true
     });
   } else if (!isMiGateActive && miGateActiveLogKeyRef.current) {
@@ -16386,12 +16386,12 @@ function CandidateInterviewInner() {
   }
   
   // Derive answerable from existing values (safe default: allow answer if we have a current item and it's a question-like type)
-  const answerable = currentItem && (
-    currentItem.type === 'question' || 
-    currentItem.type === 'v2_pack_field' || 
-    currentItem.type === 'v3_pack_opener' || 
-    currentItem.type === 'followup' ||
-    currentItem.type === 'multi_instance_gate'
+  const answerable = currentItem_S && (
+    currentItem_S.type === 'question' || 
+    currentItem_S.type === 'v2_pack_field' || 
+    currentItem_S.type === 'v3_pack_opener' || 
+    currentItem_S.type === 'followup' ||
+    currentItem_S.type === 'multi_instance_gate'
   ) && !v3ProbingActive;
   
   // ============================================================================
@@ -16400,11 +16400,11 @@ function CandidateInterviewInner() {
   let v3OpenerTextareaDisabled = false;
   let v3OpenerSubmitDisabled = false;
   
-  if (currentItem?.type === 'v3_pack_opener') {
+  if (currentItem_S?.type === 'v3_pack_opener') {
     const openerInputValue = openerDraft || "";
     const openerTextTrimmed = openerInputValue.trim();
     const openerTextTrimmedLen = openerTextTrimmed.length;
-    const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem.id;
+    const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem_S.id;
     
     // TASK B: Single source of truth for textarea disabled
     const textareaDisabledRaw = Boolean(isCurrentItemCommitting) || Boolean(v3ProbingActive);
@@ -16413,9 +16413,9 @@ function CandidateInterviewInner() {
     let textareaDisabledFinal = textareaDisabledRaw;
     if (textareaDisabledRaw && !isCurrentItemCommitting && !v3ProbingActive) {
       console.warn('[V3_OPENER][UNHANG_OVERRIDE_TEXTAREA]', {
-        currentItemId: currentItem?.id,
-        packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber,
+        currentItem_SId: currentItem_S?.id,
+        packId: currentItem_S?.packId,
+        instanceNumber: currentItem_S?.instanceNumber,
         reason: 'disabled_true_while_not_committing_and_not_probing',
         action: 'forcing enabled'
       });
@@ -16429,9 +16429,9 @@ function CandidateInterviewInner() {
     let submitDisabledFinal = submitDisabledRaw;
     if (submitDisabledRaw && openerTextTrimmedLen > 0 && !isCurrentItemCommitting && !v3ProbingActive) {
       console.warn('[V3_OPENER][UNHANG_OVERRIDE_SUBMIT]', {
-        currentItemId: currentItem?.id,
-        packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber,
+        currentItem_SId: currentItem_S?.id,
+        packId: currentItem_S?.packId,
+        instanceNumber: currentItem_S?.instanceNumber,
         inputLen: openerTextTrimmedLen,
         reason: 'submit_disabled_despite_having_input_and_not_committing',
         action: 'forcing enabled'
@@ -16454,14 +16454,14 @@ function CandidateInterviewInner() {
       submitDisabledFinal,
       bottomBarModeSOT,
       effectiveItemType,
-      packId: currentItem.packId,
-      instanceNumber: currentItem.instanceNumber
+      packId: currentItem_S.packId,
+      instanceNumber: currentItem_S.instanceNumber
     });
     
     // TASK D: Updated logs - output FINAL values that match actual render
     console.log('[V3_OPENER][VALUE_STATE]', {
-      packId: currentItem.packId,
-      instanceNumber: currentItem.instanceNumber,
+      packId: currentItem_S.packId,
+      instanceNumber: currentItem_S.instanceNumber,
       valueLen: openerTextTrimmedLen,
       disabledRaw: textareaDisabledRaw,
       disabled: textareaDisabledFinal
@@ -16469,9 +16469,9 @@ function CandidateInterviewInner() {
   }
   
   // One-time diagnostic log when prompt is missing (no hook - just side effect)
-  if (needsPrompt && !hasPrompt && currentItem) {
+  if (needsPrompt && !hasPrompt && currentItem_S) {
     // GUARD: Don't log prompt missing if recap is ready for this loopKey
-    const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
     const hasRecapReady = loopKey && v3RecapReadyRef.current.has(loopKey);
     
     // TASK B: Don't log error if V3 probing active but no prompt yet (initial decide)
@@ -16480,21 +16480,21 @@ function CandidateInterviewInner() {
     if (hasRecapReady) {
       console.log('[V3_RECAP][PENDING_ROUTE]', {
         loopKey,
-        packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber,
+        packId: currentItem_S?.packId,
+        instanceNumber: currentItem_S?.instanceNumber,
         reason: 'Recap ready - routing imminent, prompt missing is expected'
       });
     } else if (isV3InitialDecide) {
       // TASK B: Info-level log for initial decide (not an error)
       console.log('[V3_PROMPT_PENDING]', {
         loopKey,
-        packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber,
+        packId: currentItem_S?.packId,
+        instanceNumber: currentItem_S?.instanceNumber,
         v3PromptPhase,
         reason: 'V3 initial decide cycle - prompt not yet available (expected)'
       });
     } else {
-      const diagKey = `${sessionId}:${effectiveItemType}:${currentItem.packId}:${currentItem.fieldKey}:${currentItem.instanceNumber}:${currentItem.id}`;
+      const diagKey = `${sessionId}:${effectiveItemType}:${currentItem_S.packId}:${currentItem_S.fieldKey}:${currentItem_S.instanceNumber}:${currentItem_S.id}`;
       if (promptMissingKeyRef.current !== diagKey) {
         promptMissingKeyRef.current = diagKey;
         
@@ -16504,13 +16504,13 @@ function CandidateInterviewInner() {
         
         console.warn(`[${logPrefix}]`, {
           sessionId,
-          currentItemType: currentItem?.type,
+          currentItem_SType: currentItem_S?.type,
           effectiveItemType,
-          packId: currentItem?.packId,
-          fieldKey: currentItem?.fieldKey,
-          instanceNumber: currentItem?.instanceNumber,
-          currentItemId: currentItem?.id,
-          hasBackendQuestionText: !!currentItem?.backendQuestionText,
+          packId: currentItem_S?.packId,
+          fieldKey: currentItem_S?.fieldKey,
+          instanceNumber: currentItem_S?.instanceNumber,
+          currentItem_SId: currentItem_S?.id,
+          hasBackendQuestionText: !!currentItem_S?.backendQuestionText,
           hasClarifierState: !!v2ClarifierState,
           hasV3ActivePrompt: !!v3ActivePromptText,
           hasCurrentPrompt: !!currentPrompt?.text
@@ -16526,27 +16526,27 @@ function CandidateInterviewInner() {
   if (hasActiveV3Prompt && (bottomBarRenderTypeSOT !== "v3_probing" || bottomBarModeSOT !== "TEXT_INPUT")) {
     console.error('[V3_UI_CONTRACT][VIOLATION_ACTIVE_ITEM]', {
       hasActiveV3Prompt,
-      activeUiItemKind: activeUiItem.kind,
+      activeUiItem_SKind: activeUiItem_S.kind,
       bottomBarRenderTypeSOT,
       bottomBarModeSOT,
-      currentItemType,
-      currentItemId: currentItem?.id,
-      promptIdPreview: activeUiItem.promptText?.substring(0, 40) || null,
-      loopKeyPreview: activeUiItem.loopKey || null,
+      currentItem_SType,
+      currentItem_SId: currentItem_S?.id,
+      promptIdPreview: activeUiItem_S.promptText?.substring(0, 40) || null,
+      loopKeyPreview: activeUiItem_S.loopKey || null,
       reason: 'hasActiveV3Prompt=true but render/mode not V3'
     });
   }
   
   // Debug log: confirm which bottom bar path is rendering
   console.log("[BOTTOM_BAR_RENDER]", {
-    activeUiItemKind: activeUiItem.kind,
-    currentItemType,
+    activeUiItem_SKind: activeUiItem_S.kind,
+    currentItem_SType,
     effectiveItemType,
     bottomBarRenderTypeSOT,
     footerControllerLocal,
-    currentItemId: currentItem?.id,
-    packId: currentItem?.packId,
-    fieldKey: currentItem?.fieldKey,
+    currentItem_SId: currentItem_S?.id,
+    packId: currentItem_S?.packId,
+    fieldKey: currentItem_S?.fieldKey,
     isQuestion,
     isV2PackField,
     answerable,
@@ -16559,13 +16559,13 @@ function CandidateInterviewInner() {
   // Unified YES/NO click handler - routes to handleAnswer with trace logging (plain function, no hooks)
   const handleYesNoClick = (answer) => {
     // GUARD: Block YES/NO during V3 prompt answering
-    if (activeUiItem?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
+    if (activeUiItem_S?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
       console.log('[YESNO_BLOCKED_DURING_V3_PROMPT]', {
         clicked: answer,
-        activeUiItemKind: activeUiItem?.kind,
+        activeUiItem_SKind: activeUiItem_S?.kind,
         v3PromptPhase,
         bottomBarModeSOT,
-        currentItemType: currentItem?.type,
+        currentItem_SType: currentItem_S?.type,
         reason: 'V3 prompt active - YES/NO blocked'
       });
       return; // Hard block - do not append stray "Yes"/"No"
@@ -16577,14 +16577,14 @@ function CandidateInterviewInner() {
     console.log('[SCROLL][FORCE_ONCE_ARMED]', { 
       trigger: 'YESNO_CLICK', 
       answer,
-      packId: currentItem?.packId,
-      instanceNumber: currentItem?.instanceNumber
+      packId: currentItem_S?.packId,
+      instanceNumber: currentItem_S?.instanceNumber
     });
     
     // PART B: Call ensureActiveVisibleAfterRender after state update
     // TDZ-SAFE: Compute fresh flags using available values
     const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
-    const isMiGateFresh = currentItem?.type === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+    const isMiGateFresh = currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender(`MI_GATE_YESNO_CLICK_${answer}`, activeKindSOT, isYesNoModeFresh, isMiGateFresh);
@@ -16594,10 +16594,10 @@ function CandidateInterviewInner() {
     console.log('[MI_GATE][TRACE][YESNO_CLICK]', {
       clicked: answer,
       effectiveItemType,
-      currentItemType: currentItem?.type,
-      currentItemId: currentItem?.id,
-      packId: currentItem?.packId,
-      instanceNumber: currentItem?.instanceNumber,
+      currentItem_SType: currentItem_S?.type,
+      currentItem_SId: currentItem_S?.id,
+      packId: currentItem_S?.packId,
+      instanceNumber: currentItem_S?.instanceNumber,
       bottomBarModeSOT
     });
     
@@ -16745,13 +16745,13 @@ function CandidateInterviewInner() {
     console.log('[BOTTOM_BAR][SEND_CLICK]', {
       bottomBarModeSOT,
       effectiveItemType,
-      activeKind: activeUiItem?.kind,
-      packId: currentItem?.packId || v3ProbingContext?.packId,
-      instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
+      activeKind: activeUiItem_S?.kind,
+      packId: currentItem_S?.packId || v3ProbingContext_S?.packId,
+      instanceNumber: currentItem_S?.instanceNumber || v3ProbingContext_S?.instanceNumber,
       inputLen: input?.length || 0,
       openerDraftLen: openerDraft?.length || 0,
-      currentItemType: currentItem?.type,
-      currentItemId: currentItem?.id,
+      currentItem_SType: currentItem_S?.type,
+      currentItem_SId: currentItem_S?.id,
       v3ProbingActive,
       isCommitting,
       hasPrompt,
@@ -16762,10 +16762,10 @@ function CandidateInterviewInner() {
     getStabilitySnapshotSOT("SUBMIT_BEGIN");
     
     // ROUTE A0: Required anchor answer submission (HIGHEST PRIORITY - triple-gate routing)
-    // Routes by: effectiveItemType OR activeUiItemKind OR requiredAnchorFallbackActive flag
-    // CRITICAL: Does NOT depend on currentItemType, v3ProbingActive, or currentItem.packId
+    // Routes by: effectiveItemType OR activeUiItem_SKind OR requiredAnchorFallbackActive flag
+    // CRITICAL: Does NOT depend on currentItem_SType, v3ProbingActive, or currentItem_S.packId
     if (effectiveItemType === 'required_anchor_fallback' || 
-        activeUiItem?.kind === 'REQUIRED_ANCHOR_FALLBACK' || 
+        activeUiItem_S?.kind === 'REQUIRED_ANCHOR_FALLBACK' || 
         requiredAnchorFallbackActive === true) {
       
       // GUARD: Validate requiredAnchorCurrent exists
@@ -16773,7 +16773,7 @@ function CandidateInterviewInner() {
         console.error('[REQUIRED_ANCHOR_FALLBACK][SUBMIT_BLOCKED_NO_CURRENT]', {
           requiredAnchorFallbackActive,
           effectiveItemType,
-          activeUiItemKind: activeUiItem?.kind,
+          activeUiItem_SKind: activeUiItem_S?.kind,
           reason: 'requiredAnchorCurrent is null/undefined'
         });
         return;
@@ -16786,8 +16786,8 @@ function CandidateInterviewInner() {
       
       console.log('[REQUIRED_ANCHOR_FALLBACK][SUBMIT_ROUTED]', {
         effectiveItemType,
-        activeUiItemKind: activeUiItem?.kind,
-        currentItemType: currentItem?.type,
+        activeUiItem_SKind: activeUiItem_S?.kind,
+        currentItem_SType: currentItem_S?.type,
         anchor: requiredAnchorCurrent,
         answerLen: trimmed.length
       });
@@ -17296,9 +17296,9 @@ function CandidateInterviewInner() {
             transitionToAnotherInstanceGate({
               packId: ctx.packId,
               categoryId: ctx.categoryId,
-              categoryLabel: v3ProbingContext?.categoryLabel || ctx.categoryId,
+              categoryLabel: v3ProbingContext_S?.categoryLabel || ctx.categoryId,
               instanceNumber: ctx.instanceNumber,
-              packData: v3ProbingContext?.packData
+              packData: v3ProbingContext_S?.packData
             });
           }, 50);
         } else {
@@ -17405,14 +17405,14 @@ function CandidateInterviewInner() {
     setIsUserTyping(false); // Clear typing lock immediately
     console.log('[SCROLL][FORCE_ONCE_ARMED]', { 
       trigger: 'BOTTOM_BAR_SUBMIT',
-      currentItemType: currentItem?.type,
+      currentItem_SType: currentItem_S?.type,
       effectiveItemType
     });
     
     // PART B: Call ensureActiveVisibleAfterRender after submit
     // TDZ-SAFE: Compute fresh flags using available values
     const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
-    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender("BOTTOM_BAR_SUBMIT", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
@@ -17422,24 +17422,24 @@ function CandidateInterviewInner() {
     // V3 SUBMIT INTENT: Capture routing decision BEFORE state updates (prevents mis-route)
     const submitIntent = {
       isV3Submit: v3PromptPhase === 'ANSWER_NEEDED' || 
-                  activeUiItem.kind === 'V3_PROMPT' ||
+                  activeUiItem_S.kind === 'V3_PROMPT' ||
                   (v3PromptIdSOT && v3PromptIdSOT.trim() !== ''),
       promptId: v3PromptIdSOT,
-      loopKey: v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null,
-      categoryId: v3ProbingContext?.categoryId || lastV3PromptSnapshotRef.current?.categoryId,
-      instanceNumber: v3ProbingContext?.instanceNumber || lastV3PromptSnapshotRef.current?.instanceNumber || 1,
-      packId: v3ProbingContext?.packId || lastV3PromptSnapshotRef.current?.packId,
+      loopKey: v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null,
+      categoryId: v3ProbingContext_S?.categoryId || lastV3PromptSnapshotRef.current?.categoryId,
+      instanceNumber: v3ProbingContext_S?.instanceNumber || lastV3PromptSnapshotRef.current?.instanceNumber || 1,
+      packId: v3ProbingContext_S?.packId || lastV3PromptSnapshotRef.current?.packId,
       promptText: v3ActivePromptText || lastV3PromptSnapshotRef.current?.promptText,
       capturedAt: Date.now()
     };
     
     console.log("[BOTTOM_BAR_SUBMIT][CLICK]", {
-      hasCurrentItem: !!currentItem,
-      currentItemType: currentItem?.type,
-      currentItemId: currentItem?.id,
-      packId: currentItem?.packId,
-      fieldKey: currentItem?.fieldKey,
-      instanceNumber: currentItem?.instanceNumber,
+      hasCurrentItem: !!currentItem_S,
+      currentItem_SType: currentItem_S?.type,
+      currentItem_SId: currentItem_S?.id,
+      packId: currentItem_S?.packId,
+      fieldKey: currentItem_S?.fieldKey,
+      instanceNumber: currentItem_S?.instanceNumber,
       v3ProbingActive,
       inputSnapshot: input?.substring?.(0, 50) || input,
       effectiveItemType
@@ -17450,7 +17450,7 @@ function CandidateInterviewInner() {
       promptId: submitIntent.promptId,
       categoryId: submitIntent.categoryId,
       instanceNumber: submitIntent.instanceNumber,
-      activeUiItemKindAtClick: activeUiItem.kind
+      activeUiItem_SKindAtClick: activeUiItem_S.kind
     });
 
     // V3 SUBMIT PAYLOAD: Store answer before any state changes (survives transitions)
@@ -17493,7 +17493,7 @@ function CandidateInterviewInner() {
     }
 
     // ROUTE A: V3 PACK OPENER (highest priority - must precede V3 probe routing)
-    if (effectiveItemType === 'v3_pack_opener' && currentItem?.type === 'v3_pack_opener') {
+    if (effectiveItemType === 'v3_pack_opener' && currentItem_S?.type === 'v3_pack_opener') {
       const trimmed = (openerDraft ?? "").trim();
       
       if (!trimmed) {
@@ -17503,16 +17503,16 @@ function CandidateInterviewInner() {
       }
       
       console.log('[V3_OPENER][SUBMIT_INTENT]', {
-        packId: currentItem.packId,
-        instanceNumber: currentItem.instanceNumber,
+        packId: currentItem_S.packId,
+        instanceNumber: currentItem_S.instanceNumber,
         inputLen: trimmed.length,
         route: 'V3_PACK_OPENER'
       });
       
       console.log('[BOTTOM_BAR][SUBMIT_DISPATCH]', {
         effectiveItemType: 'v3_pack_opener',
-        packId: currentItem.packId,
-        instanceNumber: currentItem.instanceNumber,
+        packId: currentItem_S.packId,
+        instanceNumber: currentItem_S.instanceNumber,
         inputLen: trimmed.length,
         route: 'V3_PACK_OPENER'
       });
@@ -17551,8 +17551,8 @@ function CandidateInterviewInner() {
 
     // CQ_GUARDRAIL: No duplicate submitIntent allowed beyond this point
     
-    if (!currentItem) {
-      console.warn("[BOTTOM_BAR_SUBMIT] No currentItem – aborting submit");
+    if (!currentItem_S) {
+      console.warn("[BOTTOM_BAR_SUBMIT] No currentItem_S – aborting submit");
       console.log('[BOTTOM_BAR][SEND_BLOCKED]', { blockedReason: 'NO_CURRENT_ITEM' });
       return;
     }
@@ -17563,19 +17563,19 @@ function CandidateInterviewInner() {
       return;
     }
 
-    // V3 OPENER: Use dedicated openerDraft state (strict currentItem.type check)
-    const effectiveValue = currentItem?.type === 'v3_pack_opener' ? openerDraft : input;
+    // V3 OPENER: Use dedicated openerDraft state (strict currentItem_S.type check)
+    const effectiveValue = currentItem_S?.type === 'v3_pack_opener' ? openerDraft : input;
     const trimmed = (effectiveValue ?? "").trim();
     
     // GUARD: Prevent submit if value is prompt text
-    if (currentItem?.type === 'v3_pack_opener') {
-      const promptText = currentItem.openerText || activePromptText || "";
+    if (currentItem_S?.type === 'v3_pack_opener') {
+      const promptText = currentItem_S.openerText || activePromptText || "";
       const valueMatchesPrompt = trimmed === promptText.trim() && trimmed.length > 0;
       
       if (valueMatchesPrompt) {
         console.error('[V3_UI_CONTRACT][SUBMIT_BLOCKED_PROMPT_AS_VALUE]', {
-          packId: currentItem.packId,
-          instanceNumber: currentItem.instanceNumber,
+          packId: currentItem_S.packId,
+          instanceNumber: currentItem_S.instanceNumber,
           reason: 'Cannot submit prompt text as answer - clearing value'
         });
         console.log('[BOTTOM_BAR][SEND_BLOCKED]', { blockedReason: 'PROMPT_AS_VALUE' });
@@ -17585,37 +17585,37 @@ function CandidateInterviewInner() {
     }
     
     if (!trimmed) {
-      console.log("[BOTTOM_BAR_SUBMIT] blocked: empty input", { effectiveItemType, currentItemType: currentItem?.type, openerDraftLen: openerDraft?.length, inputLen: input?.length });
+      console.log("[BOTTOM_BAR_SUBMIT] blocked: empty input", { effectiveItemType, currentItem_SType: currentItem_S?.type, openerDraftLen: openerDraft?.length, inputLen: input?.length });
       console.log('[BOTTOM_BAR][SEND_BLOCKED]', { 
         blockedReason: 'EMPTY_INPUT',
         openerDraftLen: openerDraft?.length || 0,
         inputLen: input?.length || 0,
-        usedOpenerDraft: currentItem?.type === 'v3_pack_opener'
+        usedOpenerDraft: currentItem_S?.type === 'v3_pack_opener'
       });
       return;
     }
 
     console.log("[BOTTOM_BAR_SUBMIT] ========== CALLING handleAnswer ==========");
     console.log("[BOTTOM_BAR_SUBMIT]", {
-      currentItemType: currentItem.type,
-      currentItemId: currentItem.id,
-      packId: currentItem.packId,
-      fieldKey: currentItem.fieldKey,
-      instanceNumber: currentItem.instanceNumber,
+      currentItem_SType: currentItem_S.type,
+      currentItem_SId: currentItem_S.id,
+      packId: currentItem_S.packId,
+      fieldKey: currentItem_S.fieldKey,
+      instanceNumber: currentItem_S.instanceNumber,
       answer: trimmed.substring(0, 60),
-      isV2PackField: currentItem.type === 'v2_pack_field',
+      isV2PackField: currentItem_S.type === 'v2_pack_field',
       usingOpenerDraft: effectiveItemType === 'v3_pack_opener'
     });
     
     // DIAGNOSTIC: Dispatch confirmation
     console.log('[BOTTOM_BAR][SUBMIT_DISPATCH]', {
       effectiveItemType,
-      packId: currentItem?.packId,
-      instanceNumber: currentItem?.instanceNumber,
+      packId: currentItem_S?.packId,
+      instanceNumber: currentItem_S?.instanceNumber,
       inputLen: trimmed.length
     });
 
-    // Call handleAnswer with the answer text - handleAnswer reads currentItem from state
+    // Call handleAnswer with the answer text - handleAnswer reads currentItem_S from state
     await handleAnswer(trimmed);
     
     // ============================================================================
@@ -17629,12 +17629,12 @@ function CandidateInterviewInner() {
     });
 
     // UX: Clear draft on successful submit
-    if (currentItem?.type === 'v3_pack_opener') {
+    if (currentItem_S?.type === 'v3_pack_opener') {
       setOpenerDraft("");
       openerDraftChangeCountRef.current = 0;
       console.log('[V3_OPENER][DRAFT_CLEARED_AFTER_SUBMIT]', {
-        packId: currentItem?.packId,
-        instanceNumber: currentItem?.instanceNumber
+        packId: currentItem_S?.packId,
+        instanceNumber: currentItem_S?.instanceNumber
       });
     } else {
       clearDraft();
@@ -17646,10 +17646,10 @@ function CandidateInterviewInner() {
   const handleInputKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       console.log("[BOTTOM_BAR_INPUT][ENTER_KEY]", {
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-        packId: currentItem?.packId,
-        fieldKey: currentItem?.fieldKey,
+        currentItem_SType: currentItem_S?.type,
+        currentItem_SId: currentItem_S?.id,
+        packId: currentItem_S?.packId,
+        fieldKey: currentItem_S?.fieldKey,
       });
 
       e.preventDefault();
@@ -17659,18 +17659,18 @@ function CandidateInterviewInner() {
   };
 
   // Submit disabled logic - allows question, v2_pack_field, followup
-  // IMPORTANT: Do NOT gate by currentItemType === 'question' - we want v2_pack_field to work too
+  // IMPORTANT: Do NOT gate by currentItem_SType === 'question' - we want v2_pack_field to work too
   // DIAGNOSTIC: Log button disabled state for v3_pack_opener
   // FALLBACK OVERRIDE: Enable submit for required anchor fallback
   const isBottomBarSubmitDisabled = requiredAnchorFallbackActive 
     ? (!(input ?? "").trim())
-    : (!currentItem || isCommitting || !(input ?? "").trim());
+    : (!currentItem_S || isCommitting || !(input ?? "").trim());
   
-  if (effectiveItemType === 'v3_pack_opener' && currentItem) {
+  if (effectiveItemType === 'v3_pack_opener' && currentItem_S) {
     const openerInputTrimmed = (openerDraft || "").trim();
     console.log('[V3_OPENER][BUTTON_STATE]', {
-      packId: currentItem?.packId,
-      instanceNumber: currentItem?.instanceNumber,
+      packId: currentItem_S?.packId,
+      instanceNumber: currentItem_S?.instanceNumber,
       openerDraftLen: openerDraft?.length || 0,
       openerTrimmedLen: openerInputTrimmed.length,
       v3OpenerSubmitDisabled,
@@ -17691,7 +17691,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
   // ============================================================================
-  const finalTranscriptList = cqTdzIsolate ? [] : useMemo(() => {
+  const finalTranscriptList_S = cqTdzIsolate ? [] : useMemo(() => {
     cqTdzMark('INSIDE_FINAL_TRANSCRIPT_LIST_MEMO_START');
     
     // TDZ ISOLATE: This memo is bypassed when tdz_isolate=1
@@ -17721,7 +17721,7 @@ function CandidateInterviewInner() {
     
     if (ENFORCE_TRANSCRIPT_CONTRACT) {
       const ephemeralSources = renderableTranscriptStream.filter(e => 
-        e.__activeCard === true || 
+        e.__activeCard_S === true || 
         e.kind === 'v3_probe_q' || 
         e.kind === 'v3_probe_a' ||
         e.source === 'ephemeral' ||
@@ -17759,7 +17759,7 @@ function CandidateInterviewInner() {
           
           if (isV3ProbeQ || isV3ProbeA) {
             // BUG DETECTION: Check if this entry would be filtered as ephemeral
-            const markedEphemeral = e.__activeCard === true || 
+            const markedEphemeral = e.__activeCard_S === true || 
               e.kind === 'v3_probe_q' || 
               e.kind === 'v3_probe_a' ||
               e.source === 'ephemeral' ||
@@ -17794,9 +17794,9 @@ function CandidateInterviewInner() {
           
           if (isOpenerCard) {
             // Check if this is the CURRENTLY ACTIVE opener (should be suppressed)
-            const isCurrentlyActiveOpener = activeUiItem?.kind === "V3_OPENER" &&
-                                           activeCard?.stableKey &&
-                                           (e.stableKey || e.id) === activeCard.stableKey;
+            const isCurrentlyActiveOpener = activeUiItem_S?.kind === "V3_OPENER" &&
+                                           activeCard_S?.stableKey &&
+                                           (e.stableKey || e.id) === activeCard_S.stableKey;
             
             if (isCurrentlyActiveOpener) {
               // Will be removed by active opener filter - allow ephemeral filter to pass
@@ -17814,14 +17814,14 @@ function CandidateInterviewInner() {
               stableKey: e.stableKey || e.id,
               packId: e.meta?.packId || e.packId,
               instanceNumber: e.meta?.instanceNumber || e.instanceNumber,
-              activeUiItemKind: activeUiItem?.kind,
+              activeUiItem_SKind: activeUiItem_S?.kind,
               reason: 'opener is canonical transcript history - preserving'
             });
             return true; // ALWAYS keep non-active opener transcript entries
           }
           
           // CRITICAL: MI_GATE active cards MUST render (exception to ephemeral rule)
-          const isMiGateActiveCard = e.__activeCard === true && e.kind === 'multi_instance_gate';
+          const isMiGateActiveCard = e.__activeCard_S === true && e.kind === 'multi_instance_gate';
           
           if (isMiGateActiveCard) {
             console.log('[MI_GATE][EPHEMERAL_EXCEPTION]', {
@@ -17858,18 +17858,18 @@ function CandidateInterviewInner() {
           // EPHEMERAL FILTER GUARD: Keep required anchor fallback prompts while active
           const isFallbackPrompt = e.kind === 'required_anchor_fallback_prompt';
           
-          if (isFallbackPrompt && activeUiItem?.kind === 'REQUIRED_ANCHOR_FALLBACK') {
+          if (isFallbackPrompt && activeUiItem_S?.kind === 'REQUIRED_ANCHOR_FALLBACK') {
             console.log('[CQ_TRANSCRIPT][EPHEMERAL_FILTER_GUARD_KEEP_FALLBACK]', {
               stableKey,
               kind: e.kind,
-              activeUiItemKind: 'REQUIRED_ANCHOR_FALLBACK',
+              activeUiItem_SKind: 'REQUIRED_ANCHOR_FALLBACK',
               reason: 'Fallback prompt must remain visible during active fallback'
             });
             return true; // KEEP - do not filter out
           }
           
           // Filter out ephemeral-only items (V3 prompts, etc.)
-          const isEphemeral = e.__activeCard === true || 
+          const isEphemeral = e.__activeCard_S === true || 
             e.kind === 'v3_probe_q' || 
             e.kind === 'v3_probe_a' ||
             e.kind === 'required_anchor_fallback_prompt' || // Fallback prompts are ephemeral when NOT active
@@ -17916,10 +17916,10 @@ function CandidateInterviewInner() {
     // A) V3_PROBE_QA_ATTACH DISABLED: Do NOT extract or attach V3 probe Q/A when MI_GATE active
     const v3ProbeQAForGateDeterministic = [];
     
-    if (activeUiItem?.kind === "MI_GATE" && currentItem?.packId && currentItem?.instanceNumber) {
+    if (activeUiItem_S?.kind === "MI_GATE" && currentItem_S?.packId && currentItem_S?.instanceNumber) {
       console.log('[MI_GATE][V3_PROBE_QA_ATTACH_DISABLED]', {
-        packId: currentItem.packId,
-        instanceNumber: currentItem.instanceNumber,
+        packId: currentItem_S.packId,
+        instanceNumber: currentItem_S.instanceNumber,
         reason: 'MI gate renders standalone - transcript is canonical source for V3 history',
         v3ProbeQAForGateDeterministic: []
       });
@@ -18025,12 +18025,12 @@ function CandidateInterviewInner() {
     // V3 UI CONTRACT: Conditional probe filtering based on active UI state
     // Rule: Suppress probes from transcript ONLY while a probe is actively being asked
     // Once UI moves on (MI_GATE, next question, etc.), probes render in history normally
-    const suppressProbesInTranscript = activeUiItem?.kind === "V3_PROMPT" || 
-                                      activeUiItem?.kind === "V3_WAITING" ||
+    const suppressProbesInTranscript = activeUiItem_S?.kind === "V3_PROMPT" || 
+                                      activeUiItem_S?.kind === "V3_WAITING" ||
                                       (v3ProbingActive && hasActiveV3Prompt);
     
     console.log('[V3_UI_CONTRACT][PROBE_TRANSCRIPT_POLICY]', {
-      activeUiItemKind: activeUiItem?.kind,
+      activeUiItem_SKind: activeUiItem_S?.kind,
       v3ProbingActive,
       hasActiveV3Prompt,
       suppressProbesInTranscript,
@@ -18061,8 +18061,8 @@ function CandidateInterviewInner() {
         console.log('[V3_UI_CONTRACT][FILTERED_PROBE_FROM_TRANSCRIPT]', {
           mt,
           stableKey,
-          activeUiItemKind: activeUiItem?.kind,
-          source: entry.__activeCard ? 'ephemeral' : 'dbTranscript',
+          activeUiItem_SKind: activeUiItem_S?.kind,
+          source: entry.__activeCard_S ? 'ephemeral' : 'dbTranscript',
           reason: 'Probe active - rendering in prompt lane only'
         });
         return false; // BLOCK while active
@@ -18073,7 +18073,7 @@ function CandidateInterviewInner() {
         console.log('[V3_UI_CONTRACT][PROBE_ALLOWED_IN_HISTORY]', {
           mt,
           stableKey,
-          activeUiItemKind: activeUiItem?.kind,
+          activeUiItem_SKind: activeUiItem_S?.kind,
           reason: 'No active probe - allowing in transcript history'
         });
         return true; // ALLOW in history
@@ -18125,7 +18125,7 @@ function CandidateInterviewInner() {
       if ((hasV3ProbeQPrefix || hasV3ProbeAPrefix) && suppressProbesInTranscript) {
         console.log('[V3_UI_CONTRACT][FILTERED_PROBE_BY_PREFIX]', {
           stableKey,
-          activeUiItemKind: activeUiItem?.kind,
+          activeUiItem_SKind: activeUiItem_S?.kind,
           source: 'stableKey_prefix_check',
           reason: 'Probe active - filtering by prefix'
         });
@@ -18135,7 +18135,7 @@ function CandidateInterviewInner() {
       if ((hasV3ProbeQPrefix || hasV3ProbeAPrefix) && !suppressProbesInTranscript) {
         console.log('[V3_UI_CONTRACT][PROBE_PREFIX_ALLOWED_IN_HISTORY]', {
           stableKey,
-          activeUiItemKind: activeUiItem?.kind,
+          activeUiItem_SKind: activeUiItem_S?.kind,
           reason: 'No active probe - allowing in history'
         });
         return true; // ALLOW when not active
@@ -18178,11 +18178,11 @@ function CandidateInterviewInner() {
     const synthesizedQuestions = [];
     for (const [questionId, answers] of questionIdToAnswers.entries()) {
       if (!questionIdToQuestionShown.has(questionId)) {
-        // Find question text from engine or use placeholder
-        const questionText = engine?.QById?.[questionId]?.question_text || "(Question)";
-        const questionNumber = engine?.QById?.[questionId]?.question_number || '';
-        const sectionId = engine?.QById?.[questionId]?.section_id;
-        const sectionEntity = engine?.Sections?.find(s => s.id === sectionId);
+        // Find question text from engine_S or use placeholder
+        const questionText = engine_S?.QById?.[questionId]?.question_text || "(Question)";
+        const questionNumber = engine_S?.QById?.[questionId]?.question_number || '';
+        const sectionId = engine_S?.QById?.[questionId]?.section_id;
+        const sectionEntity = engine_S?.Sections?.find(s => s.id === sectionId);
         const sectionName = sectionEntity?.section_name || '';
         
         const synthQuestion = {
@@ -18208,7 +18208,7 @@ function CandidateInterviewInner() {
         
         console.log('[TRANSCRIPT_INTEGRITY][SYNTH_QUESTION_SHOWN]', {
           questionId,
-          questionCode: engine?.QById?.[questionId]?.question_id || questionId,
+          questionCode: engine_S?.QById?.[questionId]?.question_id || questionId,
           inserted: true,
           reason: 'Answer exists but QUESTION_SHOWN missing from render list'
         });
@@ -18542,7 +18542,7 @@ function CandidateInterviewInner() {
     let repairInjectedCount = 0;
     
     // Build map of required-anchor Q/A from DB transcript
-    for (const entry of transcriptSOT) {
+    for (const entry of transcriptSOT_S) {
       const stableKey = entry.stableKey || entry.id || '';
       
       if (stableKey.startsWith('required-anchor:q:')) {
@@ -18929,10 +18929,10 @@ function CandidateInterviewInner() {
     }
     
     // TRUTH TABLE AUDIT: V3 probe answer visibility (only when relevant)
-    if (activeUiItem?.kind === "MI_GATE" || dbV3ProbeAnswers.length > 0) {
+    if (activeUiItem_S?.kind === "MI_GATE" || dbV3ProbeAnswers.length > 0) {
       // Get most recent V3 probe answer for current pack/instance
-      const packId = currentItem?.packId || v3ProbingContext?.packId;
-      const instanceNumber = currentItem?.instanceNumber || v3ProbingContext?.instanceNumber || 1;
+      const packId = currentItem_S?.packId || v3ProbingContext_S?.packId;
+      const instanceNumber = currentItem_S?.instanceNumber || v3ProbingContext_S?.instanceNumber || 1;
       
       const recentProbeAnswers = dbV3ProbeAnswers.filter(e => 
         e.meta?.packId === packId && e.meta?.instanceNumber === instanceNumber
@@ -18958,7 +18958,7 @@ function CandidateInterviewInner() {
             existsInDb,
             existsInDeduped,
             existsInFinal,
-            activeUiItemKind: activeUiItem?.kind,
+            activeUiItem_SKind: activeUiItem_S?.kind,
             packId,
             instanceNumber,
             filteredStableKeysRemoved: stableKeysRemovedSafe.slice(0, 5)
@@ -18979,8 +18979,8 @@ function CandidateInterviewInner() {
         probeQuestionCount
       });
     
-      const packId = currentItem?.packId || v3ProbingContext?.packId;
-      const instanceNumber = currentItem?.instanceNumber || v3ProbingContext?.instanceNumber || 1;
+      const packId = currentItem_S?.packId || v3ProbingContext_S?.packId;
+      const instanceNumber = currentItem_S?.instanceNumber || v3ProbingContext_S?.instanceNumber || 1;
       const openerAnswerStableKeyForLog = `v3-opener-a:${sessionId}:${packId}:${instanceNumber}`;
       
       const hasOpenerAnswerByStableKey = transcriptToRenderDeduped.some(e => 
@@ -19018,12 +19018,12 @@ function CandidateInterviewInner() {
       // V3 packs use conversational probing (V3ProbingLoop) - no deterministic UI cards
 
       // Detect active V3 pack context
-      const activePackId = currentItem?.packId || v3ProbingContext?.packId || activeUiItem?.packId || null;
+      const activePackId = currentItem_S?.packId || v3ProbingContext_S?.packId || activeUiItem_S?.packId || null;
       const packConfig = activePackId ? FOLLOWUP_PACK_CONFIGS?.[activePackId] : null;
-      const isActivePackV3 = Boolean(packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3');
-      const isV3UiActive = (activeUiItem?.kind === 'V3_OPENER' || 
-                           activeUiItem?.kind === 'V3_PROBING' || 
-                           currentItem?.type === 'v3_pack_opener' ||
+      const isActivePackV3 = Boolean(packConfig?.isV3Pack === true || packConfig?.engine_SVersion === 'v3');
+      const isV3UiActive = (activeUiItem_S?.kind === 'V3_OPENER' || 
+                           activeUiItem_S?.kind === 'V3_PROBING' || 
+                           currentItem_S?.type === 'v3_pack_opener' ||
                            v3ProbingActive);
 
       // Only apply suppression when BOTH are true
@@ -19140,21 +19140,21 @@ function CandidateInterviewInner() {
     let transcriptWithActiveOpenerRemoved = transcriptToRenderDeduped;
     
     // CONDITIONAL: Only run when V3_OPENER is actually active (not during V3_PROMPT or other states)
-    const shouldSuppressActiveOpener = activeUiItem?.kind === "V3_OPENER" && 
-                                       activeCard?.stableKey && 
+    const shouldSuppressActiveOpener = activeUiItem_S?.kind === "V3_OPENER" && 
+                                       activeCard_S?.stableKey && 
                                        screenMode === "QUESTION";
     
     console.log('[V3_UI_CONTRACT][ACTIVE_OPENER_DUPLICATE_FILTER_SOT]', {
-      activeUiItemKind: activeUiItem?.kind,
-      activeStableKey: activeCard?.stableKey || null,
+      activeUiItem_SKind: activeUiItem_S?.kind,
+      activeStableKey: activeCard_S?.stableKey || null,
       didRun: shouldSuppressActiveOpener,
       removedCount: 0 // Will be updated below
     });
     
     if (shouldSuppressActiveOpener) {
-      const activeOpenerStableKey = activeCard.stableKey;
-      const activeOpenerPackId = activeCard.packId;
-      const activeOpenerInstanceNumber = activeCard.instanceNumber;
+      const activeOpenerStableKey = activeCard_S.stableKey;
+      const activeOpenerPackId = activeCard_S.packId;
+      const activeOpenerInstanceNumber = activeCard_S.instanceNumber;
       const activeV3OpenerStableKey = `v3-opener:${activeOpenerPackId}:${activeOpenerInstanceNumber}`;
       const activeV3OpenerFollowupShownKey = `followup-card:${activeOpenerPackId}:opener:${activeOpenerInstanceNumber}`;
       const beforeLen = transcriptWithActiveOpenerRemoved.length;
@@ -19179,7 +19179,7 @@ function CandidateInterviewInner() {
             messageType: e.messageType || e.type,
             matchedBy: matchesByKey ? 'stableKey' : 'metadata',
             screenMode,
-            activeUiItemKind: activeUiItem.kind
+            activeUiItem_SKind: activeUiItem_S.kind
           });
         }
         
@@ -19197,7 +19197,7 @@ function CandidateInterviewInner() {
       }
       
       console.log('[V3_UI_CONTRACT][ACTIVE_OPENER_DUPLICATE_FILTER_SOT]', {
-        activeUiItemKind: activeUiItem?.kind,
+        activeUiItem_SKind: activeUiItem_S?.kind,
         activeStableKey: activeOpenerStableKey,
         didRun: true,
         removedCount
@@ -19207,15 +19207,15 @@ function CandidateInterviewInner() {
         console.log('[V3_UI_CONTRACT][ACTIVE_OPENER_DUPLICATE_SUMMARY]', {
           activeStableKey: activeOpenerStableKey,
           removedCount,
-          packId: activeCard.packId,
-          instanceNumber: activeCard.instanceNumber,
+          packId: activeCard_S.packId,
+          instanceNumber: activeCard_S.instanceNumber,
           reason: 'Active opener renders in active lane only - transcript copy suppressed'
         });
       }
     } else {
       // Not active opener mode - all opener transcript entries should be preserved
       console.log('[V3_UI_CONTRACT][ACTIVE_OPENER_FILTER_SKIPPED]', {
-        activeUiItemKind: activeUiItem?.kind,
+        activeUiItem_SKind: activeUiItem_S?.kind,
         reason: shouldSuppressActiveOpener ? 'conditions_not_met' : 'not_v3_opener_mode',
         action: 'Preserving all opener transcript entries'
       });
@@ -19231,8 +19231,8 @@ function CandidateInterviewInner() {
     );
     
     if (completedOpeners.length > 0) {
-      const activePackId = currentItem?.packId;
-      const activeInstanceNumber = currentItem?.instanceNumber;
+      const activePackId = currentItem_S?.packId;
+      const activeInstanceNumber = currentItem_S?.instanceNumber;
       const missingInstanceNumbers = [];
       
       for (const opener of completedOpeners) {
@@ -19241,7 +19241,7 @@ function CandidateInterviewInner() {
         const openerStableKey = opener.stableKey || opener.id;
         
         // Skip currently active opener instance (expected to be missing from transcript)
-        const isCurrentlyActive = activeUiItem?.kind === "V3_OPENER" &&
+        const isCurrentlyActive = activeUiItem_S?.kind === "V3_OPENER" &&
                                   openerPackId === activePackId &&
                                   openerInstanceNumber === activeInstanceNumber;
         
@@ -19263,7 +19263,7 @@ function CandidateInterviewInner() {
             packId: openerPackId,
             instanceNumber: openerInstanceNumber,
             stableKey: openerStableKey,
-            activeUiItemKind: activeUiItem?.kind,
+            activeUiItem_SKind: activeUiItem_S?.kind,
             activeInstanceNumber,
             reason: 'Completed opener not in transcript history - regression detected'
           });
@@ -19274,7 +19274,7 @@ function CandidateInterviewInner() {
         console.error('[V3_UI_CONTRACT][OPENER_MISSING_SUMMARY]', {
           missingCount: missingInstanceNumbers.length,
           missingInstanceNumbers,
-          activeUiItemKind: activeUiItem?.kind,
+          activeUiItem_SKind: activeUiItem_S?.kind,
           activePackId,
           activeInstanceNumber
         });
@@ -19285,10 +19285,10 @@ function CandidateInterviewInner() {
     // This prevents duplicate rendering (transcript + active lane)
     let transcriptWithActiveMiGateRemoved = transcriptToRenderDeduped;
     
-    if (activeUiItem?.kind === "MI_GATE" && screenMode === "QUESTION") {
-      const activeMiGateStableKey = activeCard?.stableKey || 
-                                    (currentItem?.packId && currentItem?.instanceNumber 
-                                      ? `mi-gate:${currentItem.packId}:${currentItem.instanceNumber}:q`
+    if (activeUiItem_S?.kind === "MI_GATE" && screenMode === "QUESTION") {
+      const activeMiGateStableKey = activeCard_S?.stableKey || 
+                                    (currentItem_S?.packId && currentItem_S?.instanceNumber 
+                                      ? `mi-gate:${currentItem_S.packId}:${currentItem_S.instanceNumber}:q`
                                       : null);
       
       if (activeMiGateStableKey) {
@@ -19303,8 +19303,8 @@ function CandidateInterviewInner() {
           const baseKeyMatch = entryStableKey && 
                               activeMiGateStableKey && 
                               entryStableKey.startsWith(activeMiGateStableKey.replace(':q', ''));
-          const packInstanceMatch = e.meta?.packId === currentItem?.packId && 
-                                   e.meta?.instanceNumber === currentItem?.instanceNumber &&
+          const packInstanceMatch = e.meta?.packId === currentItem_S?.packId && 
+                                   e.meta?.instanceNumber === currentItem_S?.instanceNumber &&
                                    (e.messageType === 'MULTI_INSTANCE_GATE_SHOWN' || e.type === 'MULTI_INSTANCE_GATE_SHOWN');
           
           const matches = exactMatch || baseKeyMatch || packInstanceMatch;
@@ -19317,7 +19317,7 @@ function CandidateInterviewInner() {
               matchType: exactMatch ? 'exact' : baseKeyMatch ? 'baseKey' : 'packInstance',
               messageType: e.messageType || e.type,
               screenMode,
-              activeUiItemKind: activeUiItem.kind
+              activeUiItem_SKind: activeUiItem_S.kind
             });
           }
           
@@ -19330,8 +19330,8 @@ function CandidateInterviewInner() {
             activeStableKey: activeMiGateStableKey,
             removedCount,
             removedKeysSample: removedKeys.slice(0, 3),
-            packId: currentItem?.packId,
-            instanceNumber: currentItem?.instanceNumber,
+            packId: currentItem_S?.packId,
+            instanceNumber: currentItem_S?.instanceNumber,
             reason: 'Active MI gate renders in active lane only - transcript copy suppressed'
           });
         }
@@ -19364,11 +19364,11 @@ function CandidateInterviewInner() {
       };
       
       // GATING: Skip canonical insertion during active opener state (active lane owns it)
-      const isActiveOpenerState = activeUiItem?.kind === "V3_OPENER";
+      const isActiveOpenerState = activeUiItem_S?.kind === "V3_OPENER";
       
       if (isActiveOpenerState) {
         console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_SKIPPED_ACTIVE]', {
-          activeUiItemKind: 'V3_OPENER',
+          activeUiItem_SKind: 'V3_OPENER',
           reason: 'active opener owned by active lane - skipping insertion logic',
           canonicalOpenersCount: canonicalOpenersFromDb.length
         });
@@ -19414,18 +19414,18 @@ function CandidateInterviewInner() {
         // Skip rest of merge logic - continue to next filter
       } else {
         // NOT active opener state - run full canonical merge logic
-        const mergeMode = activeUiItem?.kind === 'V3_PROMPT' ? 'V3_PROMPT_HISTORY' : 'HISTORY_DISPLAY';
+        const mergeMode = activeUiItem_S?.kind === 'V3_PROMPT' ? 'V3_PROMPT_HISTORY' : 'HISTORY_DISPLAY';
         
         console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_MODE]', {
           mode: mergeMode,
           willInsert: true,
-          activeUiItemKind: activeUiItem?.kind,
+          activeUiItem_SKind: activeUiItem_S?.kind,
           canonicalOpenersCount: canonicalOpenersFromDb.length
         });
         
         console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_START]', {
           canonicalOpenersCount: canonicalOpenersFromDb.length,
-          activeUiItemKind: activeUiItem?.kind,
+          activeUiItem_SKind: activeUiItem_S?.kind,
           transcriptLenBefore: transcriptToRenderDeduped.length
         });
         
@@ -19478,8 +19478,8 @@ function CandidateInterviewInner() {
           const openerInstanceNumber = opener.meta?.instanceNumber || opener.instanceNumber;
           
           // Check if this is the currently active opener
-          const isCurrentlyActive = activeUiItem?.kind === "V3_OPENER" &&
-                                    activeCard?.stableKey === openerKey;
+          const isCurrentlyActive = activeUiItem_S?.kind === "V3_OPENER" &&
+                                    activeCard_S?.stableKey === openerKey;
           
           if (isCurrentlyActive) {
             console.log('[V3_UI_CONTRACT][OPENER_SKIP_CURRENTLY_ACTIVE]', {
@@ -19619,8 +19619,8 @@ function CandidateInterviewInner() {
           const openerPackId = opener.meta?.packId || opener.packId;
           const openerInstanceNumber = opener.meta?.instanceNumber || opener.instanceNumber;
           
-          const isCurrentlyActive = activeUiItem?.kind === "V3_OPENER" &&
-                                    activeCard?.stableKey === openerKey;
+          const isCurrentlyActive = activeUiItem_S?.kind === "V3_OPENER" &&
+                                    activeCard_S?.stableKey === openerKey;
           if (isCurrentlyActive) continue;
           
           if (!finalOpenerKeys.has(openerKey)) {
@@ -19640,7 +19640,7 @@ function CandidateInterviewInner() {
           console.error('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_FAIL]', {
             missingCount: stillMissing.length,
             missingKeysSample: stillMissing.slice(0, 3),
-            activeUiItemKind: activeUiItem?.kind,
+            activeUiItem_SKind: activeUiItem_S?.kind,
             reason: 'Canonical openers missing after force-merge - logic error'
           });
           
@@ -19649,7 +19649,7 @@ function CandidateInterviewInner() {
         } else {
           console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_OK]', {
             count: canonicalOpenersFromDb.length,
-            activeUiItemKind: activeUiItem?.kind,
+            activeUiItem_SKind: activeUiItem_S?.kind,
             insertedCount: openersToInsert.length,
             duplicateCount: duplicateKeys.length,
             reason: duplicateKeys.length === 0 ? 'All non-active openers present, no duplicates' : 'Openers present but duplicates detected'
@@ -19688,7 +19688,7 @@ function CandidateInterviewInner() {
               suppressedQuestionCode,
               reason: 'Question answered - keeping in transcript history',
               v3ProbingActive,
-              loopKey: v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null
+              loopKey: v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null
             });
             return true;
           }
@@ -19700,7 +19700,7 @@ function CandidateInterviewInner() {
             v3ProbingActive,
             v3UiHistoryLen,
             hasVisibleV3PromptCard,
-            loopKey: v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null
+            loopKey: v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null
           });
           
           return false;
@@ -19709,12 +19709,12 @@ function CandidateInterviewInner() {
     
     // PART A: FORCE INSERT - Ensure MI gate exists when active (before reorder)
     let listWithGate = finalList;
-    const currentGatePackId = currentItem?.packId;
-    const currentGateInstanceNumber = currentItem?.instanceNumber;
+    const currentGatePackId = currentItem_S?.packId;
+    const currentGateInstanceNumber = currentItem_S?.instanceNumber;
     
-    // TASK 3: Enforce gate when activeUiItem.kind is MI_GATE (regardless of other flags)
-    const isGateActiveUiKind = activeUiItem?.kind === "MI_GATE" || 
-                                activeCard?.kind === "multi_instance_gate";
+    // TASK 3: Enforce gate when activeUiItem_S.kind is MI_GATE (regardless of other flags)
+    const isGateActiveUiKind = activeUiItem_S?.kind === "MI_GATE" || 
+                                activeCard_S?.kind === "multi_instance_gate";
     const shouldEnforceMiGate = isGateActiveUiKind && 
                                 currentGatePackId && 
                                 currentGateInstanceNumber !== undefined;
@@ -19731,8 +19731,8 @@ function CandidateInterviewInner() {
         const gateStableKey = `mi-gate:${currentGatePackId}:${currentGateInstanceNumber}:q`;
         
         // Populate title/label from active item metadata (deterministic, no hardcoded text)
-        const gateTitle = currentItem?.questionText || 
-                         currentItem?.text || 
+        const gateTitle = currentItem_S?.questionText || 
+                         currentItem_S?.text || 
                          `Instance ${currentGateInstanceNumber}`;
         
         const reconstructedGate = {
@@ -19744,7 +19744,7 @@ function CandidateInterviewInner() {
           instanceNumber: currentGateInstanceNumber,
           text: gateTitle, // Required by renderer
           title: gateTitle, // Required by some card variants
-          __activeCard: true,
+          __activeCard_S: true,
           meta: {
             packId: currentGatePackId,
             instanceNumber: currentGateInstanceNumber
@@ -19770,7 +19770,7 @@ function CandidateInterviewInner() {
             list: listWithGate,
             packId: currentGatePackId,
             instanceNumber: currentGateInstanceNumber,
-            activeItemId: currentItem?.id
+            activeItemId: currentItem_S?.id
           });
         });
       }
@@ -19833,7 +19833,7 @@ function CandidateInterviewInner() {
               kind: e.kind || e.messageType || e.type || 'unknown',
               stableKey: e.stableKey || null,
               itemId: e.id || null,
-              isActiveCard: e.__activeCard || false,
+              isActiveCard: e.__activeCard_S || false,
               isV3Related: isV3Item(e)
             })),
             reason: 'Items found after gate post-reorder - applying corrective fix'
@@ -19845,7 +19845,7 @@ function CandidateInterviewInner() {
             list: finalListWithGateOrdered,
             packId: currentGatePackId,
             instanceNumber: currentGateInstanceNumber,
-            activeItemId: currentItem?.id
+            activeItemId: currentItem_S?.id
           });
         });
         
@@ -19948,11 +19948,11 @@ function CandidateInterviewInner() {
     return renderedItems;
   }, cqTdzIsolate ? [] : [
     renderableTranscriptStream,
-    activeUiItem,
-    currentItem,
+    activeUiItem_S,
+    currentItem_S,
     v3ProbingActive,
     v3HasVisiblePromptCard,
-    v3ProbingContext,
+    v3ProbingContext_S,
     hasActiveV3Prompt,
     v3PromptPhase,
     sessionId,
@@ -20049,20 +20049,20 @@ function CandidateInterviewInner() {
 
   
   
-  cqTdzMark('AFTER_FINAL_TRANSCRIPT_LIST_MEMO', { listLen: finalTranscriptList_S?.length || 0 });
+  cqTdzMark('AFTER_FINAL_TRANSCRIPT_LIST_MEMO', { listLen: finalTranscriptList_S_S?.length || 0 });
   
   // GOLDEN CONTRACT CHECK: Emit deterministic verification bundle (deduped)
   const emitGoldenContractCheck = React.useCallback(() => {
     const payload = {
       sessionId,
-      activeUiItemKind: activeUiItem?.kind,
+      activeUiItem_SKind: activeUiItem_S?.kind,
       bottomBarModeSOT,
       footerClearanceStatus: footerClearanceStatusRef.current,
       openerHistoryStatus: openerMergeStatusRef.current,
-      suppressProbesInTranscript: (activeUiItem?.kind === "V3_PROMPT" || activeUiItem?.kind === "V3_WAITING") && v3ProbingActive,
+      suppressProbesInTranscript: (activeUiItem_S?.kind === "V3_PROMPT" || activeUiItem_S?.kind === "V3_WAITING") && v3ProbingActive,
       lastMeasuredOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
       hasFooterSpacer: typeof window !== 'undefined' && !!historyRef.current?.querySelector('[data-cq-footer-spacer="true"]'),
-      transcriptLen: finalTranscriptList_S.length || 0
+      transcriptLen: finalTranscriptList_S_S.length || 0
     };
     
     // Dedupe: Only emit if payload changed
@@ -20073,20 +20073,20 @@ function CandidateInterviewInner() {
     
     lastGoldenCheckPayloadRef.current = payloadKey;
     console.log('[UI_CONTRACT][GOLDEN_CHECK]', payload);
-  }, [sessionId, activeUiItem, bottomBarModeSOT, v3ProbingActive, finalTranscriptList_S]);
+  }, [sessionId, activeUiItem_S, bottomBarModeSOT, v3ProbingActive, finalTranscriptList_S_S]);
   
   // CONSOLIDATED UI CONTRACT STATUS LOG (Single Source of Truth)
   // Emits once per mode change with all three contract aspects
   React.useEffect(() => {
     const footerStatus = footerClearanceStatusRef.current || 'UNKNOWN';
     const openerStatus = openerMergeStatusRef.current || 'UNKNOWN';
-    const suppressProbes = (activeUiItem?.kind === "V3_PROMPT" || activeUiItem?.kind === "V3_WAITING") && v3ProbingActive;
+    const suppressProbes = (activeUiItem_S?.kind === "V3_PROMPT" || activeUiItem_S?.kind === "V3_WAITING") && v3ProbingActive;
     
     console.log('[UI_CONTRACT][SOT_STATUS]', {
       footerClearance: footerStatus,
       openerHistory: openerStatus,
       probePolicy: suppressProbes ? 'ACTIVE_SUPPRESS' : 'HISTORY_ALLOWED',
-      activeUiItemKind: activeUiItem?.kind,
+      activeUiItem_SKind: activeUiItem_S?.kind,
       bottomBarModeSOT,
       sessionId
     });
@@ -20095,7 +20095,7 @@ function CandidateInterviewInner() {
     if (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO') {
       emitGoldenContractCheck();
     }
-  }, [bottomBarModeSOT, activeUiItem?.kind, v3ProbingActive, sessionId, emitGoldenContractCheck]);
+  }, [bottomBarModeSOT, activeUiItem_S?.kind, v3ProbingActive, sessionId, emitGoldenContractCheck]);
   
   // UI CONTRACT STATUS RESET: Clear status refs on session change
   React.useEffect(() => {
@@ -20107,6 +20107,16 @@ function CandidateInterviewInner() {
       reason: 'New session started - status refs cleared'
     });
   }, [sessionId]);
+
+  // [TDZ_SHIELD_V2] Safe aliases for render-time reads (MUST stay below all hooks)
+  const finalTranscriptList_S_S = Array.isArray(finalTranscriptList_S) ? finalTranscriptList_S : [];
+  const transcriptSOT_S_S = Array.isArray(transcriptSOT_S) ? transcriptSOT_S : [];
+  const v3ProbeDisplayHistory_S_S = Array.isArray(v3ProbeDisplayHistory_S) ? v3ProbeDisplayHistory_S : [];
+  const activeUiItem_S_S = activeUiItem_S && typeof activeUiItem_S === 'object' ? activeUiItem_S : null;
+  const currentItem_S_S = currentItem_S && typeof currentItem_S === 'object' ? currentItem_S : null;
+  const v3ProbingContext_S_S = v3ProbingContext_S && typeof v3ProbingContext_S === 'object' ? v3ProbingContext_S : null;
+  const activeCard_S_S = activeCard_S && typeof activeCard_S === 'object' ? activeCard_S : null;
+  const engine_S_S = engine_S && typeof engine_S === 'object' ? engine_S : null;
 
   cqTdzMark('BEFORE_GUARD_SCREENS_CHECK');
   cqTdzMark('BEFORE_LOADING_GUARD', { shouldShowFullScreenLoader });
@@ -20192,23 +20202,23 @@ function CandidateInterviewInner() {
 
   // UI CONTRACT: 3-row shell enforced - do not reintroduce footer spacers/padding hacks; footer must stay in layout flow.
   
-  cqTdzMark('BEFORE_MAIN_RETURN_EXPR', { screenModeNow: screenMode, shouldShowFullScreenLoader, currentItemType: currentItem?.type, effectiveItemType });
+  cqTdzMark('BEFORE_MAIN_RETURN_EXPR', { screenModeNow: screenMode, shouldShowFullScreenLoader, currentItem_SType: currentItem_S?.type, effectiveItemType });
   
   // LIKELY_OFFENDER_SNAPSHOT: Safe typeof checks for identifiers declared ABOVE this point
   console.log('[TDZ_TRACE][LIKELY_OFFENDER_SNAPSHOT]', {
     keys: {
       screenMode: typeof screenMode,
-      currentItem: typeof currentItem,
+      currentItem_S: typeof currentItem_S,
       effectiveItemType: typeof effectiveItemType,
       bottomBarModeSOT: typeof bottomBarModeSOT,
-      activeUiItem: typeof activeUiItem,
+      activeUiItem_S: typeof activeUiItem_S,
       v3ProbingActive: typeof v3ProbingActive,
       hasActiveV3Prompt: typeof hasActiveV3Prompt,
-      transcriptSOT: typeof transcriptSOT,
-      engine: typeof engine,
+      transcriptSOT_S: typeof transcriptSOT_S,
+      engine_S: typeof engine_S,
       session: typeof session,
-      finalTranscriptList: typeof finalTranscriptList,
-      activeCard: typeof activeCard
+      finalTranscriptList_S: typeof finalTranscriptList_S,
+      activeCard_S: typeof activeCard_S
     }
   });
   
@@ -20299,8 +20309,8 @@ function CandidateInterviewInner() {
             {screenMode === 'WELCOME' &&
               !isLoading &&
               !!session &&
-              !!engine &&
-              finalTranscriptList_S.length === 0 && (
+              !!engine_S &&
+              finalTranscriptList_S_S.length === 0 && (
                 <ContentContainer>
                   {console.log('[WELCOME_RENDER][FALLBACK_USED]', {
                     screenMode,
@@ -20314,18 +20324,18 @@ function CandidateInterviewInner() {
               )}
 
             {screenMode === 'WELCOME' &&
-              finalTranscriptList_S.length > 0 &&
+              finalTranscriptList_S_S.length > 0 &&
               console.log('[WELCOME_RENDER][NORMAL_USED]', {
                 screenMode,
                 isLoading,
-                transcriptLen: finalTranscriptList_S.length,
+                transcriptLen: finalTranscriptList_S_S.length,
               })}
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {/* Active opener suppression: Compute current active opener stableKey */}
             {(() => {
               const activeOpenerStableKeySOT = 
-                (activeUiItem?.kind === "V3_OPENER" && currentItem?.packId)
-                  ? buildV3OpenerStableKey(currentItem.packId, currentItem.instanceNumber || 1)
+                (activeUiItem_S?.kind === "V3_OPENER" && currentItem_S?.packId)
+                  ? buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1)
                   : null;
 
               const renderedV3OpenerKeysSOT = new Set();
@@ -20362,13 +20372,13 @@ function CandidateInterviewInner() {
                 return true;
               };
 
-              const transcriptRenderableList = finalTranscriptList_S.filter(shouldRenderInTranscript);
+              const transcriptRenderableList = finalTranscriptList_S_S.filter(shouldRenderInTranscript);
       
-              const filteredCount = finalTranscriptList_S.length - transcriptRenderableList.length;
+              const filteredCount = finalTranscriptList_S_S.length - transcriptRenderableList.length;
               const forceTranscriptFilterDebug = isV3DebugEnabled || false;
 
               if (filteredCount > 0 || forceTranscriptFilterDebug) {
-                const sampleFiltered = finalTranscriptList_S
+                const sampleFiltered = finalTranscriptList_S_S
                   .filter(entry => !shouldRenderInTranscript(entry));
 
                 const sampleFilteredShapes = sampleFiltered.slice(0, 10).map(entry => ({
@@ -20401,7 +20411,7 @@ function CandidateInterviewInner() {
                   
                 logOnce(`transcript_filter_v2_${sessionId}`, () => {
                   console.log('[UI_CONTRACT][TRANSCRIPT_FILTER]', {
-                    originalCount: finalTranscriptList.length,
+                    originalCount: finalTranscriptList_S.length,
                     renderableCount: transcriptRenderableList.length,
                     filteredCount,
                     forceDebug: forceTranscriptFilterDebug,
@@ -20431,7 +20441,7 @@ function CandidateInterviewInner() {
                   }
 
               // CANONICAL STREAM: Handle both transcript entries AND active cards
-              const isActiveCard = entry.__activeCard === true;
+              const isActiveCard = entry.__activeCard_S === true;
                   
                   // STABLE KEY: Use helper for all entries (prevents React refresh)
                   const entryKey = isActiveCard 
@@ -20444,8 +20454,8 @@ function CandidateInterviewInner() {
                     
                     if (cardKind === "v3_probe_q") {
                       // TASK 2: RENDER-TIME PROVENANCE LOG - Prove what UI actually displays
-                      const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
-                      const promptId = v3ProbingContext?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+                      const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
+                      const promptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
                       
                       // STEP 2: Sanitize prompt card text (main fix)
                       const safeCardPrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_V3_PROBE');
@@ -20492,18 +20502,18 @@ function CandidateInterviewInner() {
                      return null; // Active lane owns rendering
                     } else if (cardKind === "v3_pack_opener") {
                       // Dedupe: Skip duplicate opener cards using CANONICAL opener key (packId + instanceNumber)
-                      if (activeUiItem?.kind === "V3_OPENER") {
+                      if (activeUiItem_S?.kind === "V3_OPENER") {
                         const canonicalOpenerKeySOT = buildV3OpenerStableKey(
-                          activeCard?.packId,
-                          activeCard?.instanceNumber || 1
+                          activeCard_S?.packId,
+                          activeCard_S?.instanceNumber || 1
                         );
 
                         if (renderedV3OpenerKeysSOT.has(canonicalOpenerKeySOT)) {
                           console.log('[V3_OPENER][ACTIVE_LANE_DUP_OPENER_SUPPRESSED]', {
                             entryStableKey: entry?.stableKey,
-                            activeCardStableKey: activeCard?.stableKey,
+                            activeCard_SStableKey: activeCard_S?.stableKey,
                             canonicalOpenerKeySOT,
-                            reason: 'duplicate opener activeCard in stream (canonical dedupe)'
+                            reason: 'duplicate opener activeCard_S in stream (canonical dedupe)'
                           });
                           return null;
                         }
@@ -20547,12 +20557,12 @@ function CandidateInterviewInner() {
                         </div>
                       );
                     } else if (cardKind === "multi_instance_gate") {
-                     // UI CONTRACT ENFORCEMENT: Transcript context = read-only (activeCard is footer-bound)
+                     // UI CONTRACT ENFORCEMENT: Transcript context = read-only (activeCard_S is footer-bound)
                      const renderContext = "ACTIVE_CARD"; // Active cards have no inline actions
 
-                     // UI CONTRACT: MI gate main pane render - extract identity from activeCard entry
-                     const gatePackId = entry.packId || currentItem?.packId;
-                     const gateInstanceNumber = entry.instanceNumber || currentItem?.instanceNumber;
+                     // UI CONTRACT: MI gate main pane render - extract identity from activeCard_S entry
+                     const gatePackId = entry.packId || currentItem_S?.packId;
+                     const gateInstanceNumber = entry.instanceNumber || currentItem_S?.instanceNumber;
 
                      // CANONICAL STABLEKEY: Use builder for consistency with active card creation
                      const gateStableKey = entry.stableKey || buildMiGateQStableKey(gatePackId, gateInstanceNumber);
@@ -20665,8 +20675,8 @@ function CandidateInterviewInner() {
 
                    // ACTIVE CARD DETECTION: Check if this is the current active prompt
                    const isActiveProbeQ = v3ProbingActive && 
-                     v3ProbingContext?.promptId && 
-                     entry.meta?.promptId === v3ProbingContext.promptId;
+                     v3ProbingContext_S?.promptId && 
+                     entry.meta?.promptId === v3ProbingContext_S.promptId;
 
                    const activeClass = isActiveProbeQ 
                      ? 'ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20' 
@@ -20718,7 +20728,7 @@ function CandidateInterviewInner() {
                   // V3 UI-only history cards (ephemeral - for immediate display)
                   if (entry.kind === 'v3_opener_history') {
                     // V3_OPENER PRECEDENCE: Do not render opener history while an opener is active
-                    if (activeUiItem?.kind === "V3_OPENER") {
+                    if (activeUiItem_S?.kind === "V3_OPENER") {
                       console.log('[V3_OPENER][HISTORY_SUPPRESSED_DURING_ACTIVE]', {
                         stableKey: entry.stableKey,
                         instanceNumber: entry.instanceNumber,
@@ -20728,7 +20738,7 @@ function CandidateInterviewInner() {
                     }
                     
                     // V3_OPENER PRECEDENCE: Do not render ANY opener history while an opener is active
-                    if (activeUiItem?.kind === "V3_OPENER") {
+                    if (activeUiItem_S?.kind === "V3_OPENER") {
                       console.log('[V3_OPENER][HISTORY_OPENER_SUPPRESSED_ACTIVE]', {
                         stableKey: entry.stableKey,
                         instanceNumber: entry.instanceNumber,
@@ -20831,22 +20841,22 @@ function CandidateInterviewInner() {
               // ACTIVE ITEM CHECK: Determine if this is the current active question
               const questionDbId = entry.meta?.questionDbId;
               const isActiveBaseQuestion = effectiveItemType === 'question' && 
-                currentItem?.type === 'question' &&
-                currentItem?.id === questionDbId &&
-                activeUiItem?.kind === 'DEFAULT' &&
+                currentItem_S?.type === 'question' &&
+                currentItem_S?.id === questionDbId &&
+                activeUiItem_S?.kind === 'DEFAULT' &&
                 bottomBarModeSOT === 'YES_NO';
 
               // FIX #2: Suppress ACTIVE base questions from transcript (prevent duplicate rendering)
-              // Active YES/NO questions render ONLY via activeCard (prevents duplicate)
+              // Active YES/NO questions render ONLY via activeCard_S (prevents duplicate)
               if (isActiveBaseQuestion) {
                 console.log('[BASE_YESNO][TRANSCRIPT_SUPPRESSED]', {
                   questionId: questionDbId,
                   stableKey: entry.stableKey || entry.id,
-                  activeCardKind: activeCard?.kind,
-                  hasActiveCard: !!activeCard,
+                  activeCard_SKind: activeCard_S?.kind,
+                  hasActiveCard: !!activeCard_S,
                   reason: 'Active base question - suppressing transcript copy to prevent duplicate'
                 });
-                return null; // Skip transcript render - activeCard owns it
+                return null; // Skip transcript render - activeCard_S owns it
               }
               
               // PART B: Deterministic stableKey for all question cards
@@ -20883,8 +20893,8 @@ function CandidateInterviewInner() {
             // User answer (ANSWER from chatTranscriptHelpers)
             if (entry.role === 'user' && getMessageTypeSOT(entry) === 'ANSWER') {
               // DEDUPE: Skip if this answer is being rendered under active base question card
-              const isActiveBaseQuestion = activeCard?.kind === 'base_question_yesno';
-              const activeQuestionId = activeCard?.questionId;
+              const isActiveBaseQuestion = activeCard_S?.kind === 'base_question_yesno';
+              const activeQuestionId = activeCard_S?.questionId;
               const entryQuestionId = entry.questionId || entry.meta?.questionDbId || entry.meta?.questionId;
               const isAnswerForActiveQuestion = isActiveBaseQuestion && 
                                                 activeQuestionId && 
@@ -20964,15 +20974,15 @@ function CandidateInterviewInner() {
 
               // ACTIVE ITEM CHECK: Only the current active gate may render
               const isActiveMiGate = effectiveItemType === 'multi_instance_gate' && 
-                currentItem?.type === 'multi_instance_gate' &&
-                currentItem?.packId === entryPackId &&
-                currentItem?.instanceNumber === entryInstanceNumber;
+                currentItem_S?.type === 'multi_instance_gate' &&
+                currentItem_S?.packId === entryPackId &&
+                currentItem_S?.instanceNumber === entryInstanceNumber;
 
-              // PART B: Suppress current gate during V3 blocking (renders as activeCard instead)
+              // PART B: Suppress current gate during V3 blocking (renders as activeCard_S instead)
               const isCurrentGateButSuppressed = isV3UiBlockingSOT && 
-                                   currentItem?.type === 'multi_instance_gate' &&
-                                   entryPackId === currentItem.packId &&
-                                   entryInstanceNumber === currentItem.instanceNumber;
+                                   currentItem_S?.type === 'multi_instance_gate' &&
+                                   entryPackId === currentItem_S.packId &&
+                                   entryInstanceNumber === currentItem_S.instanceNumber;
 
               if (isCurrentGateButSuppressed) {
                 console.log('[MI_GATE][STREAM_SUPPRESSED]', {
@@ -20983,7 +20993,7 @@ function CandidateInterviewInner() {
                   v3PromptPhase,
                   matchesCurrent: true
                 });
-                return null; // Suppress current gate from transcript (renders as activeCard instead)
+                return null; // Suppress current gate from transcript (renders as activeCard_S instead)
               }
 
               // UI CONTRACT ENFORCEMENT: Transcript context = read-only (no inline actions)
@@ -21001,7 +21011,7 @@ function CandidateInterviewInner() {
               }
 
               // FIX: History gates render from transcript (no separate bubble)
-              // Active gate renders via activeCard with ring highlight
+              // Active gate renders via activeCard_S with ring highlight
               const activeClass = isActiveMiGate 
                 ? 'ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20' 
                 : '';
@@ -21141,7 +21151,7 @@ function CandidateInterviewInner() {
                 action: 'SUPPRESS_PROCESSING_BUBBLE',
                 reason: 'V3 owns UI - no processing indicators in parent transcript',
                 messageType: entry.messageType,
-                currentItemType: currentItem?.type,
+                currentItem_SType: currentItem_S?.type,
                 v3ProbingActive
               });
               return null;
@@ -21252,9 +21262,9 @@ function CandidateInterviewInner() {
                 const safeOpenerTranscript = sanitizeCandidateFacingText(entry.text, 'TRANSCRIPT_V3_OPENER');
                 
                 // ACTIVE CARD DETECTION: Check if this is the current opener
-                const isActiveOpener = currentItem?.type === 'v3_pack_opener' && 
-                  currentItem?.packId === entry.meta?.packId && 
-                  currentItem?.instanceNumber === entry.meta?.instanceNumber;
+                const isActiveOpener = currentItem_S?.type === 'v3_pack_opener' && 
+                  currentItem_S?.packId === entry.meta?.packId && 
+                  currentItem_S?.instanceNumber === entry.meta?.instanceNumber;
                 
                 const activeClass = isActiveOpener 
                   ? 'ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20' 
@@ -21297,10 +21307,10 @@ function CandidateInterviewInner() {
               {/* Required Anchor Question - Deterministic fallback question */}
               {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'REQUIRED_ANCHOR_QUESTION' && (() => {
                 // V3_OPENER PRECEDENCE: Suppress fallback questions when opener is active
-                if (activeUiItem?.kind === "V3_OPENER") {
+                if (activeUiItem_S?.kind === "V3_OPENER") {
                   console.log('[V3_OPENER][FALLBACK_QUESTION_SUPPRESSED]', {
-                    packId: currentItem?.packId,
-                    instanceNumber: currentItem?.instanceNumber,
+                    packId: currentItem_S?.packId,
+                    instanceNumber: currentItem_S?.instanceNumber,
                     anchor: entry.meta?.anchor || entry.anchor,
                     reason: 'Active V3 opener owns prompt lane - fallback suppressed'
                   });
@@ -21362,10 +21372,10 @@ function CandidateInterviewInner() {
               {/* Prompt Lane Context - Non-chat context rows (e.g., fallback questions) */}
               {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'PROMPT_LANE_CONTEXT' && entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK' && (() => {
                 // V3_OPENER PRECEDENCE: Suppress fallback context when opener is active
-                if (activeUiItem?.kind === "V3_OPENER") {
+                if (activeUiItem_S?.kind === "V3_OPENER") {
                   console.log('[V3_OPENER][FALLBACK_CONTEXT_SUPPRESSED]', {
-                    packId: currentItem?.packId,
-                    instanceNumber: currentItem?.instanceNumber,
+                    packId: currentItem_S?.packId,
+                    instanceNumber: currentItem_S?.instanceNumber,
                     anchor: entry.meta?.anchor || entry.anchor,
                     reason: 'Active V3 opener owns prompt lane - fallback context suppressed'
                   });
@@ -21427,9 +21437,9 @@ function CandidateInterviewInner() {
                 // UI CONTRACT: NO inline actions - all actions in bottom bar only
                 const questionId = entry.questionId;
                 const isActiveBaseQuestion = effectiveItemType === 'question' && 
-                  currentItem?.type === 'question' &&
-                  currentItem?.id === questionId &&
-                  activeUiItem?.kind === 'DEFAULT' &&
+                  currentItem_S?.type === 'question' &&
+                  currentItem_S?.id === questionId &&
+                  activeUiItem_S?.kind === 'DEFAULT' &&
                   bottomBarModeSOT === 'YES_NO';
                 
                 // AUDIT: Inline actions should never render (legacy type)
@@ -21477,9 +21487,9 @@ function CandidateInterviewInner() {
                 // UI CONTRACT: NO inline actions for legacy combined entries
                 const questionId = entry.questionId;
                 const isActiveBaseQuestion = effectiveItemType === 'question' && 
-                  currentItem?.type === 'question' &&
-                  currentItem?.id === questionId &&
-                  activeUiItem?.kind === 'DEFAULT' &&
+                  currentItem_S?.type === 'question' &&
+                  currentItem_S?.id === questionId &&
+                  activeUiItem_S?.kind === 'DEFAULT' &&
                   bottomBarModeSOT === 'YES_NO';
                 
                 // AUDIT: Log if this legacy type is somehow active (should not happen)
@@ -21530,12 +21540,12 @@ function CandidateInterviewInner() {
                 
                 // TRUTH TEST: Detect deterministic followup rendering during V3 pack
                 const entryPackId = entry.packId || entry.meta?.packId;
-                const activePackId = currentItem?.packId || v3ProbingContext?.packId || activeUiItem?.packId;
+                const activePackId = currentItem_S?.packId || v3ProbingContext_S?.packId || activeUiItem_S?.packId;
                 const packConfig = activePackId ? FOLLOWUP_PACK_CONFIGS?.[activePackId] : null;
-                const isActivePackV3 = Boolean(packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3');
-                const isV3UiActive = (activeUiItem?.kind === 'V3_OPENER' || 
-                                     activeUiItem?.kind === 'V3_PROBING' || 
-                                     currentItem?.type === 'v3_pack_opener' ||
+                const isActivePackV3 = Boolean(packConfig?.isV3Pack === true || packConfig?.engine_SVersion === 'v3');
+                const isV3UiActive = (activeUiItem_S?.kind === 'V3_OPENER' || 
+                                     activeUiItem_S?.kind === 'V3_PROBING' || 
+                                     currentItem_S?.type === 'v3_pack_opener' ||
                                      v3ProbingActive);
                 
                 if (isActivePackV3 && isV3UiActive && entryPackId === activePackId) {
@@ -21588,12 +21598,12 @@ function CandidateInterviewInner() {
                 
                 // TRUTH TEST: Detect legacy deterministic followup rendering during V3 pack
                 const entryPackId = entry.packId || entry.meta?.packId;
-                const activePackId = currentItem?.packId || v3ProbingContext?.packId || activeUiItem?.packId;
+                const activePackId = currentItem_S?.packId || v3ProbingContext_S?.packId || activeUiItem_S?.packId;
                 const packConfig = activePackId ? FOLLOWUP_PACK_CONFIGS?.[activePackId] : null;
-                const isActivePackV3 = Boolean(packConfig?.isV3Pack === true || packConfig?.engineVersion === 'v3');
-                const isV3UiActive = (activeUiItem?.kind === 'V3_OPENER' || 
-                                     activeUiItem?.kind === 'V3_PROBING' || 
-                                     currentItem?.type === 'v3_pack_opener' ||
+                const isActivePackV3 = Boolean(packConfig?.isV3Pack === true || packConfig?.engine_SVersion === 'v3');
+                const isV3UiActive = (activeUiItem_S?.kind === 'V3_OPENER' || 
+                                     activeUiItem_S?.kind === 'V3_PROBING' || 
+                                     currentItem_S?.type === 'v3_pack_opener' ||
                                      v3ProbingActive);
                 
                 if (isActivePackV3 && isV3UiActive && entryPackId === activePackId) {
@@ -21694,58 +21704,58 @@ function CandidateInterviewInner() {
           })()}
 
           {/* ACTIVE CARD LANE: Render active prompt card at bottom (after transcript) */}
-          {activeCard && (activeUiItem.kind === "REQUIRED_ANCHOR_FALLBACK" || activeUiItem.kind === "V3_OPENER" || activeUiItem.kind === "V3_PROMPT" || activeUiItem.kind === "MI_GATE" || activeCard.kind === "base_question_yesno") && (() => {
+          {activeCard_S && (activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK" || activeUiItem_S.kind === "V3_OPENER" || activeUiItem_S.kind === "V3_PROMPT" || activeUiItem_S.kind === "MI_GATE" || activeCard_S.kind === "base_question_yesno") && (() => {
             console.log('[UI_CONTRACT][ACTIVE_LANE_POSITION_SOT]', {
-              activeUiItemKind: activeUiItem?.kind,
+              activeUiItem_SKind: activeUiItem_S?.kind,
               placedAfterTranscript: true,
-              transcriptLen: finalTranscriptList_S?.length || 0,
-              activeCardKind: activeCard.kind,
-              packId: activeCard.packId,
-              instanceNumber: activeCard.instanceNumber
+              transcriptLen: finalTranscriptList_S_S?.length || 0,
+              activeCard_SKind: activeCard_S.kind,
+              packId: activeCard_S.packId,
+              instanceNumber: activeCard_S.instanceNumber
             });
 
-            const cardKind = activeCard.kind;
+            const cardKind = activeCard_S.kind;
 
             if (cardKind === "required_anchor_fallback_prompt") {
               // V3_OPENER PRECEDENCE: Suppress fallback card when opener is active
-              if (activeUiItem?.kind === "V3_OPENER") {
+              if (activeUiItem_S?.kind === "V3_OPENER") {
                 console.log('[V3_OPENER][ACTIVE_LANE_FALLBACK_SUPPRESSED]', {
-                  packId: activeCard?.packId,
-                  instanceNumber: activeCard?.instanceNumber,
+                  packId: activeCard_S?.packId,
+                  instanceNumber: activeCard_S?.instanceNumber,
                   reason: 'Active V3 opener owns active lane - suppressing fallback card'
                 });
                 return null;
               }
               
-              const safeCardPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_FALLBACK_PROMPT');
+              const safeCardPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_FALLBACK_PROMPT');
               
               console.log('[REQUIRED_ANCHOR_FALLBACK][ACTIVE_LANE_RENDER_OVERRIDE]', {
-                reason: 'ignore_currentItemType_gate',
+                reason: 'ignore_currentItem_SType_gate',
                 kind: 'required_anchor_fallback_prompt',
                 promptPreview: safeCardPrompt?.substring(0, 60),
-                currentItemType: currentItem?.type,
-                activeUiItemKind: activeUiItem?.kind
+                currentItem_SType: currentItem_S?.type,
+                activeUiItem_SKind: activeUiItem_S?.kind
               });
               
               return (
                 <div 
-                  key={`active-${activeCard.stableKey}`}
+                  key={`active-${activeCard_S.stableKey}`}
                   ref={activeLaneCardRef}
-                  data-stablekey={activeCard.stableKey}
+                  data-stablekey={activeCard_S.stableKey}
                   data-cq-active-card="true"
                   data-ui-contract-card="true"
                   style={{
-                    scrollMarginBottom: `${activeCardScrollMarginBottomPx}px`
+                    scrollMarginBottom: `${activeCard_SScrollMarginBottomPx}px`
                   }}
                 >
                   <ContentContainer>
                     <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
-                        {activeCard.instanceNumber > 1 && (
+                        {activeCard_S.instanceNumber > 1 && (
                           <>
                             <span className="text-xs text-slate-500">•</span>
-                            <span className="text-xs text-slate-400">Instance {activeCard.instanceNumber}</span>
+                            <span className="text-xs text-slate-400">Instance {activeCard_S.instanceNumber}</span>
                           </>
                         )}
                       </div>
@@ -21757,22 +21767,22 @@ function CandidateInterviewInner() {
             }
 
             if (cardKind === "v3_probe_q") {
-              const safeCardPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_V3_PROBE');
+              const safeCardPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_V3_PROBE');
               return (
-                <div key={`active-${activeCard.stableKey}`}>
+                <div key={`active-${activeCard_S.stableKey}`}>
                   <ContentContainer>
                     <div 
                       className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150"
                       data-cq-active-card="true"
-                      data-stablekey={activeCard.stableKey}
+                      data-stablekey={activeCard_S.stableKey}
                       data-ui-contract-card="true"
                     >
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
-                        {activeCard.instanceNumber > 1 && (
+                        {activeCard_S.instanceNumber > 1 && (
                           <>
                             <span className="text-xs text-slate-500">•</span>
-                            <span className="text-xs text-slate-400">Instance {activeCard.instanceNumber}</span>
+                            <span className="text-xs text-slate-400">Instance {activeCard_S.instanceNumber}</span>
                           </>
                         )}
                       </div>
@@ -21784,20 +21794,20 @@ function CandidateInterviewInner() {
             }
 
             if (cardKind === "v3_pack_opener") {
-              const cardStableKey = activeCard.stableKey || `followup-card:${activeCard.packId}:opener:${activeCard.instanceNumber}`;
+              const cardStableKey = activeCard_S.stableKey || `followup-card:${activeCard_S.packId}:opener:${activeCard_S.instanceNumber}`;
               
               // FORCED RENDERING: Active opener MUST render in main pane (owner swap suppression removed)
-              if (activeUiItem?.kind === "V3_OPENER") {
+              if (activeUiItem_S?.kind === "V3_OPENER") {
                 console.log('[V3_OPENER][FORCE_MAIN_PANE_RENDER]', {
-                  packId: activeCard.packId,
-                  instanceNumber: activeCard.instanceNumber,
+                  packId: activeCard_S.packId,
+                  instanceNumber: activeCard_S.instanceNumber,
                   reason: 'active_v3_opener_must_be_visible'
                 });
               }
               
               // V3_OPENER PRECEDENCE: Only render the CURRENT active opener card
-              if (activeUiItem?.kind === "V3_OPENER") {
-                const activeKeySOT = activeCardKeySOT;
+              if (activeUiItem_S?.kind === "V3_OPENER") {
+                const activeKeySOT = activeCard_SKeySOT;
                 if (activeKeySOT && cardStableKey && cardStableKey !== activeKeySOT) {
                   console.log('[V3_OPENER][ACTIVE_LANE_EXTRA_OPENER_SUPPRESSED]', {
                     cardStableKey,
@@ -21810,19 +21820,19 @@ function CandidateInterviewInner() {
               
               console.log('[V3_OPENER][KEYS_SOT]', {
                 cardStableKey,
-                activeKeySOT: activeCardKeySOT,
-                match: cardStableKey === activeCardKeySOT
+                activeKeySOT: activeCard_SKeySOT,
+                match: cardStableKey === activeCard_SKeySOT
               });
               
-              const safeOpenerPrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_V3_OPENER');
+              const safeOpenerPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_V3_OPENER');
               
-              const instanceTitle = activeCard.categoryLabel && activeCard.instanceNumber > 1 
-                ? `${activeCard.categoryLabel} — Instance ${activeCard.instanceNumber}` 
-                : activeCard.categoryLabel;
+              const instanceTitle = activeCard_S.categoryLabel && activeCard_S.instanceNumber > 1 
+                ? `${activeCard_S.categoryLabel} — Instance ${activeCard_S.instanceNumber}` 
+                : activeCard_S.categoryLabel;
               
               console.log('[INSTANCE_TITLE][OPENER_TITLE_OK]', {
-                packId: activeCard.packId,
-                instanceNumber: activeCard.instanceNumber,
+                packId: activeCard_S.packId,
+                instanceNumber: activeCard_S.instanceNumber,
                 titlePreview: instanceTitle
               });
               
@@ -21836,12 +21846,12 @@ function CandidateInterviewInner() {
                   data-cq-card-kind="v3_pack_opener"
                   data-ui-contract-card="true"
                   style={{
-                    scrollMarginBottom: `${activeCardScrollMarginBottomPx}px`
+                    scrollMarginBottom: `${activeCard_SScrollMarginBottomPx}px`
                   }}
                 >
                   <ContentContainer>
                     <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
-                      {activeCard.categoryLabel && (
+                      {activeCard_S.categoryLabel && (
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-sm font-medium text-purple-400">
                             {instanceTitle}
@@ -21849,10 +21859,10 @@ function CandidateInterviewInner() {
                         </div>
                       )}
                       <p className="text-white text-sm leading-relaxed">{safeOpenerPrompt}</p>
-                      {activeCard.exampleNarrative && (
+                      {activeCard_S.exampleNarrative && (
                         <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
                           <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
-                          <p className="text-slate-300 text-xs italic">{activeCard.exampleNarrative}</p>
+                          <p className="text-slate-300 text-xs italic">{activeCard_S.exampleNarrative}</p>
                         </div>
                       )}
                     </div>
@@ -21862,16 +21872,16 @@ function CandidateInterviewInner() {
             }
 
             if (cardKind === "multi_instance_gate") {
-              const safeMiGatePrompt = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_MI_GATE');
-              const cardStableKey = activeCard.stableKey || `mi-gate:${activeCard.packId}:${activeCard.instanceNumber}:q`;
+              const safeMiGatePrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_MI_GATE');
+              const cardStableKey = activeCard_S.stableKey || `mi-gate:${activeCard_S.packId}:${activeCard_S.instanceNumber}:q`;
               
               // SUPPRESS: Skip rendering if this is just "Instance X" preview
               const isInstancePreviewOnly = /^Instance\s+\d+$/i.test((safeMiGatePrompt || '').trim());
               if (isInstancePreviewOnly) {
                 console.log('[MI_GATE][MAIN_PANE_SUPPRESS_INSTANCE_PREVIEW]', {
                   stableKey: cardStableKey,
-                  packId: activeCard.packId,
-                  instanceNumber: activeCard.instanceNumber,
+                  packId: activeCard_S.packId,
+                  instanceNumber: activeCard_S.instanceNumber,
                   promptPreview: safeMiGatePrompt,
                   reason: 'Active lane instance preview suppressed'
                 });
@@ -21888,7 +21898,7 @@ function CandidateInterviewInner() {
                   data-cq-card-kind="mi_gate"
                   data-ui-contract-card="true"
                   style={{
-                    scrollMarginBottom: `${activeCardScrollMarginBottomPx}px`
+                    scrollMarginBottom: `${activeCard_SScrollMarginBottomPx}px`
                   }}
                 >
                   <ContentContainer>
@@ -21902,12 +21912,12 @@ function CandidateInterviewInner() {
 
             if (cardKind === "v3_thinking") {
               return (
-                <div key={`active-${activeCard.stableKey}`} data-stablekey={activeCard.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
+                <div key={`active-${activeCard_S.stableKey}`} data-stablekey={activeCard_S.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
                   <ContentContainer>
                     <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                       <div className="flex items-center gap-2">
                         <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-                        <span className="text-sm text-purple-300">{activeCard.text}</span>
+                        <span className="text-sm text-purple-300">{activeCard_S.text}</span>
                       </div>
                     </div>
                   </ContentContainer>
@@ -21916,13 +21926,13 @@ function CandidateInterviewInner() {
             }
 
             if (cardKind === "base_question_yesno") {
-              const safeQuestionText = sanitizeCandidateFacingText(activeCard.text, 'ACTIVE_LANE_BASE_QUESTION');
-              const cardStableKey = activeCard.stableKey || `question-shown:${activeCard.questionId}`;
-              const activeQuestionId = activeCard.questionId;
+              const safeQuestionText = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_BASE_QUESTION');
+              const cardStableKey = activeCard_S.stableKey || `question-shown:${activeCard_S.questionId}`;
+              const activeQuestionId = activeCard_S.questionId;
               
               // FIX: Find most recent answer for this question in render stream
               const answerStableKeyPrefix = `answer:${sessionId}:${activeQuestionId}:`;
-              const recentAnswer = finalTranscriptList_S.find(e => 
+              const recentAnswer = finalTranscriptList_S_S.find(e => 
                 e.role === 'user' && 
                 e.messageType === 'ANSWER' &&
                 (e.questionId === activeQuestionId || e.meta?.questionDbId === activeQuestionId) &&
@@ -21949,19 +21959,19 @@ function CandidateInterviewInner() {
                    data-cq-card-kind="question"
                    data-ui-contract-card="true"
                    style={{
-                     scrollMarginBottom: `${activeCardScrollMarginBottomPx}px`
+                     scrollMarginBottom: `${activeCard_SScrollMarginBottomPx}px`
                    }}
                  >
                   <ContentContainer>
                     <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 ring-2 ring-blue-400/40 shadow-lg shadow-blue-500/20 transition-all duration-150">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-base font-semibold text-blue-400">
-                          Question {activeCard.questionNumber || ''}
+                          Question {activeCard_S.questionNumber || ''}
                         </span>
-                        {activeCard.sectionName && (
+                        {activeCard_S.sectionName && (
                           <>
                             <span className="text-sm text-slate-500">•</span>
-                            <span className="text-sm font-medium text-slate-300">{activeCard.sectionName}</span>
+                            <span className="text-sm font-medium text-slate-300">{activeCard_S.sectionName}</span>
                           </>
                         )}
                       </div>
@@ -22038,7 +22048,7 @@ function CandidateInterviewInner() {
             if (v3ProbingActive) {
               console.log("[V3_UI_CONTRACT] BLOCKED_FOLLOWUP_CARD_RENDER_DURING_PROBING", { 
                 v3ProbingActive: true,
-                currentItemType: currentItem?.type,
+                currentItem_SType: currentItem_S?.type,
                 reason: 'Active V3 probing - opener card must not render'
               });
               return null;
@@ -22048,11 +22058,11 @@ function CandidateInterviewInner() {
               return null;
             }
             
-            const openerText = currentItem.openerText;
-            const exampleNarrative = currentItem.exampleNarrative;
-            const packId = currentItem.packId;
-            const instanceNumber = currentItem.instanceNumber;
-            const categoryLabel = currentItem.categoryLabel;
+            const openerText = currentItem_S.openerText;
+            const exampleNarrative = currentItem_S.exampleNarrative;
+            const packId = currentItem_S.packId;
+            const instanceNumber = currentItem_S.instanceNumber;
+            const categoryLabel = currentItem_S.categoryLabel;
             
             // GUARD: Check if transcript already contains this opener card
             const canonicalKey = `followup-card:${packId}:opener:${instanceNumber}`;
@@ -22078,7 +22088,7 @@ function CandidateInterviewInner() {
               console.error('[V3_OPENER][MISSING_PROMPT_TEXT]', {
                 packId,
                 instanceNumber,
-                categoryId: currentItem.categoryId,
+                categoryId: currentItem_S.categoryId,
                 reason: 'openerText is empty - using fallback'
               });
             }
@@ -22126,7 +22136,7 @@ function CandidateInterviewInner() {
             {(() => {
             // SUPPRESS: Do not mount V3ProbingLoop when fallback is active
             if (requiredAnchorFallbackActive) {
-              const loopKey = v3ProbingContext ? `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}` : null;
+              const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
               console.log('[REQUIRED_ANCHOR_FALLBACK][SUPPRESS_V3_MOUNT]', {
                 loopKey,
                 reason: 'fallback_active'
@@ -22134,15 +22144,15 @@ function CandidateInterviewInner() {
               return null;
             }
             
-            const shouldRenderV3Loop = v3ProbingActive && v3ProbingContext && 
-              v3ProbingContext.categoryId && v3ProbingContext.packId;
+            const shouldRenderV3Loop = v3ProbingActive && v3ProbingContext_S && 
+              v3ProbingContext_S.categoryId && v3ProbingContext_S.packId;
             
             if (!shouldRenderV3Loop) {
               if (v3ProbingActive) {
                 console.warn('[V3_UI_RENDER][PARENT_GUARD] V3 probing active but missing context', {
                   v3ProbingActive,
-                  hasCategoryId: !!v3ProbingContext?.categoryId,
-                  hasPackId: !!v3ProbingContext?.packId
+                  hasCategoryId: !!v3ProbingContext_S?.categoryId,
+                  hasPackId: !!v3ProbingContext_S?.packId
                 });
               }
               return null;
@@ -22152,29 +22162,29 @@ function CandidateInterviewInner() {
               action: 'V3_LOOP_HEADLESS_MOUNT',
               reason: 'V3ProbingLoop renders NO visible cards - parent owns all UI in bottom bar',
               v3ProbingActive,
-              loopKey: `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`
+              loopKey: `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`
             });
             
             // HEADLESS MODE: V3ProbingLoop has no visible DOM (returns null)
             // All UI (prompt banner + input) rendered by parent in BottomBar
             return (
               <V3ProbingLoop
-                key={`v3-probe-${sessionId}-${v3ProbingContext.categoryId}-${v3ProbingContext.instanceNumber || 1}`}
+                key={`v3-probe-${sessionId}-${v3ProbingContext_S.categoryId}-${v3ProbingContext_S.instanceNumber || 1}`}
                 sessionId={sessionId}
-                categoryId={v3ProbingContext.categoryId}
-                categoryLabel={v3ProbingContext.categoryLabel}
-                incidentId={v3ProbingContext.incidentId}
-                baseQuestionId={v3ProbingContext.baseQuestionId}
-                questionCode={v3ProbingContext.questionCode}
-                sectionId={v3ProbingContext.sectionId}
-                instanceNumber={v3ProbingContext.instanceNumber}
-                packData={v3ProbingContext.packData}
-                openerAnswer={v3ProbingContext.openerAnswer}
-                traceId={v3ProbingContext.traceId}
+                categoryId={v3ProbingContext_S.categoryId}
+                categoryLabel={v3ProbingContext_S.categoryLabel}
+                incidentId={v3ProbingContext_S.incidentId}
+                baseQuestionId={v3ProbingContext_S.baseQuestionId}
+                questionCode={v3ProbingContext_S.questionCode}
+                sectionId={v3ProbingContext_S.sectionId}
+                instanceNumber={v3ProbingContext_S.instanceNumber}
+                packData={v3ProbingContext_S.packData}
+                openerAnswer={v3ProbingContext_S.openerAnswer}
+                traceId={v3ProbingContext_S.traceId}
                 onComplete={handleV3ProbingComplete}
                 onTranscriptUpdate={handleV3TranscriptUpdate}
                 onMultiInstancePrompt={(promptData) => {
-                  setPendingGatePrompt({ promptData, v3Context: v3ProbingContext });
+                  setPendingGatePrompt({ promptData, v3Context: v3ProbingContext_S });
                 }}
                 onMultiInstanceAnswer={setV3MultiInstanceHandler}
                 onPromptChange={handleV3PromptChange}
@@ -22200,8 +22210,8 @@ function CandidateInterviewInner() {
                   
                   console.log('[V3_PROBING][PROMPT_READY]', {
                     loopKey,
-                    packId: v3ProbingContext.packId,
-                    instanceNumber: v3ProbingContext.instanceNumber,
+                    packId: v3ProbingContext_S.packId,
+                    instanceNumber: v3ProbingContext_S.instanceNumber,
                     promptLen
                   });
                 }}
@@ -22264,15 +22274,15 @@ function CandidateInterviewInner() {
                   });
                   
                   // Route based on pack type (TDZ-safe)
-                  const safePackData = v3ProbingContext?.packData || null;
+                  const safePackData = v3ProbingContext_S?.packData || null;
                   const isMultiIncident = safePackData?.behavior_type === 'multi_incident' || 
                                          safePackData?.followup_multi_instance === true;
                   
                   if (isMultiIncident) {
                     console.log('[V3_INCIDENT_COMPLETE][MULTI] Showing another instance gate with required fields check');
-                    // Pass through required fields data from engine result
+                    // Pass through required fields data from engine_S result
                     transitionToAnotherInstanceGate({
-                      ...v3ProbingContext,
+                      ...v3ProbingContext_S,
                       missingFields: missingFields || [],
                       miGateBlocked: miGateBlocked || false,
                       stopReason: stopReason || null
@@ -22287,7 +22297,7 @@ function CandidateInterviewInner() {
                       reason: hasRecap ? 'RECAP_COMPLETE' : 'INCIDENT_COMPLETE_NO_PROMPT',
                       shouldOfferAnotherInstance: false,
                       packId,
-                      categoryLabel: v3ProbingContext?.categoryLabel || categoryId,
+                      categoryLabel: v3ProbingContext_S?.categoryLabel || categoryId,
                       instanceNumber,
                       packData: safePackData
                     });
@@ -22308,7 +22318,7 @@ function CandidateInterviewInner() {
             {/* LEGACY V3 PROMPT RENDER PATH - HARD DISABLED */}
             {(() => {
               // HARD DISABLED: Legacy V3 prompt render path must NEVER render UI
-              // All V3 prompts render via canonical stream (activeCard in renderStream)
+              // All V3 prompts render via canonical stream (activeCard_S in renderStream)
               return null; // UNCONDITIONAL NULL - no UI output ever
             })()}
 
@@ -22336,9 +22346,9 @@ function CandidateInterviewInner() {
                 onClick={async () => {
                   console.log("[WELCOME][BEGIN][BEFORE]", { 
                     screenMode, 
-                    currentItemType: currentItem?.type,
-                    currentItemId: currentItem?.id,
-                    hasEngine: !!engine,
+                    currentItem_SType: currentItem_S?.type,
+                    currentItem_SId: currentItem_S?.id,
+                    hasEngine: !!engine_S,
                     hasSections: sections.length > 0
                   });
                   
@@ -22355,22 +22365,22 @@ function CandidateInterviewInner() {
                   // Get first question from section-first order
                   const firstQuestionId = sections.length > 0 && sections[0]?.questionIds?.length > 0
                     ? sections[0].questionIds[0]
-                    : engine?.ActiveOrdered?.[0];
+                    : engine_S?.ActiveOrdered?.[0];
                   
                   if (!firstQuestionId) {
                     console.error("[WELCOME][BEGIN][ERROR] No first question found!", {
                       sectionsCount: sections.length,
                       firstSection: sections[0]?.id,
                       firstSectionQuestions: sections[0]?.questionIds?.length,
-                      engineActiveCount: engine?.ActiveOrdered?.length
+                      engine_SActiveCount: engine_S?.ActiveOrdered?.length
                     });
                     setError("Could not load the first question. Please refresh or contact support.");
                     return;
                   }
                   
-                  const firstQuestion = engine.QById[firstQuestionId];
+                  const firstQuestion = engine_S.QById[firstQuestionId];
                   if (!firstQuestion) {
-                    console.error("[WELCOME][BEGIN][ERROR] First question not in engine:", firstQuestionId);
+                    console.error("[WELCOME][BEGIN][ERROR] First question not in engine_S:", firstQuestionId);
                     setError("Could not load the first question. Please refresh or contact support.");
                     return;
                   }
@@ -22385,8 +22395,8 @@ function CandidateInterviewInner() {
                   console.log('[FORENSIC][MODE_TRANSITION]', { 
                     from: 'WELCOME', 
                     to: 'QUESTION',
-                    currentItemBefore: currentItem?.id,
-                    currentItemAfter: firstQuestionId,
+                    currentItem_SBefore: currentItem_S?.id,
+                    currentItem_SAfter: firstQuestionId,
                     transcriptLenBefore: dbTranscript.length
                   });
                   setScreenMode("QUESTION");
@@ -22397,8 +22407,8 @@ function CandidateInterviewInner() {
                   
                   console.log("[WELCOME][BEGIN][AFTER]", {
                     screenMode: "QUESTION",
-                    currentItemType: 'question',
-                    currentItemId: firstQuestionId,
+                    currentItem_SType: 'question',
+                    currentItem_SId: firstQuestionId,
                     questionCode: firstQuestion.question_id
                   });
                   
@@ -22406,7 +22416,7 @@ function CandidateInterviewInner() {
                   // TDZ-SAFE: Compute fresh flags at call time
                   setTimeout(() => {
                     const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
-                    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem?.kind === 'MI_GATE';
+                    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
                     
                     requestAnimationFrame(() => {
                       ensureActiveVisibleAfterRender("WELCOME_DISMISSED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
@@ -22479,8 +22489,8 @@ function CandidateInterviewInner() {
              logOnce(`alt_yesno_v3gate_${sessionId}`, () => {
                console.error('[UI_CONTRACT][ALT_YESNO_RENDERER_HIT]', {
                  branch: 'V3_GATE_LEGACY_RED_GREEN',
-                 currentItemId: currentItem?.id,
-                 currentItemType: currentItem?.type,
+                 currentItem_SId: currentItem_S?.id,
+                 currentItem_SType: currentItem_S?.type,
                  activeBlockerType: activeBlocker?.type,
                  isV3Gate,
                  reason: 'Legacy V3_GATE red/green buttons found - replacing with neutral YesNoControls'
@@ -22514,28 +22524,28 @@ function CandidateInterviewInner() {
            {(() => {
              // Confirmation log: MI_GATE footer is buttons-only
              const isMiGateFooter = 
-               activeUiItem?.kind === "MI_GATE" &&
+               activeUiItem_S?.kind === "MI_GATE" &&
                effectiveItemType === 'multi_instance_gate' &&
                bottomBarModeSOT === "YES_NO";
 
              if (isMiGateFooter) {
                console.log('[MI_GATE][FOOTER_BUTTONS_ONLY]', {
-                 currentItemId: currentItem?.id,
-                 packId: currentItem?.packId,
-                 instanceNumber: currentItem?.instanceNumber,
+                 currentItem_SId: currentItem_S?.id,
+                 packId: currentItem_S?.packId,
+                 instanceNumber: currentItem_S?.instanceNumber,
                  note: 'Footer shows Yes/No buttons only - question renders in main pane'
                });
 
                // UI CONTRACT SELF-TEST: Track footer buttons event (use canonical stableKey)
-               if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem?.packId && currentItem?.instanceNumber) {
-                 const trackerKey = buildMiGateQStableKey(currentItem.packId, currentItem.instanceNumber);
+               if (ENABLE_MI_GATE_UI_CONTRACT_SELFTEST && currentItem_S?.packId && currentItem_S?.instanceNumber) {
+                 const trackerKey = buildMiGateQStableKey(currentItem_S.packId, currentItem_S.instanceNumber);
                  const tracker = miGateTestTrackerRef.current.get(trackerKey) || { mainPaneRendered: false, footerButtonsOnly: false, testStarted: false };
                  tracker.footerButtonsOnly = true;
                  miGateTestTrackerRef.current.set(trackerKey, tracker);
 
                  console.log('[MI_GATE][UI_CONTRACT_TRACK]', {
                    trackerKey,
-                   itemId: currentItem.id,
+                   itemId: currentItem_S.id,
                    event: 'FOOTER_BUTTONS_ONLY',
                    tracker
                  });
@@ -22563,7 +22573,7 @@ function CandidateInterviewInner() {
                  setIsUserTyping(false);
                  console.log('[SCROLL][FORCE_ONCE_ARMED]', { trigger: 'MI_GATE_YES' });
 
-                 const gate = multiInstanceGate || currentItem;
+                 const gate = multiInstanceGate || currentItem_S;
 
                  if (!gate || !gate.packId || !gate.instanceNumber) {
                    console.error('[MI_GATE][GUARD_BLOCKED]', {
@@ -22579,13 +22589,13 @@ function CandidateInterviewInner() {
                    packId: gate.packId,
                    instanceNumber: gate.instanceNumber,
                    answerYesNo: 'Yes',
-                   activeUiItemKind: activeUiItem?.kind,
-                   currentItemId: currentItem?.id,
+                   activeUiItem_SKind: activeUiItem_S?.kind,
+                   currentItem_SId: currentItem_S?.id,
                    stableKey: `mi-gate:${gate.packId}:${gate.instanceNumber}`
                  });
 
                  setIsCommitting(true);
-                 await handleMiGateYesNo({ answer: 'Yes', gate, sessionId, engine });
+                 await handleMiGateYesNo({ answer: 'Yes', gate, sessionId, engine_S });
                } finally {
                  setIsCommitting(false);
                }
@@ -22597,7 +22607,7 @@ function CandidateInterviewInner() {
                  setIsUserTyping(false);
                  console.log('[SCROLL][FORCE_ONCE_ARMED]', { trigger: 'MI_GATE_NO' });
 
-                 const gate = multiInstanceGate || currentItem;
+                 const gate = multiInstanceGate || currentItem_S;
 
                  if (!gate || !gate.packId || !gate.instanceNumber) {
                    console.error('[MI_GATE][GUARD_BLOCKED]', {
@@ -22613,13 +22623,13 @@ function CandidateInterviewInner() {
                    packId: gate.packId,
                    instanceNumber: gate.instanceNumber,
                    answerYesNo: 'No',
-                   activeUiItemKind: activeUiItem?.kind,
-                   currentItemId: currentItem?.id,
+                   activeUiItem_SKind: activeUiItem_S?.kind,
+                   currentItem_SId: currentItem_S?.id,
                    stableKey: `mi-gate:${gate.packId}:${gate.instanceNumber}`
                  });
 
                  setIsCommitting(true);
-                 await handleMiGateYesNo({ answer: 'No', gate, sessionId, engine });
+                 await handleMiGateYesNo({ answer: 'No', gate, sessionId, engine_S });
                } finally {
                  setIsCommitting(false);
                }
@@ -22627,8 +22637,8 @@ function CandidateInterviewInner() {
              disabled={isCommitting}
              debugMeta={{
                component: 'MI_GATE_FOOTER',
-               packId: currentItem?.packId,
-               instanceNumber: currentItem?.instanceNumber
+               packId: currentItem_S?.packId,
+               instanceNumber: currentItem_S?.instanceNumber
              }}
            />
           </div>
@@ -22661,8 +22671,8 @@ function CandidateInterviewInner() {
                 disabled={isCommitting}
                 debugMeta={{
                   component: 'BASE_QUESTION_FOOTER',
-                  currentItemType: currentItem?.type,
-                  questionId: currentItem?.id
+                  currentItem_SType: currentItem_S?.type,
+                  questionId: currentItem_S?.id
                 }}
               />
             );
@@ -22732,7 +22742,7 @@ function CandidateInterviewInner() {
               });
             }
             
-            const isV3PromptActive = activeUiItem?.kind === "V3_PROMPT" && bottomBarModeSOT === "TEXT_INPUT";
+            const isV3PromptActive = activeUiItem_S?.kind === "V3_PROMPT" && bottomBarModeSOT === "TEXT_INPUT";
             if (isV3PromptActive) {
               console.log("[V3_PROMPT][FOOTER_INPUT_ONLY]", { 
                 bottomBarModeSOT, 
@@ -22747,8 +22757,8 @@ function CandidateInterviewInner() {
 
           {/* LLM Suggestion - show if available for this field (hide during V3 probing or missing prompt) */}
           {!v3ProbingActive && hasPrompt && (() => {
-            const suggestionKey = currentItem?.packId && currentItem?.fieldKey
-              ? `${currentItem.packId}_${currentItem.instanceNumber || 1}_${currentItem.fieldKey}`
+            const suggestionKey = currentItem_S?.packId && currentItem_S?.fieldKey
+              ? `${currentItem_S.packId}_${currentItem_S.instanceNumber || 1}_${currentItem_S.fieldKey}`
               : null;
             const suggestion = suggestionKey ? fieldSuggestions[suggestionKey] : null;
 
@@ -22778,24 +22788,24 @@ function CandidateInterviewInner() {
           <div className="flex gap-3">
           <Textarea
            ref={footerTextareaRef}
-           value={currentItem?.type === 'v3_pack_opener' ? (openerDraft ?? "") : (input ?? "")}
+           value={currentItem_S?.type === 'v3_pack_opener' ? (openerDraft ?? "") : (input ?? "")}
            onChange={(e) => {
              const value = e.target.value;
              markUserTyping();
 
               // V3 OPENER: Use dedicated openerDraft state (ALWAYS allow updates - no v3ProbingActive gate)
-              if (currentItem?.type === 'v3_pack_opener') {
+              if (currentItem_S?.type === 'v3_pack_opener') {
                 // STEP 4: Removed onChange sanitizer - do NOT block typing
                 // Sanitization happens at render time only (safeActivePromptText)
 
                 // GUARD: Never allow prompt text as value
-                const promptText = currentItem?.openerText || safeActivePromptText || "";
+                const promptText = currentItem_S?.openerText || safeActivePromptText || "";
                 const valueMatchesPrompt = value.trim() === promptText.trim() && value.length > 10;
 
                 if (valueMatchesPrompt) {
                   console.error('[V3_UI_CONTRACT][OPENER_DRAFT_SEEDED_BLOCKED]', {
-                    packId: currentItem?.packId,
-                    instanceNumber: currentItem?.instanceNumber,
+                    packId: currentItem_S?.packId,
+                    instanceNumber: currentItem_S?.instanceNumber,
                     reason: 'Attempted to seed openerDraft with prompt text - blocking onChange'
                   });
                   return; // Block the update
@@ -22808,8 +22818,8 @@ function CandidateInterviewInner() {
                 openerDraftChangeCountRef.current++;
                 if (openerDraftChangeCountRef.current % 3 === 1 || value.length === 0) {
                   console.log('[V3_OPENER][DRAFT_CHANGE]', {
-                    packId: currentItem?.packId,
-                    instanceNumber: currentItem?.instanceNumber,
+                    packId: currentItem_S?.packId,
+                    instanceNumber: currentItem_S?.instanceNumber,
                     len: value.length,
                     v3ProbingActive
                   });
@@ -22817,7 +22827,7 @@ function CandidateInterviewInner() {
 
                 // DECOUPLE: Storage write failures must not block state update
                 try {
-                  const draftKey = buildDraftKey(sessionId, currentItem?.packId, currentItem?.id, currentItem?.instanceNumber || 0);
+                  const draftKey = buildDraftKey(sessionId, currentItem_S?.packId, currentItem_S?.id, currentItem_S?.instanceNumber || 0);
                   window.sessionStorage.setItem(draftKey, value);
                   
                   // ABANDONMENT SAFETY: Log opener draft save (throttled)
@@ -22841,13 +22851,13 @@ function CandidateInterviewInner() {
             className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
             style={{ maxHeight: '120px', overflowY: 'auto' }}
             disabled={effectiveItemType === 'v3_pack_opener' ? v3OpenerTextareaDisabled : isCommitting}
-            autoFocus={hasPrompt || currentItem?.type === 'v3_pack_opener'}
+            autoFocus={hasPrompt || currentItem_S?.type === 'v3_pack_opener'}
             rows={1}
             />
              {/* V3 UI CONTRACT: Violation detection */}
              {(() => {
              const placeholder = "Type your response here…";
-             const inputValue = (currentItem?.type === 'v3_pack_opener' ? openerDraft : input) || "";
+             const inputValue = (currentItem_S?.type === 'v3_pack_opener' ? openerDraft : input) || "";
 
              if (v3ActivePromptText && placeholder === v3ActivePromptText) {
                console.error('[V3_UI_CONTRACT][VIOLATION] PROBE_PROMPT_IN_INPUT', {
@@ -22868,11 +22878,11 @@ function CandidateInterviewInner() {
            <Button
              type="button"
              onClick={() => {
-               const openerInputValue = currentItem?.type === 'v3_pack_opener' ? openerDraft : input;
+               const openerInputValue = currentItem_S?.type === 'v3_pack_opener' ? openerDraft : input;
                console.log("[BOTTOM_BAR_BUTTON][CLICK]", { 
-                 currentItemType: currentItem?.type, 
-                 packId: currentItem?.packId, 
-                 fieldKey: currentItem?.fieldKey,
+                 currentItem_SType: currentItem_S?.type, 
+                 packId: currentItem_S?.packId, 
+                 fieldKey: currentItem_S?.fieldKey,
                  v3ProbingActive,
                  hasPrompt,
                  effectiveItemType,
@@ -22882,7 +22892,7 @@ function CandidateInterviewInner() {
                console.log('[BOTTOM_BAR][SEND_DISPATCH]', {
                  bottomBarModeSOT,
                  effectiveItemType,
-                 activeUiItemKind: activeUiItem?.kind
+                 activeUiItem_SKind: activeUiItem_S?.kind
                });
                
                handleBottomBarSubmit();
@@ -22896,7 +22906,7 @@ function CandidateInterviewInner() {
              }
              className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5 disabled:opacity-50"
            >
-             {(currentItem?.type !== 'v3_pack_opener' && !hasPrompt) ? (
+             {(currentItem_S?.type !== 'v3_pack_opener' && !hasPrompt) ? (
                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
              ) : (
                <Send className="w-4 h-4 mr-2" />
@@ -22925,7 +22935,7 @@ function CandidateInterviewInner() {
             }
             
             // FIX C: Count actual active card in stream
-            const mainBodyPromptCards = activeCard?.kind === "v3_probe_q" ? 1 : 0;
+            const mainBodyPromptCards = activeCard_S?.kind === "v3_probe_q" ? 1 : 0;
             
             console.log('[V3_UI_CONTRACT] ENFORCED', {
               v3ProbingActive,
@@ -22934,9 +22944,9 @@ function CandidateInterviewInner() {
               mainBodyPromptCards,
               transcriptPromptCards,
               transcriptLen: transcriptLengthNow,
-              activeCardKind: activeCard?.kind || null,
+              activeCard_SKind: activeCard_S?.kind || null,
               hasActiveV3Prompt,
-              activeUiItemKind: activeUiItem?.kind
+              activeUiItem_SKind: activeUiItem_S?.kind
             });
             return null;
           })()}
@@ -22956,13 +22966,13 @@ function CandidateInterviewInner() {
             // LAST-MILE OPENER LOCK: Hard-enforce opener text when v3_pack_opener is active
             let promptTextUsed;
             if (effectiveItemType === 'v3_pack_opener') {
-              const openerTextRaw = (currentItem?.openerText || '').trim();
+              const openerTextRaw = (currentItem_S?.openerText || '').trim();
               promptTextUsed =
                 openerTextRaw || 'Please describe the details for this section in your own words.';
 
               console.log('[V3_OPENER][PROMPT_TEXT_LOCK]', {
                 effectiveItemType,
-                instanceNumber: currentItem?.instanceNumber,
+                instanceNumber: currentItem_S?.instanceNumber,
                 usedOpenerText: !!openerTextRaw,
                 preview: promptTextUsed.substring(0, 80),
                 reason: openerTextRaw ? 'opener_text_found' : 'opener_blank_using_fallback',
@@ -23042,7 +23052,7 @@ function CandidateInterviewInner() {
       {debugEnabled && v3DebugEnabled && session?.ide_version === "V3" && (
         <V3DebugPanel
           sessionId={sessionId}
-          incidentId={v3ProbingContext?.incidentId}
+          incidentId={v3ProbingContext_S?.incidentId}
         />
       )}
       
@@ -23082,7 +23092,7 @@ function CandidateInterviewInner() {
         rawSessionId: typeof sessionId !== 'undefined' ? sessionId : 'undefined',
         isLoading: typeof isLoading !== 'undefined' ? isLoading : 'undefined',
         hasSession: typeof session !== 'undefined' ? !!session : 'undefined',
-        hasEngine: typeof engine !== 'undefined' ? !!engine : 'undefined',
+        hasEngine: typeof engine_S !== 'undefined' ? !!engine_S : 'undefined',
         screenMode: typeof screenMode !== 'undefined' ? screenMode : 'undefined',
         pathname: typeof window !== 'undefined' ? window?.location?.pathname : 'undefined',
         search: typeof window !== 'undefined' ? window?.location?.search : 'undefined',
