@@ -20359,26 +20359,50 @@ function CandidateInterviewInner() {
               const transcriptRenderableList = finalTranscriptList.filter(shouldRenderInTranscript);
       
               const filteredCount = finalTranscriptList.length - transcriptRenderableList.length;
-              if (filteredCount > 0) {
+              const forceTranscriptFilterDebug = isV3DebugEnabled || false;
+
+              if (filteredCount > 0 || forceTranscriptFilterDebug) {
                 const sampleFiltered = finalTranscriptList
-                  .filter(entry => !shouldRenderInTranscript(entry))
-                  .slice(0, 5)
-                  .map(entry => ({ 
-                    kind: entry.kind || entry.type || entry.messageType,
-                    meta: { 
-                      isNonChat: entry.meta?.isNonChat,
-                      contextKind: entry.meta?.contextKind,
-                      uiKind: entry.meta?.uiKind
-                    }
-                  }));
+                  .filter(entry => !shouldRenderInTranscript(entry));
+
+                const sampleFilteredShapes = sampleFiltered.slice(0, 10).map(entry => ({
+                  kind: entry.kind || entry.type || entry.messageType || null,
+                  textPreview: (entry.text || entry.questionText || entry.content || '').slice(0, 120),
+                  metaFlags: { 
+                    isNonChat: entry.meta?.isNonChat,
+                    contextKind: entry.meta?.contextKind,
+                    uiKind: entry.meta?.uiKind,
+                    kind: entry.meta?.kind,
+                    isV3ProbeQuestion: entry.meta?.isV3ProbeQuestion,
+                    openerKey: entry.meta?.openerKey
+                  },
+                  hasLines: Array.isArray(entry.lines) ? entry.lines.length : null
+                }));
+
+                const sampleRenderedShapes = transcriptRenderableList.slice(0, 10).map(entry => ({
+                  kind: entry.kind || entry.type || entry.messageType || null,
+                  textPreview: (entry.text || entry.questionText || entry.content || '').slice(0, 120),
+                  metaFlags: { 
+                    isNonChat: entry.meta?.isNonChat,
+                    contextKind: entry.meta?.contextKind,
+                    uiKind: entry.meta?.uiKind,
+                    kind: entry.meta?.kind,
+                    isV3ProbeQuestion: entry.meta?.isV3ProbeQuestion,
+                    openerKey: entry.meta?.openerKey
+                  },
+                  hasLines: Array.isArray(entry.lines) ? entry.lines.length : null
+                }));
                   
-                logOnce(`transcript_filter_${sessionId}`, () => {
+                logOnce(`transcript_filter_v2_${sessionId}`, () => {
                   console.log('[UI_CONTRACT][TRANSCRIPT_FILTER]', {
                     originalCount: finalTranscriptList.length,
                     renderableCount: transcriptRenderableList.length,
                     filteredCount,
-                    sampleFilteredKinds: sampleFiltered
+                    forceDebug: forceTranscriptFilterDebug,
+                    sampleFilteredKinds: sampleFiltered.slice(0,5).map(entry => ({ kind: entry.kind || entry.type || entry.messageType, meta: { isNonChat: entry.meta?.isNonChat, contextKind: entry.meta?.contextKind, uiKind: entry.meta?.uiKind } }))
                   });
+                  console.log('[UI_CONTRACT][TRANSCRIPT_FILTER][FILTERED_SHAPES]', sampleFilteredShapes);
+                  console.log('[UI_CONTRACT][TRANSCRIPT_FILTER][RENDERED_SHAPES]', sampleRenderedShapes);
                 });
               }
 
@@ -20387,12 +20411,13 @@ function CandidateInterviewInner() {
                   const mt_dedupe = entry.messageType || entry.type || entry.kind;
                   const isOpener_dedupe = (mt_dedupe && mt_dedupe.toLowerCase().includes('opener')) || entry.meta?.isV3Opener;
                   if (isOpener_dedupe) {
+                    const candidateFacingText = (entry.text || entry.questionText || entry.content || '');
                     const openerKey = entry.meta?.openerKey || 
-                                    `opener:${sessionId}:${(entry.text || '').slice(0,80)}:${index}`;
+                                    `opener:${sessionId}:${(candidateFacingText || '').slice(0,120)}`;
                     if (renderedV3OpenerKeysSOT.has(openerKey)) {
                       console.log('[UI_CONTRACT][V3_OPENER_DEDUPE]', { 
                         key: openerKey, 
-                        preview: (entry.text || '').substring(0, 80) 
+                        preview: (candidateFacingText || '').substring(0, 120) 
                       });
                       return null;
                     }
