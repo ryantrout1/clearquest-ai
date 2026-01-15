@@ -20324,6 +20324,28 @@ function CandidateInterviewInner() {
 
               const renderedV3OpenerKeysSOT = new Set();
 
+              // CHANGE 1: Add a TDZ PROBE HELPER (LOCAL, NO IMPORTS)
+              const cqTdzProbe = (label, getterFn) => {
+                try {
+                  return getterFn();
+                } catch (e) {
+                  console.error('[TDZ_TRACE][PROBE_FAIL]', { label, name: e?.name, message: e?.message, stack: e?.stack });
+                  throw e; // rethrow so we still see the crash, but now with label
+                }
+              };
+
+              // CHANGE 2: PROBE THE MOST LIKELY IDENTIFIERS *BEFORE* ANY NEW LOGIC RUNS
+              const cqDebugGate = !!cqTdzProbe('isV3DebugEnabled', () => isV3DebugEnabled);
+              if (cqDebugGate) {
+                cqTdzProbe('sessionId', () => sessionId);
+                cqTdzProbe('logOnce', () => logOnce);
+                cqTdzProbe('sanitizeCandidateFacingText', () => sanitizeCandidateFacingText);
+                cqTdzProbe('finalTranscriptList', () => finalTranscriptList);
+                cqTdzProbe('activeUiItem', () => activeUiItem);
+                cqTdzProbe('currentItem', () => currentItem);
+                console.log('[TDZ_TRACE][PROBE_OK]');
+              }
+
               const shouldRenderInTranscript = (entry) => {
                 if (!entry) return false;
         
