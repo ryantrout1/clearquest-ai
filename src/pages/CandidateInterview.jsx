@@ -8796,14 +8796,6 @@ function CandidateInterviewInner() {
           });
           
           if (!foundAfterRefresh) {
-            console.error('[CQ_TRANSCRIPT][OPENER_ANSWER_LOST_AFTER_REFRESH]', {
-              stableKey: openerAnswerStableKey,
-              packId,
-              instanceNumber,
-              transcriptLenBefore: transcriptAfterAnswer.length,
-              transcriptLenAfter: prev.length,
-              reason: 'Opener answer missing after refreshTranscriptFromDB - possible DB write race'
-            });
           }
           
           return prev; // No mutation - just logging
