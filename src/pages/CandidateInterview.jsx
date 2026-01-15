@@ -20061,7 +20061,7 @@ function CandidateInterviewInner() {
 
   
   
-  cqTdzMark('AFTER_FINAL_TRANSCRIPT_LIST_MEMO', { listLen: finalTranscriptList?.length || 0 });
+  cqTdzMark('AFTER_FINAL_TRANSCRIPT_LIST_MEMO', { listLen: finalTranscriptList_S?.length || 0 });
   
   // GOLDEN CONTRACT CHECK: Emit deterministic verification bundle (deduped)
   const emitGoldenContractCheck = React.useCallback(() => {
@@ -20074,7 +20074,7 @@ function CandidateInterviewInner() {
       suppressProbesInTranscript: (activeUiItem?.kind === "V3_PROMPT" || activeUiItem?.kind === "V3_WAITING") && v3ProbingActive,
       lastMeasuredOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
       hasFooterSpacer: typeof window !== 'undefined' && !!historyRef.current?.querySelector('[data-cq-footer-spacer="true"]'),
-      transcriptLen: finalTranscriptList?.length || 0
+      transcriptLen: finalTranscriptList_S?.length || 0
     };
     
     // Dedupe: Only emit if payload changed
@@ -20330,7 +20330,7 @@ function CandidateInterviewInner() {
               console.log('[WELCOME_RENDER][NORMAL_USED]', {
                 screenMode,
                 isLoading,
-                transcriptLen: finalTranscriptList.length,
+                transcriptLen: finalTranscriptList_S.length,
               })}
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {/* Active opener suppression: Compute current active opener stableKey */}
@@ -21710,7 +21710,7 @@ function CandidateInterviewInner() {
             console.log('[UI_CONTRACT][ACTIVE_LANE_POSITION_SOT]', {
               activeUiItemKind: activeUiItem?.kind,
               placedAfterTranscript: true,
-              transcriptLen: finalTranscriptList?.length || 0,
+              transcriptLen: finalTranscriptList_S?.length || 0,
               activeCardKind: activeCard.kind,
               packId: activeCard.packId,
               instanceNumber: activeCard.instanceNumber
