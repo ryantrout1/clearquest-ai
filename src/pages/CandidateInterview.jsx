@@ -20329,7 +20329,21 @@ function CandidateInterviewInner() {
                 try {
                   return getterFn();
                 } catch (e) {
-                  console.error('[TDZ_TRACE][PROBE_FAIL]', { label, name: e?.name, message: e?.message, stack: e?.stack });
+                  try {
+                    // Unmissable logging + global marker write
+                    window.console.error('[TDZ_TRACE][PROBE_FAIL]', { label, name: e?.name, message: e?.message, stack: e?.stack });
+                    try {
+                      window.__CQ_TDZ_LAST_PROBE_FAIL__ = { label, name: e?.name, message: e?.message, stack: e?.stack };
+                    } catch (_) {}
+                    // Last-resort alert (only when isV3DebugEnabled is truthy) and only for ReferenceError
+                    try {
+                      let dbg = false;
+                      try { dbg = isV3DebugEnabled; } catch (_) { dbg = false; }
+                      if (dbg && (e?.name === 'ReferenceError')) {
+                        try { window.alert('[TDZ_TRACE][PROBE_FAIL] ' + label); } catch (_) {}
+                      }
+                    } catch (_) {}
+                  } catch (_) {}
                   throw e; // rethrow so we still see the crash, but now with label
                 }
               };
