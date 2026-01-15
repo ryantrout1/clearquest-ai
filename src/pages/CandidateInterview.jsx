@@ -20085,16 +20085,7 @@ function CandidateInterviewInner() {
     });
   }, [sessionId]);
 
-  // [TDZ_SHIELD] Safe aliases for render-time reads (must stay below all hooks)
-  const finalTranscriptList_S = Array.isArray(finalTranscriptList) ? finalTranscriptList : [];
-  const activeUiItem_S = activeUiItem && typeof activeUiItem === 'object' ? activeUiItem : {};
-  const currentItem_S = currentItem && typeof currentItem === 'object' ? currentItem : {};
-  const engine_S = engine && typeof engine === 'object' ? engine : {};
-  const session_S = session && typeof session === 'object' ? session : {};
-  const dbTranscript_S = Array.isArray(dbTranscript) ? dbTranscript : [];
-  const sections_S = Array.isArray(sections) ? sections : [];
-  const activeSection_S = activeSection && typeof activeSection === 'object' ? activeSection : {};
-  const department_S = department && typeof department === 'object' ? department : {};
+
 
   // MOVED FROM ~L1695
   if (!sessionId && resolvedSessionRef.current && !didSessionRepairRef.current) {
