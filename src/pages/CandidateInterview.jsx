@@ -8696,14 +8696,7 @@ function CandidateInterviewInner() {
           baseQuestionId
         });
 
-        console.log('[CQ_TRANSCRIPT][USER_APPEND_OK]', {
-          sessionId,
-          stableKey: openerAnswerStableKey,
-          packId,
-          instanceNumber,
-          answerLen: value?.length || 0,
-          transcriptLenAfter: transcriptAfterAnswer.length
-        });
+
         
         // STEP 3: OPTIMISTIC UPDATE - Use unified sync helper
         const optimistic = upsertTranscriptMonotonic(canonicalTranscriptRef.current, transcriptAfterAnswer, 'v3_opener_answer');
