@@ -370,23 +370,10 @@ const commitBaseQAIfMissing = async ({ questionId, questionText, answerText, ses
     });
     const hasA = hasAByDeterministicKey || hasAByQuestionId;
     
-    console.log('[CQ_TRANSCRIPT][BASE_QA_CHECK]', {
-      questionId,
-      hasQ,
-      hasA,
-      hasAByDeterministicKey,
-      hasAByQuestionId,
-      transcriptLen: currentTranscript.length,
-      qKey: qStableKey,
-      aKey: aStableKey
-    });
+
     
     if (hasQ && hasA) {
-      console.log('[CQ_TRANSCRIPT][BASE_QA_BARRIER_PASS]', {
-        questionId,
-        reason: 'Both Q+A already in transcript',
-        order: 'BASE_QA_BEFORE_V3'
-      });
+
       return currentTranscript;
     }
     
@@ -413,7 +400,7 @@ const commitBaseQAIfMissing = async ({ questionId, questionText, answerText, ses
       };
       
       updated = [...updated, qEntry];
-      console.log('[CQ_TRANSCRIPT][BASE_Q_INSERTED]', { qKey: qStableKey, questionId });
+
     }
     
     if (!hasA) {
@@ -439,11 +426,7 @@ const commitBaseQAIfMissing = async ({ questionId, questionText, answerText, ses
       };
       
       updated = [...updated, aEntry];
-      console.log('[CQ_TRANSCRIPT][BASE_A_INSERTED]', { 
-        aKey: aStableKey, 
-        questionId,
-        reason: 'No answer found by questionId - inserting deterministic base answer'
-      });
+
     }
     
     // Persist to DB synchronously
@@ -451,21 +434,11 @@ const commitBaseQAIfMissing = async ({ questionId, questionText, answerText, ses
       transcript_snapshot: updated
     });
     
-    console.log('[CQ_TRANSCRIPT][BASE_QA_COMMITTED]', {
-      questionId,
-      sessionId,
-      transcriptLen: updated.length,
-      order: 'BASE_QA_BEFORE_V3',
-      insertedQ: !hasQ,
-      insertedA: !hasA
-    });
+
     
     return updated;
   } catch (err) {
-    console.error('[CQ_TRANSCRIPT][BASE_QA_BARRIER_ERROR]', {
-      questionId,
-      error: err.message
-    });
+
     return [];
   }
 };
