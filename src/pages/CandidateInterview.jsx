@@ -20349,6 +20349,11 @@ function CandidateInterviewInner() {
               };
 
               // CHANGE 2: PROBE THE MOST LIKELY IDENTIFIERS *BEFORE* ANY NEW LOGIC RUNS
+              // Step 1: Always run a bootstrap probe and marker log
+              cqTdzProbe('__PROBE_BOOTSTRAP__', () => true);
+              try { window.console.log('[TDZ_TRACE][BOOTSTRAP_OK]'); } catch (_) {}
+
+              // Step 2: Compute cqDebugGate using the probe (safe even if TDZ occurs)
               const cqDebugGate = !!cqTdzProbe('isV3DebugEnabled', () => isV3DebugEnabled);
               if (cqDebugGate) {
                 cqTdzProbe('sessionId', () => sessionId);
@@ -20357,7 +20362,7 @@ function CandidateInterviewInner() {
                 cqTdzProbe('finalTranscriptList', () => finalTranscriptList);
                 cqTdzProbe('activeUiItem', () => activeUiItem);
                 cqTdzProbe('currentItem', () => currentItem);
-                console.log('[TDZ_TRACE][PROBE_OK]');
+                try { window.console.log('[TDZ_TRACE][PROBE_OK]'); } catch (_) {}
               }
 
               const shouldRenderInTranscript = (entry) => {
