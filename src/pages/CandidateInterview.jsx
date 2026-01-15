@@ -4271,11 +4271,7 @@ function CandidateInterviewInner() {
     
     // GUARD LOG: If opener suppressed fallback, log once
     if (requiredAnchorFallbackActive && requiredAnchorCurrent && currentItem?.type === 'v3_pack_opener') {
-      console.log('[V3_OPENER][SUPPRESS_FALLBACK]', {
-        packId: currentItem.packId,
-        instanceNumber: currentItem.instanceNumber,
-        reason: 'V3 opener takes precedence over required-anchor fallback - skipped fallback return'
-      });
+
     }
     
     // Priority 1: V3 prompt active (multi-signal detection)
@@ -4647,12 +4643,6 @@ function CandidateInterviewInner() {
     // Active UI items MUST render - history presence does NOT satisfy active requirement
     if (screenMode === "QUESTION" && openerText) {
       if (alreadyInHistory) {
-        console.log("[V3_OPENER][DEDUP_BYPASS]", { 
-          packId: currentItem.packId, 
-          instanceNumber: currentItem.instanceNumber,
-          stableKey,
-          reason: "Active V3 opener must render - bypassing history dedupe" 
-        });
       }
       
       activeCard = {
@@ -4668,19 +4658,8 @@ function CandidateInterviewInner() {
         source: 'prompt_lane_temporary'
       };
       
-      console.log("[V3_OPENER][ACTIVE_CARD_FORCED]", {
-        packId: currentItem.packId,
-        instanceNumber: currentItem.instanceNumber,
-        stableKey,
-        historyAlreadyHas: alreadyInHistory,
-        reason: "Active opener must render in main pane regardless of history state"
-      });
+
     } else if (!openerText) {
-      console.warn("[V3_OPENER][MISSING_TEXT]", {
-        packId: currentItem.packId,
-        instanceNumber: currentItem.instanceNumber,
-        reason: "Cannot render active card without opener text"
-      });
     }
   } else if (
     activeUiItem.kind === "DEFAULT" && 
@@ -8706,24 +8685,11 @@ function CandidateInterviewInner() {
       // ========================================================================
       if (currentItem.type === 'v3_pack_opener') {
         // INSTRUMENTATION: Log IMMEDIATELY before any async work
-        console.log('[V3_OPENER][SUBMIT_CLICK]', {
-          sessionId,
-          packId: currentItem.packId,
-          instanceNumber: currentItem.instanceNumber,
-          openerLen: value?.length || 0,
-          hasEngine: !!engine,
-          screenMode
-        });
         
         const { packId, categoryId, categoryLabel, openerText, baseQuestionId, questionCode, sectionId, instanceNumber, packData } = currentItem;
         
         // DEFENSIVE: Log if openerText was missing (fallback used)
         if (!openerText || openerText.trim() === '') {
-          console.log('[V3_OPENER][FALLBACK_USED_ON_SUBMIT]', {
-            packId,
-            instanceNumber,
-            reason: 'openerText missing - user answered with fallback prompt'
-          });
         }
 
         // CORRELATION TRACE: Generate traceId for V3 probing session
@@ -8738,13 +8704,8 @@ function CandidateInterviewInner() {
           categoryId
         });
 
-        console.log(`[V3_OPENER][ANSWERED] ========== OPENER ANSWERED ==========`);
-        console.log(`[V3_OPENER][ANSWERED]`, {
-          traceId,
-          packId,
-          categoryId,
-          answerLength: value?.length || 0
-        });
+        
+
 
         // FIX A: Do NOT append duplicate v3_opener_question - FOLLOWUP_CARD_SHOWN already logged it
         // Only append the user's answer
@@ -8753,7 +8714,7 @@ function CandidateInterviewInner() {
         const freshSession = await base44.entities.InterviewSession.get(sessionId);
         const currentTranscript = freshSession.transcript_snapshot || [];
 
-        console.log("[V3_OPENER][TRANSCRIPT_BEFORE]", { length: currentTranscript.length });
+        
 
         // REGRESSION FIX: Append user opener answer with stableKey (session-scoped for uniqueness)
         const openerAnswerStableKey = `v3-opener-a:${sessionId}:${packId}:${instanceNumber}`;
@@ -8816,14 +8777,8 @@ function CandidateInterviewInner() {
           });
         }
         
-        console.log('[V3_OPENER][SUBMITTED_OK]', {
-          sessionId,
-          packId,
-          instanceNumber,
-          traceId,
-          transcriptLenAfter: transcriptAfterAnswer.length
-        });
-        console.log("[V3_OPENER][TRANSCRIPT_AFTER_A]", { length: transcriptAfterAnswer.length });
+
+        
         
         // STABILITY SNAPSHOT: Opener answer submitted
         getStabilitySnapshotSOT("SUBMIT_END_V3_OPENER");
