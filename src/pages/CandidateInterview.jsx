@@ -502,7 +502,7 @@ const ContentContainer = ({ children, className = "" }) => (
 // ============================================================================
 // LEGACY TRANSCRIPT CLEANUP - DISABLED (V3 probe Q/A now allowed in transcript)
 // ============================================================================
-const cleanedSessionIdsRef = new Set(); // Kept for compatibility
+
 
 const cleanLegacyV3ProbePrompts = (transcript, sessionId) => {
 // NO LONGER CLEANING - V3 probe Q/A are now legal record
