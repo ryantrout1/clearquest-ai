@@ -20324,7 +20324,81 @@ function CandidateInterviewInner() {
 
               const renderedV3OpenerKeysSOT = new Set();
 
-              return finalTranscriptList.map((entry, index) => {
+              const shouldRenderInTranscript = (entry) => {
+                if (!entry) return false;
+        
+                // Rule 1: Filter non-chat/prompt-lane context
+                if (entry.meta?.isNonChat === true) return false;
+                if (entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK' || entry.meta?.contextKind === 'PROMPT_LANE_CONTEXT') return false;
+                if (entry.messageType === 'PROMPT_LANE_CONTEXT') return false;
+                
+                // Rule 2: Filter V3 probe questions (prompt-lane only)
+                const isV3ProbeQuestion = 
+                    entry?.kind === 'v3_probe_question' ||
+                    entry?.type === 'v3_probe_question' ||
+                    entry?.messageType === 'V3_PROBE_QUESTION' ||
+                    entry?.meta?.kind === 'v3_probe_question' ||
+                    entry?.meta?.uiKind === 'v3_probe_question' ||
+                    entry?.meta?.isV3ProbeQuestion === true;
+                if (isV3ProbeQuestion) return false;
+        
+                // Rule 3: Filter empty/non-renderable content
+                const text = entry.text || entry.questionText || entry.content || '';
+                if (text.trim().length === 0) {
+                    if (entry.messageType === 'WELCOME' && (!entry.lines || entry.lines.length === 0)) {
+                        return false;
+                    }
+                    if (entry.messageType !== 'WELCOME') {
+                         return false;
+                    }
+                }
+                
+                return true;
+              };
+
+              const transcriptRenderableList = finalTranscriptList.filter(shouldRenderInTranscript);
+      
+              const filteredCount = finalTranscriptList.length - transcriptRenderableList.length;
+              if (filteredCount > 0) {
+                const sampleFiltered = finalTranscriptList
+                  .filter(entry => !shouldRenderInTranscript(entry))
+                  .slice(0, 5)
+                  .map(entry => ({ 
+                    kind: entry.kind || entry.type || entry.messageType,
+                    meta: { 
+                      isNonChat: entry.meta?.isNonChat,
+                      contextKind: entry.meta?.contextKind,
+                      uiKind: entry.meta?.uiKind
+                    }
+                  }));
+                  
+                logOnce(`transcript_filter_${sessionId}`, () => {
+                  console.log('[UI_CONTRACT][TRANSCRIPT_FILTER]', {
+                    originalCount: finalTranscriptList.length,
+                    renderableCount: transcriptRenderableList.length,
+                    filteredCount,
+                    sampleFilteredKinds: sampleFiltered
+                  });
+                });
+              }
+
+              return transcriptRenderableList.map((entry, index) => {
+                  // CHANGE 3: Hard-dedupe V3 opener prompts
+                  const mt_dedupe = entry.messageType || entry.type || entry.kind;
+                  const isOpener_dedupe = (mt_dedupe && mt_dedupe.toLowerCase().includes('opener')) || entry.meta?.isV3Opener;
+                  if (isOpener_dedupe) {
+                    const openerKey = entry.meta?.openerKey || 
+                                    `opener:${sessionId}:${(entry.text || '').slice(0,80)}:${index}`;
+                    if (renderedV3OpenerKeysSOT.has(openerKey)) {
+                      console.log('[UI_CONTRACT][V3_OPENER_DEDUPE]', { 
+                        key: openerKey, 
+                        preview: (entry.text || '').substring(0, 80) 
+                      });
+                      return null;
+                    }
+                    renderedV3OpenerKeysSOT.add(openerKey);
+                  }
+
               // CANONICAL STREAM: Handle both transcript entries AND active cards
               const isActiveCard = entry.__activeCard === true;
                   
