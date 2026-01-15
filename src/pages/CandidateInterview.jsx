@@ -20328,47 +20328,6 @@ function CandidateInterviewInner() {
 
               const renderedV3OpenerKeysSOT = new Set();
 
-              // CHANGE 1: Add a TDZ PROBE HELPER (LOCAL, NO IMPORTS)
-              const cqTdzProbe = (label, getterFn) => {
-                try {
-                  return getterFn();
-                } catch (e) {
-                  try {
-                    // Unmissable logging + global marker write
-                    window.console.error('[TDZ_TRACE][PROBE_FAIL]', { label, name: e?.name, message: e?.message, stack: e?.stack });
-                    try {
-                      window.__CQ_TDZ_LAST_PROBE_FAIL__ = { label, name: e?.name, message: e?.message, stack: e?.stack };
-                    } catch (_) {}
-                    // Last-resort alert (only when isV3DebugEnabled is truthy) and only for ReferenceError
-                    try {
-                      let dbg = false;
-                      try { dbg = isV3DebugEnabled; } catch (_) { dbg = false; }
-                      if (dbg && (e?.name === 'ReferenceError')) {
-                        try { window.alert('[TDZ_TRACE][PROBE_FAIL] ' + label); } catch (_) {}
-                      }
-                    } catch (_) {}
-                  } catch (_) {}
-                  throw e; // rethrow so we still see the crash, but now with label
-                }
-              };
-
-              // CHANGE 2: PROBE THE MOST LIKELY IDENTIFIERS *BEFORE* ANY NEW LOGIC RUNS
-              // Step 1: Always run a bootstrap probe and marker log
-              cqTdzProbe('__PROBE_BOOTSTRAP__', () => true);
-              try { window.console.log('[TDZ_TRACE][BOOTSTRAP_OK]'); } catch (_) {}
-
-              // Step 2: Compute cqDebugGate using the probe (safe even if TDZ occurs)
-              const cqDebugGate = !!cqTdzProbe('isV3DebugEnabled', () => isV3DebugEnabled);
-              if (cqDebugGate) {
-                cqTdzProbe('sessionId', () => sessionId);
-                cqTdzProbe('logOnce', () => logOnce);
-                cqTdzProbe('sanitizeCandidateFacingText', () => sanitizeCandidateFacingText);
-                cqTdzProbe('finalTranscriptListSafe', () => finalTranscriptListSafe);
-                cqTdzProbe('activeUiItem', () => activeUiItem);
-                cqTdzProbe('currentItem', () => currentItem);
-                try { window.console.log('[TDZ_TRACE][PROBE_OK]'); } catch (_) {}
-              }
-
               const shouldRenderInTranscript = (entry) => {
                 if (!entry) return false;
         
@@ -20404,13 +20363,6 @@ function CandidateInterviewInner() {
               const transcriptRenderableList = finalTranscriptListSafe.filter(shouldRenderInTranscript);
       
               const filteredCount = finalTranscriptListSafe.length - transcriptRenderableList.length;
-
-              // CHANGE 3: Add final readback log right before the map (debug gated)
-              if (cqDebugGate) {
-                try {
-                  window.console.log('[TDZ_TRACE][ABOUT_TO_RENDER_MAP]', { originalCount: finalTranscriptListSafe?.length, renderableCount: transcriptRenderableList?.length });
-                } catch (_) {}
-              }
               const forceTranscriptFilterDebug = isV3DebugEnabled || false;
 
               if (filteredCount > 0 || forceTranscriptFilterDebug) {
