@@ -504,11 +504,7 @@ const ContentContainer = ({ children, className = "" }) => (
 // ============================================================================
 
 
-const cleanLegacyV3ProbePrompts = (transcript, sessionId) => {
-// NO LONGER CLEANING - V3 probe Q/A are now legal record
-if (!Array.isArray(transcript)) return transcript;
-return transcript;
-};
+
 
 // ============================================================================
 // SECTION-BASED HELPER FUNCTIONS (HOISTED)
