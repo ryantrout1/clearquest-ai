@@ -3101,7 +3101,7 @@ function CandidateInterviewInner() {
     // Priority-ordered evaluation (highest to lowest)
     
     // 1. BOOTSTRAP - Initial loading
-    if (isLoading && !engine_S && !session_S) {
+    if (isLoading && !engine && !session) {
       return {
         phase: "BOOTSTRAP",
         allowedActions: new Set([]),
@@ -19956,12 +19956,42 @@ function CandidateInterviewInner() {
     hasActiveV3Prompt,
     v3PromptPhase,
     sessionId,
-    dbTranscript_S,
+    dbTranscript,
     cqDiagEnabled,
     v3UiRenderable
   ]);
 
-
+  // ============================================================================
+  // SESSION URL REPAIR: Auto-fix stripped session param before redirect
+  // ============================================================================
+  // If session is missing from URL BUT we have it in ref, repair URL automatically
+  if (!sessionId && resolvedSessionRef.current && !didSessionRepairRef.current) {
+    didSessionRepairRef.current = true;
+    
+    // Build repaired URL with session param
+    const params = new URLSearchParams(window.location.search || "");
+    params.set("session", resolvedSessionRef.current);
+    const repairedUrl = `/candidateinterview?${params.toString()}`;
+    
+    console.log('[CANDIDATE_INTERVIEW][SESSION_URL_REPAIR]', {
+      from: window.location.search,
+      to: repairedUrl,
+      repairedSession: resolvedSessionRef.current
+    });
+    
+    // Hard replace to repaired URL (preserves all query params)
+    window.location.replace(repairedUrl);
+    
+    // Render minimal placeholder during repair
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
+          <p className="text-slate-300">Restoring session...</p>
+        </div>
+      </div>
+    );
+  }
 
   // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
   // SESSION LOCK: Suppress invalidation if session was previously locked
@@ -20017,14 +20047,7 @@ function CandidateInterviewInner() {
     }
   }
 
-
-
-  // [TDZ_SHIELD] Safe aliases for render-time reads (must stay below all hooks)
-  
-  const activeUiItem_S = activeUiItem && typeof activeUiItem === 'object' ? activeUiItem : {};
-  const currentItem_S = currentItem && typeof currentItem === 'object' ? currentItem : {};
-  const dbTranscript_S = Array.isArray(dbTranscript) ? dbTranscript : [];
-  const engine_S = engine && typeof engine === 'object' ? engine : {};
+  const finalTranscriptListSafe = Array.isArray(finalTranscriptList) ? finalTranscriptList : [];
   
   cqTdzMark('AFTER_FINAL_TRANSCRIPT_LIST_MEMO', { listLen: finalTranscriptList?.length || 0 });
   
@@ -20084,49 +20107,6 @@ function CandidateInterviewInner() {
       reason: 'New session started - status refs cleared'
     });
   }, [sessionId]);
-
-  // [TDZ_SHIELD] Safe aliases for render-time reads (must stay below all hooks)
-  const finalTranscriptList_S = Array.isArray(finalTranscriptList) ? finalTranscriptList : [];
-  const activeUiItem_S = activeUiItem && typeof activeUiItem === 'object' ? activeUiItem : {};
-  const currentItem_S = currentItem && typeof currentItem === 'object' ? currentItem : {};
-  const engine_S = engine && typeof engine === 'object' ? engine : {};
-  const session_S = session && typeof session === 'object' ? session : {};
-  const dbTranscript_S = Array.isArray(dbTranscript) ? dbTranscript : [];
-  const sections_S = Array.isArray(sections) ? sections : [];
-  const activeSection_S = activeSection && typeof activeSection === 'object' ? activeSection : {};
-  const department_S = department && typeof department === 'object' ? department : {};
-
-
-
-
-  // MOVED FROM ~L1695
-  if (!sessionId && resolvedSessionRef.current && !didSessionRepairRef.current) {
-    didSessionRepairRef.current = true;
-    
-    // Build repaired URL with session param
-    const params = new URLSearchParams(window.location.search || "");
-    params.set("session", resolvedSessionRef.current);
-    const repairedUrl = `/candidateinterview?${params.toString()}`;
-    
-    console.log('[CANDIDATE_INTERVIEW][SESSION_URL_REPAIR]', {
-      from: window.location.search,
-      to: repairedUrl,
-      repairedSession: resolvedSessionRef.current
-    });
-    
-    // Hard replace to repaired URL (preserves all query params)
-    window.location.replace(repairedUrl);
-    
-    // Render minimal placeholder during repair
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
-          <p className="text-slate-300">Restoring session...</p>
-        </div>
-      </div>
-    );
-  }
 
   cqTdzMark('BEFORE_GUARD_SCREENS_CHECK');
   cqTdzMark('BEFORE_LOADING_GUARD', { shouldShowFullScreenLoader });
@@ -20242,10 +20222,10 @@ function CandidateInterviewInner() {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <h1 className="text-base font-semibold text-white">ClearQuest Interview</h1>
-              {department_S && (
+              {department && (
                 <>
                   <span className="text-slate-600 hidden sm:inline">•</span>
-                  <span className="text-xs text-slate-200 hidden sm:inline">{department_S.department_name}</span>
+                  <span className="text-xs text-slate-200 hidden sm:inline">{department.department_name}</span>
                 </>
               )}
             </div>
@@ -20260,24 +20240,24 @@ function CandidateInterviewInner() {
             </Button>
           </div>
 
-          {sections_S.length > 0 && activeSection_S && (
-           <div>
-             <div className="text-sm font-medium text-blue-400 mb-1">
-               {activeSection_S.displayName}
-             </div>
-             <div className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden">
-               <div
-                 className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all"
-                 style={{
-                   width: `${questionCompletionPct}%`,
-                   boxShadow: questionCompletionPct > 0 ? '0 0 8px rgba(59, 130, 246, 0.5)' : 'none'
-                 }}
-               />
-             </div>
-             <div className="flex justify-between items-center mt-1">
-               <span className="text-xs text-slate-400">
-                 Section {currentSectionIndex + 1} of {sections_S.length}
-               </span>
+          {sections.length > 0 && activeSection && (
+            <div>
+              <div className="text-sm font-medium text-blue-400 mb-1">
+                {activeSection.displayName}
+              </div>
+              <div className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all"
+                  style={{
+                    width: `${questionCompletionPct}%`,
+                    boxShadow: questionCompletionPct > 0 ? '0 0 8px rgba(59, 130, 246, 0.5)' : 'none'
+                  }}
+                />
+              </div>
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-xs text-slate-400">
+                  Section {currentSectionIndex + 1} of {sections.length}
+                </span>
                 <span className="text-xs font-medium text-blue-400">{questionCompletionPct}% complete</span>
               </div>
             </div>
@@ -20317,10 +20297,10 @@ function CandidateInterviewInner() {
           <div className="space-y-3">
             {/* CQ_WELCOME_FALLBACK_CANARY_DO_NOT_REMOVE */}
             {screenMode === 'WELCOME' &&
-            !isLoading &&
-            !!session_S &&
-            !!engine_S &&
-            finalTranscriptList_S.length === 0 && (
+              !isLoading &&
+              !!session &&
+              !!engine &&
+              finalTranscriptList.length === 0 && (
                 <ContentContainer>
                   {console.log('[WELCOME_RENDER][FALLBACK_USED]', {
                     screenMode,
@@ -20334,11 +20314,11 @@ function CandidateInterviewInner() {
               )}
 
             {screenMode === 'WELCOME' &&
-              finalTranscriptList_S.length > 0 &&
+              finalTranscriptList.length > 0 &&
               console.log('[WELCOME_RENDER][NORMAL_USED]', {
                 screenMode,
                 isLoading,
-                transcriptLen: finalTranscriptList_S.length,
+                transcriptLen: finalTranscriptList.length,
               })}
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {/* Active opener suppression: Compute current active opener stableKey */}
@@ -20382,13 +20362,13 @@ function CandidateInterviewInner() {
                 return true;
               };
 
-              const transcriptRenderableList = finalTranscriptList_S.filter(shouldRenderInTranscript);
+              const transcriptRenderableList = finalTranscriptListSafe.filter(shouldRenderInTranscript);
       
-              const filteredCount = finalTranscriptList_S.length - transcriptRenderableList.length;
+              const filteredCount = finalTranscriptListSafe.length - transcriptRenderableList.length;
               const forceTranscriptFilterDebug = isV3DebugEnabled || false;
 
               if (filteredCount > 0 || forceTranscriptFilterDebug) {
-                const sampleFiltered = finalTranscriptList_S
+                const sampleFiltered = finalTranscriptListSafe
                   .filter(entry => !shouldRenderInTranscript(entry));
 
                 const sampleFilteredShapes = sampleFiltered.slice(0, 10).map(entry => ({
@@ -23059,7 +23039,7 @@ function CandidateInterviewInner() {
       </Dialog>
 
       {/* V3 Debug Panel - Admin only AND ?debug=1 */}
-      {debugEnabled && v3DebugEnabled && session_S?.ide_version === "V3" && (
+      {debugEnabled && v3DebugEnabled && session?.ide_version === "V3" && (
         <V3DebugPanel
           sessionId={sessionId}
           incidentId={v3ProbingContext?.incidentId}
