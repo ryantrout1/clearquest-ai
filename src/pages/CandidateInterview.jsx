@@ -19956,42 +19956,12 @@ function CandidateInterviewInner() {
     hasActiveV3Prompt,
     v3PromptPhase,
     sessionId,
-    dbTranscript,
+    dbTranscript_S,
     cqDiagEnabled,
     v3UiRenderable
   ]);
 
-  // ============================================================================
-  // SESSION URL REPAIR: Auto-fix stripped session param before redirect
-  // ============================================================================
-  // If session is missing from URL BUT we have it in ref, repair URL automatically
-  if (!sessionId && resolvedSessionRef.current && !didSessionRepairRef.current) {
-    didSessionRepairRef.current = true;
-    
-    // Build repaired URL with session param
-    const params = new URLSearchParams(window.location.search || "");
-    params.set("session", resolvedSessionRef.current);
-    const repairedUrl = `/candidateinterview?${params.toString()}`;
-    
-    console.log('[CANDIDATE_INTERVIEW][SESSION_URL_REPAIR]', {
-      from: window.location.search,
-      to: repairedUrl,
-      repairedSession: resolvedSessionRef.current
-    });
-    
-    // Hard replace to repaired URL (preserves all query params)
-    window.location.replace(repairedUrl);
-    
-    // Render minimal placeholder during repair
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
-          <p className="text-slate-300">Restoring session...</p>
-        </div>
-      </div>
-    );
-  }
+
 
   // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
   // SESSION LOCK: Suppress invalidation if session was previously locked
@@ -20047,7 +20017,44 @@ function CandidateInterviewInner() {
     }
   }
 
-  const finalTranscriptListSafe = Array.isArray(finalTranscriptList) ? finalTranscriptList : [];
+  // ============================================================================
+  // SESSION URL REPAIR: Auto-fix stripped session param before redirect
+  // ============================================================================
+  // If session is missing from URL BUT we have it in ref, repair URL automatically
+  if (!sessionId && resolvedSessionRef.current && !didSessionRepairRef.current) {
+    didSessionRepairRef.current = true;
+    
+    // Build repaired URL with session param
+    const params = new URLSearchParams(window.location.search || "");
+    params.set("session", resolvedSessionRef.current);
+    const repairedUrl = `/candidateinterview?${params.toString()}`;
+    
+    console.log('[CANDIDATE_INTERVIEW][SESSION_URL_REPAIR]', {
+      from: window.location.search,
+      to: repairedUrl,
+      repairedSession: resolvedSessionRef.current
+    });
+    
+    // Hard replace to repaired URL (preserves all query params)
+    window.location.replace(repairedUrl);
+    
+    // Render minimal placeholder during repair
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
+          <p className="text-slate-300">Restoring session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // [TDZ_SHIELD] Safe aliases for render-time reads (must stay below all hooks)
+  const finalTranscriptList_S = Array.isArray(finalTranscriptList) ? finalTranscriptList : [];
+  const activeUiItem_S = activeUiItem && typeof activeUiItem === 'object' ? activeUiItem : {};
+  const currentItem_S = currentItem && typeof currentItem === 'object' ? currentItem : {};
+  const dbTranscript_S = Array.isArray(dbTranscript) ? dbTranscript : [];
+  const engine_S = engine && typeof engine === 'object' ? engine : {};
   
   cqTdzMark('AFTER_FINAL_TRANSCRIPT_LIST_MEMO', { listLen: finalTranscriptList?.length || 0 });
   
@@ -20362,13 +20369,13 @@ function CandidateInterviewInner() {
                 return true;
               };
 
-              const transcriptRenderableList = finalTranscriptListSafe.filter(shouldRenderInTranscript);
+              const transcriptRenderableList = finalTranscriptList_S.filter(shouldRenderInTranscript);
       
-              const filteredCount = finalTranscriptListSafe.length - transcriptRenderableList.length;
+              const filteredCount = finalTranscriptList_S.length - transcriptRenderableList.length;
               const forceTranscriptFilterDebug = isV3DebugEnabled || false;
 
               if (filteredCount > 0 || forceTranscriptFilterDebug) {
-                const sampleFiltered = finalTranscriptListSafe
+                const sampleFiltered = finalTranscriptList_S
                   .filter(entry => !shouldRenderInTranscript(entry));
 
                 const sampleFilteredShapes = sampleFiltered.slice(0, 10).map(entry => ({
