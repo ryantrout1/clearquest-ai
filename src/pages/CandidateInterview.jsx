@@ -22294,14 +22294,7 @@ function CandidateInterviewInner() {
            {/* UI CONTRACT: All active cards render via transcript stream - NO separate currentPrompt renderer */}
            {/* This section PERMANENTLY DISABLED - prevents duplicate card rendering */}
            {/* All user actions (Yes/No, text input) ONLY in bottom bar */}
-           {false && (() => {
-             console.error('[UI_CONTRACT][VIOLATION][CURRENT_PROMPT_PATH_REACHED]', {
-               currentItemType: currentItem?.type,
-               currentItemId: currentItem?.id,
-               reason: 'This code path is disabled and should never execute'
-             });
-             return null;
-           })()}
+
 
               {/* V3 UI-ONLY HISTORY: Rendered via canonical stream (lines 8942-8985) */}
             {/* Separate loop removed - renderStream includes v3UiRenderable */}
