@@ -3834,6 +3834,18 @@ function CandidateInterviewInner() {
   const v3RefreshRequestedRef = useRef(null); // { reason, promptId, stableKeyA, requestedAt }
   const v3RefreshInFlightRef = useRef(false);
   const [v3RefreshTick, setV3RefreshTick] = useState(0);
+
+  // [TDZ_SHIELD] Safe aliases for render-time reads (must stay below all hooks)
+  const finalTranscriptList_S = Array.isArray(finalTranscriptList) ? finalTranscriptList : [];
+  const transcriptSOT_S = Array.isArray(transcriptSOT) ? transcriptSOT : [];
+  const activeUiItem_S = activeUiItem && typeof activeUiItem === 'object' ? activeUiItem : {};
+  const currentItem_S = currentItem && typeof currentItem === 'object' ? currentItem : {};
+  const v3ProbingContext_S = v3ProbingContext && typeof v3ProbingContext === 'object' ? v3ProbingContext : {};
+  const activeCard_S = activeCard && typeof activeCard === 'object' ? activeCard : {};
+  const engine_S = engine && typeof engine === 'object' ? engine : {};
+  const v3ProbeDisplayHistory_S = Array.isArray(v3ProbeDisplayHistory) ? v3ProbeDisplayHistory : [];
+  const shouldRenderInTranscript_S = typeof shouldRenderInTranscript === 'function' ? shouldRenderInTranscript : () => false;
+  const getTranscriptEntryKey_S = typeof getTranscriptEntryKey === 'function' ? getTranscriptEntryKey : () => 'fallback-key';
   
   // MI_GATE UI CONTRACT SELF-TEST: Track main pane render + footer buttons per itemId
   const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { mainPaneRendered: bool, footerButtonsOnly: bool, testStarted: bool }>
@@ -20047,7 +20059,7 @@ function CandidateInterviewInner() {
     }
   }
 
-  const finalTranscriptListSafe = Array.isArray(finalTranscriptList) ? finalTranscriptList : [];
+  
   
   cqTdzMark('AFTER_FINAL_TRANSCRIPT_LIST_MEMO', { listLen: finalTranscriptList?.length || 0 });
   
@@ -20073,7 +20085,7 @@ function CandidateInterviewInner() {
     
     lastGoldenCheckPayloadRef.current = payloadKey;
     console.log('[UI_CONTRACT][GOLDEN_CHECK]', payload);
-  }, [sessionId, activeUiItem, bottomBarModeSOT, v3ProbingActive, finalTranscriptList]);
+  }, [sessionId, activeUiItem, bottomBarModeSOT, v3ProbingActive, finalTranscriptList_S]);
   
   // CONSOLIDATED UI CONTRACT STATUS LOG (Single Source of Truth)
   // Emits once per mode change with all three contract aspects
@@ -20300,7 +20312,7 @@ function CandidateInterviewInner() {
               !isLoading &&
               !!session &&
               !!engine &&
-              finalTranscriptList.length === 0 && (
+              finalTranscriptList_S.length === 0 && (
                 <ContentContainer>
                   {console.log('[WELCOME_RENDER][FALLBACK_USED]', {
                     screenMode,
@@ -20314,7 +20326,7 @@ function CandidateInterviewInner() {
               )}
 
             {screenMode === 'WELCOME' &&
-              finalTranscriptList.length > 0 &&
+              finalTranscriptList_S.length > 0 &&
               console.log('[WELCOME_RENDER][NORMAL_USED]', {
                 screenMode,
                 isLoading,
@@ -20362,13 +20374,13 @@ function CandidateInterviewInner() {
                 return true;
               };
 
-              const transcriptRenderableList = finalTranscriptListSafe.filter(shouldRenderInTranscript);
+              const transcriptRenderableList = finalTranscriptList_S.filter(shouldRenderInTranscript_S);
       
-              const filteredCount = finalTranscriptListSafe.length - transcriptRenderableList.length;
+              const filteredCount = finalTranscriptList_S.length - transcriptRenderableList.length;
               const forceTranscriptFilterDebug = isV3DebugEnabled || false;
 
               if (filteredCount > 0 || forceTranscriptFilterDebug) {
-                const sampleFiltered = finalTranscriptListSafe
+                const sampleFiltered = finalTranscriptList_S
                   .filter(entry => !shouldRenderInTranscript(entry));
 
                 const sampleFilteredShapes = sampleFiltered.slice(0, 10).map(entry => ({
