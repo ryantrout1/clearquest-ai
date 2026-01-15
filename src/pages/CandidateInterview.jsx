@@ -19991,37 +19991,6 @@ function CandidateInterviewInner() {
     v3UiRenderable
   ]);
 
-  // SESSION URL REPAIR: Auto-fix stripped session param before redirect
-  // ===========================================================================
-  // If session is missing from URL BUT we have it in ref, repair URL automatically
-  if (!sessionId && resolvedSessionRef.current && !didSessionRepairRef.current) {
-    didSessionRepairRef.current = true;
-    
-    // Build repaired URL with session param
-    const params = new URLSearchParams(window.location.search || "");
-    params.set("session", resolvedSessionRef.current);
-    const repairedUrl = `/candidateinterview?${params.toString()}`;
-    
-    console.log('[CANDIDATE_INTERVIEW][SESSION_URL_REPAIR]', {
-      from: window.location.search,
-      to: repairedUrl,
-      repairedSession: resolvedSessionRef.current
-    });
-    
-    // Hard replace to repaired URL (preserves all query params)
-    window.location.replace(repairedUrl);
-    
-    // Render minimal placeholder during repair
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
-          <p className="text-slate-300">Restoring session...</p>
-        </div>
-      </div>
-    );
-  }
-
   // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
   // SESSION LOCK: Suppress invalidation if session was previously locked
   if (!effectiveSessionId) {
