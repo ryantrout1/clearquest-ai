@@ -17925,14 +17925,7 @@ function CandidateInterviewInner() {
               e.source === 'prompt_lane_temporary';
             
             if (markedEphemeral && isV3ProbeA) {
-              console.error('[CQ_TRANSCRIPT][BUG][EPHEMERAL_FILTER_TRIED_TO_REMOVE_V3_PROBE_A]', {
-                stableKey,
-                mt,
-                kind: e.kind,
-                source: e.source,
-                __activeCard: e.__activeCard,
-                reason: 'V3 probe answer incorrectly marked as ephemeral'
-              });
+
             }
             
             return true; // ALWAYS keep V3 probe Q/A
