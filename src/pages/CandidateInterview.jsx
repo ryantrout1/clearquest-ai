@@ -2022,11 +2022,6 @@ function CandidateInterviewInner() {
           const hasMultipleContexts = new Set(contexts.map(c => c.context)).size > 1;
           
           if (hasMultipleContexts) {
-            console.log('[CQ_TRANSCRIPT][YES_AMBIGUITY]', {
-              last5: last5.map(e => e.stableKey || e.id),
-              contexts,
-              reason: 'Multiple YES answers with different contexts in recent history'
-            });
           }
         }
       }
