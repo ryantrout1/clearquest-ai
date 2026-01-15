@@ -23018,16 +23018,7 @@ function CandidateInterviewInner() {
         />
       )}
       
-      {/* DEV DEBUG: One-click evidence bundle (v3debug=1 only) */}
-      {isV3DebugEnabled && (
-        <button
-          onClick={copyV3DebugBundle}
-          className="fixed bottom-4 right-4 z-[10000] px-3 py-1 text-xs bg-purple-600 text-white rounded shadow-lg hover:bg-purple-700"
-          title="Copy V3 Debug Bundle (Ctrl+Shift+C)"
-        >
-          Copy V3 Debug
-        </button>
-      )}
+
       
       {/* Auto-focus guard - headless component with stable hook order */}
       <BottomBarAutoFocusGuard
