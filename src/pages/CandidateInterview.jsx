@@ -3834,18 +3834,6 @@ function CandidateInterviewInner() {
   const v3RefreshRequestedRef = useRef(null); // { reason, promptId, stableKeyA, requestedAt }
   const v3RefreshInFlightRef = useRef(false);
   const [v3RefreshTick, setV3RefreshTick] = useState(0);
-
-  // [TDZ_SHIELD] Safe aliases for render-time reads (must stay below all hooks)
-  const finalTranscriptList_S = Array.isArray(finalTranscriptList) ? finalTranscriptList : [];
-  const transcriptSOT_S = Array.isArray(transcriptSOT) ? transcriptSOT : [];
-  const activeUiItem_S = activeUiItem && typeof activeUiItem === 'object' ? activeUiItem : {};
-  const currentItem_S = currentItem && typeof currentItem === 'object' ? currentItem : {};
-  const v3ProbingContext_S = v3ProbingContext && typeof v3ProbingContext === 'object' ? v3ProbingContext : {};
-  const activeCard_S = activeCard && typeof activeCard === 'object' ? activeCard : {};
-  const engine_S = engine && typeof engine === 'object' ? engine : {};
-  const v3ProbeDisplayHistory_S = Array.isArray(v3ProbeDisplayHistory) ? v3ProbeDisplayHistory : [];
-  const shouldRenderInTranscript_S = typeof shouldRenderInTranscript === 'function' ? shouldRenderInTranscript : () => false;
-  const getTranscriptEntryKey_S = typeof getTranscriptEntryKey === 'function' ? getTranscriptEntryKey : () => 'fallback-key';
   
   // MI_GATE UI CONTRACT SELF-TEST: Track main pane render + footer buttons per itemId
   const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { mainPaneRendered: bool, footerButtonsOnly: bool, testStarted: bool }>
@@ -20074,7 +20062,7 @@ function CandidateInterviewInner() {
       suppressProbesInTranscript: (activeUiItem?.kind === "V3_PROMPT" || activeUiItem?.kind === "V3_WAITING") && v3ProbingActive,
       lastMeasuredOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
       hasFooterSpacer: typeof window !== 'undefined' && !!historyRef.current?.querySelector('[data-cq-footer-spacer="true"]'),
-      transcriptLen: finalTranscriptList_S?.length || 0
+      transcriptLen: finalTranscriptList_S.length || 0
     };
     
     // Dedupe: Only emit if payload changed
@@ -20374,7 +20362,7 @@ function CandidateInterviewInner() {
                 return true;
               };
 
-              const transcriptRenderableList = finalTranscriptList_S.filter(shouldRenderInTranscript_S);
+              const transcriptRenderableList = finalTranscriptList_S.filter(shouldRenderInTranscript);
       
               const filteredCount = finalTranscriptList_S.length - transcriptRenderableList.length;
               const forceTranscriptFilterDebug = isV3DebugEnabled || false;
@@ -21934,7 +21922,7 @@ function CandidateInterviewInner() {
               
               // FIX: Find most recent answer for this question in render stream
               const answerStableKeyPrefix = `answer:${sessionId}:${activeQuestionId}:`;
-              const recentAnswer = finalTranscriptList.find(e => 
+              const recentAnswer = finalTranscriptList_S.find(e => 
                 e.role === 'user' && 
                 e.messageType === 'ANSWER' &&
                 (e.questionId === activeQuestionId || e.meta?.questionDbId === activeQuestionId) &&
