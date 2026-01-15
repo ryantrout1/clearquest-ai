@@ -1720,59 +1720,7 @@ function CandidateInterviewInner() {
     );
   }
   
-  // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
-  // SESSION LOCK: Suppress invalidation if session was previously locked
-  if (!effectiveSessionId) {
-    // GUARD: Session locked - suppress invalidation (prevents reset to WELCOME)
-    if (lockedSessionIdRef.current) {
-      console.warn('[SESSION_LOCK][SUPPRESSED_INVALIDATION]', {
-        rawSessionId: sessionId,
-        lockedSessionId: lockedSessionIdRef.current,
-        screenMode,
-        reason: 'Session locked - ignoring transient null sessionId'
-      });
-      // Continue rendering - use locked session (no redirect)
-    } else {
-      // No lock yet - apply original guard logic
-      // GUARD: Do not redirect while recovery is in-flight
-      if (isRecoveringSession) {
-        return (
-          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-            <div className="text-center space-y-4">
-              <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
-              <p className="text-slate-300">Recovering session...</p>
-            </div>
-          </div>
-        );
-      }
-      
-      // LOG: No session and no repair possible - unrecoverable
-      if (!noSessionEarlyReturnLoggedRef.current) {
-        noSessionEarlyReturnLoggedRef.current = true;
-        console.error('[CANDIDATE_INTERVIEW][NO_SESSION_UNRECOVERABLE]', {
-          sessionId,
-          hasSession: !!sessionId,
-          screenMode,
-          pathname: window.location.pathname,
-          search: window.location.search,
-          stack: new Error().stack?.split('\n').slice(0,6).join('\n'),
-          hadRefSession: !!resolvedSessionRef.current,
-          deptParam: urlParams.get('dept'),
-          fileParam: urlParams.get('file'),
-          action: 'redirect_to_startinterview'
-        });
-      }
-      
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-          <div className="text-center space-y-4">
-            <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
-            <p className="text-slate-300">Redirecting to start interview...</p>
-          </div>
-        </div>
-      );
-    }
-  }
+
   
   // TODO: REMOVE CQDIAG after PASS validation
   const cqDiagEnabled = urlParams.get('cqdiag') === '1';
@@ -20042,6 +19990,62 @@ function CandidateInterviewInner() {
     cqDiagEnabled,
     v3UiRenderable
   ]);
+
+  // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
+  // SESSION LOCK: Suppress invalidation if session was previously locked
+  if (!effectiveSessionId) {
+    // GUARD: Session locked - suppress invalidation (prevents reset to WELCOME)
+    if (lockedSessionIdRef.current) {
+      console.warn('[SESSION_LOCK][SUPPRESSED_INVALIDATION]', {
+        rawSessionId: sessionId,
+        lockedSessionId: lockedSessionIdRef.current,
+        screenMode,
+        reason: 'Session locked - ignoring transient null sessionId'
+      });
+      // Continue rendering - use locked session (no redirect)
+    } else {
+      // No lock yet - apply original guard logic
+      // GUARD: Do not redirect while recovery is in-flight
+      if (isRecoveringSession) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+            <div className="text-center space-y-4">
+              <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
+              <p className="text-slate-300">Recovering session...</p>
+            </div>
+          </div>
+        );
+      }
+      
+      // LOG: No session and no repair possible - unrecoverable
+      if (!noSessionEarlyReturnLoggedRef.current) {
+        noSessionEarlyReturnLoggedRef.current = true;
+        console.error('[CANDIDATE_INTERVIEW][NO_SESSION_UNRECOVERABLE]', {
+          sessionId,
+          hasSession: !!sessionId,
+          screenMode,
+          pathname: window.location.pathname,
+          search: window.location.search,
+          stack: new Error().stack?.split('\n').slice(0,6).join('\n'),
+          hadRefSession: !!resolvedSessionRef.current,
+          deptParam: urlParams.get('dept'),
+          fileParam: urlParams.get('file'),
+          action: 'redirect_to_startinterview'
+        });
+      }
+      
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+          <div className="text-center space-y-4">
+            <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
+            <p className="text-slate-300">Redirecting to start interview...</p>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  const finalTranscriptListSafe = Array.isArray(finalTranscriptList) ? finalTranscriptList : [];
   
   cqTdzMark('AFTER_FINAL_TRANSCRIPT_LIST_MEMO', { listLen: finalTranscriptList?.length || 0 });
   
@@ -20359,7 +20363,7 @@ function CandidateInterviewInner() {
                 cqTdzProbe('sessionId', () => sessionId);
                 cqTdzProbe('logOnce', () => logOnce);
                 cqTdzProbe('sanitizeCandidateFacingText', () => sanitizeCandidateFacingText);
-                cqTdzProbe('finalTranscriptList', () => finalTranscriptList);
+                cqTdzProbe('finalTranscriptListSafe', () => finalTranscriptListSafe);
                 cqTdzProbe('activeUiItem', () => activeUiItem);
                 cqTdzProbe('currentItem', () => currentItem);
                 try { window.console.log('[TDZ_TRACE][PROBE_OK]'); } catch (_) {}
@@ -20397,20 +20401,20 @@ function CandidateInterviewInner() {
                 return true;
               };
 
-              const transcriptRenderableList = finalTranscriptList.filter(shouldRenderInTranscript);
+              const transcriptRenderableList = finalTranscriptListSafe.filter(shouldRenderInTranscript);
       
-              const filteredCount = finalTranscriptList.length - transcriptRenderableList.length;
+              const filteredCount = finalTranscriptListSafe.length - transcriptRenderableList.length;
 
               // CHANGE 3: Add final readback log right before the map (debug gated)
               if (cqDebugGate) {
                 try {
-                  window.console.log('[TDZ_TRACE][ABOUT_TO_RENDER_MAP]', { originalCount: finalTranscriptList?.length, renderableCount: transcriptRenderableList?.length });
+                  window.console.log('[TDZ_TRACE][ABOUT_TO_RENDER_MAP]', { originalCount: finalTranscriptListSafe?.length, renderableCount: transcriptRenderableList?.length });
                 } catch (_) {}
               }
               const forceTranscriptFilterDebug = isV3DebugEnabled || false;
 
               if (filteredCount > 0 || forceTranscriptFilterDebug) {
-                const sampleFiltered = finalTranscriptList
+                const sampleFiltered = finalTranscriptListSafe
                   .filter(entry => !shouldRenderInTranscript(entry));
 
                 const sampleFilteredShapes = sampleFiltered.slice(0, 10).map(entry => ({
