@@ -5132,20 +5132,7 @@ function CandidateInterviewInner() {
   // DEV DEBUG: Generate and copy evidence bundle
 
   
-  // DEV DEBUG: Keyboard shortcut (Ctrl+Shift+C)
-  useEffect(() => {
-    if (!isV3DebugEnabled) return;
-    
-    const handleKeyDown = (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'C') {
-        e.preventDefault();
-        copyV3DebugBundle();
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isV3DebugEnabled, copyV3DebugBundle]);
+
 
   // Compute next renderable (dedupe + filter)
   // CRITICAL: This memo MUST NOT trigger component remount
