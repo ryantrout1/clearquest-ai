@@ -22287,14 +22287,7 @@ function CandidateInterviewInner() {
             {/* UI CONTRACT: Active base questions render ONLY in transcript stream - NO separate active card */}
             {/* This section PERMANENTLY DISABLED - all base questions render via transcript entries */}
             {/* Yes/No buttons ONLY in bottom bar (footer) - NEVER inline in transcript */}
-            {false && (() => {
-              console.error('[UI_CONTRACT][VIOLATION][ACTIVE_CARD_PATH_REACHED]', {
-                currentItemType: currentItem?.type,
-                currentItemId: currentItem?.id,
-                reason: 'This code path is disabled and should never execute'
-              });
-              return null;
-            })()}
+
 
 
 
