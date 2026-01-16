@@ -20156,35 +20156,6 @@ const transcriptPlan = isV3DebugEnabled
     activeCard_SScrollMarginBottomPx
   }))
   : computeTranscriptRenderPlan({
-    finalTranscriptList_S,
-    isV3DebugEnabled,
-    cqRead,
-    shouldRenderInTranscript,
-    logOnce,
-    sessionId,
-    getTranscriptEntryKey,
-    sanitizeCandidateFacingText,
-    effectiveItemType,
-    currentItem_S,
-    activeUiItem_S,
-    bottomBarModeSOT,
-    v3ProbingActive,
-    v3ProbingContext_S,
-    lastV3PromptSnapshotRef,
-    isNearBottomStrict,
-    historyRef,
-    scrollToBottom,
-    dynamicBottomPaddingPx,
-    isScrollWriteLocked,
-    isUserTyping,
-    forceAutoScrollOnceRef,
-    scrollToBottomForMiGate,
-    captureViolationSnapshot,
-    finalListRef,
-    bottomAnchorRef,
-    activeCard_SScrollMarginBottomPx
-  }))
-  : computeTranscriptRenderPlan({
     finalTranscriptList_S: finalTranscriptList_SAFE,
     isV3DebugEnabled,
     cqRead,
