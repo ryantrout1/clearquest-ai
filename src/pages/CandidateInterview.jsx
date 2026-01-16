@@ -3710,6 +3710,20 @@ function CandidateInterviewInner() {
       throw e;
     }
   }
+
+  function cqComputeGuard(label, fn) {
+    try {
+      return fn();
+    } catch (e) {
+      window.console.error('[TDZ_TRACE][PLAN_FAIL]', {
+        label,
+        name: e?.name,
+        message: e?.message,
+        stack: e?.stack,
+      });
+      throw e;
+    }
+  }
     try {
       if (typeof window === 'undefined') return false;
       const urlParams = new URLSearchParams(window.location.search);
@@ -20191,6 +20205,35 @@ const transcriptPlan = isV3DebugEnabled
     finalListRef,
     bottomAnchorRef,
     activeCard_SScrollMarginBottomPx
+  }))
+  : computeTranscriptRenderPlan({
+    finalTranscriptList_S: finalTranscriptList_SAFE,
+    isV3DebugEnabled,
+    cqRead,
+    shouldRenderInTranscript,
+    logOnce,
+    sessionId,
+    getTranscriptEntryKey,
+    sanitizeCandidateFacingText,
+    effectiveItemType,
+    currentItem_S: currentItem_SAFE,
+    activeUiItem_S: activeUiItem_SAFE,
+    bottomBarModeSOT,
+    v3ProbingActive,
+    v3ProbingContext_S: v3ProbingContext_SAFE,
+    lastV3PromptSnapshotRef,
+    isNearBottomStrict,
+    historyRef,
+    scrollToBottom,
+    dynamicBottomPaddingPx,
+    isScrollWriteLocked,
+    isUserTyping,
+    forceAutoScrollOnceRef,
+    scrollToBottomForMiGate,
+    captureViolationSnapshot,
+    finalListRef,
+    bottomAnchorRef,
+    activeCard_SScrollMarginBottomPx
   });
 
   const activeCardPlan = isV3DebugEnabled
@@ -20585,24 +20628,7 @@ const engine_SAFE = engine_S && typeof engine_S === 'object' ? engine_S : null;
   console.log("[TDZ_TRACE][RENDER_ENTER]");
   let __tdzTraceJsx = null;
   try {
-    if (isV3DebugEnabled) {
-      try {
-        return (
-          <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
-            {/* ... existing JSX ... */}
-          </div>
-        );
-      } catch (e) {
-        window.console.error('[TDZ_TRACE][RENDER_GUARD_FAIL]', {
-          name: e?.name, message: e?.message,
-          hasFinalTranscriptListSAFE: typeof finalTranscriptList_SAFE !== 'undefined',
-          hasActiveUiItemSAFE: typeof activeUiItem_SAFE !== 'undefined',
-          hasCurrentItemSAFE: typeof currentItem_SAFE !== 'undefined',
-          hasEngineSAFE: typeof engine_SAFE !== 'undefined',
-        });
-        throw e;
-      }
-    }
+
 
     return (
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
