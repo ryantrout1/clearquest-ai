@@ -5688,7 +5688,7 @@ function CandidateInterviewInner() {
     return raw;
   };
   
-// DUPLICATE BLOCK REMOVED: Redundant upsertTranscriptMonotonic function was deleted.
+
   
   // STABLE KEY SOT: Canonical stableKey extractor
   const getStableKeySOT = (entry) => {
