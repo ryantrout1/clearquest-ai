@@ -20077,6 +20077,17 @@ function CandidateInterviewInner() {
   
   
   cqTdzMark('AFTER_FINAL_TRANSCRIPT_LIST_MEMO', { listLen: finalTranscriptList_S?.length || 0 });
+
+// [TDZ_SHIELD_V3] Safe aliases must be declared BEFORE any hook that uses them.
+const finalTranscriptList_SAFE = Array.isArray(finalTranscriptList_S) ? finalTranscriptList_S : [];
+const transcriptSOT_SAFE = Array.isArray(transcriptSOT_S) ? transcriptSOT_S : [];
+const v3ProbeDisplayHistory_SAFE = Array.isArray(v3ProbeDisplayHistory_S) ? v3ProbeDisplayHistory_S : [];
+
+const activeUiItem_SAFE = activeUiItem_S && typeof activeUiItem_S === 'object' ? activeUiItem_S : null;
+const currentItem_SAFE = currentItem_S && typeof currentItem_S === 'object' ? currentItem_S : null;
+const v3ProbingContext_SAFE = v3ProbingContext_S && typeof v3ProbingContext_S === 'object' ? v3ProbingContext_S : null;
+const activeCard_SAFE = activeCard_S && typeof activeCard_S === 'object' ? activeCard_S : null;
+const engine_SAFE = engine_S && typeof engine_S === 'object' ? engine_S : null;
   
   // GOLDEN CONTRACT CHECK: Emit deterministic verification bundle (deduped)
   const emitGoldenContractCheck = React.useCallback(() => {
