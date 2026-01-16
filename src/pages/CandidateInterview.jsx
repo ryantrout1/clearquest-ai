@@ -3813,23 +3813,25 @@ function CandidateInterviewInner() {
                   screenModeNow: (typeof screenMode !== 'undefined' ? screenMode : null)
                 });
                 
-                // AUTO-PINPOINT: Extract exact source location from stack
+                // AUTO-PINPOINT: V2 - Robust stack parsing
                 const stackStr = String(firstArg?.stack || args[0]?.stack || '');
                 console.log('[TDZ_TRACE][STACK_STR]', stackStr);
-                const stackMatch = stackStr.match(/CandidateInterview\.jsx:(\d+):(\d+)/);
+
+                // Robust regex to find file:line:col from different stack formats
+                const stackMatch = stackStr.match(/(?:[\/\w-]+\/)?CandidateInterview\.jsx:(\d+):(\d+)/);
                 const ringTail = (window.__CQ_TDZ_TRACE_RING__ || []).slice(-20);
-                
-                if (stackMatch) {
-                  console.log('[TDZ_TRACE][AUTO_PINPOINT]', {
-                    offenderVar: match[1],
-                    file: 'CandidateInterview.jsx',
-                    line: parseInt(stackMatch[1]),
-                    col: parseInt(stackMatch[2]),
-                    lastStep,
-                    phase: (typeof cqRenderPhaseTag !== 'undefined' ? cqRenderPhaseTag : null),
-                    ringTail: ringTail.map(e => e.step)
-                  });
-                }
+
+                // Always log AUTO_PINPOINT
+                const pinpointPayload = {
+                  offenderVar: match[1],
+                  file: 'CandidateInterview.jsx',
+                  line: stackMatch ? parseInt(stackMatch[1]) : null,
+                  col: stackMatch ? parseInt(stackMatch[2]) : null,
+                  lastStep,
+                  phase: (typeof cqRenderPhaseTag !== 'undefined' ? cqRenderPhaseTag : null),
+                  ringTail: ringTail.map(e => e.step)
+                };
+                console.log('[TDZ_TRACE][AUTO_PINPOINT]', pinpointPayload);
                 
                 console.log('[TDZ_TRACE][STACK_CAPTURE]', { 
                   message: firstArg?.message || String(firstArg || ''), 
