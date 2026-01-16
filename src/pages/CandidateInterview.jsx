@@ -3696,6 +3696,30 @@ function CandidateInterviewInner() {
       return false;
     }
   })();
+
+  function cqComputeGuard(label, fn) {
+    try {
+      return fn();
+    } catch (e) {
+      window.console.error('[TDZ_TRACE][PLAN_FAIL]', {
+        label,
+        name: e?.name,
+        message: e?.message,
+        stack: e?.stack,
+      });
+      throw e;
+    }
+  }
+    try {
+      if (typeof window === 'undefined') return false;
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasUrlFlag = urlParams.get('v3debug') === '1';
+      const hasLocalStorageFlag = localStorage.getItem('CQ_V3_DEBUG') === '1';
+      return hasUrlFlag || hasLocalStorageFlag;
+    } catch {
+      return false;
+    }
+  })();
   
   // Debug mode: Only enable if admin user AND ?debug=1 in URL
   const debugEnabled = isAdminUser && (new URLSearchParams(window.location.search).get("debug") === "1");
@@ -20109,7 +20133,37 @@ function CandidateInterviewInner() {
   }, [sessionId]);
 
   // [TDZ_SHIELD_V2] Safe aliases for render-time reads (MUST stay below all hooks)
-const transcriptPlan = computeTranscriptRenderPlan({
+const transcriptPlan = isV3DebugEnabled
+    ? cqComputeGuard('computeTranscriptRenderPlan', () => computeTranscriptRenderPlan({
+    finalTranscriptList_S,
+    isV3DebugEnabled,
+    cqRead,
+    shouldRenderInTranscript,
+    logOnce,
+    sessionId,
+    getTranscriptEntryKey,
+    sanitizeCandidateFacingText,
+    effectiveItemType,
+    currentItem_S,
+    activeUiItem_S,
+    bottomBarModeSOT,
+    v3ProbingActive,
+    v3ProbingContext_S,
+    lastV3PromptSnapshotRef,
+    isNearBottomStrict,
+    historyRef,
+    scrollToBottom,
+    dynamicBottomPaddingPx,
+    isScrollWriteLocked,
+    isUserTyping,
+    forceAutoScrollOnceRef,
+    scrollToBottomForMiGate,
+    captureViolationSnapshot,
+    finalListRef,
+    bottomAnchorRef,
+    activeCard_SScrollMarginBottomPx
+  }))
+  : computeTranscriptRenderPlan({
     finalTranscriptList_S,
     isV3DebugEnabled,
     cqRead,
@@ -20139,7 +20193,25 @@ const transcriptPlan = computeTranscriptRenderPlan({
     activeCard_SScrollMarginBottomPx
   });
 
-  const activeCardPlan = computeActiveCardRenderPlan({
+  const activeCardPlan = isV3DebugEnabled
+    ? cqComputeGuard('computeActiveCardRenderPlan', () => computeActiveCardRenderPlan({
+      activeCard_S,
+      activeUiItem_S,
+      isV3DebugEnabled,
+      cqRead,
+      finalTranscriptList_S,
+      v3ProbingContext_S,
+      lastV3PromptSnapshotRef,
+      currentItem_S,
+      sanitizeCandidateFacingText,
+      buildV3OpenerStableKey,
+      activeCard_SKeySOT,
+      activeCard_SScrollMarginBottomPx,
+      getQuestionDisplayNumber,
+      engine_S,
+      sessionId
+  }))
+ : computeActiveCardRenderPlan({
       activeCard_S,
       activeUiItem_S,
       isV3DebugEnabled,
@@ -20157,7 +20229,19 @@ const transcriptPlan = computeTranscriptRenderPlan({
       sessionId
   });
 
-  const footerPlan = computeFooterRenderPlan({
+  const footerPlan = isV3DebugEnabled
+    ? cqComputeGuard('computeFooterRenderPlan', () => computeFooterRenderPlan({
+      isV3DebugEnabled,
+      cqRead,
+      effectiveItemType,
+      activePromptText,
+      safeActivePromptText,
+      bottomBarModeSOT,
+      v3ProbingActive,
+      shouldRenderFooter,
+      currentItem_S
+  }))
+  : computeFooterRenderPlan({
       isV3DebugEnabled,
       cqRead,
       effectiveItemType,
