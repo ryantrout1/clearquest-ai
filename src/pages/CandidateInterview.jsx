@@ -3697,11 +3697,21 @@ function CandidateInterviewInner() {
     }
   })();
 
+  if (typeof window !== 'undefined' && !window.__CQ_DEBUG_FLAG_LOGGED__) {
+    window.__CQ_DEBUG_FLAG_LOGGED__ = true;
+    window.console.error('[TDZ_TRACE][DEBUG_ENABLED]', isV3DebugEnabled);
+  }
+
   function cqComputeGuard(label, fn) {
+    window.__CQ_LAST_PLAN_ENTER__ = label;
     window.console.error('[TDZ_TRACE][PLAN_ENTER]', label);
     try {
       return fn();
     } catch (e) {
+      window.__CQ_LAST_PLAN_FAIL__ = { label, name: e?.name, message: e?.message };
+      if (isV3DebugEnabled && e?.name === 'ReferenceError') {
+        try { window.alert('[TDZ_TRACE][PLAN_FAIL] ' + label); } catch {}
+      }
       window.console.error('[TDZ_TRACE][PLAN_FAIL]', {
         label,
         name: e?.name,
