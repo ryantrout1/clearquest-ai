@@ -19992,7 +19992,7 @@ const transcriptPlan = isV3DebugEnabled
     }
   });
   
-  const computeTranscriptRenderPlan = (args) => {
+  function computeTranscriptRenderPlan(args) {
     // This function's logic is extracted directly from the original transcript-rendering IIFE.
     const {
       finalTranscriptList_S,
@@ -20084,7 +20084,7 @@ const transcriptPlan = isV3DebugEnabled
     return {
         renderList: transcriptRenderableList
     };
-  };
+  }
 
   const computeActiveCardRenderPlan = (args) => {
     // Logic extracted from the active card IIFE
