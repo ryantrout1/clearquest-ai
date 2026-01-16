@@ -19883,6 +19883,10 @@ const transcriptPlan = isV3DebugEnabled
 
 
   // [TDZ_FIX_MOVED] This block of safe aliases was moved before the hooks that use them.
+  const activeUiItem_SAFE = activeUiItem_S ?? null;
+  const finalTranscriptList_SAFE = finalTranscriptList_S ?? [];
+  const currentItem_SAFE = currentItem_S ?? null;
+  const v3ProbingContext_SAFE = v3ProbingContext_S ?? null;
   cqTdzMark('BEFORE_GUARD_SCREENS_CHECK');
   cqTdzMark('BEFORE_LOADING_GUARD', { shouldShowFullScreenLoader });
   
