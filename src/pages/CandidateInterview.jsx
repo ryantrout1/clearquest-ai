@@ -3743,7 +3743,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // TDZ TRACE HELPER - Debug-only render markers (no-op by default)
   // ============================================================================
-  const cqTdzMark = (step, extra = {}) => {
+  function cqTdzMark(step, extra = {}) {
     if (typeof window === 'undefined') return;
     
     // TDZ-SAFE: Compute preview env locally (no outer-scope dependency)
@@ -3875,7 +3875,7 @@ function CandidateInterviewInner() {
     }
     
     console.log('[TDZ_TRACE]', { step, ts: Date.now(), ...extra });
-  };
+  }
   
   // ============================================================================
   // TDZ TRACE BOOTSTRAP - Read window.name + query param early (persists across reloads)
