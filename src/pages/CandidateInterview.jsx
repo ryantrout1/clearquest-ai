@@ -15255,6 +15255,7 @@ function CandidateInterviewInner() {
   cqTdzMark('BEFORE_GUARD_FLAGS_COMPUTE', { isLoading, hasEngine: !!engine_S, hasSession: !!session, hasError: !!error });
   const cqRenderPhaseTag = 'PRE_RETURN_FLAGS';
   const showMissingSession = !sessionId;
+  const shouldShowFullScreenLoader = isLoading && !engine_S && !session;
   const showError = !!error;
 
   // Calculate currentPrompt (after all hooks declared)
@@ -19909,7 +19910,6 @@ const transcriptPlan = isV3DebugEnabled
   const currentItem_SAFE = currentItem_S ?? null;
   const v3ProbingContext_SAFE = v3ProbingContext_S ?? null;
   cqTdzMark('BEFORE_GUARD_SCREENS_CHECK');
-  const shouldShowFullScreenLoader = isLoading && !engine_S && !session;
   cqTdzMark('BEFORE_LOADING_GUARD', { shouldShowFullScreenLoader });
   
   // GUARD: Show guard screens without early return (maintains hook order)
