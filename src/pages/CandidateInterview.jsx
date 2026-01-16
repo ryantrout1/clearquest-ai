@@ -3827,7 +3827,18 @@ function CandidateInterviewInner() {
 
                 // Robust regex to find file:line:col from different stack formats
                 const stackMatch = stackStr.match(/(?:[\/\w-]+\/)?CandidateInterview\.jsx:(\d+):(\d+)/);
-                const ringTail = (window.__CQ_TDZ_TRACE_RING__ || []).slice(-20);
+                                const ringTail = (window.__CQ_TDZ_TRACE_RING__ || []).slice(-20);
+
+                const ringTailCompact = (window.__CQ_TDZ_TRACE_RING__ || [])
+                  .slice(-10)
+                  .map((e) => ({
+                    step: e?.step,
+                    srcLine: e?.srcLine ?? null,
+                    srcCol: e?.srcCol ?? null,
+                    ts: e?.ts
+                  }));
+
+                console.log('[TDZ_TRACE][RING_TAIL_COMPACT]', ringTailCompact);
 
                 // Always log AUTO_PINPOINT
                 const pinpointPayload = {
