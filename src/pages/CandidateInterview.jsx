@@ -20055,14 +20055,14 @@ function CandidateInterviewInner() {
   const emitGoldenContractCheck = React.useCallback(() => {
     const payload = {
       sessionId,
-      activeUiItem_SKind: activeUiItem_S?.kind,
+      activeUiItem_SKind: activeUiItem_SAFE?.kind,
       bottomBarModeSOT,
       footerClearanceStatus: footerClearanceStatusRef.current,
       openerHistoryStatus: openerMergeStatusRef.current,
-      suppressProbesInTranscript: (activeUiItem_S?.kind === "V3_PROMPT" || activeUiItem_S?.kind === "V3_WAITING") && v3ProbingActive,
+      suppressProbesInTranscript: (activeUiItem_SAFE?.kind === "V3_PROMPT" || activeUiItem_SAFE?.kind === "V3_WAITING") && v3ProbingActive,
       lastMeasuredOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
       hasFooterSpacer: typeof window !== 'undefined' && !!historyRef.current?.querySelector('[data-cq-footer-spacer="true"]'),
-      transcriptLen: finalTranscriptList_S.length || 0
+      transcriptLen: finalTranscriptList_SAFE.length || 0
     };
     
     // Dedupe: Only emit if payload changed
@@ -20073,20 +20073,20 @@ function CandidateInterviewInner() {
     
     lastGoldenCheckPayloadRef.current = payloadKey;
     console.log('[UI_CONTRACT][GOLDEN_CHECK]', payload);
-  }, [sessionId, activeUiItem_S, bottomBarModeSOT, v3ProbingActive, finalTranscriptList_S]);
+  }, [sessionId, activeUiItem_SAFE, bottomBarModeSOT, v3ProbingActive, finalTranscriptList_SAFE]);
   
   // CONSOLIDATED UI CONTRACT STATUS LOG (Single Source of Truth)
   // Emits once per mode change with all three contract aspects
   React.useEffect(() => {
     const footerStatus = footerClearanceStatusRef.current || 'UNKNOWN';
     const openerStatus = openerMergeStatusRef.current || 'UNKNOWN';
-    const suppressProbes = (activeUiItem_S?.kind === "V3_PROMPT" || activeUiItem_S?.kind === "V3_WAITING") && v3ProbingActive;
+    const suppressProbes = (activeUiItem_SAFE?.kind === "V3_PROMPT" || activeUiItem_SAFE?.kind === "V3_WAITING") && v3ProbingActive;
     
     console.log('[UI_CONTRACT][SOT_STATUS]', {
       footerClearance: footerStatus,
       openerHistory: openerStatus,
       probePolicy: suppressProbes ? 'ACTIVE_SUPPRESS' : 'HISTORY_ALLOWED',
-      activeUiItem_SKind: activeUiItem_S?.kind,
+      activeUiItem_SKind: activeUiItem_SAFE?.kind,
       bottomBarModeSOT,
       sessionId
     });
@@ -20095,7 +20095,7 @@ function CandidateInterviewInner() {
     if (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO') {
       emitGoldenContractCheck();
     }
-  }, [bottomBarModeSOT, activeUiItem_S?.kind, v3ProbingActive, sessionId, emitGoldenContractCheck]);
+  }, [bottomBarModeSOT, activeUiItem_SAFE?.kind, v3ProbingActive, sessionId, emitGoldenContractCheck]);
   
   // UI CONTRACT STATUS RESET: Clear status refs on session change
   React.useEffect(() => {
@@ -20109,14 +20109,14 @@ function CandidateInterviewInner() {
   }, [sessionId]);
 
   // [TDZ_SHIELD_V2] Safe aliases for render-time reads (MUST stay below all hooks)
-  const finalTranscriptList_S = Array.isArray(finalTranscriptList_S) ? finalTranscriptList_S : [];
-  const transcriptSOT_S = Array.isArray(transcriptSOT_S) ? transcriptSOT_S : [];
-  const v3ProbeDisplayHistory_S = Array.isArray(v3ProbeDisplayHistory_S) ? v3ProbeDisplayHistory_S : [];
-  const activeUiItem_S = activeUiItem_S && typeof activeUiItem_S === 'object' ? activeUiItem_S : null;
-  const currentItem_S = currentItem_S && typeof currentItem_S === 'object' ? currentItem_S : null;
-  const v3ProbingContext_S = v3ProbingContext_S && typeof v3ProbingContext_S === 'object' ? v3ProbingContext_S : null;
-  const activeCard_S = activeCard_S && typeof activeCard_S === 'object' ? activeCard_S : null;
-  const engine_S = engine_S && typeof engine_S === 'object' ? engine_S : null;
+const finalTranscriptList_SAFE = Array.isArray(finalTranscriptList_S) ? finalTranscriptList_S : [];
+const transcriptSOT_SAFE = Array.isArray(transcriptSOT_S) ? transcriptSOT_S : [];
+const v3ProbeDisplayHistory_SAFE = Array.isArray(v3ProbeDisplayHistory_S) ? v3ProbeDisplayHistory_S : [];
+const activeUiItem_SAFE = activeUiItem_S && typeof activeUiItem_S === 'object' ? activeUiItem_S : null;
+const currentItem_SAFE = currentItem_S && typeof currentItem_S === 'object' ? currentItem_S : null;
+const v3ProbingContext_SAFE = v3ProbingContext_S && typeof v3ProbingContext_S === 'object' ? v3ProbingContext_S : null;
+const activeCard_SAFE = activeCard_S && typeof activeCard_S === 'object' ? activeCard_S : null;
+const engine_SAFE = engine_S && typeof engine_S === 'object' ? engine_S : null;
 
   cqTdzMark('BEFORE_GUARD_SCREENS_CHECK');
   cqTdzMark('BEFORE_LOADING_GUARD', { shouldShowFullScreenLoader });
