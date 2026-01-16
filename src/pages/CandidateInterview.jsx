@@ -3698,6 +3698,7 @@ function CandidateInterviewInner() {
   })();
 
   function cqComputeGuard(label, fn) {
+    window.console.error('[TDZ_TRACE][PLAN_ENTER]', label);
     try {
       return fn();
     } catch (e) {
