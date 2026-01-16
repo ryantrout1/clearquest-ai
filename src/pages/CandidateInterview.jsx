@@ -20109,6 +20109,66 @@ function CandidateInterviewInner() {
   }, [sessionId]);
 
   // [TDZ_SHIELD_V2] Safe aliases for render-time reads (MUST stay below all hooks)
+const transcriptPlan = computeTranscriptRenderPlan({
+    finalTranscriptList_S,
+    isV3DebugEnabled,
+    cqRead,
+    shouldRenderInTranscript,
+    logOnce,
+    sessionId,
+    getTranscriptEntryKey,
+    sanitizeCandidateFacingText,
+    effectiveItemType,
+    currentItem_S,
+    activeUiItem_S,
+    bottomBarModeSOT,
+    v3ProbingActive,
+    v3ProbingContext_S,
+    lastV3PromptSnapshotRef,
+    isNearBottomStrict,
+    historyRef,
+    scrollToBottom,
+    dynamicBottomPaddingPx,
+    isScrollWriteLocked,
+    isUserTyping,
+    forceAutoScrollOnceRef,
+    scrollToBottomForMiGate,
+    captureViolationSnapshot,
+    finalListRef,
+    bottomAnchorRef,
+    activeCard_SScrollMarginBottomPx
+  });
+
+  const activeCardPlan = computeActiveCardRenderPlan({
+      activeCard_S,
+      activeUiItem_S,
+      isV3DebugEnabled,
+      cqRead,
+      finalTranscriptList_S,
+      v3ProbingContext_S,
+      lastV3PromptSnapshotRef,
+      currentItem_S,
+      sanitizeCandidateFacingText,
+      buildV3OpenerStableKey,
+      activeCard_SKeySOT,
+      activeCard_SScrollMarginBottomPx,
+      getQuestionDisplayNumber,
+      engine_S,
+      sessionId
+  });
+
+  const footerPlan = computeFooterRenderPlan({
+      isV3DebugEnabled,
+      cqRead,
+      effectiveItemType,
+      activePromptText,
+      safeActivePromptText,
+      bottomBarModeSOT,
+      v3ProbingActive,
+      shouldRenderFooter,
+      currentItem_S
+  });
+
 const finalTranscriptList_SAFE = Array.isArray(finalTranscriptList_S) ? finalTranscriptList_S : [];
 const transcriptSOT_SAFE = Array.isArray(transcriptSOT_S) ? transcriptSOT_S : [];
 const v3ProbeDisplayHistory_SAFE = Array.isArray(v3ProbeDisplayHistory_S) ? v3ProbeDisplayHistory_S : [];
@@ -20223,6 +20283,221 @@ const engine_SAFE = engine_S && typeof engine_S === 'object' ? engine_S : null;
     }
   });
   
+  const computeTranscriptRenderPlan = (args) => {
+    // This function's logic is extracted directly from the original transcript-rendering IIFE.
+    const {
+      finalTranscriptList_S,
+      isV3DebugEnabled,
+      cqRead,
+      shouldRenderInTranscript,
+      logOnce,
+      sessionId,
+      getTranscriptEntryKey,
+      sanitizeCandidateFacingText,
+      effectiveItemType,
+      currentItem_S,
+      activeUiItem_S,
+      bottomBarModeSOT,
+      v3ProbingActive,
+      v3ProbingContext_S,
+      lastV3PromptSnapshotRef,
+      isNearBottomStrict,
+      historyRef,
+      scrollToBottom,
+      dynamicBottomPaddingPx,
+      isScrollWriteLocked,
+      isUserTyping,
+      forceAutoScrollOnceRef,
+      scrollToBottomForMiGate,
+      captureViolationSnapshot,
+      finalListRef,
+      bottomAnchorRef,
+      activeCard_SScrollMarginBottomPx
+    } = args;
+
+    const activeOpenerStableKeySOT =
+      (activeUiItem_S?.kind === "V3_OPENER" && currentItem_S?.packId)
+        ? `followup-card:${currentItem_S.packId}:opener:${currentItem_S.instanceNumber || 1}`
+        : null;
+
+    const renderedV3OpenerKeysSOT = new Set();
+
+    const transcriptRenderableList = isV3DebugEnabled ? cqRead('TRANSCRIPT_IIFE:finalTranscriptList_SAFE.filter', () => finalTranscriptList_SAFE.filter(shouldRenderInTranscript)) : finalTranscriptList_SAFE.filter(shouldRenderInTranscript);
+
+    const filteredCount = (isV3DebugEnabled ? cqRead('TRANSCRIPT_IIFE:finalTranscriptList_SAFE.length', () => finalTranscriptList_SAFE.length) : finalTranscriptList_SAFE.length) - (isV3DebugEnabled ? cqRead('TRANSCRIPT_IIFE:transcriptRenderableList.length', () => transcriptRenderableList.length) : transcriptRenderableList.length);
+    const forceTranscriptFilterDebug = isV3DebugEnabled || false;
+
+    if (filteredCount > 0 || forceTranscriptFilterDebug) {
+      const sampleFiltered = finalTranscriptList_SAFE
+        .filter(entry => !shouldRenderInTranscript(entry));
+
+      const sampleFilteredShapes = sampleFiltered.slice(0, 10).map(entry => ({
+        kind: entry.kind || entry.type || entry.messageType || null,
+        textPreview: (entry.text || entry.questionText || entry.content || '').slice(0, 120),
+        metaFlags: {
+          isNonChat: entry.meta?.isNonChat,
+          contextKind: entry.meta?.contextKind,
+          uiKind: entry.meta?.uiKind,
+          kind: entry.meta?.kind,
+          isV3ProbeQuestion: entry.meta?.isV3ProbeQuestion,
+          openerKey: entry.meta?.openerKey
+        },
+        hasLines: Array.isArray(entry.lines) ? entry.lines.length : null
+      }));
+
+      const sampleRenderedShapes = transcriptRenderableList.slice(0, 10).map(entry => ({
+        kind: entry.kind || entry.type || entry.messageType || null,
+        textPreview: (entry.text || entry.questionText || entry.content || '').slice(0, 120),
+        metaFlags: {
+          isNonChat: entry.meta?.isNonChat,
+          contextKind: entry.meta?.contextKind,
+          uiKind: entry.meta?.uiKind,
+          kind: entry.meta?.kind,
+          isV3ProbeQuestion: entry.meta?.isV3ProbeQuestion,
+          openerKey: entry.meta?.openerKey
+        },
+        hasLines: Array.isArray(entry.lines) ? entry.lines.length : null
+      }));
+
+      logOnce(`transcript_filter_v2_${sessionId}`, () => {
+        console.log('[UI_CONTRACT][TRANSCRIPT_FILTER]', {
+          originalCount: finalTranscriptList_SAFE.length,
+          renderableCount: transcriptRenderableList.length,
+          filteredCount,
+          forceDebug: forceTranscriptFilterDebug,
+          sampleFilteredKinds: sampleFiltered.slice(0, 5).map(entry => ({ kind: entry.kind || entry.type || entry.messageType, meta: { isNonChat: entry.meta?.isNonChat, contextKind: entry.meta?.contextKind, uiKind: entry.meta?.uiKind } }))
+        });
+        console.log('[UI_CONTRACT][TRANSCRIPT_FILTER][FILTERED_SHAPES]', sampleFilteredShapes);
+        console.log('[UI_CONTRACT][TRANSCRIPT_FILTER][RENDERED_SHAPES]', sampleRenderedShapes);
+      });
+    }
+
+    return {
+        renderList: transcriptRenderableList
+    };
+  };
+
+  const computeActiveCardRenderPlan = (args) => {
+    // Logic extracted from the active card IIFE
+    const {
+        activeCard_S,
+        activeUiItem_S,
+        isV3DebugEnabled,
+        cqRead,
+        finalTranscriptList_S,
+        v3ProbingContext_S,
+        lastV3PromptSnapshotRef,
+        currentItem_S,
+        sanitizeCandidateFacingText,
+        buildV3OpenerStableKey,
+        activeCard_SKeySOT,
+        activeCard_SScrollMarginBottomPx,
+        getQuestionDisplayNumber,
+        engine_S,
+        sessionId
+    } = args;
+
+    if (!activeCard_S || !(activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK" || activeUiItem_S.kind === "V3_OPENER" || activeUiItem_S.kind === "V3_PROMPT" || activeUiItem_S.kind === "MI_GATE" || activeCard_S.kind === "base_question_yesno")) {
+        return { shouldRender: false };
+    }
+
+    console.log('[UI_CONTRACT][ACTIVE_LANE_POSITION_SOT]', {
+      activeUiItem_SKind: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:activeUiItem_SAFE.kind', () => activeUiItem_S?.kind) : activeUiItem_S?.kind,
+      placedAfterTranscript: true,
+      transcriptLen: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:finalTranscriptList_SAFE.length', () => finalTranscriptList_S.length) : finalTranscriptList_S.length || 0,
+      activeCard_SKind: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:activeCard_SAFE.kind', () => activeCard_S.kind) : activeCard_S.kind,
+      packId: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:activeCard_SAFE.packId', () => activeCard_S.packId) : activeCard_S.packId,
+      instanceNumber: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:activeCard_SAFE.instanceNumber', () => activeCard_S.instanceNumber) : activeCard_S.instanceNumber
+    });
+
+    const cardKind = activeCard_S.kind;
+    let safeCardPrompt = "";
+    if (cardKind === "v3_probe_q") {
+        safeCardPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_V3_PROBE');
+    } else if (cardKind === "required_anchor_fallback_prompt") {
+        safeCardPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_FALLBACK_PROMPT');
+    } else if (cardKind === "v3_pack_opener") {
+        safeCardPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_V3_OPENER');
+    } else if (cardKind === "multi_instance_gate") {
+        safeCardPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_MI_GATE');
+    } else if (cardKind === "base_question_yesno"){
+        safeCardPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_BASE_QUESTION');
+    }
+
+    return {
+        shouldRender: true,
+        cardKind,
+        safeCardPrompt,
+        cardData: activeCard_S
+    };
+  };
+
+  const computeFooterRenderPlan = (args) => {
+    // Logic extracted from the footer IIFE
+    const {
+        isV3DebugEnabled,
+        cqRead,
+        effectiveItemType,
+        activePromptText,
+        safeActivePromptText,
+        bottomBarModeSOT,
+        v3ProbingActive,
+        shouldRenderFooter,
+        currentItem_S
+    } = args;
+
+    if (isV3DebugEnabled) {
+      cqRead('FOOTER_IIFE:enter', () => true);
+    }
+    
+    let promptTextUsed;
+    if ((isV3DebugEnabled ? cqRead('FOOTER_IIFE:effectiveItemType', () => effectiveItemType) : effectiveItemType) === 'v3_pack_opener') {
+      const openerTextRaw = (currentItem_S?.openerText || '').trim();
+      promptTextUsed =
+        openerTextRaw || 'Please describe the details for this section in your own words.';
+
+      console.log('[V3_OPENER][PROMPT_TEXT_LOCK]', {
+        effectiveItemType,
+        instanceNumber: currentItem_S?.instanceNumber,
+        usedOpenerText: !!openerTextRaw,
+        preview: promptTextUsed.substring(0, 80),
+        reason: openerTextRaw ? 'opener_text_found' : 'opener_blank_using_fallback',
+      });
+    } else {
+      promptTextUsed = activePromptText || safeActivePromptText || '';
+      
+      if (bottomBarModeSOT === 'V3_WAITING' && v3ProbingActive && !promptTextUsed.trim()) {
+        promptTextUsed = 'Thinking…';
+      }
+    }
+    
+    const placeholderUsedActual = "Type your response here…";
+    const labelUsed = '';
+    
+    console.log('[BOTTOM_BAR_FOOTER]', {
+      shouldRenderFooter,
+      screenMode,
+      bottomBarModeSOT: isV3DebugEnabled ? cqRead('FOOTER_IIFE:bottomBarModeSOT', () => bottomBarModeSOT) : bottomBarModeSOT,
+      effectiveItemType: isV3DebugEnabled ? cqRead('FOOTER_IIFE:effectiveItemType', () => effectiveItemType) : effectiveItemType,
+      v3ProbingActive
+    });
+    
+    console.log('[REQUIRED_ANCHOR_FALLBACK][FOOTER_PROMPT_PAYLOAD]', {
+      effectiveItemType,
+      bottomBarModeSOT,
+      promptTextUsed,
+      placeholderUsed: placeholderUsedActual,
+      labelUsed,
+      requiredAnchorCurrent: null, // This was null in the original IIFE, keeping it same
+      contractCompliant: true
+    });
+
+    return {
+        shouldRender: shouldRenderFooter,
+        promptTextUsed
+    };
+  };
+
   console.log("[TDZ_TRACE][RENDER_ENTER]");
   let __tdzTraceJsx = null;
   try {
