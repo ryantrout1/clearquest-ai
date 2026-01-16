@@ -20112,6 +20112,7 @@ function CandidateInterviewInner() {
 const finalTranscriptList_SAFE = Array.isArray(finalTranscriptList_S) ? finalTranscriptList_S : [];
 const transcriptSOT_SAFE = Array.isArray(transcriptSOT_S) ? transcriptSOT_S : [];
 const v3ProbeDisplayHistory_SAFE = Array.isArray(v3ProbeDisplayHistory_S) ? v3ProbeDisplayHistory_S : [];
+
 const activeUiItem_SAFE = activeUiItem_S && typeof activeUiItem_S === 'object' ? activeUiItem_S : null;
 const currentItem_SAFE = currentItem_S && typeof currentItem_S === 'object' ? currentItem_S : null;
 const v3ProbingContext_SAFE = v3ProbingContext_S && typeof v3ProbingContext_S === 'object' ? v3ProbingContext_S : null;
@@ -20225,8 +20226,27 @@ const engine_SAFE = engine_S && typeof engine_S === 'object' ? engine_S : null;
   console.log("[TDZ_TRACE][RENDER_ENTER]");
   let __tdzTraceJsx = null;
   try {
-    __tdzTraceJsx = (
-    <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
+    if (isV3DebugEnabled) {
+      try {
+        return (
+          <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
+            {/* ... existing JSX ... */}
+          </div>
+        );
+      } catch (e) {
+        window.console.error('[TDZ_TRACE][RENDER_GUARD_FAIL]', {
+          name: e?.name, message: e?.message,
+          hasFinalTranscriptListSAFE: typeof finalTranscriptList_SAFE !== 'undefined',
+          hasActiveUiItemSAFE: typeof activeUiItem_SAFE !== 'undefined',
+          hasCurrentItemSAFE: typeof currentItem_SAFE !== 'undefined',
+          hasEngineSAFE: typeof engine_SAFE !== 'undefined',
+        });
+        throw e;
+      }
+    }
+
+    return (
+      <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
       <header className="bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3 flex-shrink-0">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-2">
@@ -22961,11 +22981,14 @@ const engine_SAFE = engine_S && typeof engine_S === 'object' ? engine_S : null;
 
           {/* Footer disclaimer - show during all active interview Q&A states */}
           {(() => {
+           if (isV3DebugEnabled) {
+             cqRead('FOOTER_IIFE:enter', () => true);
+           }
             // Use pre-computed shouldRenderFooter from derived block
             // PAYLOAD LOG: What footer actually receives for prompt/label/placeholder
             // LAST-MILE OPENER LOCK: Hard-enforce opener text when v3_pack_opener is active
             let promptTextUsed;
-            if ((isV3DebugEnabled ? cqRead('effectiveItemType', () => effectiveItemType) : effectiveItemType) === 'v3_pack_opener') {
+            if ((isV3DebugEnabled ? cqRead('FOOTER_IIFE:effectiveItemType', () => effectiveItemType) : effectiveItemType) === 'v3_pack_opener') {
               const openerTextRaw = (currentItem_S?.openerText || '').trim();
               promptTextUsed =
                 openerTextRaw || 'Please describe the details for this section in your own words.';
@@ -22993,8 +23016,8 @@ const engine_SAFE = engine_S && typeof engine_S === 'object' ? engine_S : null;
             console.log('[BOTTOM_BAR_FOOTER]', {
               shouldRenderFooter,
               screenMode,
-              bottomBarModeSOT: isV3DebugEnabled ? cqRead('bottomBarModeSOT', () => bottomBarModeSOT) : bottomBarModeSOT,
-              effectiveItemType: isV3DebugEnabled ? cqRead('effectiveItemType', () => effectiveItemType) : effectiveItemType,
+              bottomBarModeSOT: isV3DebugEnabled ? cqRead('FOOTER_IIFE:bottomBarModeSOT', () => bottomBarModeSOT) : bottomBarModeSOT,
+              effectiveItemType: isV3DebugEnabled ? cqRead('FOOTER_IIFE:effectiveItemType', () => effectiveItemType) : effectiveItemType,
               v3ProbingActive
             });
             
