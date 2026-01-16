@@ -3711,29 +3711,7 @@ function CandidateInterviewInner() {
     }
   }
 
-  function cqComputeGuard(label, fn) {
-    try {
-      return fn();
-    } catch (e) {
-      window.console.error('[TDZ_TRACE][PLAN_FAIL]', {
-        label,
-        name: e?.name,
-        message: e?.message,
-        stack: e?.stack,
-      });
-      throw e;
-    }
-  }
-    try {
-      if (typeof window === 'undefined') return false;
-      const urlParams = new URLSearchParams(window.location.search);
-      const hasUrlFlag = urlParams.get('v3debug') === '1';
-      const hasLocalStorageFlag = localStorage.getItem('CQ_V3_DEBUG') === '1';
-      return hasUrlFlag || hasLocalStorageFlag;
-    } catch {
-      return false;
-    }
-  })();
+
   
   // Debug mode: Only enable if admin user AND ?debug=1 in URL
   const debugEnabled = isAdminUser && (new URLSearchParams(window.location.search).get("debug") === "1");
