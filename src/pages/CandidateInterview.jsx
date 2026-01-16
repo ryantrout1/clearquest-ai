@@ -3763,7 +3763,15 @@ function CandidateInterviewInner() {
     try {
       const existing = window.__CQ_TDZ_TRACE_RING__;
       const ring = Array.isArray(existing) ? existing : [];
-      const entry = { step, ts: Date.now(), ...extra };
+            const s = String(new Error().stack || '');
+      const match = s.match(/(?:[\/\w-]+\/)?CandidateInterview\.jsx:(\d+):(\d+)/);
+      const entry = { 
+        step, 
+        ts: Date.now(), 
+        ...extra,
+        srcLine: match ? parseInt(match[1]) : null,
+        srcCol: match ? parseInt(match[2]) : null
+      };
       ring.push(entry);
       window.__CQ_TDZ_TRACE_RING__ = ring.length > 10 ? ring.slice(-10) : ring;
     } catch (_) {
