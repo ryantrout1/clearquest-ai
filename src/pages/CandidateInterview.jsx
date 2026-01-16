@@ -15255,7 +15255,6 @@ function CandidateInterviewInner() {
   cqTdzMark('BEFORE_GUARD_FLAGS_COMPUTE', { isLoading, hasEngine: !!engine_S, hasSession: !!session, hasError: !!error });
   const cqRenderPhaseTag = 'PRE_RETURN_FLAGS';
   const showMissingSession = !sessionId;
-  const shouldShowFullScreenLoader = isLoading && !engine_S && !session;
   const showError = !!error;
 
   // Calculate currentPrompt (after all hooks declared)
