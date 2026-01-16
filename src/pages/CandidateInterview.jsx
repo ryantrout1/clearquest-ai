@@ -20049,7 +20049,7 @@ function CandidateInterviewInner() {
 
   
   
-  cqTdzMark('AFTER_FINAL_TRANSCRIPT_LIST_MEMO', { listLen: finalTranscriptList_S_S?.length || 0 });
+  cqTdzMark('AFTER_FINAL_TRANSCRIPT_LIST_MEMO', { listLen: finalTranscriptList_S?.length || 0 });
   
   // GOLDEN CONTRACT CHECK: Emit deterministic verification bundle (deduped)
   const emitGoldenContractCheck = React.useCallback(() => {
@@ -20062,7 +20062,7 @@ function CandidateInterviewInner() {
       suppressProbesInTranscript: (activeUiItem_S?.kind === "V3_PROMPT" || activeUiItem_S?.kind === "V3_WAITING") && v3ProbingActive,
       lastMeasuredOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
       hasFooterSpacer: typeof window !== 'undefined' && !!historyRef.current?.querySelector('[data-cq-footer-spacer="true"]'),
-      transcriptLen: finalTranscriptList_S_S.length || 0
+      transcriptLen: finalTranscriptList_S.length || 0
     };
     
     // Dedupe: Only emit if payload changed
@@ -20073,7 +20073,7 @@ function CandidateInterviewInner() {
     
     lastGoldenCheckPayloadRef.current = payloadKey;
     console.log('[UI_CONTRACT][GOLDEN_CHECK]', payload);
-  }, [sessionId, activeUiItem_S, bottomBarModeSOT, v3ProbingActive, finalTranscriptList_S_S]);
+  }, [sessionId, activeUiItem_S, bottomBarModeSOT, v3ProbingActive, finalTranscriptList_S]);
   
   // CONSOLIDATED UI CONTRACT STATUS LOG (Single Source of Truth)
   // Emits once per mode change with all three contract aspects
@@ -20109,14 +20109,14 @@ function CandidateInterviewInner() {
   }, [sessionId]);
 
   // [TDZ_SHIELD_V2] Safe aliases for render-time reads (MUST stay below all hooks)
-  const finalTranscriptList_S_S = Array.isArray(finalTranscriptList_S) ? finalTranscriptList_S : [];
-  const transcriptSOT_S_S = Array.isArray(transcriptSOT_S) ? transcriptSOT_S : [];
-  const v3ProbeDisplayHistory_S_S = Array.isArray(v3ProbeDisplayHistory_S) ? v3ProbeDisplayHistory_S : [];
-  const activeUiItem_S_S = activeUiItem_S && typeof activeUiItem_S === 'object' ? activeUiItem_S : null;
-  const currentItem_S_S = currentItem_S && typeof currentItem_S === 'object' ? currentItem_S : null;
-  const v3ProbingContext_S_S = v3ProbingContext_S && typeof v3ProbingContext_S === 'object' ? v3ProbingContext_S : null;
-  const activeCard_S_S = activeCard_S && typeof activeCard_S === 'object' ? activeCard_S : null;
-  const engine_S_S = engine_S && typeof engine_S === 'object' ? engine_S : null;
+  const finalTranscriptList_S = Array.isArray(finalTranscriptList_S) ? finalTranscriptList_S : [];
+  const transcriptSOT_S = Array.isArray(transcriptSOT_S) ? transcriptSOT_S : [];
+  const v3ProbeDisplayHistory_S = Array.isArray(v3ProbeDisplayHistory_S) ? v3ProbeDisplayHistory_S : [];
+  const activeUiItem_S = activeUiItem_S && typeof activeUiItem_S === 'object' ? activeUiItem_S : null;
+  const currentItem_S = currentItem_S && typeof currentItem_S === 'object' ? currentItem_S : null;
+  const v3ProbingContext_S = v3ProbingContext_S && typeof v3ProbingContext_S === 'object' ? v3ProbingContext_S : null;
+  const activeCard_S = activeCard_S && typeof activeCard_S === 'object' ? activeCard_S : null;
+  const engine_S = engine_S && typeof engine_S === 'object' ? engine_S : null;
 
   cqTdzMark('BEFORE_GUARD_SCREENS_CHECK');
   cqTdzMark('BEFORE_LOADING_GUARD', { shouldShowFullScreenLoader });
@@ -20310,7 +20310,7 @@ function CandidateInterviewInner() {
               !isLoading &&
               !!session &&
               !!engine_S &&
-              finalTranscriptList_S_S.length === 0 && (
+              finalTranscriptList_S.length === 0 && (
                 <ContentContainer>
                   {console.log('[WELCOME_RENDER][FALLBACK_USED]', {
                     screenMode,
@@ -20324,11 +20324,11 @@ function CandidateInterviewInner() {
               )}
 
             {screenMode === 'WELCOME' &&
-              finalTranscriptList_S_S.length > 0 &&
+              finalTranscriptList_S.length > 0 &&
               console.log('[WELCOME_RENDER][NORMAL_USED]', {
                 screenMode,
                 isLoading,
-                transcriptLen: finalTranscriptList_S_S.length,
+                transcriptLen: finalTranscriptList_S.length,
               })}
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {/* Active opener suppression: Compute current active opener stableKey */}
@@ -20372,13 +20372,13 @@ function CandidateInterviewInner() {
                 return true;
               };
 
-              const transcriptRenderableList = finalTranscriptList_S_S.filter(shouldRenderInTranscript);
+              const transcriptRenderableList = isV3DebugEnabled ? cqRead('finalTranscriptList_S.filter', () => finalTranscriptList_S.filter(shouldRenderInTranscript)) : finalTranscriptList_S.filter(shouldRenderInTranscript);
       
-              const filteredCount = finalTranscriptList_S_S.length - transcriptRenderableList.length;
+              const filteredCount = (isV3DebugEnabled ? cqRead('finalTranscriptList_S.length', () => finalTranscriptList_S.length) : finalTranscriptList_S.length) - (isV3DebugEnabled ? cqRead('transcriptRenderableList.length', () => transcriptRenderableList.length) : transcriptRenderableList.length);
               const forceTranscriptFilterDebug = isV3DebugEnabled || false;
 
               if (filteredCount > 0 || forceTranscriptFilterDebug) {
-                const sampleFiltered = finalTranscriptList_S_S
+                const sampleFiltered = finalTranscriptList_S
                   .filter(entry => !shouldRenderInTranscript(entry));
 
                 const sampleFilteredShapes = sampleFiltered.slice(0, 10).map(entry => ({
@@ -20441,7 +20441,7 @@ function CandidateInterviewInner() {
                   }
 
               // CANONICAL STREAM: Handle both transcript entries AND active cards
-              const isActiveCard = entry.__activeCard_S === true;
+              const isActiveCard = isV3DebugEnabled ? cqRead('entry.__activeCard_S', () => entry.__activeCard_S === true) : entry.__activeCard_S === true;
                   
                   // STABLE KEY: Use helper for all entries (prevents React refresh)
                   const entryKey = isActiveCard 
@@ -21706,12 +21706,12 @@ function CandidateInterviewInner() {
           {/* ACTIVE CARD LANE: Render active prompt card at bottom (after transcript) */}
           {activeCard_S && (activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK" || activeUiItem_S.kind === "V3_OPENER" || activeUiItem_S.kind === "V3_PROMPT" || activeUiItem_S.kind === "MI_GATE" || activeCard_S.kind === "base_question_yesno") && (() => {
             console.log('[UI_CONTRACT][ACTIVE_LANE_POSITION_SOT]', {
-              activeUiItem_SKind: activeUiItem_S?.kind,
+              activeUiItem_SKind: isV3DebugEnabled ? cqRead('activeUiItem_S.kind', () => activeUiItem_S?.kind) : activeUiItem_S?.kind,
               placedAfterTranscript: true,
-              transcriptLen: finalTranscriptList_S_S?.length || 0,
-              activeCard_SKind: activeCard_S.kind,
-              packId: activeCard_S.packId,
-              instanceNumber: activeCard_S.instanceNumber
+              transcriptLen: isV3DebugEnabled ? cqRead('finalTranscriptList_S.length', () => finalTranscriptList_S.length) : finalTranscriptList_S.length || 0,
+              activeCard_SKind: isV3DebugEnabled ? cqRead('activeCard_S.kind', () => activeCard_S.kind) : activeCard_S.kind,
+              packId: isV3DebugEnabled ? cqRead('activeCard_S.packId', () => activeCard_S.packId) : activeCard_S.packId,
+              instanceNumber: isV3DebugEnabled ? cqRead('activeCard_S.instanceNumber', () => activeCard_S.instanceNumber) : activeCard_S.instanceNumber
             });
 
             const cardKind = activeCard_S.kind;
@@ -21932,7 +21932,7 @@ function CandidateInterviewInner() {
               
               // FIX: Find most recent answer for this question in render stream
               const answerStableKeyPrefix = `answer:${sessionId}:${activeQuestionId}:`;
-              const recentAnswer = finalTranscriptList_S_S.find(e => 
+              const recentAnswer = finalTranscriptList_S.find(e => 
                 e.role === 'user' && 
                 e.messageType === 'ANSWER' &&
                 (e.questionId === activeQuestionId || e.meta?.questionDbId === activeQuestionId) &&
@@ -22965,7 +22965,7 @@ function CandidateInterviewInner() {
             // PAYLOAD LOG: What footer actually receives for prompt/label/placeholder
             // LAST-MILE OPENER LOCK: Hard-enforce opener text when v3_pack_opener is active
             let promptTextUsed;
-            if (effectiveItemType === 'v3_pack_opener') {
+            if ((isV3DebugEnabled ? cqRead('effectiveItemType', () => effectiveItemType) : effectiveItemType) === 'v3_pack_opener') {
               const openerTextRaw = (currentItem_S?.openerText || '').trim();
               promptTextUsed =
                 openerTextRaw || 'Please describe the details for this section in your own words.';
@@ -22993,8 +22993,8 @@ function CandidateInterviewInner() {
             console.log('[BOTTOM_BAR_FOOTER]', {
               shouldRenderFooter,
               screenMode,
-              bottomBarModeSOT,
-              effectiveItemType,
+              bottomBarModeSOT: isV3DebugEnabled ? cqRead('bottomBarModeSOT', () => bottomBarModeSOT) : bottomBarModeSOT,
+              effectiveItemType: isV3DebugEnabled ? cqRead('effectiveItemType', () => effectiveItemType) : effectiveItemType,
               v3ProbingActive
             });
             
