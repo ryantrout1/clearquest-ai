@@ -3815,6 +3815,7 @@ function CandidateInterviewInner() {
                 
                 // AUTO-PINPOINT: Extract exact source location from stack
                 const stackStr = String(firstArg?.stack || args[0]?.stack || '');
+                console.log('[TDZ_TRACE][STACK_STR]', stackStr);
                 const stackMatch = stackStr.match(/CandidateInterview\.jsx:(\d+):(\d+)/);
                 const ringTail = (window.__CQ_TDZ_TRACE_RING__ || []).slice(-20);
                 
