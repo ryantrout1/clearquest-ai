@@ -19909,6 +19909,7 @@ const transcriptPlan = isV3DebugEnabled
   const currentItem_SAFE = currentItem_S ?? null;
   const v3ProbingContext_SAFE = v3ProbingContext_S ?? null;
   cqTdzMark('BEFORE_GUARD_SCREENS_CHECK');
+  const shouldShowFullScreenLoader = isLoading && !engine_S && !session;
   cqTdzMark('BEFORE_LOADING_GUARD', { shouldShowFullScreenLoader });
   
   // GUARD: Show guard screens without early return (maintains hook order)
