@@ -4248,32 +4248,35 @@ try {
     };
   };
   
+  // TDZ FIX: Hoisted from component body to prevent use-before-declare
+  const currentItem_SType = v3GateActive ? 'v3_gate' :
+                          v3ProbingActive ? 'v3_probing' :
+                          pendingSectionTransition ? 'section_transition' :
+                          currentItem_S?.type || null;
+
+  // TDZ FIX: Initialize with a base value, then redefine after activeUiItem_S is available.
+  let effectiveItemType = v3ProbingActive ? 'v3_probing' : currentItem_SType;
+
   const activeUiItem_S = resolveActiveUiItem();
-  
+
   // ============================================================================
   // ACTIVE KIND SOT - Derived primitive for scroll helpers (prevents TDZ)
   // ============================================================================
   // CRITICAL: Declared AFTER activeUiItem_S is initialized, prevents TDZ in callbacks
   const activeKindSOT = activeUiItem_S?.kind || currentItem_S?.type || 'UNKNOWN';
 
-  // TDZ FIX: Hoisted from component body to prevent use-before-declare in effectiveItemType
-  const currentItem_SType = v3GateActive ? 'v3_gate' :
-                          v3ProbingActive ? 'v3_probing' :
-                          pendingSectionTransition ? 'section_transition' :
-                          currentItem_S?.type || null;
-  
   // TDZ SAFE DEFAULTS — real values computed later when bottomBarModeSOT/effectiveItemType exist.
   // These are placeholders to prevent "undefined" errors in early code paths.
   const isYesNoModeSOT = false;
   const isMiGateSOT = false;
-  
+
   // ============================================================================
-  // TDZ FIX: EFFECTIVEITEMTYPE - HOISTED EARLY (prevents use-before-declare)
+  // TDZ FIX: EFFECTIVEITEMTYPE - RE-ASSIGNMENT (declaration is hoisted)
   // ============================================================================
   // CRITICAL: This must be declared BEFORE line 2569 where it's first used
   // Step 3: Compute effectiveItemType (UI routing key derived from activeUiItem_S.kind)
   // CRITICAL OVERRIDE: Fallback takes absolute precedence over v3_probing
-  const effectiveItemType = activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
+  effectiveItemType = activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
                            activeUiItem_S.kind === "V3_PROMPT" ? 'v3_probing' : 
                            activeUiItem_S.kind === "V3_OPENER" ? 'v3_pack_opener' :
                            activeUiItem_S.kind === "MI_GATE" ? 'multi_instance_gate' :
@@ -20045,20 +20048,26 @@ const transcriptPlan = isV3DebugEnabled
   cqTdzMark('BEFORE_MAIN_RETURN_EXPR', { screenModeNow: screenMode, shouldShowFullScreenLoader, currentItem_SType: currentItem_S?.type, effectiveItemType: effectiveItemType_SAFE });
   
   // LIKELY_OFFENDER_SNAPSHOT: Safe typeof checks for identifiers declared ABOVE this point
+   const bottomBarModeSOT_SAFE = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
+   const activeUiItem_S_SAFE = (typeof activeUiItem_S !== 'undefined') ? activeUiItem_S : null;
+   const hasActiveV3Prompt_SAFE = (typeof hasActiveV3Prompt !== 'undefined') ? hasActiveV3Prompt : null;
+   const finalTranscriptList_S_SAFE = (typeof finalTranscriptList_S !== 'undefined') ? finalTranscriptList_S : null;
+   const activeCard_S_SAFE = (typeof activeCard_S !== 'undefined') ? activeCard_S : null;
+
   console.log('[TDZ_TRACE][LIKELY_OFFENDER_SNAPSHOT]', {
     keys: {
       screenMode: typeof screenMode,
       currentItem_S: typeof currentItem_S,
       effectiveItemType: typeof effectiveItemType_SAFE,
-      bottomBarModeSOT: typeof bottomBarModeSOT,
-      activeUiItem_S: typeof activeUiItem_S,
+      bottomBarModeSOT: typeof bottomBarModeSOT_SAFE,
+      activeUiItem_S: typeof activeUiItem_S_SAFE,
       v3ProbingActive: typeof v3ProbingActive,
-      hasActiveV3Prompt: typeof hasActiveV3Prompt,
+      hasActiveV3Prompt: typeof hasActiveV3Prompt_SAFE,
       transcriptSOT_S: typeof transcriptSOT_S,
       engine_S: typeof engine_S,
       session: typeof session,
-      finalTranscriptList_S: typeof finalTranscriptList_S,
-      activeCard_S: typeof activeCard_S
+      finalTranscriptList_S: typeof finalTranscriptList_S_SAFE,
+      activeCard_S: typeof activeCard_S_SAFE
     }
   });
   
