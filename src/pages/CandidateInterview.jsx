@@ -3797,6 +3797,7 @@ try {
       ts: e?.ts
     }));
   console.log('[TDZ_TRACE][RING_TAIL_COMPACT]', ringTailCompact);
+console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompact, null, 2));
 } catch (_) {}
           } catch (_) {}
         });
@@ -3815,6 +3816,7 @@ try {
       ts: e?.ts
     }));
   console.log('[TDZ_TRACE][RING_TAIL_COMPACT]', ringTailCompact);
+console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompact, null, 2));
 } catch (_) {}
           } catch (_) {}
         });
@@ -3863,6 +3865,7 @@ try {
                   }));
 
                 console.log('[TDZ_TRACE][RING_TAIL_COMPACT]', ringTailCompact);
+console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompact, null, 2));
 
                 // Always log AUTO_PINPOINT
                 const pinpointPayload = {
@@ -3893,6 +3896,7 @@ try {
       ts: e?.ts
     }));
   console.log('[TDZ_TRACE][RING_TAIL_COMPACT]', ringTailCompact);
+console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompact, null, 2));
 } catch (_) {}
               }
             }
@@ -3910,6 +3914,7 @@ try {
       ts: e?.ts
     }));
   console.log('[TDZ_TRACE][RING_TAIL_COMPACT]', ringTailCompact);
+console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompact, null, 2));
 } catch (_) {}
           } catch (_) {}
           try {
