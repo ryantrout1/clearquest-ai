@@ -3786,12 +3786,36 @@ function CandidateInterviewInner() {
         window.addEventListener('error', () => {
           try {
             console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
+
+try {
+  const ringTailCompact = (window.__CQ_TDZ_TRACE_RING__ || [])
+    .slice(-10)
+    .map((e) => ({
+      step: e?.step,
+      srcLine: e?.srcLine ?? null,
+      srcCol: e?.srcCol ?? null,
+      ts: e?.ts
+    }));
+  console.log('[TDZ_TRACE][RING_TAIL_COMPACT]', ringTailCompact);
+} catch (_) {}
           } catch (_) {}
         });
         
         window.addEventListener('unhandledrejection', () => {
           try {
             console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
+
+try {
+  const ringTailCompact = (window.__CQ_TDZ_TRACE_RING__ || [])
+    .slice(-10)
+    .map((e) => ({
+      step: e?.step,
+      srcLine: e?.srcLine ?? null,
+      srcCol: e?.srcCol ?? null,
+      ts: e?.ts
+    }));
+  console.log('[TDZ_TRACE][RING_TAIL_COMPACT]', ringTailCompact);
+} catch (_) {}
           } catch (_) {}
         });
       }
@@ -3858,11 +3882,35 @@ function CandidateInterviewInner() {
                 });
                 console.log('[TDZ_TRACE][REF_ERROR_VAR]', { varName: match[1] });
                 console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
+
+try {
+  const ringTailCompact = (window.__CQ_TDZ_TRACE_RING__ || [])
+    .slice(-10)
+    .map((e) => ({
+      step: e?.step,
+      srcLine: e?.srcLine ?? null,
+      srcCol: e?.srcCol ?? null,
+      ts: e?.ts
+    }));
+  console.log('[TDZ_TRACE][RING_TAIL_COMPACT]', ringTailCompact);
+} catch (_) {}
               }
             }
           } catch (_) {}
           try {
             console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
+
+try {
+  const ringTailCompact = (window.__CQ_TDZ_TRACE_RING__ || [])
+    .slice(-10)
+    .map((e) => ({
+      step: e?.step,
+      srcLine: e?.srcLine ?? null,
+      srcCol: e?.srcCol ?? null,
+      ts: e?.ts
+    }));
+  console.log('[TDZ_TRACE][RING_TAIL_COMPACT]', ringTailCompact);
+} catch (_) {}
           } catch (_) {}
           try {
             originalConsoleError.apply(console, args);
