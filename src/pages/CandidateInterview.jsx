@@ -17416,7 +17416,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // ============================================================================
   // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
   // ============================================================================
-  const finalTranscriptList_S = cqTdzIsolate ? [] : useMemo(() => {
+  const finalTranscriptList_S_memo = useMemo(() => {
     cqTdzMark('INSIDE_FINAL_TRANSCRIPT_LIST_MEMO_START');
     
     // TDZ ISOLATE: This memo is bypassed when tdz_isolate=1
@@ -19685,6 +19685,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     cqDiagEnabled,
     v3UiRenderable
   ]);
+
+  const finalTranscriptList_S = finalTranscriptList_S_memo;
 
   // ============================================================================
   // SESSION URL REPAIR: Auto-fix stripped session param before redirect
