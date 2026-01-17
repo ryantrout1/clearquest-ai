@@ -20041,14 +20041,15 @@ const transcriptPlan = isV3DebugEnabled
 
   // UI CONTRACT: 3-row shell enforced - do not reintroduce footer spacers/padding hacks; footer must stay in layout flow.
   
-  cqTdzMark('BEFORE_MAIN_RETURN_EXPR', { screenModeNow: screenMode, shouldShowFullScreenLoader, currentItem_SType: currentItem_S?.type, effectiveItemType });
+  const effectiveItemType_SAFE = (typeof effectiveItemType !== 'undefined') ? effectiveItemType : null;
+  cqTdzMark('BEFORE_MAIN_RETURN_EXPR', { screenModeNow: screenMode, shouldShowFullScreenLoader, currentItem_SType: currentItem_S?.type, effectiveItemType: effectiveItemType_SAFE });
   
   // LIKELY_OFFENDER_SNAPSHOT: Safe typeof checks for identifiers declared ABOVE this point
   console.log('[TDZ_TRACE][LIKELY_OFFENDER_SNAPSHOT]', {
     keys: {
       screenMode: typeof screenMode,
       currentItem_S: typeof currentItem_S,
-      effectiveItemType: typeof effectiveItemType,
+      effectiveItemType: typeof effectiveItemType_SAFE,
       bottomBarModeSOT: typeof bottomBarModeSOT,
       activeUiItem_S: typeof activeUiItem_S,
       v3ProbingActive: typeof v3ProbingActive,
