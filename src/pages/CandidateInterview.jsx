@@ -3764,13 +3764,13 @@ function CandidateInterviewInner() {
       const existing = window.__CQ_TDZ_TRACE_RING__;
       const ring = Array.isArray(existing) ? existing : [];
             const s = String(new Error().stack || '');
-      const match = s.match(/(?:.*\/)?CandidateInterview\.jsx(?:\?[^:]*)?:(\d+):(\d+)/);
+      const match = s.match(/(?:.*\/)?CandidateInterview\.(?:jsx|js)(?:\?[^:]*)?:(\d+)(?::(\d+))?/);
       const entry = { 
         step, 
         ts: Date.now(), 
         ...extra,
         srcLine: match ? parseInt(match[1]) : null,
-        srcCol: match ? parseInt(match[2]) : null
+        srcCol: (match && match[2]) ? parseInt(match[2]) : null
       };
       ring.push(entry);
       window.__CQ_TDZ_TRACE_RING__ = ring.length > 10 ? ring.slice(-10) : ring;
@@ -3852,7 +3852,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
                 console.log('[TDZ_TRACE][STACK_STR]', stackStr);
 
                 // Robust regex to find file:line:col from different stack formats
-                const stackMatch = stackStr.match(/(?:.*\/)?CandidateInterview\.jsx(?:\?[^:]*)?:(\d+):(\d+)/);
+                const stackMatch = stackStr.match(/(?:.*\/)?CandidateInterview\.(?:jsx|js)(?:\?[^:]*)?:(\d+)(?::(\d+))?/);
                                 const ringTail = (window.__CQ_TDZ_TRACE_RING__ || []).slice(-20);
 
                 const ringTailCompact = (window.__CQ_TDZ_TRACE_RING__ || [])
@@ -3872,7 +3872,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
                   offenderVar: match[1],
                   file: 'CandidateInterview.jsx',
                   line: stackMatch ? parseInt(stackMatch[1]) : null,
-                  col: stackMatch ? parseInt(stackMatch[2]) : null,
+                  col: (stackMatch && stackMatch[2]) ? parseInt(stackMatch[2]) : null,
                   lastStep,
                   phase: (typeof cqRenderPhaseTag !== 'undefined' ? cqRenderPhaseTag : null),
                   ringTail: ringTail.map(e => e.step)
