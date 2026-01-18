@@ -19988,12 +19988,13 @@ const transcriptPlan = isV3DebugEnabled
   
   // LOADING JSX - Extracted for reuse (TDZ fix)
   const showLoadingRetry_SAFE = (typeof showLoadingRetry !== 'undefined') ? showLoadingRetry : false;
+  const sessionId_SAFE = (typeof sessionId !== 'undefined') ? sessionId : null;
   const cqLoadingReturnJSX = (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
       <div className="text-center space-y-4">
         <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
         <p className="text-slate-300">Loading interview...</p>
-        <p className="text-slate-500 text-xs">Session: {sessionId?.substring(0, 8)}...</p>
+        <p className="text-slate-500 text-xs">Session: {sessionId_SAFE?.substring(0, 8)}...</p>
         {showLoadingRetry_SAFE && (
           <div className="mt-6 space-y-3">
             <p className="text-slate-400 text-sm">Taking longer than expected...</p>
