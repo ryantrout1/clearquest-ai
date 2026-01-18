@@ -3764,7 +3764,7 @@ function CandidateInterviewInner() {
       const existing = window.__CQ_TDZ_TRACE_RING__;
       const ring = Array.isArray(existing) ? existing : [];
             const s = String(new Error().stack || '');
-      const match = s.match(/(?:[\/\w-]+\/)?CandidateInterview\.jsx:(\d+):(\d+)/);
+      const match = s.match(/(?:.*\/)?CandidateInterview\.jsx(?:\?[^:]*)?:(\d+):(\d+)/);
       const entry = { 
         step, 
         ts: Date.now(), 
@@ -3852,7 +3852,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
                 console.log('[TDZ_TRACE][STACK_STR]', stackStr);
 
                 // Robust regex to find file:line:col from different stack formats
-                const stackMatch = stackStr.match(/(?:[\/\w-]+\/)?CandidateInterview\.jsx:(\d+):(\d+)/);
+                const stackMatch = stackStr.match(/(?:.*\/)?CandidateInterview\.jsx(?:\?[^:]*)?:(\d+):(\d+)/);
                                 const ringTail = (window.__CQ_TDZ_TRACE_RING__ || []).slice(-20);
 
                 const ringTailCompact = (window.__CQ_TDZ_TRACE_RING__ || [])
