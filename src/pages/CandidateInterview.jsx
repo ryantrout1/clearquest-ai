@@ -3763,7 +3763,11 @@ function CandidateInterviewInner() {
     try {
       const existing = window.__CQ_TDZ_TRACE_RING__;
       const ring = Array.isArray(existing) ? existing : [];
-            const s = String(new Error().stack || '');
+      const s = String(new Error().stack || '');
+      if (!window.__CQ_TDZ_STACK_SAMPLE_LOGGED__) {
+      window.__CQ_TDZ_STACK_SAMPLE_LOGGED__ = true;
+      console.log('[TDZ_TRACE][STACK_SAMPLE]', s);
+      }
       const match = s.match(/(?:.*\/)?CandidateInterview\.(?:jsx|js)(?:\?[^:]*)?:(\d+)(?::(\d+))?/);
       const entry = { 
         step, 
