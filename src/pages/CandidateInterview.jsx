@@ -20019,9 +20019,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   );
   
   if (shouldShowFullScreenLoader) {
-    let shouldShowFullScreenLoader_SAFE = false;
-    try { shouldShowFullScreenLoader_SAFE = shouldShowFullScreenLoader; } catch (_) { shouldShowFullScreenLoader_SAFE = false; }
-    cqTdzMark('INSIDE_LOADING_GUARD_BEFORE_RETURN', { shouldShowFullScreenLoader: shouldShowFullScreenLoader_SAFE });
+    cqTdzMark('INSIDE_LOADING_GUARD_BEFORE_RETURN', { shouldShowFullScreenLoader });
     cqTdzMark('INSIDE_FULL_SCREEN_LOADER_GUARD');
     return cqLoadingReturnJSX;
   }
