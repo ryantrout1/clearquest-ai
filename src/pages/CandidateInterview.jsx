@@ -19991,8 +19991,11 @@ const transcriptPlan = isV3DebugEnabled
   cqTdzMark('BEFORE_FULL_SCREEN_LOADER_CHECK');
   
   // LOADING JSX - Extracted for reuse (TDZ fix)
-  const showLoadingRetry_SAFE = (typeof showLoadingRetry !== 'undefined') ? showLoadingRetry : false;
-  const sessionId_SAFE = (typeof sessionId !== 'undefined') ? sessionId : null;
+let showLoadingRetry_SAFE = false;
+try { showLoadingRetry_SAFE = showLoadingRetry; } catch (_) { showLoadingRetry_SAFE = false; }
+
+let sessionId_SAFE = null;
+try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   const cqLoadingReturnJSX = (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
       <div className="text-center space-y-4">
