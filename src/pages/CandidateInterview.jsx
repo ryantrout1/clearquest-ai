@@ -3790,41 +3790,35 @@ function CandidateInterviewInner() {
       if (!window.__CQ_TDZ_TRACE_ERR_HOOK__) {
         window.__CQ_TDZ_TRACE_ERR_HOOK__ = true;
         
-        window.addEventListener('error', () => {
+        window.addEventListener('error', (ev) => {
           try {
             console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
+          } catch (_) {}
 
-try {
-  const ringTailCompact = (window.__CQ_TDZ_TRACE_RING__ || [])
-    .slice(-10)
-    .map((e) => ({
-      step: e?.step,
-      srcLine: e?.srcLine ?? null,
-      srcCol: e?.srcCol ?? null,
-      ts: e?.ts
-    }));
-  console.log('[TDZ_TRACE][RING_TAIL_COMPACT]', ringTailCompact);
-console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompact, null, 2));
-} catch (_) {}
+          try {
+            const msg = String(ev?.message || '');
+            const stack = String(ev?.error?.stack || '');
+            console.log('[TDZ_TRACE][ONERROR_EVENT]', {
+              message: msg,
+              filename: ev?.filename || null,
+              lineno: ev?.lineno ?? null,
+              colno: ev?.colno ?? null
+            });
+            console.log('[TDZ_TRACE][STACK_STR]', stack || msg);
           } catch (_) {}
         });
         
-        window.addEventListener('unhandledrejection', () => {
+        window.addEventListener('unhandledrejection', (ev) => {
           try {
             console.log('[TDZ_TRACE][LAST_10]', window.__CQ_TDZ_TRACE_RING__ || []);
+          } catch (_) {}
 
-try {
-  const ringTailCompact = (window.__CQ_TDZ_TRACE_RING__ || [])
-    .slice(-10)
-    .map((e) => ({
-      step: e?.step,
-      srcLine: e?.srcLine ?? null,
-      srcCol: e?.srcCol ?? null,
-      ts: e?.ts
-    }));
-  console.log('[TDZ_TRACE][RING_TAIL_COMPACT]', ringTailCompact);
-console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompact, null, 2));
-} catch (_) {}
+          try {
+            const reason = ev?.reason;
+            const msg = String(reason?.message || reason || '');
+            const stack = String(reason?.stack || '');
+            console.log('[TDZ_TRACE][UNHANDLEDREJECTION_EVENT]', { message: msg });
+            console.log('[TDZ_TRACE][STACK_STR]', stack || msg);
           } catch (_) {}
         });
       }
