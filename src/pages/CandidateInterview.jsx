@@ -662,6 +662,11 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
+    try {
+      console.log('[CQ_ERROR_BOUNDARY][STACK_STR]', String(error?.stack || error?.message || error || ''));
+      console.log('[CQ_ERROR_BOUNDARY][COMPONENT_STACK]', String(info?.componentStack || ''));
+    } catch (_) {}
+
     // CRASH_SIGNATURE: Capture error + TDZ trace ring
     const ring = Array.isArray(window.__CQ_TDZ_TRACE_RING__) ? window.__CQ_TDZ_TRACE_RING__.slice(-10) : null;
     console.log('[CQ_ERROR_BOUNDARY][CRASH_SIGNATURE]', {
