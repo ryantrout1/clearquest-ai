@@ -19855,6 +19855,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // This block was moved by the TDZ fix.
 
 
+  // [TDZ_FIX] Declarations moved before their first use in computeTranscriptRenderPlan.
+  const activeUiItem_SAFE = activeUiItem_S ?? null;
+  const finalTranscriptList_SAFE = finalTranscriptList_S ?? [];
+  const currentItem_SAFE = currentItem_S ?? null;
+  const v3ProbingContext_SAFE = v3ProbingContext_S ?? null;
+
 const transcriptPlan = isV3DebugEnabled
     ? cqComputeGuard('computeTranscriptRenderPlan', () => computeTranscriptRenderPlan({
     finalTranscriptList_S,
@@ -19885,12 +19891,7 @@ const transcriptPlan = isV3DebugEnabled
     bottomAnchorRef,
     activeCard_SScrollMarginBottomPx
   }))
-    // [TDZ_FIX_MOVED] This block of safe aliases was moved here to resolve TDZ.
-  const activeUiItem_SAFE = activeUiItem_S ?? null;
-  const finalTranscriptList_SAFE = finalTranscriptList_S ?? [];
-  const currentItem_SAFE = currentItem_S ?? null;
-  const v3ProbingContext_SAFE = v3ProbingContext_S ?? null;
-  : computeTranscriptRenderPlan({
+    : computeTranscriptRenderPlan({
     finalTranscriptList_S: finalTranscriptList_SAFE,
     isV3DebugEnabled,
     cqRead,
