@@ -3756,7 +3756,10 @@ function CandidateInterviewInner() {
     }
     
     const wn = String(window.name || '');
-    const enabled = (window.__CQ_TDZ_TRACE__ === true) || wn.includes('CQ_TDZ_TRACE=1') || localIsPreviewEnv;
+    let localIsPreviewEnv_SAFE = false;
+    try { localIsPreviewEnv_SAFE = !!localIsPreviewEnv; } catch (_) { localIsPreviewEnv_SAFE = false; }
+
+    const enabled = (window.__CQ_TDZ_TRACE__ === true) || wn.includes('CQ_TDZ_TRACE=1') || localIsPreviewEnv_SAFE;
     if (!enabled) return;
     
     // RING BUFFER: Store last 10 markers for crash forensics
