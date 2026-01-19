@@ -19885,6 +19885,11 @@ const transcriptPlan = isV3DebugEnabled
     bottomAnchorRef,
     activeCard_SScrollMarginBottomPx
   }))
+    // [TDZ_FIX_MOVED] This block of safe aliases was moved here to resolve TDZ.
+  const activeUiItem_SAFE = activeUiItem_S ?? null;
+  const finalTranscriptList_SAFE = finalTranscriptList_S ?? [];
+  const currentItem_SAFE = currentItem_S ?? null;
+  const v3ProbingContext_SAFE = v3ProbingContext_S ?? null;
   : computeTranscriptRenderPlan({
     finalTranscriptList_S: finalTranscriptList_SAFE,
     isV3DebugEnabled,
