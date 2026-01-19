@@ -3808,6 +3808,260 @@ function CandidateInterviewInner() {
     isBottomBarSubmitDisabled,
   };
 
+  // [TDZ_GUARD][DERIVED_SNAPSHOT]
+  // Centralized render-time derived computations (NO hooks in this block).
+  // Ordered to prevent TDZ and used as the single source of truth for planner inputs.
+  const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
+  const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
+  const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
+  const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && 
+                            v3PromptPhase === "ANSWER_NEEDED";
+  let effectiveItemType = v3ProbingActive ? 'v3_probing' : currentItem_SType;
+  const activeUiItem_S = resolveActiveUiItem();
+  const activeKindSOT = activeUiItem_S?.kind || currentItem_S?.type || 'UNKNOWN';
+  effectiveItemType = activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
+                           activeUiItem_S.kind === "V3_PROMPT" ? 'v3_probing' : 
+                           activeUiItem_S.kind === "V3_OPENER" ? 'v3_pack_opener' :
+                           activeUiItem_S.kind === "MI_GATE" ? 'multi_instance_gate' :
+                           v3ProbingActive ? 'v3_probing' : 
+                           currentItem_SType;
+  const bottomBarRenderTypeSOT = (() => {
+    // PRIORITY 0: Required anchor fallback (highest precedence - must show prompt)
+    if (activeUiItem_S?.kind === "REQUIRED_ANCHOR_FALLBACK") return "required_anchor_fallback";
+    
+    // PRIORITY 1: V3 states (highest precedence)
+    if (activeUiItem_S?.kind === "V3_PROMPT") return "v3_probing";
+    if (activeUiItem_S?.kind === "V3_WAITING") return "v3_waiting";
+    if (activeUiItem_S?.kind === "V3_OPENER") return "v3_pack_opener";
+    if (activeUiItem_S?.kind === "MI_GATE") return "multi_instance_gate";
+    
+    // PRIORITY 2: Base yes/no questions (FIX #1)
+    if (activeUiItem_S?.kind === "DEFAULT" && 
+        currentItem_S?.type === "question" && 
+        engine_S?.QById?.[currentItem_S.id]?.response_type === "yes_no") {
+      return "yes_no";
+    }
+    
+    // PRIORITY 3: Default fallback
+    return "default";
+  })();
+  const bottomBarModeSOT = (() => {
+    // Derive mode from early bottomBarRenderTypeSOT only (TDZ-safe)
+    if (bottomBarRenderTypeSOT === "required_anchor_fallback") return "TEXT_INPUT";
+    if (bottomBarRenderTypeSOT === "multi_instance_gate") return "YES_NO";
+    if (bottomBarRenderTypeSOT === "yes_no") return "YES_NO"; // FIX #1: Map yes_no render type to YES_NO mode
+    if (bottomBarRenderTypeSOT === "v3_pack_opener") return "TEXT_INPUT";
+    if (bottomBarRenderTypeSOT === "v3_probing") return "TEXT_INPUT";
+    if (bottomBarRenderTypeSOT === "v3_waiting") return "V3_WAITING";
+    if (screenMode === 'WELCOME') return "CTA";
+    return "DEFAULT";
+  })();
+    const needsPrompt = bottomBarModeSOT === 'TEXT_INPUT' || 
+                      ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
+  const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
+  const shouldRenderFooter = (screenMode === 'QUESTION' && 
+                              (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO' || bottomBarModeSOT === 'SELECT' || bottomBarModeSOT === 'V3_WAITING')) ||
+                              bottomBarModeSOT === 'CTA';
+  const activeCard_SKeySOT = (() => {
+    if (activeUiItem_S.kind === "V3_PROMPT") {
+      const promptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+      return promptId ? `v3-prompt:${promptId}` : null;
+    }
+    if (activeUiItem_S.kind === "V3_OPENER") {
+      return buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
+    }
+    if (activeUiItem_S.kind === "V3_WAITING") {
+      const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
+      return loopKey ? `v3-waiting:${loopKey}` : null;
+    }
+    if (activeUiItem_S.kind === "MI_GATE") {
+      return currentItem_S?.id || `mi-gate:${currentItem_S?.packId}:${currentItem_S?.instanceNumber}`;
+    }
+    if (activeUiItem_S.kind === "DEFAULT" && currentItem_S?.type === "question") {
+      return currentItem_S?.id;
+    }
+    return null;
+  })();
+  const hasActiveCardSOT = Boolean(activeCard_SKeySOT);
+    const hasInterviewContent = Boolean(
+    transcriptSOT_S?.length > 0 || 
+    hasActiveCardSOT || 
+    activeUiItem_S?.kind !== 'DEFAULT' ||
+    screenMode === 'QUESTION'
+  );
+  const shouldApplyFooterClearance = shouldRenderFooter && hasInterviewContent;
+  const footerClearancePx = Math.max(dynamicFooterHeightPx + 32, 96);
+    let activeCard_S = null;
+  const transcriptRenderable = renderedTranscriptSnapshotRef.current || dbTranscript || [];
+  const currentPromptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+    if (activeUiItem_S.kind === "V3_PROMPT") {
+    const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
+    const promptId = currentPromptId || `${loopKey}:fallback`;
+    const qStableKey = `v3-probe-q:${promptId}`;
+    const transcriptHasThisProbeQ = transcriptSOT_S.some(e => 
+      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+      (e.meta?.promptId === promptId || e.stableKey === qStableKey)
+    );
+        if (lastRenderedV3PromptKeyRef.current === promptId && v3PromptText && hasActiveV3Prompt && v3PromptPhase !== "ANSWER_NEEDED") {
+    } else if (v3PromptText && hasActiveV3Prompt) {
+      const normalizedPromptText = (v3PromptText || "").toLowerCase().trim().replace(/\s+/g, " ");
+      const stableKey = loopKey ? `v3-active:${loopKey}:${promptId}:${normalizedPromptText.slice(0,32)}` : null;
+      activeCard_S = {
+        __activeCard_S: true,
+        isEphemeralPromptLaneCard: true,
+        kind: "v3_probe_q",
+        stableKey,
+        text: v3PromptText,
+        packId: v3ProbingContext_S?.packId,
+        instanceNumber: v3ProbingContext_S?.instanceNumber,
+        source: 'prompt_lane_temporary'
+      };
+      lastRenderedV3PromptKeyRef.current = promptId;
+    }
+    if (!activeCard_S && lastRenderedV3PromptKeyRef.current) {
+      lastRenderedV3PromptKeyRef.current = null;
+    }
+  } else if (activeUiItem_S.kind === "V3_WAITING") {
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
+    activeCard_S = {
+      __activeCard_S: true,
+      isEphemeralPromptLaneCard: true,
+      kind: "v3_thinking",
+      stableKey: `v3-thinking:${loopKey}`,
+      text: "Processing your response...",
+      packId: v3ProbingContext_S?.packId,
+      instanceNumber: v3ProbingContext_S?.instanceNumber || 1,
+      source: 'prompt_lane_temporary'
+    };
+  } else if (activeUiItem_S.kind === "V3_OPENER") {
+    const openerText = currentItem_S?.openerText || "";
+    const stableKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
+    const expectedKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
+    const alreadyInHistory = v3ProbeDisplayHistory_S.some(e => e.stableKey === expectedKey);
+    if (screenMode === "QUESTION" && openerText) {
+      if (alreadyInHistory) {}
+      activeCard_S = {
+        __activeCard_S: true,
+        isEphemeralPromptLaneCard: true,
+        kind: "v3_pack_opener",
+        stableKey,
+        text: openerText,
+        packId: currentItem_S.packId,
+        categoryLabel: currentItem_S.categoryLabel,
+        instanceNumber: currentItem_S.instanceNumber || 1,
+        exampleNarrative: currentItem_S.exampleNarrative,
+        source: 'prompt_lane_temporary'
+      };
+    } else if (!openerText) {}
+  } else if (
+    activeUiItem_S.kind === "DEFAULT" && 
+    currentItem_S?.type === "question" && 
+    engine_S?.QById?.[currentItem_S.id]?.response_type === "yes_no"
+  ) {
+    const question = engine_S?.QById?.[currentItem_S.id];
+    const questionText = question?.question_text || "(Question)";
+    const stableKey = `question-shown:${currentItem_S.id}`;
+    activeCard_S = {
+      __activeCard_S: true,
+      isEphemeralPromptLaneCard: true,
+      kind: "base_question_yesno",
+      stableKey,
+      text: questionText,
+      questionId: currentItem_S.id,
+      questionDbId: currentItem_S.id,
+      questionNumber: question?.question_number,
+      sectionName: engine_S?.Sections?.find(s => s.id === question?.section_id)?.section_name,
+      source: 'prompt_lane_temporary'
+    };
+  } else if (activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK") {
+    const questionText = resolveAnchorToHumanQuestion(
+      requiredAnchorCurrent, 
+      v3ProbingContext_S?.packId
+    );
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
+    const stableKey = loopKey ? `fallback-prompt:${loopKey}:${requiredAnchorCurrent}` : null;
+    activeCard_S = {
+      __activeCard_S: true,
+      isEphemeralPromptLaneCard: false,
+      kind: "required_anchor_fallback_prompt",
+      stableKey,
+      text: questionText,
+      packId: v3ProbingContext_S?.packId,
+      instanceNumber: v3ProbingContext_S?.instanceNumber || 1,
+      anchor: requiredAnchorCurrent,
+      source: 'prompt_lane_temporary'
+    };
+  } else if (activeUiItem_S.kind === "MI_GATE") {
+    let miGateItem = currentItem_S;
+    if (!miGateItem || miGateItem.type !== 'multi_instance_gate' || !miGateItem.packId || !miGateItem.instanceNumber) {
+      if (activeUiItem_S.packId && activeUiItem_S.instanceNumber) {
+        miGateItem = {
+          type: 'multi_instance_gate',
+          packId: activeUiItem_S.packId,
+          instanceNumber: activeUiItem_S.instanceNumber,
+          promptText: activeUiItem_S.promptText || multiInstanceGate?.promptText
+        };
+      }
+    }
+    const miGatePrompt = miGateItem?.promptText || 
+                         multiInstanceGate?.promptText || 
+                         activeUiItem_S?.promptText ||
+                         `Do you have another item to report in this section?`;
+    const packId = miGateItem?.packId || activeUiItem_S?.packId;
+    const instanceNumber = miGateItem?.instanceNumber || activeUiItem_S?.instanceNumber;
+    if (packId && instanceNumber && miGatePrompt) {
+      const stableKey = buildMiGateQStableKey(packId, instanceNumber);
+      const itemId = buildMiGateItemId(packId, instanceNumber);
+      activeCard_S = {
+        __activeCard_S: true,
+        isEphemeralPromptLaneCard: true,
+        kind: "multi_instance_gate",
+        id: itemId,
+        stableKey,
+        text: miGatePrompt,
+        packId,
+        instanceNumber,
+        source: 'prompt_lane_temporary'
+      };
+    }
+  }
+    const baseSpacerPx = Math.max(footerShellHeightPx + 16, 80); // 80px minimum for safe clearance
+  const isV3OpenerForSpacer = (activeUiItem_S?.kind === 'V3_OPENER') || 
+                              (currentItem_S?.type === 'v3_pack_opener');
+  const spacerWithV3Expansion = isV3OpenerForSpacer 
+    ? baseSpacerPx + extraBottomSpacerPx 
+    : baseSpacerPx;
+  const isYesNoModeDerived = bottomBarModeSOT === 'YES_NO';
+  const isMiGateDerived = effectiveItemType === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
+  const yesNoModeClearance = dynamicFooterHeightPx + 32;
+  const normalModeClearance = spacerWithV3Expansion;
+  const bottomSpacerPx = (isYesNoModeDerived || isMiGateDerived)
+    ? Math.max(yesNoModeClearance, normalModeClearance)
+    : normalModeClearance;
+  const isBottomBarSubmitDisabled = requiredAnchorFallbackActive 
+    ? (!(input ?? "").trim())
+    : (!currentItem_S || isCommitting || !(input ?? "").trim());
+
+  const derived = {
+    hasActiveV3Prompt,
+    activeUiItem_S,
+    activeKindSOT,
+    effectiveItemType,
+    bottomBarRenderTypeSOT,
+    bottomBarModeSOT,
+    needsPrompt,
+    hasPrompt,
+    shouldRenderFooter,
+    shouldApplyFooterClearance,
+    footerClearancePx,
+    bottomSpacerPx,
+    activeCard_SKeySOT,
+    hasActiveCardSOT,
+    activeCard_S,
+    isBottomBarSubmitDisabled,
+  };
+
   const isV3DebugEnabled = (() => {
     try {
       if (typeof window === 'undefined') return false;
@@ -13707,164 +13961,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   
   cqTdzMark('BEFORE_FOOTER_AND_PROMPT_DERIVATIONS');
   
-  // ============================================================================
-  // FOOTER AND PROMPT DERIVATIONS - Consolidated render-time block (TDZ-safe)
-  // ============================================================================
-  // CRITICAL: All footer/prompt-related consts consolidated here
-  const needsPrompt = bottomBarModeSOT === 'TEXT_INPUT' || 
-                      ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
-  const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
-  
-  cqTdzMark('AFTER_NEEDS_PROMPT_HAS_PROMPT');
-  
-  // Step 5: Compute footer rendering flag (include V3_WAITING and CTA)
-  const shouldRenderFooter = (screenMode === 'QUESTION' && 
-                              (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO' || bottomBarModeSOT === 'SELECT' || bottomBarModeSOT === 'V3_WAITING')) ||
-                              bottomBarModeSOT === 'CTA';
-  
-  // CLEARANCE ENABLEMENT: Only apply footer clearance when there's interview content to protect
-  const hasInterviewContent = Boolean(
-    transcriptSOT_S?.length > 0 || 
-    hasActiveCardSOT || 
-    activeUiItem_S?.kind !== 'DEFAULT' ||
-    screenMode === 'QUESTION'
-  );
-  
-  const shouldApplyFooterClearance = shouldRenderFooter && hasInterviewContent;
-  
-  cqTdzMark('AFTER_SHOULD_APPLY_FOOTER_CLEARANCE', { shouldApply: shouldApplyFooterClearance });
-  
-  // ============================================================================
-  // FOOTER CLEARANCE COMPUTATION - Stable, unconditional (prevents overlap)
-  // ============================================================================
-  const footerClearancePx = Math.max(dynamicFooterHeightPx + 32, 96);
-  const activeCard_SScrollMarginBottomPx = footerClearancePx;
-  
-  cqTdzMark('AFTER_FOOTER_CLEARANCE_PX', { clearancePx: footerClearancePx });
-  
-  cqTdzMark('BEFORE_FOOTER_VISIBILITY_CHECK');
-  
-  // FIX #1: Diagnostic log for footer visibility
-  if (bottomBarRenderTypeSOT === "yes_no") {
-    console.log('[BASE_YESNO][FOOTER_RENDER_CHECK]', {
-      shouldRenderFooter,
-      screenMode,
-      bottomBarModeSOT,
-      bottomBarRenderTypeSOT
-    });
-  }
-  
-  cqTdzMark('AFTER_FOOTER_VISIBILITY_CHECK');
-  
-  // REGRESSION LOGGING: Clearance SOT (once per active item, deduped)
-  const clearanceLogKeyRef = React.useRef(null);
-  const clearanceLogKey = `${currentItem_S?.id || 'none'}:${bottomBarModeSOTSafe}`;
-  if (shouldRenderFooter && clearanceLogKey !== clearanceLogKeyRef.current) {
-    clearanceLogKeyRef.current = clearanceLogKey;
-    console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SOT]', { 
-      footerHeightPx: dynamicFooterHeightPx,
-      footerClearancePx, 
-      bottomBarMode: bottomBarModeSOTSafe, 
-      effectiveItemType 
-    });
-  }
-  
-  // REGRESSION CHECK: Suspicious footer height in YES/NO mode (once per mount)
-  const footerHeightSuspiciousLoggedRef = React.useRef(false);
-  if (bottomBarModeSOTSafe === 'YES_NO' && shouldRenderFooter && dynamicFooterHeightPx < 40 && !footerHeightSuspiciousLoggedRef.current) {
-    footerHeightSuspiciousLoggedRef.current = true;
-    console.warn('[UI_CONTRACT][FOOTER_HEIGHT_SUSPICIOUS]', { 
-      dynamicFooterHeightPx, 
-      bottomBarMode: 'YES_NO',
-      note: 'Footer height too small for YES/NO; measurement likely stale or footer not yet rendered'
-    });
-  }
-  
-  // SAFE DIAGNOSTIC: Log footer position and clearance when it changes
-  const lastFooterPositionLogKeyRef = React.useRef(null);
-  React.useEffect(() => {
-    const logKey = `${bottomBarModeSOTSafe}:${shouldApplyFooterClearance}:${transcriptSOT_S?.length || 0}`;
-    if (logKey !== lastFooterPositionLogKeyRef.current) {
-      lastFooterPositionLogKeyRef.current = logKey;
-      
-      console.log('[UI_CONTRACT][FOOTER_POSITION_SOT]', {
-        footerPosition: 'fixed',
-        shouldApplyFooterClearance,
-        footerClearancePx,
-        dynamicFooterHeightPx,
-        bottomBarMode: bottomBarModeSOTSafe,
-        transcriptLen: transcriptSOT_S?.length || 0,
-        hasActiveCardSOT,
-        activeUiItem_SKind: activeUiItem_S?.kind
-      });
-    }
-  }, [shouldRenderFooter, shouldApplyFooterClearance, footerClearancePx, dynamicFooterHeightPx, bottomBarModeSOTSafe, transcriptSOT_S?.length, hasActiveCardSOT, activeUiItem_S?.kind]);
-  
-  // Step 6: Compute footer padding (TDZ-safe - unified across all modes including WELCOME)
-  
-  // ACTIVE CARD DETECTION: Determine if an active card is currently present
-  const hasActiveCard = 
-    screenMode === 'WELCOME' || // WELCOME card active
-    (currentItem_S?.type === 'question' && !v3ProbingActive) || // Base question active
-    (currentItem_S?.type === 'v2_pack_field') || // V2 field active
-    (currentItem_S?.type === 'v3_pack_opener') || // V3 opener active
-    (v3ProbingActive && hasActiveV3Prompt) || // V3 probe active
-    (currentItem_S?.type === 'multi_instance_gate'); // MI_GATE active
-  
-  // UNIFIED PADDING FORMULA: Reduced ~75% for active cards, special case for CTA
-  // CTA: footer + 12px gap (tight), Active: footer + 8px gap, History: footer + 16px gap
-  const footerH = bottomBarModeSOT === 'CTA' 
-    ? Math.max(footerMeasuredHeightPx || CTA_FALLBACK_FOOTER_PX, CTA_FALLBACK_FOOTER_PX)
-    : footerMeasuredHeightPx;
-  const ctaPadding = footerH + CTA_GAP_PX;
-  
-  const dynamicBottomPaddingPxRaw = shouldRenderFooter 
-    ? (bottomBarModeSOT === 'CTA' 
-        ? ctaPadding
-        : footerMeasuredHeightPx + (hasActiveCard ? SAFE_FOOTER_CLEARANCE_PX : HISTORY_GAP_PX))
-    : 0;
-  
-  // CTA CLAMP: Ensure CTA padding never below minimum (prevents compensation shrinkage)
-  const dynamicBottomPaddingPx = (bottomBarModeSOT === 'CTA' || effectiveItemType === 'section_transition')
-    ? Math.max(dynamicBottomPaddingPxRaw, CTA_MIN_PADDING_PX)
-    : dynamicBottomPaddingPxRaw;
-  
-  // FOOTER DOM HEIGHT SAMPLING: Real-time footer height from DOM (layout-safe)
-  const footerDomHeightPx = shouldRenderFooter && footerRootRef.current
-    ? Math.round(footerRootRef.current.getBoundingClientRect().height || 0)
-    : 0;
-  
-  // FOOTER HEIGHT SOT: Use max of measured (observer) and DOM (real-time)
-  const footerHeightSOTPx = Math.max(footerMeasuredHeightPx || 0, footerDomHeightPx || 0);
-  
-  cqTdzMark('BEFORE_BOTTOM_SPACER_COMPUTATION');
-  
-  // PART C: BOTTOM SPACER HEIGHT - Measured from stable footer shell
-  // Uses footerShellHeightPx (source of truth for all modes)
-  // PART A: Compute base spacer (before expansion)
-  const baseSpacerPx = Math.max(footerShellHeightPx + 16, 80); // 80px minimum for safe clearance
-  
-  // PART B: Mode-aware spacer computation (YES/NO needs more clearance)
-  const isV3OpenerForSpacer = (activeUiItem_S?.kind === 'V3_OPENER') || 
-                              (currentItem_S?.type === 'v3_pack_opener');
-  
-  // Intermediate: V3 opener expansion
-  const spacerWithV3Expansion = isV3OpenerForSpacer 
-    ? baseSpacerPx + extraBottomSpacerPx 
-    : baseSpacerPx;
-  
-  // PART B: YES/NO mode override (needs extra clearance for button footer)
-  // TDZ-SAFE: Compute locally from available late variables (bottomBarModeSOT exists here)
-  const isYesNoModeDerived = bottomBarModeSOT === 'YES_NO';
-  const isMiGateDerived = effectiveItemType === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
-  
-  // DYNAMIC CLEARANCE: Use measured footer height + extra margin for YES/NO
-  const yesNoModeClearance = dynamicFooterHeightPx + 32;
-  const normalModeClearance = spacerWithV3Expansion;
-  
-  const bottomSpacerPx = (isYesNoModeDerived || isMiGateDerived)
-    ? Math.max(yesNoModeClearance, normalModeClearance)
-    : normalModeClearance;
+  // [TDZ_FIX] Block moved to derived snapshot.
   
   cqTdzMark('AFTER_BOTTOM_SPACER_PX', { spacerPx: bottomSpacerPx });
   
