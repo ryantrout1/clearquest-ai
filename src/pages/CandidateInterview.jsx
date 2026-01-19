@@ -680,7 +680,7 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
       stack: error?.stack,
       componentStack: info?.componentStack
     });
-    console.error("[CQ_SENTINEL][ERROR_BOUNDARY_SEES]", { safeBlock: window.__CQ_SENTINEL_SAFE_BLOCK__ || null });
+    console.error("[CQ_SENTINEL][ERROR_BOUNDARY_SEES]", { safeBlock: window.__CQ_SENTINEL_SAFE_BLOCK__ || null, memoEnter: window.__CQ_SENTINEL_MEMO_ENTER__ || null });
   }
 
   componentDidUpdate(prevProps, prevState) {
@@ -17430,6 +17430,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // ============================================================================
   const finalTranscriptList_S_memo = useMemo(() => {
     cqTdzMark('INSIDE_FINAL_TRANSCRIPT_LIST_MEMO_START');
+    window.__CQ_SENTINEL_MEMO_ENTER__ = { at: "FINAL_TRANSCRIPT_LIST_MEMO_START", ts: Date.now() };
+    console.error("[CQ_SENTINEL][MEMO_ENTER]", window.__CQ_SENTINEL_MEMO_ENTER__);
     
     // TDZ ISOLATE: This memo is bypassed when tdz_isolate=1
     if (cqTdzIsolate) {
