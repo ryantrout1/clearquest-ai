@@ -17429,8 +17429,6 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
   // ============================================================================
   const finalTranscriptList_S_memo = useMemo(() => {
-    try {
-    try {
     cqTdzMark('INSIDE_FINAL_TRANSCRIPT_LIST_MEMO_START');
     window.__CQ_SENTINEL_MEMO_ENTER__ = { at: "FINAL_TRANSCRIPT_LIST_MEMO_START", ts: Date.now() };
     console.error("[CQ_SENTINEL][MEMO_ENTER]", window.__CQ_SENTINEL_MEMO_ENTER__);
@@ -19695,12 +19693,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       });
     }
     
-        return renderedItems;
-    } catch (e) {
-      window.__CQ_SENTINEL_MEMO_FAIL__ = { name: e?.name, message: e?.message, lastPlan: window.__CQ_LAST_PLAN_ENTER__ || null };
-      console.error("[CQ_SENTINEL][MEMO_FAIL]", window.__CQ_SENTINEL_MEMO_FAIL__);
-      return Array.isArray(renderableTranscriptStream) ? renderableTranscriptStream : [];
-    }
+    return renderedItems;
   }, cqTdzIsolate ? [] : [
     renderableTranscriptStream,
     activeUiItem_S,
