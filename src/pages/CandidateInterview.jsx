@@ -17470,10 +17470,19 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         // Only log once per session to avoid spam
         safeLog(() => {
           const ephemeralKey = ephemeralSources.map(e => e.kind || e.messageType).join(',');
-          const lastLoggedEphemeralKey = sessionStorage.getItem('cq_last_ephemeral_log');
+          let lastLoggedEphemeralKey = null;
+          try {
+            lastLoggedEphemeralKey = sessionStorage.getItem('cq_last_ephemeral_log');
+          } catch (e) {
+            // sessionStorage is not available
+          }
           
           if (lastLoggedEphemeralKey !== ephemeralKey) {
-            sessionStorage.setItem('cq_last_ephemeral_log', ephemeralKey);
+            try {
+              sessionStorage.setItem('cq_last_ephemeral_log', ephemeralKey);
+            } catch (e) {
+              // sessionStorage is not available
+            }
             console.info('[CQ_TRANSCRIPT][EPHEMERAL_FILTER_APPLIED]', {
               source: 'expected_behavior',
               ephemeralCount: ephemeralSources.length,
