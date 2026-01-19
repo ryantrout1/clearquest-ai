@@ -3593,7 +3593,7 @@ function CandidateInterviewInner() {
   const activeCard_SKeySOT = (() => {
     if (activeUiItem_S.kind === "V3_PROMPT") {
       const promptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
-      return promptId ? `v3-prompt:${'''' + promptId}` : null;
+      return promptId ? `v3-prompt:${promptId}` : null;
     }
     if (activeUiItem_S.kind === "V3_OPENER") {
       return buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
