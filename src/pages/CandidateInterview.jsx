@@ -17495,7 +17495,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         });
 
         // [TDZ_BINARY][STEP_1] TEMP: return after CHUNK_A to isolate crash source
-            if (typeof window !== 'undefined' && window.__CQ_TDZ_STEP__ === 1) {
+            if ((typeof window !== 'undefined' && (() => { try { return (window.localStorage?.getItem('CQ_TDZ_STEP') === '1'); } catch (_) { return false; } })())) {
           console.error('[TDZ_BINARY][STEP_1_RETURN_AFTER_CHUNK_A]');
           return Array.isArray(transcriptToRender) ? transcriptToRender : [];
         }
@@ -19751,7 +19751,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
   // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
   // SESSION LOCK: Suppress invalidation if session was previously locked
-  const cqTdzBypassNoSessionRedirect = typeof window !== 'undefined' && window.__CQ_TDZ_STEP__ === 1;
+  const cqTdzBypassNoSessionRedirect = (typeof window !== 'undefined' && (() => { try { return (window.localStorage?.getItem('CQ_TDZ_STEP') === '1'); } catch (_) { return false; } })());
 
   if (!effectiveSessionId && !cqTdzBypassNoSessionRedirect) {
     // GUARD: Session locked - suppress invalidation (prevents reset to WELCOME)
