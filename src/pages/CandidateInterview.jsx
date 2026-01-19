@@ -17493,6 +17493,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
             });
           }
         });
+
+        // [TDZ_BINARY][STEP_1] TEMP: return after CHUNK_A to isolate crash source
+        if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tdz_step') === '1') {
+          console.error('[TDZ_BINARY][STEP_1_RETURN_AFTER_CHUNK_A]');
+          return Array.isArray(transcriptToRender) ? transcriptToRender : [];
+        }
         
         // ENFORCEMENT: Remove ephemeral items ONLY (never real transcript items)
         // removedEphemeralItems already initialized at outer useMemo scope
