@@ -3858,6 +3858,11 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
                 const stackStr = String(firstArg?.stack || args[0]?.stack || '');
                 console.log('[TDZ_TRACE][STACK_STR]', stackStr);
 
+                try {
+                const fresh = new Error('[TDZ_TRACE][FRESH_STACK]');
+                console.log('[TDZ_TRACE][FRESH_STACK]', fresh.stack);
+                } catch (_) {}
+
                 // Robust regex to find file:line:col from different stack formats
                 const stackMatch = stackStr.match(/(?:.*\/)?(?:src\/)?(?:pages\/)?CandidateInterview\.(?:jsx|js)(?:\?[^:]*)?:(\d+)(?::(\d+))?/);
                                 const ringTail = (window.__CQ_TDZ_TRACE_RING__ || []).slice(-20);
