@@ -3599,11 +3599,11 @@ function CandidateInterviewInner() {
       return buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
     }
     if (activeUiItem_S.kind === "V3_WAITING") {
-      const loopKey = v3ProbingContext_S ? `${'''' + sessionId}:${'''' + v3ProbingContext_S.categoryId}:${'''' + (v3ProbingContext_S.instanceNumber || 1)}` : null;
-      return loopKey ? `v3-waiting:${'''' + loopKey}` : null;
+      const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
+      return loopKey ? `v3-waiting:${loopKey}` : null;
     }
     if (activeUiItem_S.kind === "MI_GATE") {
-      return currentItem_S?.id || `mi-gate:${'''' + currentItem_S?.packId}:${'''' + currentItem_S?.instanceNumber}`;
+      return currentItem_S?.id || `mi-gate:${currentItem_S?.packId}:${currentItem_S?.instanceNumber}`;
     }
     if (activeUiItem_S.kind === "DEFAULT" && currentItem_S?.type === "question") {
       return currentItem_S?.id;
@@ -3616,9 +3616,9 @@ function CandidateInterviewInner() {
   const currentPromptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
   if (activeUiItem_S.kind === "V3_PROMPT") {
     const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
-    const loopKey = v3ProbingContext_S ? `${'''' + sessionId}:${'''' + v3ProbingContext_S.categoryId}:${'''' + (v3ProbingContext_S.instanceNumber || 1)}` : null;
-    const promptId = currentPromptId || `${'''' + loopKey}:fallback`;
-    const qStableKey = `v3-probe-q:${'''' + promptId}`;
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
+    const promptId = currentPromptId || `${loopKey}:fallback`;
+    const qStableKey = `v3-probe-q:${promptId}`;
     const transcriptHasThisProbeQ = transcriptSOT_S.some(e => 
       (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
       (e.meta?.promptId === promptId || e.stableKey === qStableKey)
@@ -3626,7 +3626,7 @@ function CandidateInterviewInner() {
     if (lastRenderedV3PromptKeyRef.current === promptId && v3PromptText && hasActiveV3Prompt && v3PromptPhase !== "ANSWER_NEEDED") {
     } else if (v3PromptText && hasActiveV3Prompt) {
       const normalizedPromptText = (v3PromptText || "").toLowerCase().trim().replace(/\s+/g, " ");
-      const stableKey = loopKey ? `v3-active:${'''' + loopKey}:${'''' + promptId}:${'''' + normalizedPromptText.slice(0,32)}` : null;
+      const stableKey = loopKey ? `v3-active:${loopKey}:${promptId}:${normalizedPromptText.slice(0,32)}` : null;
       activeCard_S = {
         __activeCard_S: true,
         isEphemeralPromptLaneCard: true,
@@ -3643,12 +3643,12 @@ function CandidateInterviewInner() {
       lastRenderedV3PromptKeyRef.current = null;
     }
   } else if (activeUiItem_S.kind === "V3_WAITING") {
-    const loopKey = v3ProbingContext_S ? `${'''' + sessionId}:${'''' + v3ProbingContext_S.categoryId}:${'''' + (v3ProbingContext_S.instanceNumber || 1)}` : null;
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
     activeCard_S = {
       __activeCard_S: true,
       isEphemeralPromptLaneCard: true,
       kind: "v3_thinking",
-      stableKey: `v3-thinking:${'''' + loopKey}`,
+      stableKey: `v3-thinking:${loopKey}`,
       text: "Processing your response...",
       packId: v3ProbingContext_S?.packId,
       instanceNumber: v3ProbingContext_S?.instanceNumber || 1,
@@ -3681,7 +3681,7 @@ function CandidateInterviewInner() {
   ) {
     const question = engine_S?.QById?.[currentItem_S.id];
     const questionText = question?.question_text || "(Question)";
-    const stableKey = `question-shown:${'''' + currentItem_S.id}`;
+    const stableKey = `question-shown:${currentItem_S.id}`;
     activeCard_S = {
       __activeCard_S: true,
       isEphemeralPromptLaneCard: true,
@@ -3699,8 +3699,8 @@ function CandidateInterviewInner() {
       requiredAnchorCurrent, 
       v3ProbingContext_S?.packId
     );
-    const loopKey = v3ProbingContext_S ? `${'''' + sessionId}:${'''' + v3ProbingContext_S.categoryId}:${'''' + (v3ProbingContext_S.instanceNumber || 1)}` : null;
-    const stableKey = loopKey ? `fallback-prompt:${'''' + loopKey}:${'''' + requiredAnchorCurrent}` : null;
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
+    const stableKey = loopKey ? `fallback-prompt:${loopKey}:${requiredAnchorCurrent}` : null;
     activeCard_S = {
       __activeCard_S: true,
       isEphemeralPromptLaneCard: false,
