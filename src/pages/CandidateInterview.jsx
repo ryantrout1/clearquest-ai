@@ -680,6 +680,7 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
       stack: error?.stack,
       componentStack: info?.componentStack
     });
+    console.error("[CQ_SENTINEL][ERROR_BOUNDARY_SEES]", { safeBlock: window.__CQ_SENTINEL_SAFE_BLOCK__ || null });
   }
 
   componentDidUpdate(prevProps, prevState) {
@@ -19860,7 +19861,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   const finalTranscriptList_SAFE = finalTranscriptList_S ?? [];
   const currentItem_SAFE = currentItem_S ?? null;
   const v3ProbingContext_SAFE = v3ProbingContext_S ?? null;
-console.error("[CQ_SENTINEL][SAFE_BLOCK]", { lineHint: 19859, hasFinalSafe: typeof finalTranscriptList_SAFE !== "undefined" });
+window.__CQ_SENTINEL_SAFE_BLOCK__ = { at: "SAFE_BLOCK", lineHint: 19859, hasFinalSafe: typeof finalTranscriptList_SAFE !== "undefined" };
+console.error("[CQ_SENTINEL][SAFE_BLOCK]", window.__CQ_SENTINEL_SAFE_BLOCK__);
 
 const transcriptPlan = isV3DebugEnabled
     ? cqComputeGuard('computeTranscriptRenderPlan', () => computeTranscriptRenderPlan({
