@@ -2845,7 +2845,9 @@ function CandidateInterviewInner() {
   // ============================================================================
   // TDZ ISOLATE MODE - Diagnostic bypass for suspected offender blocks
   // ============================================================================
-  const cqTdzIsolate = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tdz_isolate') === '1';
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isPreviewHost = hostname.includes('preview--') || hostname.includes('preview-sandbox--') || hostname.endsWith('.base44.app');
+  const cqTdzIsolate = isPreviewHost || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tdz_isolate') === '1');
   
 
   
