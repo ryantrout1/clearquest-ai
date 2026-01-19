@@ -680,7 +680,7 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
       stack: error?.stack,
       componentStack: info?.componentStack
     });
-    console.error("[CQ_SENTINEL][ERROR_BOUNDARY_SEES]", { safeBlock: window.__CQ_SENTINEL_SAFE_BLOCK__ || null, memoEnter: window.__CQ_SENTINEL_MEMO_ENTER__ || null });
+
   }
 
   componentDidUpdate(prevProps, prevState) {
@@ -2847,12 +2847,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   const cqTdzIsolate = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tdz_isolate') === '1';
   
-  if (cqTdzIsolate) {
-    console.log('[TDZ_ISOLATE][ENABLED]', { 
-      mode: 'BYPASS_FINAL_TRANSCRIPT_LIST',
-      reason: 'Diagnostic mode - isolating finalTranscriptList_S useMemo'
-    });
-  }
+
   
   // ============================================================================
   // BOOT GUARD - Ultra-minimal early return during unstable boot/LOADING
@@ -17430,8 +17425,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // ============================================================================
   const finalTranscriptList_S_memo = useMemo(() => {
     cqTdzMark('INSIDE_FINAL_TRANSCRIPT_LIST_MEMO_START');
-    window.__CQ_SENTINEL_MEMO_ENTER__ = { at: "FINAL_TRANSCRIPT_LIST_MEMO_START", ts: Date.now() };
-    console.error("[CQ_SENTINEL][MEMO_ENTER]", window.__CQ_SENTINEL_MEMO_ENTER__);
+
     
     // TDZ ISOLATE: This memo is bypassed when tdz_isolate=1
     if (cqTdzIsolate) {
@@ -17494,11 +17488,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           }
         });
 
-        // [TDZ_BINARY][STEP_1] TEMP: return after CHUNK_A to isolate crash source
-            if (typeof window !== 'undefined' && (window.location.hash === '#tdz1' || window.location.hash === '#TDZ1')) {
-          console.error('[TDZ_BINARY][STEP_1_RETURN_AFTER_CHUNK_A]');
-          return Array.isArray(transcriptToRender) ? transcriptToRender : [];
-        }
+
         
         // ENFORCEMENT: Remove ephemeral items ONLY (never real transcript items)
         // removedEphemeralItems already initialized at outer useMemo scope
@@ -19751,9 +19741,9 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
   // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
   // SESSION LOCK: Suppress invalidation if session was previously locked
-  const cqTdzBypassNoSessionRedirect = (typeof window !== 'undefined' && (window.location.hash === '#tdz1' || window.location.hash === '#TDZ1'));
 
-  if (!effectiveSessionId && !cqTdzBypassNoSessionRedirect) {
+
+  if (!effectiveSessionId) {
     // GUARD: Session locked - suppress invalidation (prevents reset to WELCOME)
     if (lockedSessionIdRef.current) {
       console.warn('[SESSION_LOCK][SUPPRESSED_INVALIDATION]', {
@@ -19880,8 +19870,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   const finalTranscriptList_SAFE = finalTranscriptList_S ?? [];
   const currentItem_SAFE = currentItem_S ?? null;
   const v3ProbingContext_SAFE = v3ProbingContext_S ?? null;
-window.__CQ_SENTINEL_SAFE_BLOCK__ = { at: "SAFE_BLOCK", lineHint: 19859, hasFinalSafe: typeof finalTranscriptList_SAFE !== "undefined" };
-console.error("[CQ_SENTINEL][SAFE_BLOCK]", window.__CQ_SENTINEL_SAFE_BLOCK__);
+
 
 const transcriptPlan = isV3DebugEnabled
     ? cqComputeGuard('computeTranscriptRenderPlan', () => computeTranscriptRenderPlan({
