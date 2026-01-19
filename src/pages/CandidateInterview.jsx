@@ -17495,7 +17495,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         });
 
         // [TDZ_BINARY][STEP_1] TEMP: return after CHUNK_A to isolate crash source
-        if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tdz_step') === '1') {
+            if (typeof window !== 'undefined' && window.__CQ_TDZ_STEP__ === 1) {
           console.error('[TDZ_BINARY][STEP_1_RETURN_AFTER_CHUNK_A]');
           return Array.isArray(transcriptToRender) ? transcriptToRender : [];
         }
@@ -19751,8 +19751,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
   // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
   // SESSION LOCK: Suppress invalidation if session was previously locked
-  const cqTdzStep = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tdz_step') : null;
-  const cqTdzBypassNoSessionRedirect = cqTdzStep === '1';
+  const cqTdzBypassNoSessionRedirect = typeof window !== 'undefined' && window.__CQ_TDZ_STEP__ === 1;
 
   if (!effectiveSessionId && !cqTdzBypassNoSessionRedirect) {
     // GUARD: Session locked - suppress invalidation (prevents reset to WELCOME)
