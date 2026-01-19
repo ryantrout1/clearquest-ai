@@ -17495,7 +17495,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         });
 
         // [TDZ_BINARY][STEP_1] TEMP: return after CHUNK_A to isolate crash source
-            if ((typeof window !== 'undefined' && (window.location.hash === '#tdz1' || window.location.hash === '#TDZ1')) {
+            if (typeof window !== 'undefined' && (window.location.hash === '#tdz1' || window.location.hash === '#TDZ1')) {
           console.error('[TDZ_BINARY][STEP_1_RETURN_AFTER_CHUNK_A]');
           return Array.isArray(transcriptToRender) ? transcriptToRender : [];
         }
