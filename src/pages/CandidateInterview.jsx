@@ -19852,11 +19852,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
   // [TDZ_SHIELD_V2] Safe aliases for render-time reads (MUST stay below all hooks)
 
-  // [TDZ_FIX_MOVED] This block of safe aliases was moved before the hooks that use them.
-  const activeUiItem_SAFE = activeUiItem_S ?? null;
-  const finalTranscriptList_SAFE = finalTranscriptList_S ?? [];
-  const currentItem_SAFE = currentItem_S ?? null;
-  const v3ProbingContext_SAFE = v3ProbingContext_S ?? null;
+  // This block was moved by the TDZ fix.
+
 
 const transcriptPlan = isV3DebugEnabled
     ? cqComputeGuard('computeTranscriptRenderPlan', () => computeTranscriptRenderPlan({
