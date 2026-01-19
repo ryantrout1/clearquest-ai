@@ -20098,6 +20098,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   });
   
   function computeTranscriptRenderPlan(args) {
+    let isV3DebugEnabled_SAFE = false;
+    try { isV3DebugEnabled_SAFE = !!args?.isV3DebugEnabled; } catch (_) { isV3DebugEnabled_SAFE = false; }
     // This function's logic is extracted directly from the original transcript-rendering IIFE.
     const {
       finalTranscriptList_S,
@@ -20136,10 +20138,10 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
     const renderedV3OpenerKeysSOT = new Set();
 
-    const transcriptRenderableList = isV3DebugEnabled ? cqRead('TRANSCRIPT_IIFE:finalTranscriptList_SAFE.filter', () => finalTranscriptList_SAFE.filter(shouldRenderInTranscript)) : finalTranscriptList_SAFE.filter(shouldRenderInTranscript);
+    const transcriptRenderableList = isV3DebugEnabled_SAFE ? cqRead('TRANSCRIPT_IIFE:finalTranscriptList_SAFE.filter', () => finalTranscriptList_SAFE.filter(shouldRenderInTranscript)) : finalTranscriptList_SAFE.filter(shouldRenderInTranscript);
 
-    const filteredCount = (isV3DebugEnabled ? cqRead('TRANSCRIPT_IIFE:finalTranscriptList_SAFE.length', () => finalTranscriptList_SAFE.length) : finalTranscriptList_SAFE.length) - (isV3DebugEnabled ? cqRead('TRANSCRIPT_IIFE:transcriptRenderableList.length', () => transcriptRenderableList.length) : transcriptRenderableList.length);
-    const forceTranscriptFilterDebug = isV3DebugEnabled || false;
+    const filteredCount = (isV3DebugEnabled_SAFE ? cqRead('TRANSCRIPT_IIFE:finalTranscriptList_SAFE.length', () => finalTranscriptList_SAFE.length) : finalTranscriptList_SAFE.length) - (isV3DebugEnabled_SAFE ? cqRead('TRANSCRIPT_IIFE:transcriptRenderableList.length', () => transcriptRenderableList.length) : transcriptRenderableList.length);
+    const forceTranscriptFilterDebug = isV3DebugEnabled_SAFE || false;
 
     if (filteredCount > 0 || forceTranscriptFilterDebug) {
       const sampleFiltered = finalTranscriptList_SAFE
