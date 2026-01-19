@@ -19860,6 +19860,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   const finalTranscriptList_SAFE = finalTranscriptList_S ?? [];
   const currentItem_SAFE = currentItem_S ?? null;
   const v3ProbingContext_SAFE = v3ProbingContext_S ?? null;
+console.error("[CQ_SENTINEL][SAFE_BLOCK]", { lineHint: 19859, hasFinalSafe: typeof finalTranscriptList_SAFE !== "undefined" });
 
 const transcriptPlan = isV3DebugEnabled
     ? cqComputeGuard('computeTranscriptRenderPlan', () => computeTranscriptRenderPlan({
