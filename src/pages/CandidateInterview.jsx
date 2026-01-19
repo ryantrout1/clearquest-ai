@@ -19749,9 +19749,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     );
   }
 
+  const cqTdzStep = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tdz_step') : null;
+  const cqTdzBypassNoSessionRedirect = cqTdzStep === '1';
+
   // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
   // SESSION LOCK: Suppress invalidation if session was previously locked
-  if (!effectiveSessionId) {
+  if (!effectiveSessionId && !cqTdzBypassNoSessionRedirect) {
     // GUARD: Session locked - suppress invalidation (prevents reset to WELCOME)
     if (lockedSessionIdRef.current) {
       console.warn('[SESSION_LOCK][SUPPRESSED_INVALIDATION]', {
