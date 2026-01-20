@@ -1378,6 +1378,18 @@ function CandidateInterviewInner() {
     const indexAssets = scripts.filter(src => src.includes('/assets/index-') && src.endsWith('.js'));
     console.log('[CQ_DIAG][BUILD_STAMP]', { stamp: __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ });
     console.log('[CQ_DIAG][ASSET_FINGERPRINT]', { indexAssets });
+    try {
+      const has__CQ = (typeof window !== 'undefined') && !!window.__CQ_RUNTIME_PROBE__;
+      const hasCQ = (typeof window !== 'undefined') && !!window.CQ_RUNTIME_PROBE;
+
+      console.log('[CQ_DIAG][RUNTIME_PROBE_GLOBALS]', { has__CQ, hasCQ });
+
+      // Direct dump so we don't need manual console evaluation
+      console.log('[CQ_DIAG][RUNTIME_PROBE_DUMP]', {
+        __CQ: (typeof window !== 'undefined') ? window.__CQ_RUNTIME_PROBE__ : null,
+        CQ: (typeof window !== 'undefined') ? window.CQ_RUNTIME_PROBE : null,
+      });
+    } catch (_) {}
     if (typeof window !== 'undefined') {
       window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
       window.CQ_RUNTIME_PROBE = window.CQ_RUNTIME_PROBE || {};
