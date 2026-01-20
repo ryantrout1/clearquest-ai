@@ -674,6 +674,26 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
       name: error?.name,
       ringTail: ring
     });
+
+    // CRASH_CONTEXT_SNAPSHOT
+    try {
+        const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : "");
+        const sessionFromSession = urlParams.get('session');
+        const sessionFromSessionId = urlParams.get('sessionId');
+        const sessionFromGlobal = typeof window !== 'undefined' ? (window.__CQ_SESSION__ || null) : null;
+        const sessionIdBestAvailable = sessionFromSession || sessionFromSessionId || sessionFromGlobal || null;
+        const kickCount = (typeof window !== 'undefined' && sessionIdBestAvailable && window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__ && window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__[sessionIdBestAvailable]) || 0;
+
+        console.log('[CQ_DIAG][CRASH_CONTEXT_SNAPSHOT]', {
+            sessionId: sessionIdBestAvailable,
+            kickCount: kickCount,
+            typeofInit: null, // initializeInterview is not in scope here
+            message: error?.message,
+            name: error?.name
+        });
+    } catch (e) {
+        console.error('[CQ_DIAG][CRASH_CONTEXT_SNAPSHOT_ERROR]', e.message);
+    }
     
     console.log('[CQ_ERROR_BOUNDARY][CANDIDATE_INTERVIEW]', {
       message: error?.message,
@@ -2825,6 +2845,19 @@ function CandidateInterviewInner() {
     if (sessionId && typeof window !== 'undefined' && !window[cqStartedKey]) {
       // TYPEOF LOG: Confirm function type at call time.
       console.log('[CQ_DIAG][KICKSTART_TYPEOF_INIT]', { sessionId, typeofInit: typeof initializeInterview });
+
+      // INIT_CHAIN_SNAPSHOT LOG:
+      const kickCount = (typeof window !== 'undefined' && window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__ && window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__[sessionId]) || 0;
+      console.log('[CQ_DIAG][INIT_CHAIN_SNAPSHOT]', {
+        sessionId,
+        kickCount,
+        typeofInit: typeof initializeInterview,
+        bootGuard: {
+          isLoading,
+          hasSession: !!session,
+          hasEngine: !!engine_S,
+        }
+      });
       
       // Safety Guardrail: Prevent future TDZ regressions.
       if (typeof initializeInterview !== 'function') {
@@ -2834,7 +2867,7 @@ function CandidateInterviewInner() {
       console.log('[CQ_BOOT_RENDERKICK][USE_EFFECT_KICKSTART]', { sessionId });
       initializeInterview();
     }
-  }, [sessionId, initializeInterview]);
+  }, [sessionId, initializeInterview, isLoading, session, engine_S]);
   
   // ============================================================================
   // TDZ ISOLATE MODE - Diagnostic bypass for suspected offender blocks
