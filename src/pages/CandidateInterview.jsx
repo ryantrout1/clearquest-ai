@@ -1402,6 +1402,7 @@ function CandidateInterviewInner() {
         CQ_resumeType: CQ?.resumeFromDB_type_at_render ?? null,
         __CQ_hasResumeFn: typeof __CQ?.resumeFromDB_val_at_render === 'function',
         CQ_hasResumeFn: typeof CQ?.resumeFromDB_val_at_render === 'function',
+        __CQ_resumeRefAssigned: __CQ?.resumeFromDB_ref_assigned ?? null,
         __CQ_indexAsset0: Array.isArray(__CQ?.indexAssets) ? (__CQ.indexAssets[0] || null) : null,
         CQ_indexAsset0: Array.isArray(CQ?.indexAssets) ? (CQ.indexAssets[0] || null) : null,
       });
@@ -1627,6 +1628,7 @@ function CandidateInterviewInner() {
   // CRITICAL: Declared at top-of-component to eliminate ALL TDZ risks
   // This function uses ONLY its parameters - no component state/refs/consts
   const inFlightEnsuresRef = useRef({});
+  const resumeFromDBFnRef = useRef(null);
   
   /**
    * Required anchor question persistence (TDZ-proof, crash-proof)
@@ -2930,7 +2932,12 @@ function CandidateInterviewInner() {
       // 3) Resume/hydrate session data using existing function
       // This handles setting session, currentItem, transcript, and isLoading=false
       console.log('[CQ_INIT][CALLING_RESUME_FROM_DB]', { sessionId });
-      await resumeFromDB();
+      const __cqResume = resumeFromDBFnRef.current;
+      if (typeof __cqResume !== 'function') {
+        console.log('[CQ_INIT][RESUME_FROM_DB_REF_MISSING]', { sessionId, type: typeof __cqResume });
+        return;
+      }
+      await __cqResume();
       console.log('[CQ_INIT][RESUME_FROM_DB_OK]', { sessionId });
 
     } catch (err) {
@@ -6574,6 +6581,14 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       setIsLoading(false);
     }
   }
+
+   try {
+     resumeFromDBFnRef.current = resumeFromDB;
+     if (typeof window !== 'undefined') {
+       window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
+       window.__CQ_RUNTIME_PROBE__.resumeFromDB_ref_assigned = true;
+     }
+   } catch (_) {}
 
 
 
