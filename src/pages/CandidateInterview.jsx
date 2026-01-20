@@ -1404,7 +1404,6 @@ function CandidateInterviewInner() {
         CQ_hasResumeFn: typeof CQ?.resumeFromDB_val_at_render === 'function',
         __CQ_indexAsset0: Array.isArray(__CQ?.indexAssets) ? (__CQ.indexAssets[0] || null) : null,
         CQ_indexAsset0: Array.isArray(CQ?.indexAssets) ? (CQ.indexAssets[0] || null) : null,
-        __CQ_resumeRefAssigned: __CQ?.resumeFromDB_ref_assigned ?? null,
       });
     } catch (_) {}
     if (typeof window !== 'undefined') {
@@ -1429,7 +1428,6 @@ function CandidateInterviewInner() {
   }
   
   const navigate = useNavigate();
-  const resumeFromDBFnRef = useRef(null);
   
   // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
   const urlParams = new URLSearchParams(window.location.search || "");
@@ -2932,12 +2930,7 @@ function CandidateInterviewInner() {
       // 3) Resume/hydrate session data using existing function
       // This handles setting session, currentItem, transcript, and isLoading=false
       console.log('[CQ_INIT][CALLING_RESUME_FROM_DB]', { sessionId });
-      const __cqResume = resumeFromDBFnRef.current;
-      if (typeof __cqResume !== 'function') {
-        console.log('[CQ_INIT][RESUME_FROM_DB_REF_MISSING]', { sessionId, type: typeof __cqResume });
-        return;
-      }
-      await __cqResume();
+      await resumeFromDB();
       console.log('[CQ_INIT][RESUME_FROM_DB_OK]', { sessionId });
 
     } catch (err) {
@@ -6581,14 +6574,6 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       setIsLoading(false);
     }
   }
-
-   try {
-     resumeFromDBFnRef.current = resumeFromDB;
-     if (typeof window !== 'undefined') {
-       window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
-       window.__CQ_RUNTIME_PROBE__.resumeFromDB_ref_assigned = true;
-     }
-   } catch (_) {}
 
 
 
