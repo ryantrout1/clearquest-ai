@@ -1357,6 +1357,7 @@ const runV2FieldProbeIfNeeded = async ({
 // - Welcome / start screens must NEVER reappear mid-session
 
 function CandidateInterviewInner() {
+  const __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ = 'CQ_CI_BUILDSTAMP_2026-01-20T00:00Z_v1';
   console.log("[TDZ_TRACE][FN_ENTER]");
   try {
     if (typeof window !== 'undefined') {
@@ -1365,6 +1366,20 @@ function CandidateInterviewInner() {
       window.__CQ_RUNTIME_PROBE__.resumeFromDB_val_at_render = (typeof resumeFromDB === 'function') ? resumeFromDB : null;
     }
     console.log('[CQ_DIAG][RUNTIME_PROBE][RESUME_FROM_DB]', { type: typeof resumeFromDB });
+  } catch (_) {}
+
+  try {
+    const scripts = (typeof document !== 'undefined')
+      ? Array.from(document.querySelectorAll('script[src]')).map(s => s.getAttribute('src')).filter(Boolean)
+      : [];
+    const indexAssets = scripts.filter(src => src.includes('/assets/index-') && src.endsWith('.js'));
+    console.log('[CQ_DIAG][BUILD_STAMP]', { stamp: __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ });
+    console.log('[CQ_DIAG][ASSET_FINGERPRINT]', { indexAssets });
+    if (typeof window !== 'undefined') {
+      window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
+      window.__CQ_RUNTIME_PROBE__.buildStamp = __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__;
+      window.__CQ_RUNTIME_PROBE__.indexAssets = indexAssets;
+    }
   } catch (_) {}
   cqLog('DEBUG', '[BUILD_OK][CandidateInterview]');
   cqLog('DEBUG', '[V3_ONLY][SOT_FLAG][CANDIDATE]', { V3_ONLY_MODE });
