@@ -20130,6 +20130,18 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       message: e?.message,
       stack: e?.stack,
     });
+    console.error('[CQ_DIAG][TDZ_OFFENDER_SNAPSHOT]', {
+      step: __cqRenderStep,
+      sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
+      hasSession: (typeof session !== 'undefined' ? !!session : null),
+      hasEngine: (typeof engine_S !== 'undefined' ? !!engine_S : null),
+      // identifier presence checks (safe, no ReferenceErrors):
+      resumeFromDB_type: (typeof resumeFromDB !== 'undefined' ? typeof resumeFromDB : 'UNBOUND'),
+      initializeInterview_type: (typeof initializeInterview !== 'undefined' ? typeof initializeInterview : 'UNBOUND'),
+      handleAnswer_type: (typeof handleAnswer !== 'undefined' ? typeof handleAnswer : 'UNBOUND'),
+      isCommitting_state_type: (typeof isCommitting !== 'undefined' ? typeof isCommitting : 'UNBOUND'),
+      message: e?.message,
+    });
     // Keep behavior minimal: return null (no new UI)
     return null;
   }
