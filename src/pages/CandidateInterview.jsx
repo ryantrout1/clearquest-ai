@@ -6468,7 +6468,13 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     });
   }, []); // Run once on mount
 
-    async function resumeFromDB() {
+      try {
+    if (typeof window !== 'undefined') {
+      window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
+      window.__CQ_RUNTIME_PROBE__.resumeFromDB_type_at_define = typeof resumeFromDB;
+    }
+  } catch (_) {}
+  async function resumeFromDB() {
     try {
       console.log('[BOOT][RESUME] Light resume from DB', { sessionId });
       
