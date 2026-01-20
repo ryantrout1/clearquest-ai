@@ -1403,9 +1403,10 @@ function CandidateInterviewInner() {
         __CQ_hasResumeFn: typeof __CQ?.resumeFromDB_val_at_render === 'function',
         CQ_hasResumeFn: typeof CQ?.resumeFromDB_val_at_render === 'function',
         __CQ_resumeRefAssigned: __CQ?.resumeFromDB_ref_assigned ?? null,
-        CQ_resumeRefAssigned: CQ?.resumeFromDB_ref_assigned ?? null,
         __CQ_indexAsset0: Array.isArray(__CQ?.indexAssets) ? (__CQ.indexAssets[0] || null) : null,
         CQ_indexAsset0: Array.isArray(CQ?.indexAssets) ? (CQ.indexAssets[0] || null) : null,
+        __CQ_resumeRefAssigned: __CQ?.resumeFromDB_ref_assigned ?? null,
+        CQ_resumeRefAssigned: CQ?.resumeFromDB_ref_assigned ?? null,
         resumeRefCurrentType: (typeof resumeFromDBFnRef !== 'undefined' && resumeFromDBFnRef && 'current' in resumeFromDBFnRef) ? (typeof resumeFromDBFnRef.current) : 'NO_REF',
         resumeRefCurrentIsFn: (typeof resumeFromDBFnRef !== 'undefined' && resumeFromDBFnRef && 'current' in resumeFromDBFnRef) ? (typeof resumeFromDBFnRef.current === 'function') : false,
       });
@@ -2936,7 +2937,6 @@ function CandidateInterviewInner() {
       // This handles setting session, currentItem, transcript, and isLoading=false
       console.log('[CQ_INIT][CALLING_RESUME_FROM_DB]', { sessionId });
       const __cqResume = resumeFromDBFnRef.current;
-      console.log('[CQ_INIT][RESUME_REF_TYPE]', { sessionId, type: typeof __cqResume });
       if (typeof __cqResume !== 'function') {
         console.log('[CQ_INIT][RESUME_FROM_DB_REF_MISSING]', { sessionId, type: typeof __cqResume });
         return;
@@ -6585,6 +6585,30 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       setIsLoading(false);
     }
   }
+
+   try {
+     resumeFromDBFnRef.current = resumeFromDB;
+     if (typeof window !== 'undefined') {
+       window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
+       window.__CQ_RUNTIME_PROBE__.resumeFromDB_ref_assigned = true;
+     }
+   } catch (_) {}
+
+   try {
+     resumeFromDBFnRef.current = resumeFromDB;
+     if (typeof window !== 'undefined') {
+       window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
+       window.__CQ_RUNTIME_PROBE__.resumeFromDB_ref_assigned = true;
+     }
+   } catch (_) {}
+
+   try {
+     resumeFromDBFnRef.current = resumeFromDB;
+     if (typeof window !== 'undefined') {
+       window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
+       window.__CQ_RUNTIME_PROBE__.resumeFromDB_ref_assigned = true;
+     }
+   } catch (_) {}
 
    try {
      resumeFromDBFnRef.current = resumeFromDB;
