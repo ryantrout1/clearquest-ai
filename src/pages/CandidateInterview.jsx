@@ -674,6 +674,17 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
       name: error?.name,
       ringTail: ring
     });
+
+    // CRASH_CONTEXT_SNAPSHOT LOG
+    const crashSessionId = typeof window !== 'undefined' ? window.__CQ_SESSION__ || null : null;
+    const kickCount = (typeof window !== 'undefined' && crashSessionId && window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__) ? (window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__[crashSessionId] || 0) : null;
+    console.log('[CQ_DIAG][CRASH_CONTEXT_SNAPSHOT]', {
+      sessionId: crashSessionId,
+      kickCount: kickCount,
+      typeofInit: null, // initializeInterview is not in scope here
+      message: error?.message,
+      name: error?.name
+    });
     
     console.log('[CQ_ERROR_BOUNDARY][CANDIDATE_INTERVIEW]', {
       message: error?.message,
@@ -2823,16 +2834,28 @@ function CandidateInterviewInner() {
     const cqStartedKey = `__CQ_INIT_STARTED__${sessionId}`;
     // Guard: Only run if boot has not started yet.
     if (sessionId && typeof window !== 'undefined' && !window[cqStartedKey]) {
-      // TYPEOF LOG: Confirm function type at call time.
-      console.log('[CQ_DIAG][KICKSTART_TYPEOF_INIT]', { sessionId, typeofInit: typeof initializeInterview });
-      
-      // Safety Guardrail: Prevent future TDZ regressions.
-      if (typeof initializeInterview !== 'function') {
-        console.log('[CQ_BOOT_RENDERKICK][INIT_NOT_FUNCTION_BLOCKED]');
-        return;
-      }
-      console.log('[CQ_BOOT_RENDERKICK][USE_EFFECT_KICKSTART]', { sessionId });
-      initializeInterview();
+     // TYPEOF LOG: Confirm function type at call time.
+     console.log('[CQ_DIAG][KICKSTART_TYPEOF_INIT]', { sessionId, typeofInit: typeof initializeInterview });
+
+     // INIT_CHAIN_SNAPSHOT LOG
+     console.log('[CQ_DIAG][INIT_CHAIN_SNAPSHOT]', {
+       sessionId,
+       kickCount: window?.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__?.[sessionId] || 0,
+       typeofInit: typeof initializeInterview,
+       bootGuard: {
+         isLoading,
+         hasSession: !!session,
+         hasEngine: !!engine_S,
+       }
+     });
+
+     // Safety Guardrail: Prevent future TDZ regressions.
+     if (typeof initializeInterview !== 'function') {
+       console.log('[CQ_BOOT_RENDERKICK][INIT_NOT_FUNCTION_BLOCKED]');
+       return;
+     }
+     console.log('[CQ_BOOT_RENDERKICK][USE_EFFECT_KICKSTART]', { sessionId });
+     initializeInterview();
     }
   }, [sessionId, initializeInterview]);
   
