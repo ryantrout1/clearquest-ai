@@ -15701,10 +15701,10 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     const openerInputValue = openerDraft || "";
     const openerTextTrimmed = openerInputValue.trim();
     const openerTextTrimmedLen = openerTextTrimmed.length;
-    const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem_S.id;
+    const isV3OpenerCommitting = isCommitting && committingItemIdRef.current === currentItem_S.id;
     
     // TASK B: Single source of truth for textarea disabled
-    const textareaDisabledRaw = Boolean(isCurrentItemCommitting) || Boolean(v3ProbingActive);
+    const textareaDisabledRaw = Boolean(isV3OpenerCommitting) || Boolean(v3ProbingActive);
     
     // TASK C: Hard unhang override
     let textareaDisabledFinal = textareaDisabledRaw;
@@ -15720,7 +15720,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     }
     
     // Submit disabled if no input or committing/probing
-    const submitDisabledRaw = openerTextTrimmedLen === 0 || isCurrentItemCommitting || v3ProbingActive;
+    const submitDisabledRaw = openerTextTrimmedLen === 0 || isV3OpenerCommitting || v3ProbingActive;
     
     // Hard unhang override for submit
     let submitDisabledFinal = submitDisabledRaw;
