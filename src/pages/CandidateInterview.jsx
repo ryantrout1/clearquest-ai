@@ -2820,6 +2820,17 @@ function CandidateInterviewInner() {
       console.warn('[CQ_INIT][SKIP] initializeInterview called without sessionId');
       return;
     }
+    
+    // BOOTSTRAP INVARIANT: Prevent duplicate engine bootstrap per session.
+    if (typeof window !== 'undefined') {
+      window.__CQ_BOOTSTRAP_CALL_COUNT_BY_SESSION__ = window.__CQ_BOOTSTRAP_CALL_COUNT_BY_SESSION__ || {};
+      const count = (window.__CQ_BOOTSTRAP_CALL_COUNT_BY_SESSION__[sessionId] || 0) + 1;
+      window.__CQ_BOOTSTRAP_CALL_COUNT_BY_SESSION__[sessionId] = count;
+      if (count > 1) {
+        console.log('[CQ_INVARIANT][BOOTSTRAP_ENGINE_CALLED_MULTIPLE_TIMES]', { sessionId, count });
+        return; // IMPORTANT: return early to prevent a second bootstrapEngine call
+      }
+    }
 
     const cqStartedKey = `__CQ_INIT_STARTED__${sessionId}`;
 
@@ -2834,9 +2845,9 @@ function CandidateInterviewInner() {
       setIsLoading(true);
 
       // 1) Bootstrap engine (minimal required missing call)
-      console.log('[CQ_INIT][BOOTSTRAP_ENGINE_START]', { sessionId });
+      console.log('[CQ_INIT][BOOTSTRAP_ENGINE_CALL]', { sessionId });
       const boot = await bootstrapEngine(sessionId);
-      console.log('[CQ_INIT][BOOTSTRAP_ENGINE_OK]', { sessionId, hasEngine: !!boot?.engine });
+      console.log('[CQ_INIT][BOOTSTRAP_ENGINE_OK]', { sessionId, hasBoot: !!boot });
 
       // 2) Hydrate engine into state
       if (boot?.engine) {
