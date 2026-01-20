@@ -2810,9 +2810,22 @@ function CandidateInterviewInner() {
   // BOOTSTRAP KICKSTART - Replaces legacy render-kick
   // ============================================================================
   useEffect(() => {
+    // KICKSTART INVARIANT: Detect duplicate runs per session.
+    if (typeof window !== 'undefined' && sessionId) {
+      window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__ = window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__ || {};
+      const count = (window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__[sessionId] || 0) + 1;
+      window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__[sessionId] = count;
+      if (count > 1) {
+        console.warn('[CQ_INVARIANT][KICKSTART_RAN_MULTIPLE_TIMES]', { sessionId, count });
+      }
+    }
+
     const cqStartedKey = `__CQ_INIT_STARTED__${sessionId}`;
     // Guard: Only run if boot has not started yet.
     if (sessionId && typeof window !== 'undefined' && !window[cqStartedKey]) {
+      // TYPEOF LOG: Confirm function type at call time.
+      console.log('[CQ_DIAG][KICKSTART_TYPEOF_INIT]', { sessionId, typeofInit: typeof initializeInterview });
+      
       // Safety Guardrail: Prevent future TDZ regressions.
       if (typeof initializeInterview !== 'function') {
         console.log('[CQ_BOOT_RENDERKICK][INIT_NOT_FUNCTION_BLOCKED]');
