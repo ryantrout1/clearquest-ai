@@ -1631,7 +1631,6 @@ function CandidateInterviewInner() {
   // CRITICAL: Declared at top-of-component to eliminate ALL TDZ risks
   // This function uses ONLY its parameters - no component state/refs/consts
     const inFlightEnsuresRef = useRef({});
-    var resumeFromDB;
     const resumeFromDBFnRef = useRef(null);
   
   /**
@@ -6535,7 +6534,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       window.__CQ_RUNTIME_PROBE__.resumeFromDB_type_at_define = typeof resumeFromDB;
     }
   } catch (_) {}
-  resumeFromDB = async () => {
+  async function resumeFromDB() {
     try {
       console.log('[BOOT][RESUME] Light resume from DB', { sessionId });
       
@@ -6585,7 +6584,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       setError(`Resume failed: ${err.message}`);
       setIsLoading(false);
     }
-  };
+  }
 
    try {
      resumeFromDBFnRef.current = resumeFromDB;
