@@ -2936,6 +2936,7 @@ function CandidateInterviewInner() {
   
 
   
+  cqMark('BEFORE_BOOT_GUARD_EVAL');
   // ============================================================================
   // BOOT GUARD - Ultra-minimal early return during unstable boot/LOADING
   // ============================================================================
@@ -3815,6 +3816,34 @@ function CandidateInterviewInner() {
   const v3RefreshRequestedRef = useRef(null); // { reason, promptId, stableKeyA, requestedAt }
   const v3RefreshInFlightRef = useRef(false);
   const [v3RefreshTick, setV3RefreshTick] = useState(0);
+
+  // [CQ_RENDER_DIAG] render-time snapshot (effects may never run if render crashes)
+  let __cqRenderStep = 'AFTER_HOOKS';
+  const cqMark = (step, extra) => {
+    __cqRenderStep = step;
+    try {
+      console.log('[CQ_DIAG][RENDER_STEP]', {
+        step,
+        sessionId,
+        isLoading,
+        hasSession: !!session,
+        hasEngine: !!engine_S,
+        ...(extra || {}),
+      });
+    } catch (_) {}
+  };
+  try {
+    console.log('[CQ_DIAG][INIT_CHAIN_SNAPSHOT_RENDER]', {
+      sessionId,
+      isLoading,
+      hasSession: !!session,
+      hasEngine: !!engine_S,
+    });
+  } catch (_) {}
+
+  try {
+    cqMark('BEFORE_DERIVED');
+
   
   // MI_GATE UI CONTRACT SELF-TEST: Track main pane render + footer buttons per itemId
   const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { mainPaneRendered: bool, footerButtonsOnly: bool, testStarted: bool }>
@@ -4187,6 +4216,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     lastKeysPreview: (v3ProbeDisplayHistory_S || []).slice(-4).map(x => x.stableKey)
   });
 
+  cqMark('BEFORE_ACTIVE_UI_PICK');
   // CANONICAL ACTIVE UI ITEM RESOLVER - Single source of truth
   // Determines what UI should be shown based on strict precedence:
   // REQUIRED_ANCHOR_FALLBACK > V3_PROMPT > V3_WAITING > V3_OPENER > MI_GATE > DEFAULT
@@ -20004,6 +20034,22 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     };
   };
 
+  cqMark('BEFORE_RETURN');
+  } catch (e) {
+    console.error('[CQ_DIAG][RENDER_TDZ_CAUGHT]', {
+      step: __cqRenderStep,
+      sessionId,
+      isLoading,
+      hasSession: !!session,
+      hasEngine: !!engine_S,
+      name: e?.name,
+      message: e?.message,
+      stack: e?.stack,
+    });
+    // Keep behavior minimal: return null (no new UI)
+    return null;
+  }
+  
   console.log("[TDZ_TRACE][RENDER_ENTER]");
   let __tdzTraceJsx = null;
   try {
