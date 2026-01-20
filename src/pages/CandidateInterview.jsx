@@ -1621,6 +1621,7 @@ function CandidateInterviewInner() {
   // 
   // FORENSIC: TDZ FIX - showRedirectFallback state MUST be before early return
   const [showRedirectFallback, setShowRedirectFallback] = useState(false);
+  var resumeFromDB;
 
   const [engine_S, setEngine] = useState(null);
   
@@ -6534,7 +6535,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       window.__CQ_RUNTIME_PROBE__.resumeFromDB_type_at_define = typeof resumeFromDB;
     }
   } catch (_) {}
-  async function resumeFromDB() {
+    resumeFromDB = async () => {
     try {
       console.log('[BOOT][RESUME] Light resume from DB', { sessionId });
       
@@ -6584,7 +6585,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       setError(`Resume failed: ${err.message}`);
       setIsLoading(false);
     }
-  }
+  };
 
    try {
      resumeFromDBFnRef.current = resumeFromDB;
