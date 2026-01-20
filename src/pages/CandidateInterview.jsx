@@ -17005,6 +17005,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   };
 
   const finalTranscriptList_S_memo = useMemo(() => {
+    const hasVisibleActivePromptForSuppression = (activePromptText || '').trim().length > 0;
     cqTdzMark('INSIDE_FINAL_TRANSCRIPT_LIST_MEMO_START');
 
     
@@ -20545,14 +20546,25 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               // FIX #2: Suppress ACTIVE base questions from transcript (prevent duplicate rendering)
               // Active YES/NO questions render ONLY via activeCard_S (prevents duplicate)
               if (isActiveBaseQuestion) {
-                console.log('[BASE_YESNO][TRANSCRIPT_SUPPRESSED]', {
-                  questionId: questionDbId,
-                  stableKey: entry.stableKey || entry.id,
-                  activeCard_SKind: activeCard_S?.kind,
-                  hasActiveCard: !!activeCard_S,
-                  reason: 'Active base question - suppressing transcript copy to prevent duplicate'
-                });
-                return null; // Skip transcript render - activeCard_S owns it
+                // Apply failsafe guard
+                if (hasVisibleActivePromptForSuppression) {
+                  console.log('[BASE_YESNO][TRANSCRIPT_SUPPRESSED]', {
+                    questionId: questionDbId,
+                    stableKey: entry.stableKey || entry.id,
+                    activeCard_SKind: activeCard_S?.kind,
+                    hasActiveCard: !!activeCard_S,
+                    reason: 'Active base question - suppressing transcript copy to prevent duplicate'
+                  });
+                  return null; // Suppress from history
+                } else {
+                  console.log('[SUPPRESSION_FAILSAFE][ALLOW_HISTORY]', {
+                    kind: 'YES_NO',
+                    stableKey: entry.stableKey || entry.id,
+                    sessionId,
+                    hasVisibleActivePrompt: hasVisibleActivePromptForSuppression
+                  });
+                  // Fall through to render in history
+                }
               }
               
               // PART B: Deterministic stableKey for all question cards
