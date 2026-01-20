@@ -1627,7 +1627,8 @@ function CandidateInterviewInner() {
   // TDZ_FIX: HOISTED-SAFE PERSISTENCE - Plain function with zero closure dependencies
   // CRITICAL: Declared at top-of-component to eliminate ALL TDZ risks
   // This function uses ONLY its parameters - no component state/refs/consts
-  const inFlightEnsuresRef = useRef({});
+    const inFlightEnsuresRef = useRef({});
+  const resumeFromDBFnRef = useRef(null);
   const resumeFromDBFnRef = useRef(null);
   
   /**
@@ -6581,6 +6582,14 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       setIsLoading(false);
     }
   }
+
+   try {
+     resumeFromDBFnRef.current = resumeFromDB;
+     if (typeof window !== 'undefined') {
+       window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
+       window.__CQ_RUNTIME_PROBE__.resumeFromDB_ref_assigned = true;
+     }
+   } catch (_) {}
 
    try {
      resumeFromDBFnRef.current = resumeFromDB;
