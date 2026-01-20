@@ -674,6 +674,17 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
       name: error?.name,
       ringTail: ring
     });
+
+    // CRASH_CONTEXT_SNAPSHOT LOG
+    const safeSessionId = (typeof window !== 'undefined' ? window.__CQ_SESSION__ : null) || null;
+    const kickCount = (safeSessionId && typeof window !== 'undefined' && window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__ && window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__[safeSessionId]) || 0;
+    console.log('[CQ_DIAG][CRASH_CONTEXT_SNAPSHOT]', {
+      sessionId: safeSessionId,
+      kickCount: kickCount,
+      typeofInit: null, // initializeInterview is not in scope here
+      message: error?.message,
+      name: error?.name
+    });
     
     console.log('[CQ_ERROR_BOUNDARY][CANDIDATE_INTERVIEW]', {
       message: error?.message,
@@ -2825,6 +2836,19 @@ function CandidateInterviewInner() {
     if (sessionId && typeof window !== 'undefined' && !window[cqStartedKey]) {
       // TYPEOF LOG: Confirm function type at call time.
       console.log('[CQ_DIAG][KICKSTART_TYPEOF_INIT]', { sessionId, typeofInit: typeof initializeInterview });
+
+      // INIT_CHAIN_SNAPSHOT LOG
+      const kickCount = (window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__ && window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__[sessionId]) || 0;
+      console.log('[CQ_DIAG][INIT_CHAIN_SNAPSHOT]', {
+        sessionId,
+        kickCount,
+        typeofInit: typeof initializeInterview,
+        bootGuard: {
+          isLoading,
+          hasSession: !!session,
+          hasEngine: !!engine_S,
+        },
+      });
       
       // Safety Guardrail: Prevent future TDZ regressions.
       if (typeof initializeInterview !== 'function') {
@@ -2834,7 +2858,7 @@ function CandidateInterviewInner() {
       console.log('[CQ_BOOT_RENDERKICK][USE_EFFECT_KICKSTART]', { sessionId });
       initializeInterview();
     }
-  }, [sessionId, initializeInterview]);
+  }, [sessionId, initializeInterview, isLoading, session, engine_S]);
   
   // ============================================================================
   // TDZ ISOLATE MODE - Diagnostic bypass for suspected offender blocks
