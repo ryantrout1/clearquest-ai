@@ -2836,6 +2836,32 @@ function CandidateInterviewInner() {
   console.log('[CQ_HOOKS_OK]', { sessionId });
 
   useEffect(() => {
+    const handleGlobalError = (event) => {
+      try {
+        const message = event?.message || event?.reason?.message || '';
+        if (message.includes("Cannot access '") && message.includes("before initialization")) {
+          console.error('[CQ_DIAG][TDZ_GLOBAL_TRAP]', {
+            message,
+            name: event?.error?.name || event?.reason?.name || 'ReferenceError',
+            lastRenderStep: window.__CQ_LAST_RENDER_STEP__ || null,
+            stack: event?.error?.stack || event?.reason?.stack || '(stack not available)'
+          });
+        }
+      } catch (e) {
+        // Trap should never throw
+      }
+    };
+
+    window.addEventListener('error', handleGlobalError);
+    window.addEventListener('unhandledrejection', handleGlobalError);
+
+    return () => {
+      window.removeEventListener('error', handleGlobalError);
+      window.removeEventListener('unhandledrejection', handleGlobalError);
+    };
+  }, []); // Empty dependency array ensures this runs only once
+
+  useEffect(() => {
     // BOOT-STATE INVARIANT: Detect duplicate runs per session.
     if (typeof window !== 'undefined' && sessionId) {
       window.__CQ_BOOTSTATE_RUN_COUNT_BY_SESSION__ = window.__CQ_BOOTSTATE_RUN_COUNT_BY_SESSION__ || {};
@@ -3889,6 +3915,7 @@ function CandidateInterviewInner() {
   // [CQ_RENDER_DIAG] render-time snapshot (effects may never run if render crashes)
   let __cqRenderStep = 'AFTER_HOOKS';
   const cqMark = (step, extra) => {
+    try { if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = step; } catch (_) {}
     __cqRenderStep = step;
     try {
       console.log('[CQ_DIAG][RENDER_STEP]', {
