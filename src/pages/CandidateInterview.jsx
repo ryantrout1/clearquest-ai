@@ -1632,10 +1632,7 @@ function CandidateInterviewInner() {
   // CRITICAL: Declared at top-of-component to eliminate ALL TDZ risks
   // This function uses ONLY its parameters - no component state/refs/consts
     const inFlightEnsuresRef = useRef({});
-  const resumeFromDBFnRef = useRef(null);
-  const resumeFromDBFnRef = useRef(null);
-  const resumeFromDBFnRef = useRef(null);
-  const resumeFromDBFnRef = useRef(null);
+    const resumeFromDBFnRef = useRef(null);
   
   /**
    * Required anchor question persistence (TDZ-proof, crash-proof)
