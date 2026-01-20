@@ -2805,42 +2805,23 @@ function CandidateInterviewInner() {
   // to ensure they are initialized before any code path that might call them,
   // especially the render-time kickstart which is not protected by the boot guard.
 
-
-  // ============================================================================
-  // BOOTSTRAP HELPERS + INITIALIZER (HOISTED)
-  // ============================================================================
-  // TDZ FIX: These functions are moved here (before BOOT GUARD and RENDERKICK)
-  // to ensure they are initialized before any code path that might call them,
-  // especially the render-time kickstart which is not protected by the boot guard.
-
   
   // ============================================================================
-  // BOOT RENDERKICK - Emergency render-time init scheduler (last-resort safety net)
+  // BOOTSTRAP KICKSTART - Replaces legacy render-kick
   // ============================================================================
-  // GUARD: Only schedule if boot hasn't started yet
-  const cqStartedKey = `__CQ_INIT_STARTED__${sessionId}`;
-  const cqRenderKickKey = `__CQ_INIT_RENDERKICK__${sessionId}`;
-  
-  if (sessionId && typeof window !== 'undefined' && !window[cqStartedKey] && !window[cqRenderKickKey]) {
-    window[cqRenderKickKey] = true;
-    console.warn('[CQ_BOOT_RENDERKICK][SCHEDULED]', { sessionId });
-    
-    setTimeout(() => {
-      if (!window[cqStartedKey]) {
-        try {
-          console.warn('[CQ_BOOT_RENDERKICK][CALL_INIT]', { sessionId });
-          console.log('[CQ_BOOT_RENDERKICK][CALL_INIT_TDZ_SAFE]', { hasInit: typeof initializeInterview === 'function' });
-          if (typeof initializeInterview !== 'function') {
-            console.log('[CQ_BOOT_RENDERKICK][SKIP_INIT_UNDEFINED]', { sessionId, typeofInit: typeof initializeInterview });
-            return;
-          }
-          initializeInterview(); // use same call signature as effect path (no args)
-        } catch (e) {
-          console.error('[CQ_BOOT_RENDERKICK][FAILED]', { sessionId, message: e?.message, stack: e?.stack });
-        }
+  useEffect(() => {
+    const cqStartedKey = `__CQ_INIT_STARTED__${sessionId}`;
+    // Guard: Only run if boot has not started yet.
+    if (sessionId && typeof window !== 'undefined' && !window[cqStartedKey]) {
+      // Safety Guardrail: Prevent future TDZ regressions.
+      if (typeof initializeInterview !== 'function') {
+        console.log('[CQ_BOOT_RENDERKICK][INIT_NOT_FUNCTION_BLOCKED]');
+        return;
       }
-    }, 0);
-  }
+      console.log('[CQ_BOOT_RENDERKICK][USE_EFFECT_KICKSTART]', { sessionId });
+      initializeInterview();
+    }
+  }, [sessionId, initializeInterview]);
   
   // ============================================================================
   // TDZ ISOLATE MODE - Diagnostic bypass for suspected offender blocks
