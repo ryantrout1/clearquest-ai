@@ -6460,7 +6460,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     });
   }, []); // Run once on mount
 
-  const resumeFromDB = async () => {
+    async function resumeFromDB() {
     try {
       console.log('[BOOT][RESUME] Light resume from DB', { sessionId });
       
@@ -6510,7 +6510,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       setError(`Resume failed: ${err.message}`);
       setIsLoading(false);
     }
-  };
+  }
 
 
 
