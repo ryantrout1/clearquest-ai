@@ -3889,6 +3889,7 @@ function CandidateInterviewInner() {
   // [CQ_RENDER_DIAG] render-time snapshot (effects may never run if render crashes)
   let __cqRenderStep = 'AFTER_HOOKS';
   const cqMark = (step, extra) => {
+    try { if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = step; } catch (_) {}
     __cqRenderStep = step;
     try {
       console.log('[CQ_DIAG][RENDER_STEP]', {
@@ -6492,6 +6493,35 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       window.removeEventListener('unhandledrejection', handleRejection);
     };
   }, [sessionId]);
+
+  // Global TDZ Trap
+  useEffect(() => {
+    const handleGlobalTdz = (event) => {
+      try {
+        const reason = event.reason || event.error;
+        const message = reason?.message || event.message || '';
+        
+        if (message.includes("Cannot access '") && message.includes("before initialization")) {
+          console.error('[CQ_DIAG][TDZ_GLOBAL_TRAP]', {
+            message: message,
+            name: reason?.name || event.error?.name || 'ReferenceError',
+            lastRenderStep: typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ || null : null,
+            stack: reason?.stack || event.error?.stack || '(stack not available)'
+          });
+        }
+      } catch (_) {
+        // Trap must never throw
+      }
+    };
+
+    window.addEventListener('error', handleGlobalTdz);
+    window.addEventListener('unhandledrejection', handleGlobalTdz);
+
+    return () => {
+      window.removeEventListener('error', handleGlobalTdz);
+      window.removeEventListener('unhandledrejection', handleGlobalTdz);
+    };
+  }, []);
 
   // UI_CONTRACT: 3-row shell audit (unconditional hook - must run on every render)
   useEffect(() => {
