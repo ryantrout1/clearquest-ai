@@ -7316,6 +7316,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
     // MI_GATE BYPASS: Allow MI_GATE YES/NO even if isCommitting is true
     if (isMiGateSubmit && engine_S && currentItem_S) {
+      // TDZ FIX: The isCommitting reference here is safe; it refers to the state variable.
       console.warn('[MI_GATE][BYPASS_GUARD]', {
         isCommitting,
         hasEngine: !!engine_S,
