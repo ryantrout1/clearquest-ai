@@ -2846,6 +2846,20 @@ function CandidateInterviewInner() {
 
       // 1) Bootstrap engine (minimal required missing call)
       console.log('[CQ_INIT][BOOTSTRAP_ENGINE_CALL]', { sessionId });
+      
+      // BOOT-STUCK WATCHDOG: Detect if boot process never completes.
+      if (typeof window !== 'undefined' && sessionId) {
+        window.__CQ_BOOT_START_TS_BY_SESSION__ = window.__CQ_BOOT_START_TS_BY_SESSION__ || {};
+        window.__CQ_BOOT_START_TS_BY_SESSION__[sessionId] = Date.now();
+        setTimeout(() => {
+          // Note: `isLoading` value is from closure, may be stale.
+          // The primary signal is the existence of the timestamp itself.
+          if (window?.__CQ_BOOT_START_TS_BY_SESSION__?.[sessionId] && isLoading) {
+            console.log('[CQ_INVARIANT][BOOT_STUCK_10S]', { sessionId, isLoading });
+          }
+        }, 10000);
+      }
+      
       const boot = await bootstrapEngine(sessionId);
       console.log('[CQ_INIT][BOOTSTRAP_ENGINE_OK]', { sessionId, hasBoot: !!boot });
 
@@ -6448,6 +6462,13 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
       
       setIsLoading(false);
+
+      // BOOT SUCCESS: Log completion and clear watchdog.
+      console.log('[CQ_INIT][BOOT_COMPLETE]', { sessionId });
+      if (typeof window !== 'undefined' && sessionId && window.__CQ_BOOT_START_TS_BY_SESSION__) {
+        delete window.__CQ_BOOT_START_TS_BY_SESSION__[sessionId];
+      }
+
       setTimeout(() => autoScrollToBottom(), 100);
       
       console.log('[BOOT][RESUME][OK]', { 
