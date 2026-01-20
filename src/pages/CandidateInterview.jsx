@@ -1357,14 +1357,6 @@ const runV2FieldProbeIfNeeded = async ({
 // - Welcome / start screens must NEVER reappear mid-session
 
 function CandidateInterviewInner() {
-  try {
-    if (typeof window !== 'undefined') {
-      window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
-      window.__CQ_RUNTIME_PROBE__.resumeFromDB_type_at_render = typeof resumeFromDB;
-      window.__CQ_RUNTIME_PROBE__.resumeFromDB_val_at_render = (typeof resumeFromDB === 'function') ? resumeFromDB : null;
-    }
-    console.log('[CQ_DIAG][RUNTIME_PROBE][RESUME_FROM_DB]', { type: typeof resumeFromDB });
-  } catch (_) {}
   console.log("[TDZ_TRACE][FN_ENTER]");
   cqLog('DEBUG', '[BUILD_OK][CandidateInterview]');
   cqLog('DEBUG', '[V3_ONLY][SOT_FLAG][CANDIDATE]', { V3_ONLY_MODE });
@@ -6468,13 +6460,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     });
   }, []); // Run once on mount
 
-      try {
-    if (typeof window !== 'undefined') {
-      window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
-      window.__CQ_RUNTIME_PROBE__.resumeFromDB_type_at_define = typeof resumeFromDB;
-    }
-  } catch (_) {}
-  async function resumeFromDB() {
+    async function resumeFromDB() {
     try {
       console.log('[BOOT][RESUME] Light resume from DB', { sessionId });
       
