@@ -2814,6 +2814,51 @@ function CandidateInterviewInner() {
   // especially the render-time kickstart which is not protected by the boot guard.
 
   
+  const initializeInterview = useCallback(async () => {
+    // Guard: require sessionId
+    if (!sessionId) {
+      console.warn('[CQ_INIT][SKIP] initializeInterview called without sessionId');
+      return;
+    }
+
+    const cqStartedKey = `__CQ_INIT_STARTED__${sessionId}`;
+
+    try {
+      // Mark boot started (reuse existing cqStartedKey semantics if present)
+      if (typeof window !== 'undefined') {
+        window[cqStartedKey] = true;
+        console.log('[CQ_INIT][STARTED_FLAG_SET]', { key: cqStartedKey });
+      }
+
+      // Ensure loading is on during initialization
+      setIsLoading(true);
+
+      // 1) Bootstrap engine (minimal required missing call)
+      console.log('[CQ_INIT][BOOTSTRAP_ENGINE_START]', { sessionId });
+      const boot = await bootstrapEngine(sessionId);
+      console.log('[CQ_INIT][BOOTSTRAP_ENGINE_OK]', { sessionId, hasEngine: !!boot?.engine });
+
+      // 2) Hydrate engine into state
+      if (boot?.engine) {
+        setEngine(boot.engine);
+      } else {
+        setEngine(boot);
+      }
+
+      // 3) Resume/hydrate session data using existing function
+      // This handles setting session, currentItem, transcript, and isLoading=false
+      console.log('[CQ_INIT][CALLING_RESUME_FROM_DB]', { sessionId });
+      await resumeFromDB();
+      console.log('[CQ_INIT][RESUME_FROM_DB_OK]', { sessionId });
+
+    } catch (err) {
+      // Set error using existing error setter
+      setError(err);
+      setIsLoading(false);
+      console.error('[CQ_INIT][BOOTSTRAP_FAILED]', { sessionId, err: err.message, stack: err.stack });
+    }
+  }, [sessionId, resumeFromDB]);
+
   // ============================================================================
   // BOOTSTRAP KICKSTART - Replaces legacy render-kick
   // ============================================================================
