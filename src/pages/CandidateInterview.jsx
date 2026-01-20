@@ -20034,10 +20034,15 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               const shouldRenderInTranscript = (entry) => {
                 if (!entry) return false;
         
-                // Rule 1: Filter non-chat/prompt-lane context
-                if (entry.meta?.isNonChat === true) return false;
-                if (entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK' || entry.meta?.contextKind === 'PROMPT_LANE_CONTEXT') return false;
-                if (entry.messageType === 'PROMPT_LANE_CONTEXT') return false;
+                // Rule 1: Filter non-chat/prompt-lane context, with exception for FALLBACK
+                if (entry.messageType === 'PROMPT_LANE_CONTEXT') {
+                  if (entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK') {
+                    return true; // ALLOW this specific non-chat item
+                  }
+                  return false; // BLOCK all other prompt context items
+                }
+                if (entry.meta?.isNonChat === true) return false; // Block other non-chat items
+                if (entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK') return false; // Block other fallback markers
                 
                 // Rule 2: Filter V3 probe questions (prompt-lane only)
                 const isV3ProbeQuestion = 
