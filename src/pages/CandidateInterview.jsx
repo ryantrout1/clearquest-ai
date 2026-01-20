@@ -1390,6 +1390,22 @@ function CandidateInterviewInner() {
         CQ: (typeof window !== 'undefined') ? window.CQ_RUNTIME_PROBE : null,
       });
     } catch (_) {}
+
+    try {
+      const __CQ = (typeof window !== 'undefined') ? window.__CQ_RUNTIME_PROBE__ : null;
+      const CQ = (typeof window !== 'undefined') ? window.CQ_RUNTIME_PROBE : null;
+
+      console.log('[CQ_DIAG][RUNTIME_PROBE_FIELDS]', {
+        __CQ_buildStamp: __CQ?.buildStamp ?? null,
+        CQ_buildStamp: CQ?.buildStamp ?? null,
+        __CQ_resumeType: __CQ?.resumeFromDB_type_at_render ?? null,
+        CQ_resumeType: CQ?.resumeFromDB_type_at_render ?? null,
+        __CQ_hasResumeFn: typeof __CQ?.resumeFromDB_val_at_render === 'function',
+        CQ_hasResumeFn: typeof CQ?.resumeFromDB_val_at_render === 'function',
+        __CQ_indexAsset0: Array.isArray(__CQ?.indexAssets) ? (__CQ.indexAssets[0] || null) : null,
+        CQ_indexAsset0: Array.isArray(CQ?.indexAssets) ? (CQ.indexAssets[0] || null) : null,
+      });
+    } catch (_) {}
     if (typeof window !== 'undefined') {
       window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
       window.CQ_RUNTIME_PROBE = window.CQ_RUNTIME_PROBE || {};
