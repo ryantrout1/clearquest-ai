@@ -2773,28 +2773,16 @@ function CandidateInterviewInner() {
   console.log('[CQ_HOOKS_OK]', { sessionId });
 
   useEffect(() => {
-    console.log('[CQ_BOOT_STATE][SNAPSHOT]', {
-      sessionId,
-      isLoading,
-      hasSession: !!session,
-      hasEngine: !!engine_S
-    });
-  }, [sessionId, isLoading, session, engine_S]);
-
-  useEffect(() => {
-    if (!sessionId) return;
-    const t = setTimeout(() => {
-      console.log('[CQ_BOOT_STATE][WATCHDOG_5S]', {
-        sessionId,
-        isLoading,
-        hasSession: !!session,
-        hasEngine: !!engine_S
-      });
-    }, 5000);
-    return () => clearTimeout(t);
-  }, [sessionId, isLoading, session, engine_S]);
-
-  useEffect(() => {
+    // BOOT-STATE INVARIANT: Detect duplicate runs per session.
+    if (typeof window !== 'undefined' && sessionId) {
+      window.__CQ_BOOTSTATE_RUN_COUNT_BY_SESSION__ = window.__CQ_BOOTSTATE_RUN_COUNT_BY_SESSION__ || {};
+      const count = (window.__CQ_BOOTSTATE_RUN_COUNT_BY_SESSION__[sessionId] || 0) + 1;
+      window.__CQ_BOOTSTATE_RUN_COUNT_BY_SESSION__[sessionId] = count;
+      if (count > 1) {
+        console.warn('[CQ_INVARIANT][BOOTSTATE_EFFECT_RAN_MULTIPLE_TIMES]', { sessionId, count });
+      }
+    }
+    
     console.log('[CQ_BOOT_STATE][SNAPSHOT]', {
       sessionId,
       isLoading,
