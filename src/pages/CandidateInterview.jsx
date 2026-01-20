@@ -3550,263 +3550,7 @@ function CandidateInterviewInner() {
   const lastQuestionShownIdRef = useRef(null); // Track last question shown for force-scroll dedupe
   
   // DEV DEBUG: Enable evidence bundle capture (v3debug=1 or localStorage flag)
-  // [TDZ_GUARD][DERIVED_SNAPSHOT]
-  // Centralized render-time derived computations (NO hooks in this block).
-  // Ordered to prevent TDZ and used as the single source of truth for planner inputs.
-  const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
-  const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
-  const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
-  const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && 
-                            v3PromptPhase === "ANSWER_NEEDED";
-  let effectiveItemType = v3ProbingActive ? 'v3_probing' : currentItem_SType;
-  const activeUiItem_S = resolveActiveUiItem();
-  const activeKindSOT = activeUiItem_S?.kind || currentItem_S?.type || 'UNKNOWN';
-  effectiveItemType = activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
-                           activeUiItem_S.kind === "V3_PROMPT" ? 'v3_probing' : 
-                           activeUiItem_S.kind === "V3_OPENER" ? 'v3_pack_opener' :
-                           activeUiItem_S.kind === "MI_GATE" ? 'multi_instance_gate' :
-                           v3ProbingActive ? 'v3_probing' : 
-                           currentItem_SType;
-  const bottomBarRenderTypeSOT = (() => {
-    if (activeUiItem_S?.kind === "REQUIRED_ANCHOR_FALLBACK") return "required_anchor_fallback";
-    if (activeUiItem_S?.kind === "V3_PROMPT") return "v3_probing";
-    if (activeUiItem_S?.kind === "V3_WAITING") return "v3_waiting";
-    if (activeUiItem_S?.kind === "V3_OPENER") return "v3_pack_opener";
-    if (activeUiItem_S?.kind === "MI_GATE") return "multi_instance_gate";
-    if (activeUiItem_S?.kind === "DEFAULT" && 
-        currentItem_S?.type === "question" && 
-        engine_S?.QById?.[currentItem_S.id]?.response_type === "yes_no") {
-      return "yes_no";
-    }
-    return "default";
-  })();
-  const bottomBarModeSOT = (() => {
-    if (bottomBarRenderTypeSOT === "required_anchor_fallback") return "TEXT_INPUT";
-    if (bottomBarRenderTypeSOT === "multi_instance_gate") return "YES_NO";
-    if (bottomBarRenderTypeSOT === "yes_no") return "YES_NO";
-    if (bottomBarRenderTypeSOT === "v3_pack_opener") return "TEXT_INPUT";
-    if (bottomBarRenderTypeSOT === "v3_probing") return "TEXT_INPUT";
-    if (bottomBarRenderTypeSOT === "v3_waiting") return "V3_WAITING";
-    if (screenMode === 'WELCOME') return "CTA";
-    return "DEFAULT";
-  })();
-  const activeCard_SKeySOT = (() => {
-    if (activeUiItem_S.kind === "V3_PROMPT") {
-      const promptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
-      return promptId ? `v3-prompt:${promptId}` : null;
-    }
-    if (activeUiItem_S.kind === "V3_OPENER") {
-      return buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
-    }
-    if (activeUiItem_S.kind === "V3_WAITING") {
-      const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
-      return loopKey ? `v3-waiting:${loopKey}` : null;
-    }
-    if (activeUiItem_S.kind === "MI_GATE") {
-      return currentItem_S?.id || `mi-gate:${currentItem_S?.packId}:${currentItem_S?.instanceNumber}`;
-    }
-    if (activeUiItem_S.kind === "DEFAULT" && currentItem_S?.type === "question") {
-      return currentItem_S?.id;
-    }
-    return null;
-  })();
-  const hasActiveCardSOT = Boolean(activeCard_SKeySOT);
-  let activeCard_S = null;
-  const transcriptRenderable = renderedTranscriptSnapshotRef.current || dbTranscript || [];
-  const currentPromptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
-  if (activeUiItem_S.kind === "V3_PROMPT") {
-    const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
-    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
-    const promptId = currentPromptId || `${loopKey}:fallback`;
-    const qStableKey = `v3-probe-q:${promptId}`;
-    const transcriptHasThisProbeQ = transcriptSOT_S.some(e => 
-      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
-      (e.meta?.promptId === promptId || e.stableKey === qStableKey)
-    );
-    if (lastRenderedV3PromptKeyRef.current === promptId && v3PromptText && hasActiveV3Prompt && v3PromptPhase !== "ANSWER_NEEDED") {
-    } else if (v3PromptText && hasActiveV3Prompt) {
-      const normalizedPromptText = (v3PromptText || "").toLowerCase().trim().replace(/\s+/g, " ");
-      const stableKey = loopKey ? `v3-active:${loopKey}:${promptId}:${normalizedPromptText.slice(0,32)}` : null;
-      activeCard_S = {
-        __activeCard_S: true,
-        isEphemeralPromptLaneCard: true,
-        kind: "v3_probe_q",
-        stableKey,
-        text: v3PromptText,
-        packId: v3ProbingContext_S?.packId,
-        instanceNumber: v3ProbingContext_S?.instanceNumber,
-        source: 'prompt_lane_temporary'
-      };
-      lastRenderedV3PromptKeyRef.current = promptId;
-    }
-    if (!activeCard_S && lastRenderedV3PromptKeyRef.current) {
-      lastRenderedV3PromptKeyRef.current = null;
-    }
-  } else if (activeUiItem_S.kind === "V3_WAITING") {
-    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
-    activeCard_S = {
-      __activeCard_S: true,
-      isEphemeralPromptLaneCard: true,
-      kind: "v3_thinking",
-      stableKey: `v3-thinking:${loopKey}`,
-      text: "Processing your response...",
-      packId: v3ProbingContext_S?.packId,
-      instanceNumber: v3ProbingContext_S?.instanceNumber || 1,
-      source: 'prompt_lane_temporary'
-    };
-  } else if (activeUiItem_S.kind === "V3_OPENER") {
-    const openerText = currentItem_S?.openerText || "";
-    const stableKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
-    const expectedKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
-    const alreadyInHistory = v3ProbeDisplayHistory_S.some(e => e.stableKey === expectedKey);
-    if (screenMode === "QUESTION" && openerText) {
-      if (alreadyInHistory) {}
-      activeCard_S = {
-        __activeCard_S: true,
-        isEphemeralPromptLaneCard: true,
-        kind: "v3_pack_opener",
-        stableKey,
-        text: openerText,
-        packId: currentItem_S.packId,
-        categoryLabel: currentItem_S.categoryLabel,
-        instanceNumber: currentItem_S.instanceNumber || 1,
-        exampleNarrative: currentItem_S.exampleNarrative,
-        source: 'prompt_lane_temporary'
-      };
-    } else if (!openerText) {}
-  } else if (
-    activeUiItem_S.kind === "DEFAULT" && 
-    currentItem_S?.type === "question" && 
-    engine_S?.QById?.[currentItem_S.id]?.response_type === "yes_no"
-  ) {
-    const question = engine_S?.QById?.[currentItem_S.id];
-    const questionText = question?.question_text || "(Question)";
-    const stableKey = `question-shown:${currentItem_S.id}`;
-    activeCard_S = {
-      __activeCard_S: true,
-      isEphemeralPromptLaneCard: true,
-      kind: "base_question_yesno",
-      stableKey,
-      text: questionText,
-      questionId: currentItem_S.id,
-      questionDbId: currentItem_S.id,
-      questionNumber: question?.question_number,
-      sectionName: engine_S?.Sections?.find(s => s.id === question?.section_id)?.section_name,
-      source: 'prompt_lane_temporary'
-    };
-  } else if (activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK") {
-    const questionText = resolveAnchorToHumanQuestion(
-      requiredAnchorCurrent, 
-      v3ProbingContext_S?.packId
-    );
-    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
-    const stableKey = loopKey ? `fallback-prompt:${loopKey}:${requiredAnchorCurrent}` : null;
-    activeCard_S = {
-      __activeCard_S: true,
-      isEphemeralPromptLaneCard: false,
-      kind: "required_anchor_fallback_prompt",
-      stableKey,
-      text: questionText,
-      packId: v3ProbingContext_S?.packId,
-      instanceNumber: v3ProbingContext_S?.instanceNumber || 1,
-      anchor: requiredAnchorCurrent,
-      source: 'prompt_lane_temporary'
-    };
-  } else if (activeUiItem_S.kind === "MI_GATE") {
-    let miGateItem = currentItem_S;
-    if (!miGateItem || miGateItem.type !== 'multi_instance_gate' || !miGateItem.packId || !miGateItem.instanceNumber) {
-      if (activeUiItem_S.packId && activeUiItem_S.instanceNumber) {
-        miGateItem = {
-          type: 'multi_instance_gate',
-          packId: activeUiItem_S.packId,
-          instanceNumber: activeUiItem_S.instanceNumber,
-          promptText: activeUiItem_S.promptText || multiInstanceGate?.promptText
-        };
-      }
-    }
-    const miGatePrompt = miGateItem?.promptText || 
-                         multiInstanceGate?.promptText || 
-                         activeUiItem_S?.promptText ||
-                         `Do you have another item to report in this section?`;
-    const packId = miGateItem?.packId || activeUiItem_S?.packId;
-    const instanceNumber = miGateItem?.instanceNumber || activeUiItem_S?.instanceNumber;
-    if (packId && instanceNumber && miGatePrompt) {
-      const stableKey = buildMiGateQStableKey(packId, instanceNumber);
-      const itemId = buildMiGateItemId(packId, instanceNumber);
-      activeCard_S = {
-        __activeCard_S: true,
-        isEphemeralPromptLaneCard: true,
-        kind: "multi_instance_gate",
-        id: itemId,
-        stableKey,
-        text: miGatePrompt,
-        packId,
-        instanceNumber,
-        source: 'prompt_lane_temporary'
-      };
-    }
-  }
-  const activePromptText = computeActivePromptText({
-      requiredAnchorFallbackActive,
-      requiredAnchorCurrent,
-      v3ProbingContext_S,
-      v3ProbingActive,
-      v3ActivePromptText,
-      effectiveItemType,
-      currentItem_S,
-      v2ClarifierState,
-      currentPrompt
-    });
-  const safeActivePromptText = sanitizeCandidateFacingText(activePromptText, 'ACTIVE_PROMPT_TEXT');
-  const needsPrompt = bottomBarModeSOT === 'TEXT_INPUT' || 
-                      ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
-  const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
-  const shouldRenderFooter = (screenMode === 'QUESTION' && 
-                              (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO' || bottomBarModeSOT === 'SELECT' || bottomBarModeSOT === 'V3_WAITING')) ||
-                              bottomBarModeSOT === 'CTA';
-  const hasInterviewContent = Boolean(
-    transcriptSOT_S?.length > 0 || 
-    hasActiveCardSOT || 
-    activeUiItem_S?.kind !== 'DEFAULT' ||
-    screenMode === 'QUESTION'
-  );
-  const shouldApplyFooterClearance = shouldRenderFooter && hasInterviewContent;
-  const footerClearancePx = Math.max(dynamicFooterHeightPx + 32, 96);
-  const baseSpacerPx = Math.max(footerShellHeightPx + 16, 80);
-  const isV3OpenerForSpacer = (activeUiItem_S?.kind === 'V3_OPENER') || 
-                                (currentItem_S?.type === 'v3_pack_opener');
-  const spacerWithV3Expansion = isV3OpenerForSpacer 
-    ? baseSpacerPx + extraBottomSpacerPx 
-    : baseSpacerPx;
-  const isYesNoModeDerived = bottomBarModeSOT === 'YES_NO';
-  const isMiGateDerived = effectiveItemType === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
-  const yesNoModeClearance = dynamicFooterHeightPx + 32;
-  const normalModeClearance = spacerWithV3Expansion;
-  const bottomSpacerPx = (isYesNoModeDerived || isMiGateDerived)
-    ? Math.max(yesNoModeClearance, normalModeClearance)
-    : normalModeClearance;
-  const isBottomBarSubmitDisabled = requiredAnchorFallbackActive 
-    ? (!(input ?? "").trim())
-    : (!currentItem_S || isCommitting || !(input ?? "").trim());
 
-  const derived = {
-    hasActiveV3Prompt,
-    activeUiItem_S,
-    activeKindSOT,
-    effectiveItemType,
-    bottomBarRenderTypeSOT,
-    bottomBarModeSOT,
-    needsPrompt,
-    hasPrompt,
-    shouldRenderFooter,
-    shouldApplyFooterClearance,
-    footerClearancePx,
-    bottomSpacerPx,
-    activeCard_SKeySOT,
-    hasActiveCardSOT,
-    activeCard_S,
-    isBottomBarSubmitDisabled,
-  };
 
 
 
@@ -17002,6 +16746,264 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // ============================================================================
   // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
   // ============================================================================
+  // [TDZ_GUARD][DERIVED_SNAPSHOT]
+  // Centralized render-time derived computations (NO hooks in this block).
+  // Ordered to prevent TDZ and used as the single source of truth for planner inputs.
+  const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
+  const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
+  const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
+  const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && 
+                            v3PromptPhase === "ANSWER_NEEDED";
+  let effectiveItemType = v3ProbingActive ? 'v3_probing' : currentItem_SType;
+  const activeUiItem_S = resolveActiveUiItem();
+  const activeKindSOT = activeUiItem_S?.kind || currentItem_S?.type || 'UNKNOWN';
+  effectiveItemType = activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
+                           activeUiItem_S.kind === "V3_PROMPT" ? 'v3_probing' : 
+                           activeUiItem_S.kind === "V3_OPENER" ? 'v3_pack_opener' :
+                           activeUiItem_S.kind === "MI_GATE" ? 'multi_instance_gate' :
+                           v3ProbingActive ? 'v3_probing' : 
+                           currentItem_SType;
+  const bottomBarRenderTypeSOT = (() => {
+    if (activeUiItem_S?.kind === "REQUIRED_ANCHOR_FALLBACK") return "required_anchor_fallback";
+    if (activeUiItem_S?.kind === "V3_PROMPT") return "v3_probing";
+    if (activeUiItem_S?.kind === "V3_WAITING") return "v3_waiting";
+    if (activeUiItem_S?.kind === "V3_OPENER") return "v3_pack_opener";
+    if (activeUiItem_S?.kind === "MI_GATE") return "multi_instance_gate";
+    if (activeUiItem_S?.kind === "DEFAULT" && 
+        currentItem_S?.type === "question" && 
+        engine_S?.QById?.[currentItem_S.id]?.response_type === "yes_no") {
+      return "yes_no";
+    }
+    return "default";
+  })();
+  const bottomBarModeSOT = (() => {
+    if (bottomBarRenderTypeSOT === "required_anchor_fallback") return "TEXT_INPUT";
+    if (bottomBarRenderTypeSOT === "multi_instance_gate") return "YES_NO";
+    if (bottomBarRenderTypeSOT === "yes_no") return "YES_NO";
+    if (bottomBarRenderTypeSOT === "v3_pack_opener") return "TEXT_INPUT";
+    if (bottomBarRenderTypeSOT === "v3_probing") return "TEXT_INPUT";
+    if (bottomBarRenderTypeSOT === "v3_waiting") return "V3_WAITING";
+    if (screenMode === 'WELCOME') return "CTA";
+    return "DEFAULT";
+  })();
+  const activeCard_SKeySOT = (() => {
+    if (activeUiItem_S.kind === "V3_PROMPT") {
+      const promptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+      return promptId ? `v3-prompt:${promptId}` : null;
+    }
+    if (activeUiItem_S.kind === "V3_OPENER") {
+      return buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
+    }
+    if (activeUiItem_S.kind === "V3_WAITING") {
+      const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
+      return loopKey ? `v3-waiting:${loopKey}` : null;
+    }
+    if (activeUiItem_S.kind === "MI_GATE") {
+      return currentItem_S?.id || `mi-gate:${currentItem_S?.packId}:${currentItem_S?.instanceNumber}`;
+    }
+    if (activeUiItem_S.kind === "DEFAULT" && currentItem_S?.type === "question") {
+      return currentItem_S?.id;
+    }
+    return null;
+  })();
+  const hasActiveCardSOT = Boolean(activeCard_SKeySOT);
+  let activeCard_S = null;
+  const transcriptRenderable = renderedTranscriptSnapshotRef.current || dbTranscript || [];
+  const currentPromptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+  if (activeUiItem_S.kind === "V3_PROMPT") {
+    const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
+    const promptId = currentPromptId || `${loopKey}:fallback`;
+    const qStableKey = `v3-probe-q:${promptId}`;
+    const transcriptHasThisProbeQ = transcriptSOT_S.some(e => 
+      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+      (e.meta?.promptId === promptId || e.stableKey === qStableKey)
+    );
+    if (lastRenderedV3PromptKeyRef.current === promptId && v3PromptText && hasActiveV3Prompt && v3PromptPhase !== "ANSWER_NEEDED") {
+    } else if (v3PromptText && hasActiveV3Prompt) {
+      const normalizedPromptText = (v3PromptText || "").toLowerCase().trim().replace(/\s+/g, " ");
+      const stableKey = loopKey ? `v3-active:${loopKey}:${promptId}:${normalizedPromptText.slice(0,32)}` : null;
+      activeCard_S = {
+        __activeCard_S: true,
+        isEphemeralPromptLaneCard: true,
+        kind: "v3_probe_q",
+        stableKey,
+        text: v3PromptText,
+        packId: v3ProbingContext_S?.packId,
+        instanceNumber: v3ProbingContext_S?.instanceNumber,
+        source: 'prompt_lane_temporary'
+      };
+      lastRenderedV3PromptKeyRef.current = promptId;
+    }
+    if (!activeCard_S && lastRenderedV3PromptKeyRef.current) {
+      lastRenderedV3PromptKeyRef.current = null;
+    }
+  } else if (activeUiItem_S.kind === "V3_WAITING") {
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
+    activeCard_S = {
+      __activeCard_S: true,
+      isEphemeralPromptLaneCard: true,
+      kind: "v3_thinking",
+      stableKey: `v3-thinking:${loopKey}`,
+      text: "Processing your response...",
+      packId: v3ProbingContext_S?.packId,
+      instanceNumber: v3ProbingContext_S?.instanceNumber || 1,
+      source: 'prompt_lane_temporary'
+    };
+  } else if (activeUiItem_S.kind === "V3_OPENER") {
+    const openerText = currentItem_S?.openerText || "";
+    const stableKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
+    const expectedKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
+    const alreadyInHistory = v3ProbeDisplayHistory_S.some(e => e.stableKey === expectedKey);
+    if (screenMode === "QUESTION" && openerText) {
+      if (alreadyInHistory) {}
+      activeCard_S = {
+        __activeCard_S: true,
+        isEphemeralPromptLaneCard: true,
+        kind: "v3_pack_opener",
+        stableKey,
+        text: openerText,
+        packId: currentItem_S.packId,
+        categoryLabel: currentItem_S.categoryLabel,
+        instanceNumber: currentItem_S.instanceNumber || 1,
+        exampleNarrative: currentItem_S.exampleNarrative,
+        source: 'prompt_lane_temporary'
+      };
+    } else if (!openerText) {}
+  } else if (
+    activeUiItem_S.kind === "DEFAULT" && 
+    currentItem_S?.type === "question" && 
+    engine_S?.QById?.[currentItem_S.id]?.response_type === "yes_no"
+  ) {
+    const question = engine_S?.QById?.[currentItem_S.id];
+    const questionText = question?.question_text || "(Question)";
+    const stableKey = `question-shown:${currentItem_S.id}`;
+    activeCard_S = {
+      __activeCard_S: true,
+      isEphemeralPromptLaneCard: true,
+      kind: "base_question_yesno",
+      stableKey,
+      text: questionText,
+      questionId: currentItem_S.id,
+      questionDbId: currentItem_S.id,
+      questionNumber: question?.question_number,
+      sectionName: engine_S?.Sections?.find(s => s.id === question?.section_id)?.section_name,
+      source: 'prompt_lane_temporary'
+    };
+  } else if (activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK") {
+    const questionText = resolveAnchorToHumanQuestion(
+      requiredAnchorCurrent, 
+      v3ProbingContext_S?.packId
+    );
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
+    const stableKey = loopKey ? `fallback-prompt:${loopKey}:${requiredAnchorCurrent}` : null;
+    activeCard_S = {
+      __activeCard_S: true,
+      isEphemeralPromptLaneCard: false,
+      kind: "required_anchor_fallback_prompt",
+      stableKey,
+      text: questionText,
+      packId: v3ProbingContext_S?.packId,
+      instanceNumber: v3ProbingContext_S?.instanceNumber || 1,
+      anchor: requiredAnchorCurrent,
+      source: 'prompt_lane_temporary'
+    };
+  } else if (activeUiItem_S.kind === "MI_GATE") {
+    let miGateItem = currentItem_S;
+    if (!miGateItem || miGateItem.type !== 'multi_instance_gate' || !miGateItem.packId || !miGateItem.instanceNumber) {
+      if (activeUiItem_S.packId && activeUiItem_S.instanceNumber) {
+        miGateItem = {
+          type: 'multi_instance_gate',
+          packId: activeUiItem_S.packId,
+          instanceNumber: activeUiItem_S.instanceNumber,
+          promptText: activeUiItem_S.promptText || multiInstanceGate?.promptText
+        };
+      }
+    }
+    const miGatePrompt = miGateItem?.promptText || 
+                         multiInstanceGate?.promptText || 
+                         activeUiItem_S?.promptText ||
+                         `Do you have another item to report in this section?`;
+    const packId = miGateItem?.packId || activeUiItem_S?.packId;
+    const instanceNumber = miGateItem?.instanceNumber || activeUiItem_S?.instanceNumber;
+    if (packId && instanceNumber && miGatePrompt) {
+      const stableKey = buildMiGateQStableKey(packId, instanceNumber);
+      const itemId = buildMiGateItemId(packId, instanceNumber);
+      activeCard_S = {
+        __activeCard_S: true,
+        isEphemeralPromptLaneCard: true,
+        kind: "multi_instance_gate",
+        id: itemId,
+        stableKey,
+        text: miGatePrompt,
+        packId,
+        instanceNumber,
+        source: 'prompt_lane_temporary'
+      };
+    }
+  }
+  const activePromptText = computeActivePromptText({
+      requiredAnchorFallbackActive,
+      requiredAnchorCurrent,
+      v3ProbingContext_S,
+      v3ProbingActive,
+      v3ActivePromptText,
+      effectiveItemType,
+      currentItem_S,
+      v2ClarifierState,
+      currentPrompt
+    });
+  const safeActivePromptText = sanitizeCandidateFacingText(activePromptText, 'ACTIVE_PROMPT_TEXT');
+  const needsPrompt = bottomBarModeSOT === 'TEXT_INPUT' || 
+                      ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
+  const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
+  const shouldRenderFooter = (screenMode === 'QUESTION' && 
+                                (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO' || bottomBarModeSOT === 'SELECT' || bottomBarModeSOT === 'V3_WAITING')) ||
+                                bottomBarModeSOT === 'CTA';
+  const hasInterviewContent = Boolean(
+    transcriptSOT_S?.length > 0 || 
+    hasActiveCardSOT || 
+    activeUiItem_S?.kind !== 'DEFAULT' ||
+    screenMode === 'QUESTION'
+  );
+  const shouldApplyFooterClearance = shouldRenderFooter && hasInterviewContent;
+  const footerClearancePx = Math.max(dynamicFooterHeightPx + 32, 96);
+  const baseSpacerPx = Math.max(footerShellHeightPx + 16, 80);
+  const isV3OpenerForSpacer = (activeUiItem_S?.kind === 'V3_OPENER') || 
+                                  (currentItem_S?.type === 'v3_pack_opener');
+  const spacerWithV3Expansion = isV3OpenerForSpacer 
+    ? baseSpacerPx + extraBottomSpacerPx 
+    : baseSpacerPx;
+  const isYesNoModeDerived = bottomBarModeSOT === 'YES_NO';
+  const isMiGateDerived = effectiveItemType === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
+  const yesNoModeClearance = dynamicFooterHeightPx + 32;
+  const normalModeClearance = spacerWithV3Expansion;
+  const bottomSpacerPx = (isYesNoModeDerived || isMiGateDerived)
+    ? Math.max(yesNoModeClearance, normalModeClearance)
+    : normalModeClearance;
+  const isBottomBarSubmitDisabled = requiredAnchorFallbackActive 
+    ? (!(input ?? "").trim())
+    : (!currentItem_S || isCommitting || !(input ?? "").trim());
+
+  const derived = {
+    hasActiveV3Prompt,
+    activeUiItem_S,
+    activeKindSOT,
+    effectiveItemType,
+    bottomBarRenderTypeSOT,
+    bottomBarModeSOT,
+    needsPrompt,
+    hasPrompt,
+    shouldRenderFooter,
+    shouldApplyFooterClearance,
+    footerClearancePx,
+    bottomSpacerPx,
+    activeCard_SKeySOT,
+    hasActiveCardSOT,
+    activeCard_S,
+    isBottomBarSubmitDisabled,
+  };
+
   const finalTranscriptList_S_memo = useMemo(() => {
     cqTdzMark('INSIDE_FINAL_TRANSCRIPT_LIST_MEMO_START');
 
