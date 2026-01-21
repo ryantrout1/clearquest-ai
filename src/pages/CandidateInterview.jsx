@@ -19986,7 +19986,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     const forceTranscriptFilterDebug = isV3DebugEnabled_SAFE || false;
 
     if (filteredCount > 0 || forceTranscriptFilterDebug) {
-      const sampleFiltered = finalTranscriptList_S_SAFEAFE
+      const sampleFiltered = finalTranscriptList_S_SAFE
         .filter(entry => !shouldRenderInTranscript(entry));
 
       const sampleFilteredShapes = sampleFiltered.slice(0, 10).map(entry => ({
