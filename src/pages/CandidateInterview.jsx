@@ -3924,6 +3924,8 @@ function CandidateInterviewInner() {
       console.log('[CQ_DIAG][EARLY_STEP]', { step: 'TRY1_ENTER' });
     } catch (_) {}
     
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_1:BEFORE_FIRST_CQMARK';
+    console.log('[CQ_DIAG][TRY1_STEP]', { step: '1:BEFORE_FIRST_CQMARK' });
     cqMark('BEFORE_DERIVED');
 
   
@@ -4298,10 +4300,14 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     lastKeysPreview: (v3ProbeDisplayHistory_S || []).slice(-4).map(x => x.stableKey)
   });
 
+  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_2:BEFORE_ACTIVE_UI_PICK';
+  console.log('[CQ_DIAG][TRY1_STEP]', { step: '2:BEFORE_ACTIVE_UI_PICK' });
   cqMark('BEFORE_ACTIVE_UI_PICK');
   // CANONICAL ACTIVE UI ITEM RESOLVER - Single source of truth
   // Determines what UI should be shown based on strict precedence:
   // REQUIRED_ANCHOR_FALLBACK > V3_PROMPT > V3_WAITING > V3_OPENER > MI_GATE > DEFAULT
+  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3:BEFORE_RESOLVE_ACTIVE_UI';
+  console.log('[CQ_DIAG][TRY1_STEP]', { step: '3:BEFORE_RESOLVE_ACTIVE_UI' });
   const resolveActiveUiItem = () => {
     // PHASE ALIGNMENT: Compute phase for consistency checks
     const resolverPhaseSOT = computeInterviewPhaseSOT();
@@ -4456,6 +4462,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   };
   
   // TDZ FIX: Hoisted from component body to prevent use-before-declare
+  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_4:BEFORE_CURRENT_ITEM_TYPE';
+  console.log('[CQ_DIAG][TRY1_STEP]', { step: '4:BEFORE_CURRENT_ITEM_TYPE' });
   const currentItem_SType = v3GateActive ? 'v3_gate' :
                           v3ProbingActive ? 'v3_probing' :
                           pendingSectionTransition ? 'section_transition' :
@@ -4472,6 +4480,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // ============================================================================
   // REGRESSION-PROOF SAFE WRAPPER - Validates mode before critical UI logic
   // ============================================================================
+  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5:BEFORE_MODE_SAFE';
+  console.log('[CQ_DIAG][TRY1_STEP]', { step: '5:BEFORE_MODE_SAFE' });
   const VALID_MODES = ['YES_NO', 'TEXT_INPUT', 'DEFAULT', 'V3_WAITING', 'CTA', 'SELECT', 'HIDDEN', 'DISABLED'];
   const bottomBarModeSOTSafe = VALID_MODES.includes(bottomBarModeSOT) ? bottomBarModeSOT : 'DEFAULT';
   
@@ -20163,6 +20173,12 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
   cqMark('BEFORE_RETURN');
   } catch (e) {
+    console.error('[CQ_TRY1_CATCH][ERROR]', {
+      message: e?.message,
+      name: e?.name,
+      stack: e?.stack,
+      lastStep: typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null
+    });
     console.error('[CQ_DIAG][RENDER_TDZ_CAUGHT]', {
       step: __cqRenderStep,
       sessionId,
