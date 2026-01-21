@@ -2999,6 +2999,26 @@ function CandidateInterviewInner() {
   }, [sessionId, initializeInterview, isLoading, session, engine_S]);
   
   // ============================================================================
+  // CQMARK DECLARATION - MOVED BEFORE FIRST USE (TDZ FIX)
+  // ============================================================================
+  // [CQ_RENDER_DIAG] render-time snapshot (effects may never run if render crashes)
+  let __cqRenderStep = 'AFTER_HOOKS';
+  const cqMark = (step, extra) => {
+    try { if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = step; } catch (_) {}
+    __cqRenderStep = step;
+    try {
+      console.log('[CQ_DIAG][RENDER_STEP]', {
+        step,
+        sessionId,
+        isLoading,
+        hasSession: !!session,
+        hasEngine: !!engine_S,
+        ...(extra || {}),
+      });
+    } catch (_) {}
+  };
+  
+  // ============================================================================
   // TDZ ISOLATE MODE - Diagnostic bypass for suspected offender blocks
   // ============================================================================
     const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
@@ -3888,22 +3908,6 @@ function CandidateInterviewInner() {
   const v3RefreshInFlightRef = useRef(false);
   const [v3RefreshTick, setV3RefreshTick] = useState(0);
 
-  // [CQ_RENDER_DIAG] render-time snapshot (effects may never run if render crashes)
-  let __cqRenderStep = 'AFTER_HOOKS';
-  const cqMark = (step, extra) => {
-    try { if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = step; } catch (_) {}
-    __cqRenderStep = step;
-    try {
-      console.log('[CQ_DIAG][RENDER_STEP]', {
-        step,
-        sessionId,
-        isLoading,
-        hasSession: !!session,
-        hasEngine: !!engine_S,
-        ...(extra || {}),
-      });
-    } catch (_) {}
-  };
   try {
     console.log('[CQ_DIAG][INIT_CHAIN_SNAPSHOT_RENDER]', {
       sessionId,
