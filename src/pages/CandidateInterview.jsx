@@ -19919,7 +19919,6 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
    const bottomBarModeSOT_SAFE = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
    const activeUiItem_S_SAFE = (typeof activeUiItem_S !== 'undefined') ? activeUiItem_S : null;
    const hasActiveV3Prompt_SAFE = (typeof hasActiveV3Prompt !== 'undefined') ? hasActiveV3Prompt : null;
-   const finalTranscriptList_S_SAFE = (typeof finalTranscriptList_S !== 'undefined') ? finalTranscriptList_S : null;
    const activeCard_S_SAFE = (typeof activeCard_S !== 'undefined') ? activeCard_S : null;
 
   console.log('[TDZ_TRACE][LIKELY_OFFENDER_SNAPSHOT]', {
