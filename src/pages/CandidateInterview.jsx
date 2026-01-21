@@ -20184,6 +20184,10 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     return null;
   }
   
+  // [TDZ_SHIELD] Safe aliases for JSX render (declared outside the main try/catch)
+  const shouldApplyFooterClearance_SAFE = (typeof shouldApplyFooterClearance !== 'undefined') ? shouldApplyFooterClearance : false;
+  const footerClearancePx_SAFE = (typeof footerClearancePx !== 'undefined') ? footerClearancePx : 0;
+  
   console.log("[TDZ_TRACE][RENDER_ENTER]");
   let __tdzTraceJsx = null;
   try {
@@ -20261,8 +20265,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
         <div 
           className="min-h-0 flex flex-col px-4 pt-6"
           style={{
-            paddingBottom: shouldApplyFooterClearance
-              ? `${footerClearancePx}px`
+            paddingBottom: shouldApplyFooterClearance_SAFE
+              ? `${footerClearancePx_SAFE}px`
               : '0px'
           }}
         >          {/* TOP SPACER - Pushes content to bottom when short (ChatGPT gravity) */}
