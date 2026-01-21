@@ -20243,6 +20243,23 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       isCommitting_state_type: (typeof isCommitting !== 'undefined' ? typeof isCommitting : 'UNBOUND'),
       message: e?.message,
     });
+    
+    // FAILOPEN: If TDZ/ReferenceError, return minimal UI instead of hard crash
+    if (e?.name === 'ReferenceError' || String(e?.message || '').includes('before initialization')) {
+      console.error('[CQ_TRY1_CATCH][FAILOPEN]', {
+        errorType: e?.name,
+        errorMessage: e?.message,
+        lastStep: typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null,
+        reason: 'TDZ detected - failing open to minimal UI'
+      });
+      
+      // Try to set error state if available
+      try { if (typeof setError === 'function') setError(String(e?.message || 'Render TDZ')); } catch (_) {}
+      try { if (typeof setIsLoading === 'function') setIsLoading(false); } catch (_) {}
+      
+      return null;
+    }
+    
     // Keep behavior minimal: return null (no new UI)
     return null;
   }
