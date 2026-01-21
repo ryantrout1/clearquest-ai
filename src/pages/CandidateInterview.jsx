@@ -4315,9 +4315,13 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   const resolveActiveUiItem = () => {
     // PHASE ALIGNMENT: Compute phase for consistency checks
     const resolverPhaseSOT = computeInterviewPhaseSOT();
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3A:AFTER_PHASE_COMPUTE';
+    console.log('[CQ_DIAG][TRY1_STEP]', { step: '3A:AFTER_PHASE_COMPUTE' });
     
     // Priority 0: Required anchor fallback (deadlock breaker)
     // GUARD: Never allow fallback to override v3_pack_opener (instance start takes precedence)
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3B:BEFORE_PRIORITY0';
+    console.log('[CQ_DIAG][TRY1_STEP]', { step: '3B:BEFORE_PRIORITY0' });
     if (requiredAnchorFallbackActive && requiredAnchorCurrent && currentItem_S?.type !== 'v3_pack_opener') {
       return {
         kind: "REQUIRED_ANCHOR_FALLBACK",
@@ -4338,6 +4342,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     // Priority 1: V3 prompt active (multi-signal detection)
     // HARDENED: V3_PROMPT takes absolute precedence - even if MI_GATE exists in state
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3C:BEFORE_PRIORITY1';
+    console.log('[CQ_DIAG][TRY1_STEP]', { step: '3C:BEFORE_PRIORITY1' });
     if (hasActiveV3Prompt) {
       return {
         kind: "V3_PROMPT",
@@ -4354,6 +4360,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     // Priority 1.5: V3 probing active but no prompt yet (V3_WAITING state)
     // CRITICAL FIX: Force V3_WAITING kind when effectiveItemType is v3_probing
     // OVERRIDE: Do NOT enter V3_WAITING if fallback is active
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3D:BEFORE_PRIORITY1_5';
+    console.log('[CQ_DIAG][TRY1_STEP]', { step: '3D:BEFORE_PRIORITY1_5' });
     if (v3ProbingActive && !hasActiveV3Prompt && !requiredAnchorFallbackActive) {
       const forcedKind = "V3_WAITING";
       console.log('[V3_CONTROLLER][FORCE_ACTIVE_KIND]', {
@@ -4386,6 +4394,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     // Priority 2: V3 pack opener (must not be superseded by MI_GATE or REQUIRED_ANCHOR_FALLBACK)
     // INSTANCE START RULE: For multi-instance packs, ALWAYS show opener first for new instances
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3E:BEFORE_PRIORITY2';
+    console.log('[CQ_DIAG][TRY1_STEP]', { step: '3E:BEFORE_PRIORITY2' });
     if (currentItem_S?.type === 'v3_pack_opener') {
       const isMultiInstancePack = currentItem_S?.packId === 'PACK_PRIOR_LE_APPS_STANDARD';
       const isInstance2OrHigher = (currentItem_S?.instanceNumber || 1) > 1;
