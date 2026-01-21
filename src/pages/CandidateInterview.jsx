@@ -19640,7 +19640,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       suppressProbesInTranscript: (activeUiItem_SAFE?.kind === "V3_PROMPT" || activeUiItem_SAFE?.kind === "V3_WAITING") && v3ProbingActive,
       lastMeasuredOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
       hasFooterSpacer: typeof window !== 'undefined' && !!historyRef.current?.querySelector('[data-cq-footer-spacer="true"]'),
-      transcriptLen: finalTranscriptList_SAFE.length || 0
+      transcriptLen: finalTranscriptList_S_SAFE.length || 0
     };
     
     // Dedupe: Only emit if payload changed
@@ -19651,7 +19651,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     lastGoldenCheckPayloadRef.current = payloadKey;
     console.log('[UI_CONTRACT][GOLDEN_CHECK]', payload);
-  }, [sessionId, activeUiItem_SAFE, bottomBarModeSOT_SAFE, v3ProbingActive, finalTranscriptList_SAFE]);
+  }, [sessionId, activeUiItem_SAFE, bottomBarModeSOT_SAFE, v3ProbingActive, finalTranscriptList_S_SAFE]);
   
   // CONSOLIDATED UI CONTRACT STATUS LOG (Single Source of Truth)
   // Emits once per mode change with all three contract aspects
@@ -19693,7 +19693,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
   // [TDZ_FIX] Declarations moved before their first use in computeTranscriptRenderPlan.
   const activeUiItem_SAFE = activeUiItem_S ?? null;
-  const finalTranscriptList_SAFE = finalTranscriptList_S ?? [];
+  const finalTranscriptList_S_SAFE = finalTranscriptList_S ?? [];
   const currentItem_SAFE = currentItem_S ?? null;
   const v3ProbingContext_SAFE = v3ProbingContext_S ?? null;
 
@@ -19729,7 +19729,7 @@ const transcriptPlan = isV3DebugEnabled
     activeCard_SScrollMarginBottomPx
   }))
     : computeTranscriptRenderPlan({
-    finalTranscriptList_S: finalTranscriptList_SAFE,
+    finalTranscriptList_S: finalTranscriptList_S_SAFE,
     isV3DebugEnabled,
     cqRead,
     shouldRenderInTranscript,
@@ -19980,9 +19980,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
     const renderedV3OpenerKeysSOT = new Set();
 
-    const transcriptRenderableList = isV3DebugEnabled_SAFE ? cqRead('TRANSCRIPT_IIFE:finalTranscriptList_SAFE.filter', () => finalTranscriptList_SAFE.filter(shouldRenderInTranscript)) : finalTranscriptList_SAFE.filter(shouldRenderInTranscript);
+    const transcriptRenderableList = isV3DebugEnabled_SAFE ? cqRead('TRANSCRIPT_IIFE:finalTranscriptList_S_SAFE.filter', () => finalTranscriptList_S_SAFE.filter(shouldRenderInTranscript)) : finalTranscriptList_S_SAFE.filter(shouldRenderInTranscript);
 
-    const filteredCount = (isV3DebugEnabled_SAFE ? cqRead('TRANSCRIPT_IIFE:finalTranscriptList_SAFE.length', () => finalTranscriptList_SAFE.length) : finalTranscriptList_SAFE.length) - (isV3DebugEnabled_SAFE ? cqRead('TRANSCRIPT_IIFE:transcriptRenderableList.length', () => transcriptRenderableList.length) : transcriptRenderableList.length);
+    const filteredCount = (isV3DebugEnabled_SAFE ? cqRead('TRANSCRIPT_IIFE:finalTranscriptList_S_SAFE.length', () => finalTranscriptList_S_SAFE.length) : finalTranscriptList_S_SAFE.length) - (isV3DebugEnabled_SAFE ? cqRead('TRANSCRIPT_IIFE:transcriptRenderableList.length', () => transcriptRenderableList.length) : transcriptRenderableList.length);
     const forceTranscriptFilterDebug = isV3DebugEnabled_SAFE || false;
 
     if (filteredCount > 0 || forceTranscriptFilterDebug) {
@@ -20019,7 +20019,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
       logOnce(`transcript_filter_v2_${sessionId}`, () => {
         console.log('[UI_CONTRACT][TRANSCRIPT_FILTER]', {
-          originalCount: finalTranscriptList_SAFE.length,
+          originalCount: finalTranscriptList_S_SAFE.length,
           renderableCount: transcriptRenderableList.length,
           filteredCount,
           forceDebug: forceTranscriptFilterDebug,
@@ -20062,7 +20062,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     console.log('[UI_CONTRACT][ACTIVE_LANE_POSITION_SOT]', {
       activeUiItem_SKind: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:activeUiItem_SAFE.kind', () => activeUiItem_S_SAFE?.kind) : activeUiItem_S_SAFE?.kind,
       placedAfterTranscript: true,
-      transcriptLen: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:finalTranscriptList_SAFE.length', () => finalTranscriptList_S_SAFE.length) : finalTranscriptList_S_SAFE.length || 0,
+      transcriptLen: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:finalTranscriptList_S_SAFE.length', () => finalTranscriptList_S_SAFE.length) : finalTranscriptList_S_SAFE.length || 0,
       activeCard_SKind: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:activeCard_SAFE.kind', () => activeCard_S_SAFE.kind) : activeCard_S_SAFE.kind,
       packId: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:activeCard_SAFE.packId', () => activeCard_S.packId) : activeCard_S.packId,
       instanceNumber: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:activeCard_SAFE.instanceNumber', () => activeCard_S.instanceNumber) : activeCard_S.instanceNumber
