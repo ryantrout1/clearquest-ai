@@ -20184,9 +20184,45 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     return null;
   }
   
-  // [TDZ_SHIELD] Safe aliases for JSX render (declared outside the main try/catch)
+  // [TDZ_SHIELD_ALL] Safe aliases for JSX render (declared outside the main try/catch)
   const shouldApplyFooterClearance_SAFE = (typeof shouldApplyFooterClearance !== 'undefined') ? shouldApplyFooterClearance : false;
   const footerClearancePx_SAFE = (typeof footerClearancePx !== 'undefined') ? footerClearancePx : 0;
+  
+  const bottomSpacerPx_SAFE = (typeof bottomSpacerPx !== 'undefined') ? bottomSpacerPx : 80;
+  const finalTranscriptList_S_SAFE = (typeof finalTranscriptList_S !== 'undefined') ? finalTranscriptList_S : [];
+  const activeUiItem_S_SAFE = (typeof activeUiItem_S !== 'undefined') ? activeUiItem_S : null;
+  const effectiveItemType_SAFE = (typeof effectiveItemType !== 'undefined') ? effectiveItemType : null;
+  const bottomBarModeSOT_SAFE = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : 'DEFAULT';
+  const bottomBarRenderTypeSOT_SAFE = (typeof bottomBarRenderTypeSOT !== 'undefined') ? bottomBarRenderTypeSOT : 'default';
+  const activeCard_S_SAFE = (typeof activeCard_S !== 'undefined') ? activeCard_S : null;
+  
+  const shouldRenderFooter_SAFE = (typeof shouldRenderFooter !== 'undefined') ? shouldRenderFooter : false;
+  const hasPrompt_SAFE = (typeof hasPrompt !== 'undefined') ? hasPrompt : false;
+  const activePromptText_SAFE = (typeof activePromptText !== 'undefined') ? activePromptText : '';
+  const safeActivePromptText_SAFE = (typeof safeActivePromptText !== 'undefined') ? safeActivePromptText : '';
+  const isBottomBarSubmitDisabled_SAFE = (typeof isBottomBarSubmitDisabled !== 'undefined') ? isBottomBarSubmitDisabled : true;
+  
+  const showMissingSession_SAFE = (typeof showMissingSession !== 'undefined') ? showMissingSession : false;
+  const showError_SAFE = (typeof showError !== 'undefined') ? showError : false;
+  const shouldShowFullScreenLoader_SAFE = (typeof shouldShowFullScreenLoader !== 'undefined') ? shouldShowFullScreenLoader : false;
+  const cqLoadingReturnJSX_SAFE = (typeof cqLoadingReturnJSX !== 'undefined') ? cqLoadingReturnJSX : null;
+  
+  // Function refs (may be undefined due to try scoping) — provide safe fallbacks
+  const getTranscriptEntryKey_SAFE = (typeof getTranscriptEntryKey !== 'undefined')
+    ? getTranscriptEntryKey
+    : ((e) => e?.stableKey || e?.id || `fallback-${e?.kind || 'unknown'}`);
+  
+  const sanitizeCandidateFacingText_SAFE = (typeof sanitizeCandidateFacingText !== 'undefined')
+    ? sanitizeCandidateFacingText
+    : ((text) => text);
+  
+  const getMessageTypeSOT_SAFE = (typeof getMessageTypeSOT !== 'undefined')
+    ? getMessageTypeSOT
+    : ((e) => e?.messageType || e?.type || '');
+  
+  const getQuestionDisplayNumber_SAFE = (typeof getQuestionDisplayNumber !== 'undefined')
+    ? getQuestionDisplayNumber
+    : (() => '');
   
   console.log("[TDZ_TRACE][RENDER_ENTER]");
   let __tdzTraceJsx = null;
@@ -20278,7 +20314,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               !isLoading &&
               !!session &&
               !!engine_S &&
-              finalTranscriptList_S.length === 0 && (
+              finalTranscriptList_S_SAFE.length === 0 && (
                 <ContentContainer>
                   {console.log('[WELCOME_RENDER][FALLBACK_USED]', {
                     screenMode,
@@ -20302,7 +20338,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             {/* Active opener suppression: Compute current active opener stableKey */}
             {(() => {
               const activeOpenerStableKeySOT = 
-                (activeUiItem_S?.kind === "V3_OPENER" && currentItem_S?.packId)
+                (activeUiItem_S_SAFE?.kind === "V3_OPENER" && currentItem_S?.packId)
                   ? buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1)
                   : null;
 
@@ -20419,7 +20455,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                   // STABLE KEY: Use helper for all entries (prevents React refresh)
                   const entryKey = isActiveCard 
                     ? (entry.stableKey || `active-${entry.kind}-${entry.packId || 'none'}-${entry.instanceNumber || 0}`)
-                    : getTranscriptEntryKey(entry);
+                    : getTranscriptEntryKey_SAFE(entry);
                   
                   // Render active cards from stream (V3_PROMPT, V3_OPENER, MI_GATE)
                   if (isActiveCard) {
@@ -20431,7 +20467,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                       const promptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
                       
                       // STEP 2: Sanitize prompt card text (main fix)
-                      const safeCardPrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_V3_PROBE');
+                      const safeCardPrompt = sanitizeCandidateFacingText_SAFE(entry.text, 'PROMPT_LANE_CARD_V3_PROBE');
                       
                       console.log('[V3_PROMPT][PROMPT_CARD_SOT]', {
                         v3ProbingActive,
@@ -20634,7 +20670,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                   
                   // V3 transcript entries (from DB - legal record)
                   // V3_PROBE_QUESTION (assistant) - NOW RENDERS FROM TRANSCRIPT
-                  if (entry.role === 'assistant' && getMessageTypeSOT(entry) === 'V3_PROBE_QUESTION') {
+                  if (entry.role === 'assistant' && getMessageTypeSOT_SAFE(entry) === 'V3_PROBE_QUESTION') {
                    // STEP 2: Sanitize transcript V3 probe question text
                    const safeTranscriptProbeQ = sanitizeCandidateFacingText(entry.text, 'TRANSCRIPT_V3_PROBE_Q');
 
@@ -20676,7 +20712,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                   }
 
                   // V3_PROBE_ANSWER (user) - CRITICAL: Must always render
-                  if (entry.role === 'user' && getMessageTypeSOT(entry) === 'V3_PROBE_ANSWER') {
+                  if (entry.role === 'user' && getMessageTypeSOT_SAFE(entry) === 'V3_PROBE_ANSWER') {
                    // AUDIT: Log V3 probe answer render
                    console.log('[CQ_TRANSCRIPT][V3_PROBE_A_RENDERED]', {
                      stableKey: entry.stableKey || entry.id,
