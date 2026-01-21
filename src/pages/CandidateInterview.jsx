@@ -1550,25 +1550,25 @@ function CandidateInterviewInner() {
       v3ProbingContext_S,
       v3ProbingActive,
       v3ActivePromptText,
-      effectiveItemType,
+      effectiveItemType_SAFE,
       currentItem_S,
       v2ClarifierState,
       currentPrompt
     } = params;
     
     // OPENER OVERRIDE: v3_pack_opener must never use fallback priority
-    if (effectiveItemType === 'v3_pack_opener') {
+    if (effectiveItemType_SAFE === 'v3_pack_opener') {
       const openerText = (currentItem_S?.openerText || '').trim();
       if (openerText) {
         console.log('[ACTIVE_PROMPT_TEXT][OPENER_OVERRIDE]', {
-          effectiveItemType,
+          effectiveItemType_SAFE,
           hasOpenerText: true,
           openerPreview: openerText.slice(0, 80),
         });
         return openerText;
       }
       console.log('[ACTIVE_PROMPT_TEXT][OPENER_OVERRIDE]', {
-        effectiveItemType,
+        effectiveItemType_SAFE,
         hasOpenerText: false,
         reason: 'blank_openerText_using_safe_fallback',
       });
@@ -1597,7 +1597,7 @@ function CandidateInterviewInner() {
     }
     
     // Priority 3: V3 pack opener
-    if (effectiveItemType === 'v3_pack_opener' && currentItem_S) {
+    if (effectiveItemType_SAFE === 'v3_pack_opener' && currentItem_S) {
       const openerText = currentItem_S.openerText;
       const usingFallback = !openerText || openerText.trim() === '';
       return usingFallback 
@@ -3225,7 +3225,7 @@ function CandidateInterviewInner() {
     
     // 7. V3_PROCESSING - V3 answer submitted, engine_S deciding
     if (v3PromptPhase === "PROCESSING" || 
-        (v3ProbingActive && !hasActiveV3Prompt && bottomBarModeSOT === "V3_WAITING")) {
+        (v3ProbingActive && !hasActiveV3Prompt && bottomBarModeSOT_SAFE === "V3_WAITING")) {
       return {
         phase: "V3_PROCESSING",
         allowedActions: new Set([]),
@@ -3365,12 +3365,12 @@ function CandidateInterviewInner() {
       // ROUTING STATE
       currentItem_SType: currentItem_S?.type || null,
       currentItem_SId: currentItem_S?.id || null,
-      effectiveItemType: effectiveItemType,
-      activeUiItem_SKind: activeUiItem_S?.kind || null,
+      effectiveItemType: effectiveItemType_SAFE,
+      activeUiItem_SKind: activeUiItem_S_SAFE?.kind || null,
       
       // FOOTER CONTROLLER
-      bottomBarModeSOT: bottomBarModeSOT,
-      bottomBarRenderTypeSOT: bottomBarRenderTypeSOT,
+      bottomBarModeSOT: bottomBarModeSOT_SAFE,
+      bottomBarRenderTypeSOT: bottomBarRenderTypeSOT_SAFE,
       
       // V3 LIFECYCLE
       v3PromptPhase: v3PromptPhase,
@@ -3444,7 +3444,7 @@ function CandidateInterviewInner() {
     logOnce(snapshotKey, () => {
       // PART D: Skip active card measurement for MI gate (expected behavior)
       const isMiGateContext = (currentItem_S?.type === 'multi_instance_gate') || 
-                             (activeUiItem_S?.kind === 'MI_GATE');
+                             (activeUiItem_S_SAFE?.kind === 'MI_GATE');
       
       if (isMiGateContext) {
         console.log('[MI_GATE][SCROLL_STRATEGY]', {
@@ -4464,14 +4464,14 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   const bottomBarModeSOTSafe = VALID_MODES.includes(bottomBarModeSOT) ? bottomBarModeSOT : 'DEFAULT';
   
   if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-    cqLog('DEBUG', '[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT, bottomBarModeSOT, bottomBarModeSOTSafe });
+    cqLog('DEBUG', '[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT_SAFE, bottomBarModeSOT_SAFE, bottomBarModeSOTSafe });
   }
   
   // FIX #1: Diagnostic log for base yes/no routing (TDZ-SAFE: uses only early variables)
   if (bottomBarRenderTypeSOT === "yes_no") {
     console.log('[UI_CONTRACT][BASE_YESNO_BOTTOM_BAR_ROUTE]', {
-      activeCard_SKind: activeCard_S?.kind,
-      bottomBarRenderTypeSOT,
+      activeCard_SKind: activeCard_S_SAFE?.kind,
+      bottomBarRenderTypeSOT_SAFE,
       bottomBarModeSOTSafe,
       currentItem_SId: currentItem_S?.id,
       currentItem_SType: currentItem_S?.type,
@@ -4479,7 +4479,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     });
   }
   
-  // TDZ GUARD: Do not reference late-derived vars (effectiveItemType, etc.) above this line.
+  // TDZ GUARD: Do not reference late-derived vars (effectiveItemType_SAFE, etc.) above this line.
   
   // One-time warning if fallback triggered (dev-only, once per mount)
   const fallbackWarningLoggedRef = React.useRef(false);
@@ -4487,8 +4487,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     fallbackWarningLoggedRef.current = true;
     if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
       console.warn('[BOTTOM_BAR_MODE_SOT][FALLBACK]', { 
-        bottomBarRenderTypeSOT, 
-        bottomBarModeSOT, 
+        bottomBarRenderTypeSOT_SAFE, 
+        bottomBarModeSOT_SAFE, 
         bottomBarModeSOTSafe,
         reason: 'Invalid mode detected - using DEFAULT fallback'
       });
@@ -4504,7 +4504,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         promptTextPreview: v3ActivePromptText?.substring(0, 40) || null,
         hasV3PromptText,
         hasActiveV3Prompt,
-        activeUiItem_SKind: activeUiItem_S?.kind,
+        activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
         loopKeyPreview: v3ActiveProbeQuestionLoopKeyRef.current || null,
         promptIdPreview: lastV3PromptSnapshotRef.current?.promptId || null
       });
@@ -4607,7 +4607,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         clearTimeout(v3WaitingWatchdogRef.current);
       }
     };
-  }, [v3ProbingActive, bottomBarModeSOT, hasActiveV3Prompt, screenMode, v3ProbingContext_S, sessionId]);
+  }, [v3ProbingActive, bottomBarModeSOT_SAFE, hasActiveV3Prompt, screenMode, v3ProbingContext_S, sessionId]);
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
@@ -6078,7 +6078,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // Multi-instance gate V3 transcript reconciliation (repair missing probe Q+A)
   useEffect(() => {
     // Only trigger when entering MI_GATE (not on every multiInstanceGate change)
-    if (!multiInstanceGate || activeUiItem_S?.kind !== "MI_GATE") return;
+    if (!multiInstanceGate || activeUiItem_S_SAFE?.kind !== "MI_GATE") return;
     
     const urlSessionId = new URLSearchParams(window.location.search).get("session");
     if (!urlSessionId || urlSessionId !== sessionId) return;
@@ -7213,16 +7213,16 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
   const handleAnswer = useCallback(async (value) => {
     // GUARD: Block YES/NO during V3 prompt answering (prevents stray "Yes" bubble)
-    if (activeUiItem_S?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
+    if (activeUiItem_S_SAFE?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
       // Allow V3 probe answer submission (text input), block YES/NO only
       const isYesNoAnswer = value === 'Yes' || value === 'No';
       if (isYesNoAnswer) {
         console.log('[YESNO_BLOCKED_DURING_V3_PROMPT]', {
           clicked: value,
-          activeUiItem_SKind: activeUiItem_S?.kind,
+          activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
           v3PromptPhase,
           currentItem_SType: currentItem_S?.type,
-          bottomBarModeSOT,
+          bottomBarModeSOT_SAFE,
           reason: 'V3 prompt active - YES/NO submission blocked'
         });
         return; // Hard block - prevent stray "Yes"/"No" appends
@@ -7247,8 +7247,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     // MI_GATE BYPASS: Allow MI_GATE YES/NO even if isCommitting or other guards would block
     const isMiGateSubmit = currentItem_S?.type === 'multi_instance_gate' || 
-                           effectiveItemType === 'multi_instance_gate' ||
-                           activeUiItem_S?.kind === "MI_GATE";
+                           effectiveItemType_SAFE === 'multi_instance_gate' ||
+                           activeUiItem_S_SAFE?.kind === "MI_GATE";
     
     const submitKey = buildSubmitKey(currentItem_S, value);
     
@@ -7291,14 +7291,14 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     }
     
     // MI_GATE TRACE 2: handleAnswer entry audit (CORRECT LOCATION - YES/NO calls this directly)
-    if (currentItem_S?.type === 'multi_instance_gate' || effectiveItemType === 'multi_instance_gate') {
+    if (currentItem_S?.type === 'multi_instance_gate' || effectiveItemType_SAFE === 'multi_instance_gate') {
       console.log('[MI_GATE][TRACE][SUBMIT_CLICK]', {
-        effectiveItemType,
+        effectiveItemType_SAFE,
         currentItem_SType: currentItem_S?.type,
         currentItem_SId: currentItem_S?.id,
         packId: currentItem_S?.packId,
         instanceNumber: currentItem_S?.instanceNumber,
-        bottomBarModeSOT,
+        bottomBarModeSOT_SAFE,
         answer: value,
         source: 'handleAnswer_direct_call'
       });
@@ -9767,7 +9767,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           packId: gate.packId,
           instanceNumber: gate.instanceNumber,
           answerYesNo: answer,
-          activeUiItem_SKind: activeUiItem_S?.kind,
+          activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
           currentItem_SId: currentItem_S?.id,
           stableKey: `mi-gate:${gate.packId}:${gate.instanceNumber}`
         });
@@ -10656,7 +10656,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
   // V3 OPENER PERSISTENCE: DISABLED - Append on submit only (prevents duplicate during active state)
   useEffect(() => {
-    if (!activeUiItem_S || activeUiItem_S.kind !== "V3_OPENER" || !currentItem_S) return;
+    if (!activeUiItem_S || activeUiItem_S_SAFE.kind !== "V3_OPENER" || !currentItem_S) return;
 
     const stableKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
 
@@ -10670,7 +10670,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     // Effect is now a NO-OP for history persistence
     // History append happens in handleAnswer after submission
-  }, [activeUiItem_S?.kind, currentItem_S]);
+  }, [activeUiItem_S_SAFE?.kind, currentItem_S]);
 
   // V3 probing completion handler - ENFORCES required fields completion before MI_GATE
   const handleV3ProbingComplete = useCallback(async (result) => {
@@ -11140,7 +11140,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       textLen: answerText?.length || 0,
       hasText: !!answerText?.trim(),
       v3PromptPhase,
-      activeUiItem_SKind: activeUiItem_S?.kind
+      activeUiItem_SKind: activeUiItem_S_SAFE?.kind
     });
     
     // PART 3A: Block if no promptId
@@ -12819,10 +12819,10 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // Step 1: Compute currentItem_SType (MOVED to prevent TDZ)
   
   // Step 2: Compute footer controller (determines which UI block controls bottom bar)
-  const footerControllerLocal = activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK" ? "REQUIRED_ANCHOR_FALLBACK" :
-                                activeUiItem_S.kind === "V3_PROMPT" ? "V3_PROMPT" :
-                                activeUiItem_S.kind === "V3_OPENER" ? "V3_OPENER" :
-                                activeUiItem_S.kind === "MI_GATE" ? "MI_GATE" :
+  const footerControllerLocal = activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" ? "REQUIRED_ANCHOR_FALLBACK" :
+                                activeUiItem_S_SAFE.kind === "V3_PROMPT" ? "V3_PROMPT" :
+                                activeUiItem_S_SAFE.kind === "V3_OPENER" ? "V3_OPENER" :
+                                activeUiItem_S_SAFE.kind === "MI_GATE" ? "MI_GATE" :
                                 "DEFAULT";
   
   // PHASE TRANSITION TRACKER: Record phase changes (debug-only, non-PII observability)
@@ -12856,9 +12856,9 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       phase: currentPhase,
       reason: phaseChanged ? 'PHASE_CHANGE' : 'ITEM_TYPE_CHANGE',
       currentItem_SType: currentItem_STypeNow,
-      activeUiItem_SKind: activeUiItem_S?.kind || null,
-      effectiveItemType: effectiveItemType,
-      bottomBarModeSOT: bottomBarModeSOT,
+      activeUiItem_SKind: activeUiItem_S_SAFE?.kind || null,
+      effectiveItemType: effectiveItemType_SAFE,
+      bottomBarModeSOT: bottomBarModeSOT_SAFE,
       v3PromptPhase: v3PromptPhase,
       v3ProbingActive: v3ProbingActive,
       requiredAnchorFallbackActive: requiredAnchorFallbackActive,
@@ -12879,8 +12879,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     console.log('[PHASE_HISTORY][PUSH]', entry);
   }, [
     currentItem_S,
-    effectiveItemType,
-    bottomBarModeSOT,
+    effectiveItemType_SAFE,
+    bottomBarModeSOT_SAFE,
     v3PromptPhase,
     v3ProbingActive,
     requiredAnchorFallbackActive,
@@ -13193,7 +13193,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // ============================================================================
   // CURRENT PROMPT COMPUTATION - Moved here after all dependencies (TDZ fix)
   // ============================================================================
-  // CRITICAL: Must be after effectiveItemType, bottomBarModeSOT, activeUiItem_S
+  // CRITICAL: Must be after effectiveItemType_SAFE, bottomBarModeSOT_SAFE, activeUiItem_S
   let __cqTdzError = null;
   let currentPrompt = null;
 
@@ -13216,7 +13216,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       v3ProbingContext_S,
       v3ProbingActive,
       v3ActivePromptText,
-      effectiveItemType,
+      effectiveItemType_SAFE,
       currentItem_S,
       v2ClarifierState,
       currentPrompt
@@ -13240,10 +13240,10 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   const spacerLogKey = `${bottomBarModeSOT}:${footerShellHeightPx}:${bottomSpacerPx}`;
   logOnce(spacerLogKey, () => {
     console.log('[LAYOUT][BOTTOM_SPACER_APPLIED]', {
-      mode: bottomBarModeSOT,
+      mode: bottomBarModeSOT_SAFE,
       footerShellHeightPx,
       bottomSpacerPx,
-      shouldRenderFooter,
+      shouldRenderFooter_SAFE,
       appliedTo: 'real_dom_spacer_element',
       strategy: 'stable_shell_measurement',
       minSpacerPx: 80
@@ -13262,7 +13262,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         
         if (!spacer) {
           console.error('[UI_CONTRACT][BOTTOM_SPACER_MISSING]', {
-            mode: bottomBarModeSOT,
+            mode: bottomBarModeSOT_SAFE,
             expectedHeightPx: bottomSpacerPx,
             reason: 'Bottom spacer element ref not attached'
           });
@@ -13278,7 +13278,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         
         if (!heightMatches) {
           console.warn('[UI_CONTRACT][BOTTOM_SPACER_HEIGHT_MISMATCH]', {
-            mode: bottomBarModeSOT,
+            mode: bottomBarModeSOT_SAFE,
             expectedHeightPx,
             actualHeightPx: spacerHeightPx,
             delta: spacerHeightPx - expectedHeightPx
@@ -13292,7 +13292,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         
         if (!isScrollContainer) {
           console.error('[UI_CONTRACT][SCROLL_CONTAINER_INVALID]', {
-            mode: bottomBarModeSOT,
+            mode: bottomBarModeSOT_SAFE,
             overflowY,
             reason: 'Container does not have overflow-y auto/scroll'
           });
@@ -13306,7 +13306,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // WELCOME-specific log to confirm unified path
   if (screenMode === 'WELCOME') {
     console.log('[WELCOME][FOOTER_PADDING_SOT]', {
-      bottomBarModeSOT,
+      bottomBarModeSOT_SAFE,
       computedPaddingPx: dynamicBottomPaddingPx,
       usesUnifiedLogic: true
     });
@@ -13354,7 +13354,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     }
     
     prevBottomBarModeRef.current = currentMode;
-  }, [bottomBarModeSOT, bottomSpacerPx]);
+  }, [bottomBarModeSOT_SAFE, bottomSpacerPx]);
   
   // FOOTER CLEARANCE ASSERTION: DISABLED in 3-row shell mode (footer in normal flow, no overlap possible)
   if (!IS_3ROW_SHELL && hasActiveCard && typeof window !== 'undefined') {
@@ -13378,7 +13378,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         }
 
         // YES_NO ACTIVE CARD VERIFICATION: Log active question stableKey for diagnostics
-        if (screenMode === 'QUESTION' && bottomBarModeSOT === 'YES_NO' && effectiveItemType === 'question') {
+        if (screenMode === 'QUESTION' && bottomBarModeSOT === 'YES_NO' && effectiveItemType_SAFE === 'question') {
           const activeQuestionStableKey = currentItem_S?.id ? `question-shown:${currentItem_S.id}` : null;
           
           if (activeQuestionStableKey) {
@@ -13390,7 +13390,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
               activeQuestionStableKey,
               foundInDomCount: foundInDom,
               screenMode,
-              bottomBarModeSOT,
+              bottomBarModeSOT_SAFE,
               currentItem_SId: currentItem_S?.id
             });
             
@@ -13400,7 +13400,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
               console.warn('[UI_CONTRACT][YESNO_ACTIVE_CARD_COUNT_ANOMALY]', {
                 count: totalActiveCards,
                 screenMode,
-                bottomBarModeSOT,
+                bottomBarModeSOT_SAFE,
                 expected: 1,
                 reason: totalActiveCards === 0 ? 'no_active_card_markers' : 'multiple_active_card_markers'
               });
@@ -13408,8 +13408,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           } else {
             console.warn('[UI_CONTRACT][ACTIVE_CARD_KEY_MISSING]', {
               screenMode,
-              bottomBarModeSOT,
-              effectiveItemType,
+              bottomBarModeSOT_SAFE,
+              effectiveItemType_SAFE,
               currentItem_SId: currentItem_S?.id,
               action: 'NO_ACTIVE_CARD_THIS_FRAME'
             });
@@ -13420,13 +13420,13 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         // WELCOME mode has no active interview cards in scroll history (only welcome message)
         const isWelcomeCta = screenMode === 'WELCOME' && 
                             bottomBarModeSOT === 'CTA' && 
-                            activeUiItem_S?.kind === 'DEFAULT';
+                            activeUiItem_S_SAFE?.kind === 'DEFAULT';
         
         if (isWelcomeCta) {
           console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SKIP]', {
-            mode: bottomBarModeSOT,
+            mode: bottomBarModeSOT_SAFE,
             screenMode,
-            activeUiItem_SKind: activeUiItem_S?.kind,
+            activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
             reason: 'WELCOME_CTA_NO_SCROLL_ACTIVE_CARD - welcome screen has no active interview cards to protect',
             action: 'SKIP'
           });
@@ -13435,7 +13435,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           
           console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', {
             status: 'SKIP',
-            mode: bottomBarModeSOT,
+            mode: bottomBarModeSOT_SAFE,
             screenMode,
             reason: 'WELCOME_CTA_MODE'
           });
@@ -13448,7 +13448,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           const spacer = scrollContainer.querySelector('[data-cq-footer-spacer="true"]');
           if (!spacer) {
             console.error('[UI_CONTRACT][FOOTER_SPACER_MISSING]', {
-              mode: bottomBarModeSOT,
+              mode: bottomBarModeSOT_SAFE,
               expectedHeightPx: dynamicBottomPaddingPx,
               reason: 'Footer spacer element not found - clearance may fail'
             });
@@ -13470,9 +13470,9 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           
           if (!isQuestionMode) {
             console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SKIP]', {
-              mode: bottomBarModeSOT,
+              mode: bottomBarModeSOT_SAFE,
               screenMode,
-              activeUiItem_SKind: activeUiItem_S?.kind,
+              activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
               hasActiveCard,
               hasRealActiveCardInDom,
               reason: 'HAS_ACTIVE_CARD_TRUE_BUT_NONE_IN_DOM - non-question mode',
@@ -13483,7 +13483,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
             
             console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', {
               status: 'SKIP',
-              mode: bottomBarModeSOT,
+              mode: bottomBarModeSOT_SAFE,
               screenMode,
               reason: 'DERIVED_FLAG_DOM_MISMATCH_NON_QUESTION_MODE'
             });
@@ -13498,12 +13498,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           
           if (activeCard_SsInContainer.length === 0) {
             // Dedupe: Only log once per unique mode+kind combo
-            const errorKey = `${bottomBarModeSOT}:${activeUiItem_S?.kind}`;
+            const errorKey = `${bottomBarModeSOT}:${activeUiItem_S_SAFE?.kind}`;
             if (lastClearanceErrorKeyRef.current !== errorKey) {
               lastClearanceErrorKeyRef.current = errorKey;
               console.warn('[UI_CONTRACT][ACTIVE_CARD_NOT_IN_SCROLL_CONTAINER]', {
-                mode: bottomBarModeSOT,
-                activeUiItem_SKind: activeUiItem_S?.kind,
+                mode: bottomBarModeSOT_SAFE,
+                activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
                 hasActiveCard,
                 screenMode,
                 reason: 'Active card not found in DOM yet (timing) or mounted outside scroll container',
@@ -13575,7 +13575,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
         if (!lastItem) {
           console.error('[UI_CONTRACT][FOOTER_CLEARANCE_UNMEASURABLE]', {
-            mode: bottomBarModeSOT,
+            mode: bottomBarModeSOT_SAFE,
             reason: 'no_last_item_before_spacer',
             allItemsCount: allItems.length
           });
@@ -13655,7 +13655,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         }
 
         console.log('[UI_CONTRACT][FOOTER_CLEARANCE_ASSERT]', {
-          mode: bottomBarModeSOT,
+          mode: bottomBarModeSOT_SAFE,
           footerMeasuredHeightPx,
           safeFooterClearancePx: SAFE_FOOTER_CLEARANCE_PX,
           spacerHeightPx: dynamicBottomPaddingPx,
@@ -13671,7 +13671,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         const status = lastItemBottomOverlapPx <= 2 ? 'PASS' : 'FAIL';
         const statusPayload = {
           status,
-          mode: bottomBarModeSOT,
+          mode: bottomBarModeSOT_SAFE,
           overlapPx: Math.round(lastItemBottomOverlapPx),
           spacerHeightPx: dynamicBottomPaddingPx,
           measurementCorrected
@@ -13691,7 +13691,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
             if (measurementCorrected) {
               console.warn('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS_FAIL_CORRECTED]', {
                 correctedOverlapPx: Math.round(lastItemBottomOverlapPx),
-                mode: bottomBarModeSOT,
+                mode: bottomBarModeSOT_SAFE,
                 reason: 'overlap_detected_after_target_correction',
                 originalOverlapPx: Math.round(originalOverlapPx),
                 correctionImproved: lastItemBottomOverlapPx < originalOverlapPx
@@ -13710,7 +13710,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         
         if (lastItemBottomOverlapPx > 0) {
           console.error('[UI_CONTRACT][FOOTER_OVERLAP_DETECTED]', {
-            mode: bottomBarModeSOT,
+            mode: bottomBarModeSOT_SAFE,
             overlapPx: Math.round(lastItemBottomOverlapPx),
             footerMeasuredHeightPx,
             spacerHeightPx: dynamicBottomPaddingPx,
@@ -13724,7 +13724,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         const roundedOverlap = Math.round(lastItemBottomOverlapPx);
         if (roundedOverlap > maxOverlapSeenRef.current.maxOverlapPx) {
           console.error('[UI_CONTRACT][FOOTER_OVERLAP_REGRESSION]', {
-            mode: bottomBarModeSOT,
+            mode: bottomBarModeSOT_SAFE,
             overlapPx: roundedOverlap,
             previousMaxOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
             maxOverlapPx: roundedOverlap,
@@ -13748,8 +13748,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     console.log('[CTA][SOT_PADDING]', {
       footerMeasuredHeightPx,
       dynamicBottomPaddingPx,
-      shouldRenderFooter,
-      effectiveItemType,
+      shouldRenderFooter_SAFE,
+      effectiveItemType_SAFE,
       bottomBarModeSOT
     });
   }
@@ -13778,15 +13778,15 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           footerMeasuredHeightPx: measured,
           appliedPaddingPx: measured + 8,
           delta,
-          bottomBarModeSOT,
-          shouldRenderFooter,
+          bottomBarModeSOT_SAFE,
+          shouldRenderFooter_SAFE,
           effectiveItemType
         });
         
         return measured;
       });
     });
-  }, [bottomBarModeSOT, shouldRenderFooter, effectiveItemType]);
+  }, [bottomBarModeSOT_SAFE, shouldRenderFooter_SAFE, effectiveItemType]);
 
   // Re-anchor bottom on footer height changes when auto-scroll is enabled
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
@@ -13935,8 +13935,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       });
       
       console.log('[SCROLL][GRAVITY_APPLIED]', {
-        bottomBarModeSOT,
-        effectiveItemType,
+        bottomBarModeSOT_SAFE,
+        effectiveItemType_SAFE,
         distanceFromBottom: Math.round(distanceFromBottom),
         thresholdPx: NEAR_BOTTOM_THRESHOLD_PX,
         lenDelta,
@@ -14011,7 +14011,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
             stableKey: targetStableKey,
             didScroll: false,
             reason: 'already_visible',
-            bottomBarModeSOT,
+            bottomBarModeSOT_SAFE,
             effectiveItemType
           });
         }
@@ -14028,8 +14028,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         console.log('[SCROLL][ANCHOR_LAST_V3_ANSWER]', {
           stableKey: targetStableKey,
           didScroll,
-          bottomBarModeSOT,
-          effectiveItemType,
+          bottomBarModeSOT_SAFE,
+          effectiveItemType_SAFE,
           scrollTopBefore: Math.round(scrollTopBefore),
           scrollTopAfter: Math.round(scrollTopAfter),
           elTop,
@@ -14040,7 +14040,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       
       recentAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
     });
-  }, [transcriptSOT_S.length, bottomBarModeSOT, effectiveItemType, dynamicBottomPaddingPx, cqDiagEnabled]);
+  }, [transcriptSOT_S.length, bottomBarModeSOT_SAFE, effectiveItemType_SAFE, dynamicBottomPaddingPx, cqDiagEnabled]);
   
   // ANCHOR V3 PROBE QUESTION: Keep just-appended question visible (ChatGPT-style)
   React.useLayoutEffect(() => {
@@ -14105,7 +14105,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           didFind: true,
           didScroll,
           overflowPx,
-          bottomBarModeSOT,
+          bottomBarModeSOT_SAFE,
           scrollTopBefore: Math.round(scrollTopBefore),
           scrollTopAfter: Math.round(scrollTopAfter),
           footerSafePx
@@ -14114,14 +14114,14 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       
       v3ScrollAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
     });
-  }, [transcriptSOT_S.length, bottomBarModeSOT, dynamicBottomPaddingPx, cqDiagEnabled]);
+  }, [transcriptSOT_S.length, bottomBarModeSOT_SAFE, dynamicBottomPaddingPx, cqDiagEnabled]);
   
   // TDZ GUARD: Track previous render list length for append detection (using ref, not direct variable)
   const prevFinalListLenForScrollRef = useRef(0);
   
   // PART B: ACTIVE ITEM CHANGED - Call ensureActiveVisibleAfterRender when active item changes
   React.useLayoutEffect(() => {
-    if (!shouldRenderFooter) return;
+    if (!shouldRenderFooter_SAFE) return;
     
     // Build active key from currentItem_S or V3 context
     const activeKey = activeCard_SKeySOT || currentItem_S?.id || `${currentItem_S?.packId}:${currentItem_S?.instanceNumber}`;
@@ -14129,16 +14129,16 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     // REGRESSION-PROOF: Use safe wrapper (validates mode before use)
     const isYesNoModeFresh = bottomBarModeSOTSafe === 'YES_NO';
-    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
+    const isMiGateFresh = effectiveItemType_SAFE === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender("ACTIVE_ITEM_CHANGED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [activeCard_SKeySOT, currentItem_S?.id, currentItem_S?.type, shouldRenderFooter, ensureActiveVisibleAfterRender, activeKindSOT, bottomBarModeSOTSafe, effectiveItemType, activeUiItem_S]);
+  }, [activeCard_SKeySOT, currentItem_S?.id, currentItem_S?.type, shouldRenderFooter_SAFE, ensureActiveVisibleAfterRender, activeKindSOT, bottomBarModeSOTSafe, effectiveItemType_SAFE, activeUiItem_S]);
   
   // PART B: RENDER LIST APPENDED - TDZ-safe using ref (no direct finalTranscriptList_S reference)
   React.useLayoutEffect(() => {
-    if (!shouldRenderFooter) return;
+    if (!shouldRenderFooter_SAFE) return;
     
     // TDZ-SAFE: Use ref that's synced AFTER finalTranscriptList_S is computed
     const currentLen = finalListLenRef.current;
@@ -14151,12 +14151,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     // REGRESSION-PROOF: Use safe wrapper (validates mode before use)
     const isYesNoModeFresh = bottomBarModeSOTSafe === 'YES_NO';
-    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
+    const isMiGateFresh = effectiveItemType_SAFE === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender("RENDER_LIST_APPENDED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
     });
-  }, [shouldRenderFooter, ensureActiveVisibleAfterRender, activeCard_SKeySOT, activeKindSOT, bottomBarModeSOTSafe, effectiveItemType, activeUiItem_S]);
+  }, [shouldRenderFooter_SAFE, ensureActiveVisibleAfterRender, activeCard_SKeySOT, activeKindSOT, bottomBarModeSOTSafe, effectiveItemType_SAFE, activeUiItem_S]);
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   React.useLayoutEffect(() => {
@@ -14166,7 +14166,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     }
     
     // Only run for base questions with footer visible
-    if (effectiveItemType !== 'question' || !shouldRenderFooter) return;
+    if (effectiveItemType !== 'question' || !shouldRenderFooter_SAFE) return;
     if (!currentItem_S?.id || currentItem_S.type !== 'question') return;
     
     // Dedupe: Only run once per question
@@ -14206,7 +14206,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           
           // PART B: MI gate uses bottom anchor strategy (skip card measurement)
           const isMiGateActive = currentItem_S?.type === 'multi_instance_gate' || 
-                                activeUiItem_S?.kind === 'MI_GATE';
+                                activeUiItem_S_SAFE?.kind === 'MI_GATE';
           
           if (isMiGateActive) {
             // Bottom-anchor strategy: use shared helper
@@ -14258,7 +14258,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         });
       });
     });
-  }, [effectiveItemType, shouldRenderFooter, currentItem_S?.id, currentItem_S?.type, footerMeasuredHeightPx, dynamicBottomPaddingPx]);
+  }, [effectiveItemType_SAFE, shouldRenderFooter_SAFE, currentItem_S?.id, currentItem_S?.type, footerMeasuredHeightPx, dynamicBottomPaddingPx]);
   
   // FOOTER PADDING COMPENSATION: Prevent jump when footer height changes
   React.useLayoutEffect(() => {
@@ -14377,8 +14377,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     }
   }, [
     bottomAnchorLenRef.current,
-    activeUiItem_S?.kind,
-    activeCard_S?.stableKey,
+    activeUiItem_S_SAFE?.kind,
+    activeCard_S_SAFE?.stableKey,
     scrollToBottom
   ]);
   
@@ -14434,7 +14434,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           didScroll = true;
           console.log('[SCROLL][GRAVITY_FOLLOW_APPLIED]', {
             activeCard_SKeySOT,
-            mode: bottomBarModeSOT,
+            mode: bottomBarModeSOT_SAFE,
             screenMode,
             strategy: 'ACTIVE_CARD_SCROLL_INTO_VIEW',
             distanceFromBottom: scrollContainer.scrollHeight - (scrollTopBefore + scrollContainer.clientHeight)
@@ -14446,7 +14446,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           didScroll = true;
           console.log('[SCROLL][GRAVITY_FOLLOW_APPLIED]', {
             activeCard_SKeySOT,
-            mode: bottomBarModeSOT,
+            mode: bottomBarModeSOT_SAFE,
             screenMode,
             strategy: 'BOTTOM_ANCHOR_FALLBACK',
             distanceFromBottom: scrollContainer.scrollHeight - (scrollTopBefore + scrollContainer.clientHeight)
@@ -14512,7 +14512,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   }, [
     activeCard_SKeySOT,
     transcriptSOT_S.length,
-    bottomBarModeSOT,
+    bottomBarModeSOT_SAFE,
     screenMode,
     isUserTyping,
     hasActiveCardSOT,
@@ -14521,7 +14521,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   
   // FOOTER OVERLAP CLAMP: Ensure active card never behind footer (unconditional)
   React.useLayoutEffect(() => {
-    if (!shouldRenderFooter || !hasActiveCardSOT) return;
+    if (!shouldRenderFooter_SAFE || !hasActiveCardSOT) return;
     
     requestAnimationFrame(() => {
       const scroller = scrollOwnerRef.current || historyRef.current;
@@ -14547,7 +14547,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         });
       }
     });
-  }, [shouldRenderFooter, hasActiveCardSOT, activeCard_SKeySOT, dynamicFooterHeightPx]);
+  }, [shouldRenderFooter_SAFE, hasActiveCardSOT, activeCard_SKeySOT, dynamicFooterHeightPx]);
   
   // ACTIVE CARD OVERLAP NUDGE: Ensure active card never hides behind footer when footer changes
   React.useLayoutEffect(() => {
@@ -14556,7 +14556,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       return;
     }
     
-    if (!shouldRenderFooter) return; // No footer, no nudge needed
+    if (!shouldRenderFooter_SAFE) return; // No footer, no nudge needed
     if (!hasActiveCard) return; // No active card, nothing to nudge
     
     const scrollContainer = historyRef.current;
@@ -14610,7 +14610,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           overlapPx: Math.round(overlapPx),
           footerMeasuredHeightPx,
           footerDomHeightPx: Math.round(footerRect.height),
-          bottomBarModeSOT,
+          bottomBarModeSOT_SAFE,
           stableKey: activeCard_SEl.getAttribute('data-stablekey'),
           scrollTopBefore: Math.round(scrollTopBefore),
           scrollTopAfter: Math.round(scrollTopAfter),
@@ -14627,7 +14627,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
           // PART B: MI gate uses bottom anchor strategy (skip card measurement)
           const isMiGateActiveOverlap = currentItem_S?.type === 'multi_instance_gate' || 
-                                       activeUiItem_S?.kind === 'MI_GATE';
+                                       activeUiItem_S_SAFE?.kind === 'MI_GATE';
           
           if (isMiGateActiveOverlap) {
             // Bottom-anchor strategy for MI gate
@@ -14661,7 +14661,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
             });
 
             // PART C: Second corrective nudge (bypass typing lock) - MI gate uses shared helper
-            const isMiGateRetry = currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
+            const isMiGateRetry = currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
             
             if ((!isUserTyping || forceAutoScrollOnceRef.current) && scrollContainer && !isMiGateRetry) {
               scrollContainer.scrollTop += finalOverlapPx + 16;
@@ -14694,11 +14694,11 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       }
     });
   }, [
-    shouldRenderFooter,
+    shouldRenderFooter_SAFE,
     hasActiveCard,
     footerMeasuredHeightPx,
-    activeCard_S?.stableKey,
-    bottomBarModeSOT,
+    activeCard_S_SAFE?.stableKey,
+    bottomBarModeSOT_SAFE,
     activeCard_SKeySOT,
     dynamicBottomPaddingPx
   ]);
@@ -14735,10 +14735,10 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     }
     
     // GUARD B: Only run in TEXT_INPUT mode with footer rendered
-    if (bottomBarModeSOT !== 'TEXT_INPUT' || !shouldRenderFooter) {
+    if (bottomBarModeSOT !== 'TEXT_INPUT' || !shouldRenderFooter_SAFE) {
       console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
         reason: 'wrong_mode',
-        bottomBarModeSOT,
+        bottomBarModeSOT_SAFE,
         shouldRenderFooter
       });
       return;
@@ -14792,7 +14792,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     requestAnimationFrame(() => {
       scrollIntentRef.current = false;
     });
-  }, [v3ProbingActive, v3ActivePromptText, isUserTyping, bottomBarModeSOT, shouldRenderFooter]);
+  }, [v3ProbingActive, v3ActivePromptText, isUserTyping, bottomBarModeSOT_SAFE, shouldRenderFooter]);
 
   // AUTO-GROWING INPUT: Auto-resize textarea based on content (ChatGPT-style)
   useEffect(() => {
@@ -14804,7 +14804,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       console.log('[FOOTER][REF_CHECK]', {
         hasTextareaRef: !!footerTextareaRef.current,
         tagName: footerTextareaRef.current?.tagName,
-        bottomBarModeSOT,
+        bottomBarModeSOT_SAFE,
         effectiveItemType
       });
     }
@@ -14928,7 +14928,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // HARD-DISABLED: v3ProbeEntriesForGate always empty (no injection)
   const v3ProbeEntriesForGate = [];
   
-  if (activeCard_S?.kind === "multi_instance_gate") {
+  if (activeCard_S_SAFE?.kind === "multi_instance_gate") {
     const activeGateId = currentItem_S?.id;
     const activeStableKeyBase = `mi-gate:${currentItem_S.packId}:${currentItem_S.instanceNumber}`;
     
@@ -14981,7 +14981,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   let orderedStream = baseRenderStream;
   let miGateReorderCount = 0;
   
-  if (activeCard_S?.kind === "multi_instance_gate") {
+  if (activeCard_S_SAFE?.kind === "multi_instance_gate") {
     const miGateIndex = baseRenderStream.findIndex(e => e.__activeCard_S && e.kind === "multi_instance_gate");
     
     if (miGateIndex !== -1 && miGateIndex < baseRenderStream.length - 1) {
@@ -15076,7 +15076,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   }
   
   // FIX D: SAFETY NET - Add missing V3 probe answer to render if not present
-  if (currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S?.kind === "MI_GATE") {
+  if (currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === "MI_GATE") {
   const packId = currentItem_S?.packId;
   const instanceNumber = currentItem_S?.instanceNumber || 1;
 
@@ -15170,7 +15170,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       transcriptLen: transcriptRenderable.length,
       v3UiLen: v3UiRenderable.length,
       hasActiveCard: !!activeCard_S,
-      activeCard_SKind: activeCard_S?.kind || null,
+      activeCard_SKind: activeCard_S_SAFE?.kind || null,
       isFrozen: isUserTyping && !!frozenRenderStreamRef.current,
       tail: renderableTranscriptStream.slice(-6).map(x => ({
         type: x.messageType || x.type || x.kind,
@@ -15182,20 +15182,20 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   }
   
   // PART E: Assert-style log - V3_PROMPT and MI_GATE mutual exclusion at tail
-  if (activeUiItem_S.kind === "V3_PROMPT" && activeCard_S?.kind === "multi_instance_gate") {
+  if (activeUiItem_S_SAFE.kind === "V3_PROMPT" && activeCard_S_SAFE?.kind === "multi_instance_gate") {
     console.error("[STREAM][VIOLATION]", {
       reason: "activeKind=V3_PROMPT but activeCard_S is MI_GATE",
-      activeUiItem_SKind: activeUiItem_S.kind,
-      activeCard_SKind: activeCard_S.kind,
+      activeUiItem_SKind: activeUiItem_S_SAFE.kind,
+      activeCard_SKind: activeCard_S_SAFE.kind,
       tail: finalRenderStream.slice(-3).map(x => ({ kind: x.kind, key: x.stableKey }))
     });
   }
   
-  if (activeUiItem_S.kind === "MI_GATE" && activeCard_S?.kind === "v3_probe_q") {
+  if (activeUiItem_S_SAFE.kind === "MI_GATE" && activeCard_S_SAFE?.kind === "v3_probe_q") {
     console.error("[STREAM][VIOLATION]", {
       reason: "activeKind=MI_GATE but activeCard_S is V3_PROBE",
-      activeUiItem_SKind: activeUiItem_S.kind,
-      activeCard_SKind: activeCard_S.kind,
+      activeUiItem_SKind: activeUiItem_S_SAFE.kind,
+      activeCard_SKind: activeCard_S_SAFE.kind,
       tail: finalRenderStream.slice(-3).map(x => ({ kind: x.kind, key: x.stableKey }))
     });
   }
@@ -15245,7 +15245,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   if (activePromptText) {
     logOnce(`active_prompt_sot_${sessionId}`, () => {
       console.log('[FORENSIC][ACTIVE_PROMPT_TEXT_SOT_OK]', {
-        activeUiItem_SKind: activeUiItem_S?.kind,
+        activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
         preview: activePromptText?.slice(0, 60) || null,
         isResolved: !activePromptText.includes('Please provide:'),
         usesResolver: requiredAnchorFallbackActive
@@ -15264,7 +15264,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // ============================================================================
   // BOTTOM BAR DERIVED STATE BLOCK - All derived variables in strict order
   // ============================================================================
-  // NOTE: bottomBarModeSOT, effectiveItemType, shouldRenderFooter, needsPrompt, hasPrompt already declared in consolidated block above
+  // NOTE: bottomBarModeSOT_SAFE, effectiveItemType_SAFE, shouldRenderFooter_SAFE, needsPrompt, hasPrompt already declared in consolidated block above
   
   cqTdzMark('AFTER_BOTTOM_BAR_DERIVED_BLOCK_NOTE');
   
@@ -15273,7 +15273,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   useLayoutEffect(() => {
     // TDZ-SAFE: Use bottomBarModeSOTSafe (early, always available)
     const isYesNoModeFresh = bottomBarModeSOTSafe === 'YES_NO';
-    const isMiGateFresh = currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
+    const isMiGateFresh = currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
     
     if (!isYesNoModeFresh) return;
     
@@ -15294,11 +15294,11 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     : 'none';
   
   // MI_GATE TRACE 1: Mode derivation audit
-  if (effectiveItemType === 'multi_instance_gate' || currentItem_SType === 'multi_instance_gate' || isMultiInstanceGate) {
+  if (effectiveItemType_SAFE === 'multi_instance_gate' || currentItem_SType === 'multi_instance_gate' || isMultiInstanceGate) {
     console.log('[MI_GATE][TRACE][MODE]', {
-      effectiveItemType,
+      effectiveItemType_SAFE,
       currentItem_SType,
-      bottomBarModeSOT,
+      bottomBarModeSOT_SAFE,
       isMultiInstanceGate,
       currentItem_SId: currentItem_S?.id,
       packId: currentItem_S?.packId,
@@ -15435,9 +15435,9 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   
   // Log final mode selection (minimal log - full snapshot already in unified block)
   console.log('[BOTTOM_BAR_MODE]', { 
-    activeUiItem_SKind: activeUiItem_S.kind,
-    bottomBarModeSOT,
-    effectiveItemType,
+    activeUiItem_SKind: activeUiItem_S_SAFE.kind,
+    bottomBarModeSOT_SAFE,
+    effectiveItemType_SAFE,
     screenMode
   });
   
@@ -15455,8 +15455,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         currentItem_SType: currentItem_S?.type,
         questionId: currentItem_S?.id,
         questionCode: engine_S?.QById?.[currentItem_S?.id]?.question_id,
-        bottomBarRenderTypeSOT,
-        bottomBarModeSOT,
+        bottomBarRenderTypeSOT_SAFE,
+        bottomBarModeSOT_SAFE,
         renderer: 'YesNoControls_modern_neutral',
         legacyBlocked: true,
         reason: 'Base YES/NO question using modern neutral footer buttons'
@@ -15475,10 +15475,10 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         packId,
         isV3Pack,
         engine_SVersion: packConfig?.engine_SVersion || 'unknown',
-        activeUiItem_SKind: activeUiItem_S?.kind || 'DEFAULT',
+        activeUiItem_SKind: activeUiItem_S_SAFE?.kind || 'DEFAULT',
         currentItem_SType: currentItem_S?.type,
         v3ProbingActive,
-        bottomBarModeSOT,
+        bottomBarModeSOT_SAFE,
         reason: isV3Pack 
           ? 'V3 pack - conversational probing only (no deterministic follow-ups)' 
           : 'Pack version unknown or V2'
@@ -15492,14 +15492,14 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       effectiveItemType !== lastEffectiveItemTypeRef.current) {
     
     console.log('[FRAME_TRACE][FOOTER_CONTROLLER]', {
-      activeUiItem_SKind: activeUiItem_S.kind,
+      activeUiItem_SKind: activeUiItem_S_SAFE.kind,
       footerController: footerControllerLocal,
       hasActiveV3Prompt,
       v3PromptPreview: v3ActivePromptText?.substring(0, 40) || null,
       currentItem_SType,
-      effectiveItemType,
-      bottomBarModeSOT,
-      bottomBarRenderTypeSOT,
+      effectiveItemType_SAFE,
+      bottomBarModeSOT_SAFE,
+      bottomBarRenderTypeSOT_SAFE,
       packId: currentItem_S?.packId || v3ProbingContext_S?.packId,
       instanceNumber: currentItem_S?.instanceNumber || v3ProbingContext_S?.instanceNumber,
       requiredAnchorFallbackActive,
@@ -15528,7 +15528,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         questionId: currentItem_S?.id,
         questionCode: engine_S?.QById?.[currentItem_S?.id]?.question_id || 'N/A',
         currentItem_SType: currentItem_S?.type,
-        bottomBarModeSOT,
+        bottomBarModeSOT_SAFE,
         note: 'Modern neutral YesNoControls - no green/red legacy buttons'
       });
       
@@ -15649,15 +15649,15 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   
   // UI CONTRACT: CTA mode is ONLY valid during WELCOME screen
   // Log warning but do not mutate const (use bottomBarModeSOTSafe fallback instead)
-  if (bottomBarModeSOT === "CTA" && screenMode !== "WELCOME") {
+  if (bottomBarModeSOT_SAFE === "CTA" && screenMode !== "WELCOME") {
     if (effectiveItemType === 'section_transition') {
-      console.log("[UI_CONTRACT] CTA_SECTION_TRANSITION_ALLOWED", { effectiveItemType, screenMode });
+      console.log("[UI_CONTRACT] CTA_SECTION_TRANSITION_ALLOWED", { effectiveItemType_SAFE, screenMode });
       // Allow CTA specifically for section transitions
     } else {
       console.warn("[UI_CONTRACT] CTA_OUTSIDE_WELCOME_BLOCKED", { 
         screenMode, 
         currentItem_SType, 
-        effectiveItemType, 
+        effectiveItemType_SAFE, 
         v3ProbingActive,
         note: 'Invalid state - bottomBarModeSOTSafe will use DEFAULT fallback'
       });
@@ -15668,13 +15668,13 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // Legacy flags (kept for compatibility)
   const isV2PackField = effectiveItemType === "v2_pack_field";
   const isV3PackOpener = effectiveItemType === "v3_pack_opener";
-  const showTextInput = bottomBarModeSOT === "TEXT_INPUT";
+  const showTextInput = bottomBarModeSOT_SAFE === "TEXT_INPUT";
   
   // TASK A: Single MI_GATE active boolean (UI contract sentinel)
   const isMiGateActive =
-    activeUiItem_S?.kind === "MI_GATE" &&
+    activeUiItem_S_SAFE?.kind === "MI_GATE" &&
     effectiveItemType === "multi_instance_gate" &&
-    bottomBarModeSOT === "YES_NO" &&
+    bottomBarModeSOT_SAFE === "YES_NO" &&
     currentItem_S?.type === "multi_instance_gate";
   
   // Log once per activation (de-duped by currentItem_S.id) - using ref declared at top-level (line 1476)
@@ -15757,8 +15757,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       textareaDisabledFinal,
       submitDisabledRaw,
       submitDisabledFinal,
-      bottomBarModeSOT,
-      effectiveItemType,
+      bottomBarModeSOT_SAFE,
+      effectiveItemType_SAFE,
       packId: currentItem_S.packId,
       instanceNumber: currentItem_S.instanceNumber
     });
@@ -15803,14 +15803,14 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       if (promptMissingKeyRef.current !== diagKey) {
         promptMissingKeyRef.current = diagKey;
         
-        const logPrefix = effectiveItemType === 'v3_probing' || effectiveItemType === 'v3_pack_opener' 
+        const logPrefix = effectiveItemType === 'v3_probing' || effectiveItemType_SAFE === 'v3_pack_opener' 
           ? 'V3_UI_PROMPT_MISSING' 
           : 'V2_UI_PROMPT_MISSING';
         
         console.warn(`[${logPrefix}]`, {
           sessionId,
           currentItem_SType: currentItem_S?.type,
-          effectiveItemType,
+          effectiveItemType_SAFE,
           packId: currentItem_S?.packId,
           fieldKey: currentItem_S?.fieldKey,
           instanceNumber: currentItem_S?.instanceNumber,
@@ -15828,12 +15828,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
   // CONTRACT INVARIANT: Verify V3 prompt always renders as v3_probing
   // bottomBarRenderTypeSOT already declared above (TDZ-safe)
-  if (hasActiveV3Prompt && (bottomBarRenderTypeSOT !== "v3_probing" || bottomBarModeSOT !== "TEXT_INPUT")) {
+  if (hasActiveV3Prompt && (bottomBarRenderTypeSOT_SAFE !== "v3_probing" || bottomBarModeSOT !== "TEXT_INPUT")) {
     console.error('[V3_UI_CONTRACT][VIOLATION_ACTIVE_ITEM]', {
       hasActiveV3Prompt,
-      activeUiItem_SKind: activeUiItem_S.kind,
-      bottomBarRenderTypeSOT,
-      bottomBarModeSOT,
+      activeUiItem_SKind: activeUiItem_S_SAFE.kind,
+      bottomBarRenderTypeSOT_SAFE,
+      bottomBarModeSOT_SAFE,
       currentItem_SType,
       currentItem_SId: currentItem_S?.id,
       promptIdPreview: activeUiItem_S.promptText?.substring(0, 40) || null,
@@ -15844,10 +15844,10 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   
   // Debug log: confirm which bottom bar path is rendering
   console.log("[BOTTOM_BAR_RENDER]", {
-    activeUiItem_SKind: activeUiItem_S.kind,
+    activeUiItem_SKind: activeUiItem_S_SAFE.kind,
     currentItem_SType,
-    effectiveItemType,
-    bottomBarRenderTypeSOT,
+    effectiveItemType_SAFE,
+    bottomBarRenderTypeSOT_SAFE,
     footerControllerLocal,
     currentItem_SId: currentItem_S?.id,
     packId: currentItem_S?.packId,
@@ -15864,12 +15864,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // Unified YES/NO click handler - routes to handleAnswer with trace logging (plain function, no hooks)
   const handleYesNoClick = (answer) => {
     // GUARD: Block YES/NO during V3 prompt answering
-    if (activeUiItem_S?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
+    if (activeUiItem_S_SAFE?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
       console.log('[YESNO_BLOCKED_DURING_V3_PROMPT]', {
         clicked: answer,
-        activeUiItem_SKind: activeUiItem_S?.kind,
+        activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
         v3PromptPhase,
-        bottomBarModeSOT,
+        bottomBarModeSOT_SAFE,
         currentItem_SType: currentItem_S?.type,
         reason: 'V3 prompt active - YES/NO blocked'
       });
@@ -15889,7 +15889,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     // PART B: Call ensureActiveVisibleAfterRender after state update
     // TDZ-SAFE: Compute fresh flags using available values
     const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
-    const isMiGateFresh = currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
+    const isMiGateFresh = currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender(`MI_GATE_YESNO_CLICK_${answer}`, activeKindSOT, isYesNoModeFresh, isMiGateFresh);
@@ -15898,7 +15898,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     // MI_GATE TRACE A: YES/NO button click entry
     console.log('[MI_GATE][TRACE][YESNO_CLICK]', {
       clicked: answer,
-      effectiveItemType,
+      effectiveItemType_SAFE,
       currentItem_SType: currentItem_S?.type,
       currentItem_SId: currentItem_S?.id,
       packId: currentItem_S?.packId,
@@ -16048,9 +16048,9 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     // DIAGNOSTIC: Entry log with full state snapshot
     console.log('[BOTTOM_BAR][SEND_CLICK]', {
-      bottomBarModeSOT,
-      effectiveItemType,
-      activeKind: activeUiItem_S?.kind,
+      bottomBarModeSOT_SAFE,
+      effectiveItemType_SAFE,
+      activeKind: activeUiItem_S_SAFE?.kind,
       packId: currentItem_S?.packId || v3ProbingContext_S?.packId,
       instanceNumber: currentItem_S?.instanceNumber || v3ProbingContext_S?.instanceNumber,
       inputLen: input?.length || 0,
@@ -16059,7 +16059,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       currentItem_SId: currentItem_S?.id,
       v3ProbingActive,
       isCommitting,
-      hasPrompt,
+      hasPrompt_SAFE,
       requiredAnchorFallbackActive
     });
     
@@ -16069,16 +16069,16 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     // ROUTE A0: Required anchor answer submission (HIGHEST PRIORITY - triple-gate routing)
     // Routes by: effectiveItemType OR activeUiItem_SKind OR requiredAnchorFallbackActive flag
     // CRITICAL: Does NOT depend on currentItem_SType, v3ProbingActive, or currentItem_S.packId
-    if (effectiveItemType === 'required_anchor_fallback' || 
-        activeUiItem_S?.kind === 'REQUIRED_ANCHOR_FALLBACK' || 
+    if (effectiveItemType_SAFE === 'required_anchor_fallback' || 
+        activeUiItem_S_SAFE?.kind === 'REQUIRED_ANCHOR_FALLBACK' || 
         requiredAnchorFallbackActive === true) {
       
       // GUARD: Validate requiredAnchorCurrent exists
       if (!requiredAnchorCurrent) {
         console.error('[REQUIRED_ANCHOR_FALLBACK][SUBMIT_BLOCKED_NO_CURRENT]', {
           requiredAnchorFallbackActive,
-          effectiveItemType,
-          activeUiItem_SKind: activeUiItem_S?.kind,
+          effectiveItemType_SAFE,
+          activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
           reason: 'requiredAnchorCurrent is null/undefined'
         });
         return;
@@ -16090,8 +16090,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       }
       
       console.log('[REQUIRED_ANCHOR_FALLBACK][SUBMIT_ROUTED]', {
-        effectiveItemType,
-        activeUiItem_SKind: activeUiItem_S?.kind,
+        effectiveItemType_SAFE,
+        activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
         currentItem_SType: currentItem_S?.type,
         anchor: requiredAnchorCurrent,
         answerLen: trimmed.length
@@ -16717,7 +16717,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     // PART B: Call ensureActiveVisibleAfterRender after submit
     // TDZ-SAFE: Compute fresh flags using available values
     const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
-    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
+    const isMiGateFresh = effectiveItemType_SAFE === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
       ensureActiveVisibleAfterRender("BOTTOM_BAR_SUBMIT", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
@@ -16727,7 +16727,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     // V3 SUBMIT INTENT: Capture routing decision BEFORE state updates (prevents mis-route)
     const submitIntent = {
       isV3Submit: v3PromptPhase === 'ANSWER_NEEDED' || 
-                  activeUiItem_S.kind === 'V3_PROMPT' ||
+                  activeUiItem_S_SAFE.kind === 'V3_PROMPT' ||
                   (v3PromptIdSOT && v3PromptIdSOT.trim() !== ''),
       promptId: v3PromptIdSOT,
       loopKey: v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null,
@@ -16755,7 +16755,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       promptId: submitIntent.promptId,
       categoryId: submitIntent.categoryId,
       instanceNumber: submitIntent.instanceNumber,
-      activeUiItem_SKindAtClick: activeUiItem_S.kind
+      activeUiItem_SKindAtClick: activeUiItem_S_SAFE.kind
     });
 
     // V3 SUBMIT PAYLOAD: Store answer before any state changes (survives transitions)
@@ -16798,7 +16798,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     }
 
     // ROUTE A: V3 PACK OPENER (highest priority - must precede V3 probe routing)
-    if (effectiveItemType === 'v3_pack_opener' && currentItem_S?.type === 'v3_pack_opener') {
+    if (effectiveItemType_SAFE === 'v3_pack_opener' && currentItem_S?.type === 'v3_pack_opener') {
       const trimmed = (openerDraft ?? "").trim();
       
       if (!trimmed) {
@@ -16890,7 +16890,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     }
     
     if (!trimmed) {
-      console.log("[BOTTOM_BAR_SUBMIT] blocked: empty input", { effectiveItemType, currentItem_SType: currentItem_S?.type, openerDraftLen: openerDraft?.length, inputLen: input?.length });
+      console.log("[BOTTOM_BAR_SUBMIT] blocked: empty input", { effectiveItemType_SAFE, currentItem_SType: currentItem_S?.type, openerDraftLen: openerDraft?.length, inputLen: input?.length });
       console.log('[BOTTOM_BAR][SEND_BLOCKED]', { 
         blockedReason: 'EMPTY_INPUT',
         openerDraftLen: openerDraft?.length || 0,
@@ -16909,12 +16909,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       instanceNumber: currentItem_S.instanceNumber,
       answer: trimmed.substring(0, 60),
       isV2PackField: currentItem_S.type === 'v2_pack_field',
-      usingOpenerDraft: effectiveItemType === 'v3_pack_opener'
+      usingOpenerDraft: effectiveItemType_SAFE === 'v3_pack_opener'
     });
     
     // DIAGNOSTIC: Dispatch confirmation
     console.log('[BOTTOM_BAR][SUBMIT_DISPATCH]', {
-      effectiveItemType,
+      effectiveItemType_SAFE,
       packId: currentItem_S?.packId,
       instanceNumber: currentItem_S?.instanceNumber,
       inputLen: trimmed.length
@@ -16965,7 +16965,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
   // [TDZ_FIX] Block moved to derived snapshot.
   
-  if (effectiveItemType === 'v3_pack_opener' && currentItem_S) {
+  if (effectiveItemType_SAFE === 'v3_pack_opener' && currentItem_S) {
     const openerInputTrimmed = (openerDraft || "").trim();
     console.log('[V3_OPENER][BUTTON_STATE]', {
       packId: currentItem_S?.packId,
@@ -17000,20 +17000,20 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
                             v3PromptPhase === "ANSWER_NEEDED";
   let effectiveItemType = v3ProbingActive ? 'v3_probing' : currentItem_SType;
   const activeUiItem_S = resolveActiveUiItem();
-  const activeKindSOT = activeUiItem_S?.kind || currentItem_S?.type || 'UNKNOWN';
-  effectiveItemType = activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
-                           activeUiItem_S.kind === "V3_PROMPT" ? 'v3_probing' : 
-                           activeUiItem_S.kind === "V3_OPENER" ? 'v3_pack_opener' :
-                           activeUiItem_S.kind === "MI_GATE" ? 'multi_instance_gate' :
+  const activeKindSOT = activeUiItem_S_SAFE?.kind || currentItem_S?.type || 'UNKNOWN';
+  effectiveItemType = activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
+                           activeUiItem_S_SAFE.kind === "V3_PROMPT" ? 'v3_probing' : 
+                           activeUiItem_S_SAFE.kind === "V3_OPENER" ? 'v3_pack_opener' :
+                           activeUiItem_S_SAFE.kind === "MI_GATE" ? 'multi_instance_gate' :
                            v3ProbingActive ? 'v3_probing' : 
                            currentItem_SType;
   const bottomBarRenderTypeSOT = (() => {
-    if (activeUiItem_S?.kind === "REQUIRED_ANCHOR_FALLBACK") return "required_anchor_fallback";
-    if (activeUiItem_S?.kind === "V3_PROMPT") return "v3_probing";
-    if (activeUiItem_S?.kind === "V3_WAITING") return "v3_waiting";
-    if (activeUiItem_S?.kind === "V3_OPENER") return "v3_pack_opener";
-    if (activeUiItem_S?.kind === "MI_GATE") return "multi_instance_gate";
-    if (activeUiItem_S?.kind === "DEFAULT" && 
+    if (activeUiItem_S_SAFE?.kind === "REQUIRED_ANCHOR_FALLBACK") return "required_anchor_fallback";
+    if (activeUiItem_S_SAFE?.kind === "V3_PROMPT") return "v3_probing";
+    if (activeUiItem_S_SAFE?.kind === "V3_WAITING") return "v3_waiting";
+    if (activeUiItem_S_SAFE?.kind === "V3_OPENER") return "v3_pack_opener";
+    if (activeUiItem_S_SAFE?.kind === "MI_GATE") return "multi_instance_gate";
+    if (activeUiItem_S_SAFE?.kind === "DEFAULT" && 
         currentItem_S?.type === "question" && 
         engine_S?.QById?.[currentItem_S.id]?.response_type === "yes_no") {
       return "yes_no";
@@ -17031,21 +17031,21 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     return "DEFAULT";
   })();
   const activeCard_SKeySOT = (() => {
-    if (activeUiItem_S.kind === "V3_PROMPT") {
+    if (activeUiItem_S_SAFE.kind === "V3_PROMPT") {
       const promptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
       return promptId ? `v3-prompt:${promptId}` : null;
     }
-    if (activeUiItem_S.kind === "V3_OPENER") {
+    if (activeUiItem_S_SAFE.kind === "V3_OPENER") {
       return buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
     }
-    if (activeUiItem_S.kind === "V3_WAITING") {
+    if (activeUiItem_S_SAFE.kind === "V3_WAITING") {
       const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
       return loopKey ? `v3-waiting:${loopKey}` : null;
     }
-    if (activeUiItem_S.kind === "MI_GATE") {
+    if (activeUiItem_S_SAFE.kind === "MI_GATE") {
       return currentItem_S?.id || `mi-gate:${currentItem_S?.packId}:${currentItem_S?.instanceNumber}`;
     }
-    if (activeUiItem_S.kind === "DEFAULT" && currentItem_S?.type === "question") {
+    if (activeUiItem_S_SAFE.kind === "DEFAULT" && currentItem_S?.type === "question") {
       return currentItem_S?.id;
     }
     return null;
@@ -17054,7 +17054,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   let activeCard_S = null;
   const transcriptRenderable = renderedTranscriptSnapshotRef.current || dbTranscript || [];
   const currentPromptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
-  if (activeUiItem_S.kind === "V3_PROMPT") {
+  if (activeUiItem_S_SAFE.kind === "V3_PROMPT") {
     const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
     const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
     const promptId = currentPromptId || `${loopKey}:fallback`;
@@ -17082,7 +17082,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     if (!activeCard_S && lastRenderedV3PromptKeyRef.current) {
       lastRenderedV3PromptKeyRef.current = null;
     }
-  } else if (activeUiItem_S.kind === "V3_WAITING") {
+  } else if (activeUiItem_S_SAFE.kind === "V3_WAITING") {
     const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}` : null;
     activeCard_S = {
       __activeCard_S: true,
@@ -17094,7 +17094,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       instanceNumber: v3ProbingContext_S?.instanceNumber || 1,
       source: 'prompt_lane_temporary'
     };
-  } else if (activeUiItem_S.kind === "V3_OPENER") {
+  } else if (activeUiItem_S_SAFE.kind === "V3_OPENER") {
     const openerText = currentItem_S?.openerText || "";
     const stableKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
     const expectedKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
@@ -17115,7 +17115,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       };
     } else if (!openerText) {}
   } else if (
-    activeUiItem_S.kind === "DEFAULT" && 
+    activeUiItem_S_SAFE.kind === "DEFAULT" && 
     currentItem_S?.type === "question" && 
     engine_S?.QById?.[currentItem_S.id]?.response_type === "yes_no"
   ) {
@@ -17134,7 +17134,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       sectionName: engine_S?.Sections?.find(s => s.id === question?.section_id)?.section_name,
       source: 'prompt_lane_temporary'
     };
-  } else if (activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK") {
+  } else if (activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK") {
     const questionText = resolveAnchorToHumanQuestion(
       requiredAnchorCurrent, 
       v3ProbingContext_S?.packId
@@ -17152,7 +17152,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       anchor: requiredAnchorCurrent,
       source: 'prompt_lane_temporary'
     };
-  } else if (activeUiItem_S.kind === "MI_GATE") {
+  } else if (activeUiItem_S_SAFE.kind === "MI_GATE") {
     let miGateItem = currentItem_S;
     if (!miGateItem || miGateItem.type !== 'multi_instance_gate' || !miGateItem.packId || !miGateItem.instanceNumber) {
       if (activeUiItem_S.packId && activeUiItem_S.instanceNumber) {
@@ -17192,7 +17192,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       v3ProbingContext_S,
       v3ProbingActive,
       v3ActivePromptText,
-      effectiveItemType,
+      effectiveItemType_SAFE,
       currentItem_S,
       v2ClarifierState,
       currentPrompt
@@ -17207,19 +17207,19 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   const hasInterviewContent = Boolean(
     transcriptSOT_S?.length > 0 || 
     hasActiveCardSOT || 
-    activeUiItem_S?.kind !== 'DEFAULT' ||
+    activeUiItem_S_SAFE?.kind !== 'DEFAULT' ||
     screenMode === 'QUESTION'
   );
   const shouldApplyFooterClearance = shouldRenderFooter && hasInterviewContent;
   const footerClearancePx = Math.max(dynamicFooterHeightPx + 32, 96);
   const baseSpacerPx = Math.max(footerShellHeightPx + 16, 80);
-  const isV3OpenerForSpacer = (activeUiItem_S?.kind === 'V3_OPENER') || 
+  const isV3OpenerForSpacer = (activeUiItem_S_SAFE?.kind === 'V3_OPENER') || 
                                   (currentItem_S?.type === 'v3_pack_opener');
   const spacerWithV3Expansion = isV3OpenerForSpacer 
     ? baseSpacerPx + extraBottomSpacerPx 
     : baseSpacerPx;
   const isYesNoModeDerived = bottomBarModeSOT === 'YES_NO';
-  const isMiGateDerived = effectiveItemType === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
+  const isMiGateDerived = effectiveItemType_SAFE === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
   const yesNoModeClearance = dynamicFooterHeightPx + 32;
   const normalModeClearance = spacerWithV3Expansion;
   const bottomSpacerPx = (isYesNoModeDerived || isMiGateDerived)
@@ -17233,12 +17233,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     hasActiveV3Prompt,
     activeUiItem_S,
     activeKindSOT,
-    effectiveItemType,
-    bottomBarRenderTypeSOT,
-    bottomBarModeSOT,
+    effectiveItemType_SAFE,
+    bottomBarRenderTypeSOT_SAFE,
+    bottomBarModeSOT_SAFE,
     needsPrompt,
-    hasPrompt,
-    shouldRenderFooter,
+    hasPrompt_SAFE,
+    shouldRenderFooter_SAFE,
     shouldApplyFooterClearance,
     footerClearancePx,
     bottomSpacerPx,
@@ -17364,9 +17364,9 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           
           if (isOpenerCard) {
             // Check if this is the CURRENTLY ACTIVE opener (should be suppressed)
-            const isCurrentlyActiveOpener = activeUiItem_S?.kind === "V3_OPENER" &&
-                                           activeCard_S?.stableKey &&
-                                           (e.stableKey || e.id) === activeCard_S.stableKey;
+            const isCurrentlyActiveOpener = activeUiItem_S_SAFE?.kind === "V3_OPENER" &&
+                                           activeCard_S_SAFE?.stableKey &&
+                                           (e.stableKey || e.id) === activeCard_S_SAFE.stableKey;
             
             if (isCurrentlyActiveOpener) {
               // Will be removed by active opener filter - allow ephemeral filter to pass
@@ -17384,7 +17384,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
               stableKey: e.stableKey || e.id,
               packId: e.meta?.packId || e.packId,
               instanceNumber: e.meta?.instanceNumber || e.instanceNumber,
-              activeUiItem_SKind: activeUiItem_S?.kind,
+              activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
               reason: 'opener is canonical transcript history - preserving'
             });
             return true; // ALWAYS keep non-active opener transcript entries
@@ -17428,7 +17428,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           // EPHEMERAL FILTER GUARD: Keep required anchor fallback prompts while active
           const isFallbackPrompt = e.kind === 'required_anchor_fallback_prompt';
           
-          if (isFallbackPrompt && activeUiItem_S?.kind === 'REQUIRED_ANCHOR_FALLBACK') {
+          if (isFallbackPrompt && activeUiItem_S_SAFE?.kind === 'REQUIRED_ANCHOR_FALLBACK') {
             console.log('[CQ_TRANSCRIPT][EPHEMERAL_FILTER_GUARD_KEEP_FALLBACK]', {
               stableKey,
               kind: e.kind,
@@ -17486,7 +17486,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     // A) V3_PROBE_QA_ATTACH DISABLED: Do NOT extract or attach V3 probe Q/A when MI_GATE active
     const v3ProbeQAForGateDeterministic = [];
     
-    if (activeUiItem_S?.kind === "MI_GATE" && currentItem_S?.packId && currentItem_S?.instanceNumber) {
+    if (activeUiItem_S_SAFE?.kind === "MI_GATE" && currentItem_S?.packId && currentItem_S?.instanceNumber) {
       console.log('[MI_GATE][V3_PROBE_QA_ATTACH_DISABLED]', {
         packId: currentItem_S.packId,
         instanceNumber: currentItem_S.instanceNumber,
@@ -17595,12 +17595,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     // V3 UI CONTRACT: Conditional probe filtering based on active UI state
     // Rule: Suppress probes from transcript ONLY while a probe is actively being asked
     // Once UI moves on (MI_GATE, next question, etc.), probes render in history normally
-    const suppressProbesInTranscript = activeUiItem_S?.kind === "V3_PROMPT" || 
-                                      activeUiItem_S?.kind === "V3_WAITING" ||
+    const suppressProbesInTranscript = activeUiItem_S_SAFE?.kind === "V3_PROMPT" || 
+                                      activeUiItem_S_SAFE?.kind === "V3_WAITING" ||
                                       (v3ProbingActive && hasActiveV3Prompt);
     
     console.log('[V3_UI_CONTRACT][PROBE_TRANSCRIPT_POLICY]', {
-      activeUiItem_SKind: activeUiItem_S?.kind,
+      activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
       v3ProbingActive,
       hasActiveV3Prompt,
       suppressProbesInTranscript,
@@ -17631,7 +17631,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         console.log('[V3_UI_CONTRACT][FILTERED_PROBE_FROM_TRANSCRIPT]', {
           mt,
           stableKey,
-          activeUiItem_SKind: activeUiItem_S?.kind,
+          activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
           source: entry.__activeCard_S ? 'ephemeral' : 'dbTranscript',
           reason: 'Probe active - rendering in prompt lane only'
         });
@@ -17643,7 +17643,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         console.log('[V3_UI_CONTRACT][PROBE_ALLOWED_IN_HISTORY]', {
           mt,
           stableKey,
-          activeUiItem_SKind: activeUiItem_S?.kind,
+          activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
           reason: 'No active probe - allowing in transcript history'
         });
         return true; // ALLOW in history
@@ -17676,7 +17676,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           } else {
             console.log('[CQ_TRANSCRIPT][USER_ANSWER_PROTECT]', {
               stableKey,
-              messageType: getMessageTypeSOT(entry),
+              messageType: getMessageTypeSOT_SAFE(entry),
               ageMs,
               inDb,
               canClear,
@@ -17695,7 +17695,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       if ((hasV3ProbeQPrefix || hasV3ProbeAPrefix) && suppressProbesInTranscript) {
         console.log('[V3_UI_CONTRACT][FILTERED_PROBE_BY_PREFIX]', {
           stableKey,
-          activeUiItem_SKind: activeUiItem_S?.kind,
+          activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
           source: 'stableKey_prefix_check',
           reason: 'Probe active - filtering by prefix'
         });
@@ -17705,7 +17705,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       if ((hasV3ProbeQPrefix || hasV3ProbeAPrefix) && !suppressProbesInTranscript) {
         console.log('[V3_UI_CONTRACT][PROBE_PREFIX_ALLOWED_IN_HISTORY]', {
           stableKey,
-          activeUiItem_SKind: activeUiItem_S?.kind,
+          activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
           reason: 'No active probe - allowing in history'
         });
         return true; // ALLOW when not active
@@ -17724,7 +17724,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     // Build indexes for base questions
     for (const entry of transcriptToRenderDeduped) {
-      const mt = getMessageTypeSOT(entry);
+      const mt = getMessageTypeSOT_SAFE(entry);
       
       if (mt === 'QUESTION_SHOWN') {
         const questionId = entry.meta?.questionDbId;
@@ -17790,7 +17790,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       const entry = transcriptToRenderDeduped[i];
       
       // Check if we need to insert a synthesized question before this entry
-      if (entry.role === 'user' && getMessageTypeSOT(entry) === 'ANSWER') {
+      if (entry.role === 'user' && getMessageTypeSOT_SAFE(entry) === 'ANSWER') {
         const questionId = entry.meta?.questionDbId;
         const synth = synthesizedQuestions.find(s => s.questionId === questionId);
         
@@ -18205,7 +18205,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     for (let i = 0; i < transcriptToRenderDeduped.length; i++) {
       const entry = transcriptToRenderDeduped[i];
-      const mt = getMessageTypeSOT(entry);
+      const mt = getMessageTypeSOT_SAFE(entry);
       
       // Track last seen question (RISK 2: use helper)
       if (mt === 'QUESTION_SHOWN') {
@@ -18253,7 +18253,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     let hasAnyCanonicalBaseYesNo = false;
     
     for (const entry of transcriptToRenderDeduped) {
-      const mt = getMessageTypeSOT(entry);
+      const mt = getMessageTypeSOT_SAFE(entry);
       if (mt !== 'ANSWER') continue;
       
       const stableKey = entry.stableKey || entry.id || '';
@@ -18279,7 +18279,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     // SUPPRESSION: Remove legacy UUID Yes/No answers without identity
     let suppressedCount = 0;
     const transcriptWithLegacyUuidSuppressed = transcriptToRenderDeduped.filter(entry => {
-      const mt = getMessageTypeSOT(entry);
+      const mt = getMessageTypeSOT_SAFE(entry);
       if (mt !== 'ANSWER') return true; // Keep non-answers
       
       const stableKey = entry.stableKey || entry.id || '';
@@ -18340,7 +18340,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     // HELPER: Single predicate for base-answer identification (prevents drift)
     const isBaseAnswerSubjectToDedupe = (entry) => {
-      const mt = getMessageTypeSOT(entry);
+      const mt = getMessageTypeSOT_SAFE(entry);
       if (mt !== 'ANSWER') return { isBase: false, reason: 'not_answer_type' };
       
       const stableKey = entry.stableKey || entry.id || '';
@@ -18499,7 +18499,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     }
     
     // TRUTH TABLE AUDIT: V3 probe answer visibility (only when relevant)
-    if (activeUiItem_S?.kind === "MI_GATE" || dbV3ProbeAnswers.length > 0) {
+    if (activeUiItem_S_SAFE?.kind === "MI_GATE" || dbV3ProbeAnswers.length > 0) {
       // Get most recent V3 probe answer for current pack/instance
       const packId = currentItem_S?.packId || v3ProbingContext_S?.packId;
       const instanceNumber = currentItem_S?.instanceNumber || v3ProbingContext_S?.instanceNumber || 1;
@@ -18528,7 +18528,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
             existsInDb,
             existsInDeduped,
             existsInFinal,
-            activeUiItem_SKind: activeUiItem_S?.kind,
+            activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
             packId,
             instanceNumber,
             filteredStableKeysRemoved: stableKeysRemovedSafe.slice(0, 5)
@@ -18591,8 +18591,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       const activePackId = currentItem_S?.packId || v3ProbingContext_S?.packId || activeUiItem_S?.packId || null;
       const packConfig = activePackId ? FOLLOWUP_PACK_CONFIGS?.[activePackId] : null;
       const isActivePackV3 = Boolean(packConfig?.isV3Pack === true || packConfig?.engine_SVersion === 'v3');
-      const isV3UiActive = (activeUiItem_S?.kind === 'V3_OPENER' || 
-                           activeUiItem_S?.kind === 'V3_PROBING' || 
+      const isV3UiActive = (activeUiItem_S_SAFE?.kind === 'V3_OPENER' || 
+                           activeUiItem_S_SAFE?.kind === 'V3_PROBING' || 
                            currentItem_S?.type === 'v3_pack_opener' ||
                            v3ProbingActive);
 
@@ -18710,19 +18710,19 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     let transcriptWithActiveOpenerRemoved = transcriptToRenderDeduped;
     
     // CONDITIONAL: Only run when V3_OPENER is actually active (not during V3_PROMPT or other states)
-    const shouldSuppressActiveOpener = activeUiItem_S?.kind === "V3_OPENER" && 
-                                       activeCard_S?.stableKey && 
+    const shouldSuppressActiveOpener = activeUiItem_S_SAFE?.kind === "V3_OPENER" && 
+                                       activeCard_S_SAFE?.stableKey && 
                                        screenMode === "QUESTION";
     
     console.log('[V3_UI_CONTRACT][ACTIVE_OPENER_DUPLICATE_FILTER_SOT]', {
-      activeUiItem_SKind: activeUiItem_S?.kind,
-      activeStableKey: activeCard_S?.stableKey || null,
+      activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
+      activeStableKey: activeCard_S_SAFE?.stableKey || null,
       didRun: shouldSuppressActiveOpener,
       removedCount: 0 // Will be updated below
     });
     
     if (shouldSuppressActiveOpener) {
-      const activeOpenerStableKey = activeCard_S.stableKey;
+      const activeOpenerStableKey = activeCard_S_SAFE.stableKey;
       const activeOpenerPackId = activeCard_S.packId;
       const activeOpenerInstanceNumber = activeCard_S.instanceNumber;
       const activeV3OpenerStableKey = `v3-opener:${activeOpenerPackId}:${activeOpenerInstanceNumber}`;
@@ -18749,7 +18749,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
             messageType: e.messageType || e.type,
             matchedBy: matchesByKey ? 'stableKey' : 'metadata',
             screenMode,
-            activeUiItem_SKind: activeUiItem_S.kind
+            activeUiItem_SKind: activeUiItem_S_SAFE.kind
           });
         }
         
@@ -18767,7 +18767,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       }
       
       console.log('[V3_UI_CONTRACT][ACTIVE_OPENER_DUPLICATE_FILTER_SOT]', {
-        activeUiItem_SKind: activeUiItem_S?.kind,
+        activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
         activeStableKey: activeOpenerStableKey,
         didRun: true,
         removedCount
@@ -18785,7 +18785,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     } else {
       // Not active opener mode - all opener transcript entries should be preserved
       console.log('[V3_UI_CONTRACT][ACTIVE_OPENER_FILTER_SKIPPED]', {
-        activeUiItem_SKind: activeUiItem_S?.kind,
+        activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
         reason: shouldSuppressActiveOpener ? 'conditions_not_met' : 'not_v3_opener_mode',
         action: 'Preserving all opener transcript entries'
       });
@@ -18811,7 +18811,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         const openerStableKey = opener.stableKey || opener.id;
         
         // Skip currently active opener instance (expected to be missing from transcript)
-        const isCurrentlyActive = activeUiItem_S?.kind === "V3_OPENER" &&
+        const isCurrentlyActive = activeUiItem_S_SAFE?.kind === "V3_OPENER" &&
                                   openerPackId === activePackId &&
                                   openerInstanceNumber === activeInstanceNumber;
         
@@ -18833,7 +18833,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
             packId: openerPackId,
             instanceNumber: openerInstanceNumber,
             stableKey: openerStableKey,
-            activeUiItem_SKind: activeUiItem_S?.kind,
+            activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
             activeInstanceNumber,
             reason: 'Completed opener not in transcript history - regression detected'
           });
@@ -18844,7 +18844,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         console.error('[V3_UI_CONTRACT][OPENER_MISSING_SUMMARY]', {
           missingCount: missingInstanceNumbers.length,
           missingInstanceNumbers,
-          activeUiItem_SKind: activeUiItem_S?.kind,
+          activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
           activePackId,
           activeInstanceNumber
         });
@@ -18855,8 +18855,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     // This prevents duplicate rendering (transcript + active lane)
     let transcriptWithActiveMiGateRemoved = transcriptToRenderDeduped;
     
-    if (activeUiItem_S?.kind === "MI_GATE" && screenMode === "QUESTION") {
-      const activeMiGateStableKey = activeCard_S?.stableKey || 
+    if (activeUiItem_S_SAFE?.kind === "MI_GATE" && screenMode === "QUESTION") {
+      const activeMiGateStableKey = activeCard_S_SAFE?.stableKey || 
                                     (currentItem_S?.packId && currentItem_S?.instanceNumber 
                                       ? `mi-gate:${currentItem_S.packId}:${currentItem_S.instanceNumber}:q`
                                       : null);
@@ -18887,7 +18887,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
               matchType: exactMatch ? 'exact' : baseKeyMatch ? 'baseKey' : 'packInstance',
               messageType: e.messageType || e.type,
               screenMode,
-              activeUiItem_SKind: activeUiItem_S.kind
+              activeUiItem_SKind: activeUiItem_S_SAFE.kind
             });
           }
           
@@ -18934,7 +18934,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       };
       
       // GATING: Skip canonical insertion during active opener state (active lane owns it)
-      const isActiveOpenerState = activeUiItem_S?.kind === "V3_OPENER";
+      const isActiveOpenerState = activeUiItem_S_SAFE?.kind === "V3_OPENER";
       
       if (isActiveOpenerState) {
         console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_SKIPPED_ACTIVE]', {
@@ -18984,18 +18984,18 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         // Skip rest of merge logic - continue to next filter
       } else {
         // NOT active opener state - run full canonical merge logic
-        const mergeMode = activeUiItem_S?.kind === 'V3_PROMPT' ? 'V3_PROMPT_HISTORY' : 'HISTORY_DISPLAY';
+        const mergeMode = activeUiItem_S_SAFE?.kind === 'V3_PROMPT' ? 'V3_PROMPT_HISTORY' : 'HISTORY_DISPLAY';
         
         console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_MODE]', {
           mode: mergeMode,
           willInsert: true,
-          activeUiItem_SKind: activeUiItem_S?.kind,
+          activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
           canonicalOpenersCount: canonicalOpenersFromDb.length
         });
         
         console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_START]', {
           canonicalOpenersCount: canonicalOpenersFromDb.length,
-          activeUiItem_SKind: activeUiItem_S?.kind,
+          activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
           transcriptLenBefore: transcriptToRenderDeduped.length
         });
         
@@ -19048,8 +19048,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           const openerInstanceNumber = opener.meta?.instanceNumber || opener.instanceNumber;
           
           // Check if this is the currently active opener
-          const isCurrentlyActive = activeUiItem_S?.kind === "V3_OPENER" &&
-                                    activeCard_S?.stableKey === openerKey;
+          const isCurrentlyActive = activeUiItem_S_SAFE?.kind === "V3_OPENER" &&
+                                    activeCard_S_SAFE?.stableKey === openerKey;
           
           if (isCurrentlyActive) {
             console.log('[V3_UI_CONTRACT][OPENER_SKIP_CURRENTLY_ACTIVE]', {
@@ -19189,8 +19189,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           const openerPackId = opener.meta?.packId || opener.packId;
           const openerInstanceNumber = opener.meta?.instanceNumber || opener.instanceNumber;
           
-          const isCurrentlyActive = activeUiItem_S?.kind === "V3_OPENER" &&
-                                    activeCard_S?.stableKey === openerKey;
+          const isCurrentlyActive = activeUiItem_S_SAFE?.kind === "V3_OPENER" &&
+                                    activeCard_S_SAFE?.stableKey === openerKey;
           if (isCurrentlyActive) continue;
           
           if (!finalOpenerKeys.has(openerKey)) {
@@ -19210,7 +19210,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
           console.error('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_FAIL]', {
             missingCount: stillMissing.length,
             missingKeysSample: stillMissing.slice(0, 3),
-            activeUiItem_SKind: activeUiItem_S?.kind,
+            activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
             reason: 'Canonical openers missing after force-merge - logic error'
           });
           
@@ -19219,7 +19219,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         } else {
           console.log('[V3_UI_CONTRACT][OPENER_CANONICAL_MERGE_OK]', {
             count: canonicalOpenersFromDb.length,
-            activeUiItem_SKind: activeUiItem_S?.kind,
+            activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
             insertedCount: openersToInsert.length,
             duplicateCount: duplicateKeys.length,
             reason: duplicateKeys.length === 0 ? 'All non-active openers present, no duplicates' : 'Openers present but duplicates detected'
@@ -19282,9 +19282,9 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     const currentGatePackId = currentItem_S?.packId;
     const currentGateInstanceNumber = currentItem_S?.instanceNumber;
     
-    // TASK 3: Enforce gate when activeUiItem_S.kind is MI_GATE (regardless of other flags)
-    const isGateActiveUiKind = activeUiItem_S?.kind === "MI_GATE" || 
-                                activeCard_S?.kind === "multi_instance_gate";
+    // TASK 3: Enforce gate when activeUiItem_S_SAFE.kind is MI_GATE (regardless of other flags)
+    const isGateActiveUiKind = activeUiItem_S_SAFE?.kind === "MI_GATE" || 
+                                activeCard_S_SAFE?.kind === "multi_instance_gate";
     const shouldEnforceMiGate = isGateActiveUiKind && 
                                 currentGatePackId && 
                                 currentGateInstanceNumber !== undefined;
@@ -19634,7 +19634,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     const payload = {
       sessionId,
       activeUiItem_SKind: activeUiItem_SAFE?.kind,
-      bottomBarModeSOT,
+      bottomBarModeSOT_SAFE,
       footerClearanceStatus: footerClearanceStatusRef.current,
       openerHistoryStatus: openerMergeStatusRef.current,
       suppressProbesInTranscript: (activeUiItem_SAFE?.kind === "V3_PROMPT" || activeUiItem_SAFE?.kind === "V3_WAITING") && v3ProbingActive,
@@ -19651,7 +19651,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     lastGoldenCheckPayloadRef.current = payloadKey;
     console.log('[UI_CONTRACT][GOLDEN_CHECK]', payload);
-  }, [sessionId, activeUiItem_SAFE, bottomBarModeSOT, v3ProbingActive, finalTranscriptList_SAFE]);
+  }, [sessionId, activeUiItem_SAFE, bottomBarModeSOT_SAFE, v3ProbingActive, finalTranscriptList_SAFE]);
   
   // CONSOLIDATED UI CONTRACT STATUS LOG (Single Source of Truth)
   // Emits once per mode change with all three contract aspects
@@ -19665,7 +19665,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       openerHistory: openerStatus,
       probePolicy: suppressProbes ? 'ACTIVE_SUPPRESS' : 'HISTORY_ALLOWED',
       activeUiItem_SKind: activeUiItem_SAFE?.kind,
-      bottomBarModeSOT,
+      bottomBarModeSOT_SAFE,
       sessionId
     });
     
@@ -19673,7 +19673,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     if (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO') {
       emitGoldenContractCheck();
     }
-  }, [bottomBarModeSOT, activeUiItem_SAFE?.kind, v3ProbingActive, sessionId, emitGoldenContractCheck]);
+  }, [bottomBarModeSOT_SAFE, activeUiItem_SAFE?.kind, v3ProbingActive, sessionId, emitGoldenContractCheck]);
   
   // UI CONTRACT STATUS RESET: Clear status refs on session change
   React.useEffect(() => {
@@ -19708,10 +19708,10 @@ const transcriptPlan = isV3DebugEnabled
     sessionId,
     getTranscriptEntryKey,
     sanitizeCandidateFacingText,
-    effectiveItemType: derived.effectiveItemType,
+    effectiveItemType: derived.effectiveItemType_SAFE,
     currentItem_S,
     activeUiItem_S: derived.activeUiItem_S,
-    bottomBarModeSOT: derived.bottomBarModeSOT,
+    bottomBarModeSOT: derived.bottomBarModeSOT_SAFE,
     v3ProbingActive,
     v3ProbingContext_S,
     lastV3PromptSnapshotRef,
@@ -19737,10 +19737,10 @@ const transcriptPlan = isV3DebugEnabled
     sessionId,
     getTranscriptEntryKey,
     sanitizeCandidateFacingText,
-    effectiveItemType: derived.effectiveItemType,
+    effectiveItemType: derived.effectiveItemType_SAFE,
     currentItem_S: currentItem_SAFE,
     activeUiItem_S: derived.activeUiItem_S,
-    bottomBarModeSOT: derived.bottomBarModeSOT,
+    bottomBarModeSOT: derived.bottomBarModeSOT_SAFE,
     v3ProbingActive,
     v3ProbingContext_S: v3ProbingContext_SAFE,
     lastV3PromptSnapshotRef,
@@ -19798,23 +19798,23 @@ const transcriptPlan = isV3DebugEnabled
     ? cqComputeGuard('computeFooterRenderPlan', () => computeFooterRenderPlan({
       isV3DebugEnabled,
       cqRead,
-      effectiveItemType: derived.effectiveItemType,
-      activePromptText: derived.hasPrompt ? activePromptText : '',
-      safeActivePromptText: derived.hasPrompt ? safeActivePromptText : '',
-      bottomBarModeSOT: derived.bottomBarModeSOT,
+      effectiveItemType: derived.effectiveItemType_SAFE,
+      activePromptText: derived.hasPrompt ? activePromptText_SAFE : '',
+      safeActivePromptText: derived.hasPrompt ? safeActivePromptText_SAFE : '',
+      bottomBarModeSOT: derived.bottomBarModeSOT_SAFE,
       v3ProbingActive,
-      shouldRenderFooter: derived.shouldRenderFooter,
+      shouldRenderFooter: derived.shouldRenderFooter_SAFE,
       currentItem_S
   }))
   : computeFooterRenderPlan({
       isV3DebugEnabled,
       cqRead,
-      effectiveItemType: derived.effectiveItemType,
-      activePromptText: derived.hasPrompt ? activePromptText : '',
-      safeActivePromptText: derived.hasPrompt ? safeActivePromptText : '',
-      bottomBarModeSOT: derived.bottomBarModeSOT,
+      effectiveItemType: derived.effectiveItemType_SAFE,
+      activePromptText: derived.hasPrompt ? activePromptText_SAFE : '',
+      safeActivePromptText: derived.hasPrompt ? safeActivePromptText_SAFE : '',
+      bottomBarModeSOT: derived.bottomBarModeSOT_SAFE,
       v3ProbingActive,
-      shouldRenderFooter: derived.shouldRenderFooter,
+      shouldRenderFooter: derived.shouldRenderFooter_SAFE,
       currentItem_S
   });
 
@@ -19952,10 +19952,10 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       sessionId,
       getTranscriptEntryKey,
       sanitizeCandidateFacingText,
-      effectiveItemType,
+      effectiveItemType_SAFE,
       currentItem_S,
       activeUiItem_S,
-      bottomBarModeSOT,
+      bottomBarModeSOT_SAFE,
       v3ProbingActive,
       v3ProbingContext_S,
       lastV3PromptSnapshotRef,
@@ -19974,7 +19974,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     } = args;
 
     const activeOpenerStableKeySOT =
-      (activeUiItem_S?.kind === "V3_OPENER" && currentItem_S?.packId)
+      (activeUiItem_S_SAFE?.kind === "V3_OPENER" && currentItem_S?.packId)
         ? `followup-card:${currentItem_S.packId}:opener:${currentItem_S.instanceNumber || 1}`
         : null;
 
@@ -19986,7 +19986,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     const forceTranscriptFilterDebug = isV3DebugEnabled_SAFE || false;
 
     if (filteredCount > 0 || forceTranscriptFilterDebug) {
-      const sampleFiltered = finalTranscriptList_SAFE
+      const sampleFiltered = finalTranscriptList_S_SAFEAFE
         .filter(entry => !shouldRenderInTranscript(entry));
 
       const sampleFilteredShapes = sampleFiltered.slice(0, 10).map(entry => ({
@@ -20055,31 +20055,31 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
         sessionId
     } = args;
 
-    if (!activeCard_S || !(activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK" || activeUiItem_S.kind === "V3_OPENER" || activeUiItem_S.kind === "V3_PROMPT" || activeUiItem_S.kind === "MI_GATE" || activeCard_S.kind === "base_question_yesno")) {
+    if (!activeCard_S || !(activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" || activeUiItem_S_SAFE.kind === "V3_OPENER" || activeUiItem_S_SAFE.kind === "V3_PROMPT" || activeUiItem_S_SAFE.kind === "MI_GATE" || activeCard_S_SAFE.kind === "base_question_yesno")) {
         return { shouldRender: false };
     }
 
     console.log('[UI_CONTRACT][ACTIVE_LANE_POSITION_SOT]', {
-      activeUiItem_SKind: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:activeUiItem_SAFE.kind', () => activeUiItem_S?.kind) : activeUiItem_S?.kind,
+      activeUiItem_SKind: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:activeUiItem_SAFE.kind', () => activeUiItem_S_SAFE?.kind) : activeUiItem_S_SAFE?.kind,
       placedAfterTranscript: true,
-      transcriptLen: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:finalTranscriptList_SAFE.length', () => finalTranscriptList_S.length) : finalTranscriptList_S.length || 0,
-      activeCard_SKind: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:activeCard_SAFE.kind', () => activeCard_S.kind) : activeCard_S.kind,
+      transcriptLen: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:finalTranscriptList_SAFE.length', () => finalTranscriptList_S_SAFE.length) : finalTranscriptList_S_SAFE.length || 0,
+      activeCard_SKind: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:activeCard_SAFE.kind', () => activeCard_S_SAFE.kind) : activeCard_S_SAFE.kind,
       packId: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:activeCard_SAFE.packId', () => activeCard_S.packId) : activeCard_S.packId,
       instanceNumber: isV3DebugEnabled ? cqRead('ACTIVE_CARD_IIFE:activeCard_SAFE.instanceNumber', () => activeCard_S.instanceNumber) : activeCard_S.instanceNumber
     });
 
-    const cardKind = activeCard_S.kind;
+    const cardKind = activeCard_S_SAFE.kind;
     let safeCardPrompt = "";
     if (cardKind === "v3_probe_q") {
-        safeCardPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_V3_PROBE');
+        safeCardPrompt = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_V3_PROBE');
     } else if (cardKind === "required_anchor_fallback_prompt") {
-        safeCardPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_FALLBACK_PROMPT');
+        safeCardPrompt = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_FALLBACK_PROMPT');
     } else if (cardKind === "v3_pack_opener") {
-        safeCardPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_V3_OPENER');
+        safeCardPrompt = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_V3_OPENER');
     } else if (cardKind === "multi_instance_gate") {
-        safeCardPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_MI_GATE');
+        safeCardPrompt = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_MI_GATE');
     } else if (cardKind === "base_question_yesno"){
-        safeCardPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_BASE_QUESTION');
+        safeCardPrompt = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_BASE_QUESTION');
     }
 
     return {
@@ -20095,12 +20095,12 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     const {
         isV3DebugEnabled,
         cqRead,
-        effectiveItemType,
+        effectiveItemType_SAFE,
         activePromptText,
         safeActivePromptText,
-        bottomBarModeSOT,
+        bottomBarModeSOT_SAFE,
         v3ProbingActive,
-        shouldRenderFooter,
+        shouldRenderFooter_SAFE,
         currentItem_S
     } = args;
 
@@ -20115,14 +20115,14 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
         openerTextRaw || 'Please describe the details for this section in your own words.';
 
       console.log('[V3_OPENER][PROMPT_TEXT_LOCK]', {
-        effectiveItemType,
+        effectiveItemType_SAFE,
         instanceNumber: currentItem_S?.instanceNumber,
         usedOpenerText: !!openerTextRaw,
         preview: promptTextUsed.substring(0, 80),
         reason: openerTextRaw ? 'opener_text_found' : 'opener_blank_using_fallback',
       });
     } else {
-      promptTextUsed = activePromptText || safeActivePromptText || '';
+      promptTextUsed = activePromptText_SAFE || safeActivePromptText_SAFE || '';
       
       if (bottomBarModeSOT === 'V3_WAITING' && v3ProbingActive && !promptTextUsed.trim()) {
         promptTextUsed = 'Thinking…';
@@ -20133,16 +20133,16 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     const labelUsed = '';
     
     console.log('[BOTTOM_BAR_FOOTER]', {
-      shouldRenderFooter,
+      shouldRenderFooter_SAFE,
       screenMode,
-      bottomBarModeSOT: isV3DebugEnabled ? cqRead('FOOTER_IIFE:bottomBarModeSOT', () => bottomBarModeSOT) : bottomBarModeSOT,
-      effectiveItemType: isV3DebugEnabled ? cqRead('FOOTER_IIFE:effectiveItemType', () => effectiveItemType) : effectiveItemType,
+      bottomBarModeSOT: isV3DebugEnabled ? cqRead('FOOTER_IIFE:bottomBarModeSOT', () => bottomBarModeSOT) : bottomBarModeSOT_SAFE,
+      effectiveItemType: isV3DebugEnabled ? cqRead('FOOTER_IIFE:effectiveItemType', () => effectiveItemType) : effectiveItemType_SAFE,
       v3ProbingActive
     });
     
     console.log('[REQUIRED_ANCHOR_FALLBACK][FOOTER_PROMPT_PAYLOAD]', {
-      effectiveItemType,
-      bottomBarModeSOT,
+      effectiveItemType_SAFE,
+      bottomBarModeSOT_SAFE,
       promptTextUsed,
       placeholderUsed: placeholderUsedActual,
       labelUsed,
@@ -20151,7 +20151,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     });
 
     return {
-        shouldRender: shouldRenderFooter,
+        shouldRender: shouldRenderFooter_SAFE,
         promptTextUsed
     };
   };
@@ -20328,11 +20328,11 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               )}
 
             {screenMode === 'WELCOME' &&
-              finalTranscriptList_S.length > 0 &&
+              finalTranscriptList_S_SAFE.length > 0 &&
               console.log('[WELCOME_RENDER][NORMAL_USED]', {
                 screenMode,
                 isLoading,
-                transcriptLen: finalTranscriptList_S.length,
+                transcriptLen: finalTranscriptList_S_SAFE.length,
               })}
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {/* Active opener suppression: Compute current active opener stableKey */}
@@ -20381,13 +20381,13 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 return true;
               };
 
-              const transcriptRenderableList = isV3DebugEnabled ? cqRead('finalTranscriptList_S.filter', () => finalTranscriptList_S.filter(shouldRenderInTranscript)) : finalTranscriptList_S.filter(shouldRenderInTranscript);
+              const transcriptRenderableList = isV3DebugEnabled ? cqRead('finalTranscriptList_S_SAFE.filter', () => finalTranscriptList_S_SAFE.filter(shouldRenderInTranscript)) : finalTranscriptList_S_SAFE.filter(shouldRenderInTranscript);
       
-              const filteredCount = (isV3DebugEnabled ? cqRead('finalTranscriptList_S.length', () => finalTranscriptList_S.length) : finalTranscriptList_S.length) - (isV3DebugEnabled ? cqRead('transcriptRenderableList.length', () => transcriptRenderableList.length) : transcriptRenderableList.length);
+              const filteredCount = (isV3DebugEnabled ? cqRead('finalTranscriptList_S_SAFE.length', () => finalTranscriptList_S_SAFE.length) : finalTranscriptList_S_SAFE.length) - (isV3DebugEnabled ? cqRead('transcriptRenderableList.length', () => transcriptRenderableList.length) : transcriptRenderableList.length);
               const forceTranscriptFilterDebug = isV3DebugEnabled || false;
 
               if (filteredCount > 0 || forceTranscriptFilterDebug) {
-                const sampleFiltered = finalTranscriptList_S
+                const sampleFiltered = finalTranscriptList_S_SAFE
                   .filter(entry => !shouldRenderInTranscript(entry));
 
                 const sampleFilteredShapes = sampleFiltered.slice(0, 10).map(entry => ({
@@ -20420,7 +20420,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                   
                 logOnce(`transcript_filter_v2_${sessionId}`, () => {
                   console.log('[UI_CONTRACT][TRANSCRIPT_FILTER]', {
-                    originalCount: finalTranscriptList_S.length,
+                    originalCount: finalTranscriptList_S_SAFE.length,
                     renderableCount: transcriptRenderableList.length,
                     filteredCount,
                     forceDebug: forceTranscriptFilterDebug,
@@ -20511,16 +20511,16 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                      return null; // Active lane owns rendering
                     } else if (cardKind === "v3_pack_opener") {
                       // Dedupe: Skip duplicate opener cards using CANONICAL opener key (packId + instanceNumber)
-                      if (activeUiItem_S?.kind === "V3_OPENER") {
+                      if (activeUiItem_S_SAFE?.kind === "V3_OPENER") {
                         const canonicalOpenerKeySOT = buildV3OpenerStableKey(
-                          activeCard_S?.packId,
-                          activeCard_S?.instanceNumber || 1
+                          activeCard_S_SAFE?.packId,
+                          activeCard_S_SAFE?.instanceNumber || 1
                         );
 
                         if (renderedV3OpenerKeysSOT.has(canonicalOpenerKeySOT)) {
                           console.log('[V3_OPENER][ACTIVE_LANE_DUP_OPENER_SUPPRESSED]', {
                             entryStableKey: entry?.stableKey,
-                            activeCard_SStableKey: activeCard_S?.stableKey,
+                            activeCard_SStableKey: activeCard_S_SAFE?.stableKey,
                             canonicalOpenerKeySOT,
                             reason: 'duplicate opener activeCard_S in stream (canonical dedupe)'
                           });
@@ -20531,7 +20531,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                       }
                       
                       // STEP 2: Sanitize opener card text
-                      const safeOpenerPrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_V3_OPENER');
+                      const safeOpenerPrompt = sanitizeCandidateFacingText_SAFE(entry.text, 'PROMPT_LANE_CARD_V3_OPENER');
                       
                       const instanceTitle = entry.categoryLabel && entry.instanceNumber > 1 
                         ? `${entry.categoryLabel} — Instance ${entry.instanceNumber}` 
@@ -20593,7 +20593,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                      }
 
                      // STEP 2: Sanitize MI gate prompt text
-                     const safeGatePrompt = sanitizeCandidateFacingText(entry.text, 'PROMPT_LANE_CARD_MI_GATE');
+                     const safeGatePrompt = sanitizeCandidateFacingText_SAFE(entry.text, 'PROMPT_LANE_CARD_MI_GATE');
 
                      // SUPPRESS: Skip rendering if this is just "Instance X" preview (not the actual gate question)
                      const isInstancePreviewOnly = /^Instance\s+\d+$/i.test((safeGatePrompt || '').trim());
@@ -20672,7 +20672,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                   // V3_PROBE_QUESTION (assistant) - NOW RENDERS FROM TRANSCRIPT
                   if (entry.role === 'assistant' && getMessageTypeSOT_SAFE(entry) === 'V3_PROBE_QUESTION') {
                    // STEP 2: Sanitize transcript V3 probe question text
-                   const safeTranscriptProbeQ = sanitizeCandidateFacingText(entry.text, 'TRANSCRIPT_V3_PROBE_Q');
+                   const safeTranscriptProbeQ = sanitizeCandidateFacingText_SAFE(entry.text, 'TRANSCRIPT_V3_PROBE_Q');
 
                    console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_RENDERED]', {
                      stableKey: entry.stableKey || entry.id,
@@ -20737,7 +20737,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                   // V3 UI-only history cards (ephemeral - for immediate display)
                   if (entry.kind === 'v3_opener_history') {
                     // V3_OPENER PRECEDENCE: Do not render opener history while an opener is active
-                    if (activeUiItem_S?.kind === "V3_OPENER") {
+                    if (activeUiItem_S_SAFE?.kind === "V3_OPENER") {
                       console.log('[V3_OPENER][HISTORY_SUPPRESSED_DURING_ACTIVE]', {
                         stableKey: entry.stableKey,
                         instanceNumber: entry.instanceNumber,
@@ -20747,7 +20747,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                     }
                     
                     // V3_OPENER PRECEDENCE: Do not render ANY opener history while an opener is active
-                    if (activeUiItem_S?.kind === "V3_OPENER") {
+                    if (activeUiItem_S_SAFE?.kind === "V3_OPENER") {
                       console.log('[V3_OPENER][HISTORY_OPENER_SUPPRESSED_ACTIVE]', {
                         stableKey: entry.stableKey,
                         instanceNumber: entry.instanceNumber,
@@ -20846,13 +20846,13 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                   }
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
-            if (entry.role === 'assistant' && getMessageTypeSOT(entry) === 'QUESTION_SHOWN') {
+            if (entry.role === 'assistant' && getMessageTypeSOT_SAFE(entry) === 'QUESTION_SHOWN') {
               // ACTIVE ITEM CHECK: Determine if this is the current active question
               const questionDbId = entry.meta?.questionDbId;
-              const isActiveBaseQuestion = effectiveItemType === 'question' && 
+              const isActiveBaseQuestion = effectiveItemType_SAFE === 'question' && 
                 currentItem_S?.type === 'question' &&
                 currentItem_S?.id === questionDbId &&
-                activeUiItem_S?.kind === 'DEFAULT' &&
+                activeUiItem_S_SAFE?.kind === 'DEFAULT' &&
                 bottomBarModeSOT === 'YES_NO';
 
               // FIX #2: Suppress ACTIVE base questions from transcript (prevent duplicate rendering)
@@ -20863,7 +20863,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                   console.log('[BASE_YESNO][TRANSCRIPT_SUPPRESSED]', {
                     questionId: questionDbId,
                     stableKey: entry.stableKey || entry.id,
-                    activeCard_SKind: activeCard_S?.kind,
+                    activeCard_SKind: activeCard_S_SAFE?.kind,
                     hasActiveCard: !!activeCard_S,
                     reason: 'Active base question - suppressing transcript copy to prevent duplicate'
                   });
@@ -20911,10 +20911,10 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             }
 
             // User answer (ANSWER from chatTranscriptHelpers)
-            if (entry.role === 'user' && getMessageTypeSOT(entry) === 'ANSWER') {
+            if (entry.role === 'user' && getMessageTypeSOT_SAFE(entry) === 'ANSWER') {
               // DEDUPE: Skip if this answer is being rendered under active base question card
-              const isActiveBaseQuestion = activeCard_S?.kind === 'base_question_yesno';
-              const activeQuestionId = activeCard_S?.questionId;
+              const isActiveBaseQuestion = activeCard_S_SAFE?.kind === 'base_question_yesno';
+              const activeQuestionId = activeCard_S_SAFE?.questionId;
               const entryQuestionId = entry.questionId || entry.meta?.questionDbId || entry.meta?.questionId;
               const isAnswerForActiveQuestion = isActiveBaseQuestion && 
                                                 activeQuestionId && 
@@ -20986,14 +20986,14 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             }
 
             // Multi-instance gate prompt shown (suppress CURRENT gate only during V3 blocking)
-            if (entry.role === 'assistant' && getMessageTypeSOT(entry) === 'MULTI_INSTANCE_GATE_SHOWN') {
+            if (entry.role === 'assistant' && getMessageTypeSOT_SAFE(entry) === 'MULTI_INSTANCE_GATE_SHOWN') {
               // Extract entry's pack/instance identity
               const entryPackId = entry.packId || entry.meta?.packId;
               const entryInstanceNumber = entry.instanceNumber || entry.meta?.instanceNumber;
               const entryGateId = entry.id;
 
               // ACTIVE ITEM CHECK: Only the current active gate may render
-              const isActiveMiGate = effectiveItemType === 'multi_instance_gate' && 
+              const isActiveMiGate = effectiveItemType_SAFE === 'multi_instance_gate' && 
                 currentItem_S?.type === 'multi_instance_gate' &&
                 currentItem_S?.packId === entryPackId &&
                 currentItem_S?.instanceNumber === entryInstanceNumber;
@@ -21042,7 +21042,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               const renderContext = "TRANSCRIPT";
               
               // STEP 2: Sanitize MI gate prompt in transcript
-              const safeMiGateTranscript = sanitizeCandidateFacingText(entry.text, 'TRANSCRIPT_MI_GATE');
+              const safeMiGateTranscript = sanitizeCandidateFacingText_SAFE(entry.text, 'TRANSCRIPT_MI_GATE');
 
               // ANCHOR: Mark as system transition to prevent false scroll state changes
               recentAnchorRef.current = {
@@ -21130,7 +21130,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             }
 
             // Multi-instance gate answer (user's Yes/No)
-            if (entry.role === 'user' && getMessageTypeSOT(entry) === 'MULTI_INSTANCE_GATE_ANSWER') {
+            if (entry.role === 'user' && getMessageTypeSOT_SAFE(entry) === 'MULTI_INSTANCE_GATE_ANSWER') {
               // CONTEXT-AWARE LABELING: Clarify MI gate answers
               const rawAnswer = entry.text;
               let displayText = rawAnswer;
@@ -21189,7 +21189,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             <div key={entryKey}>
 
               {/* Parent placeholder (injected for orphaned answers) */}
-              {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'PARENT_PLACEHOLDER' && (
+              {entry.role === 'assistant' && getMessageTypeSOT_SAFE(entry) === 'PARENT_PLACEHOLDER' && (
                 <ContentContainer>
                 <div className="w-full bg-slate-800/40 border border-slate-600/40 rounded-xl p-4 opacity-90">
                   <p className="text-slate-300 text-sm leading-relaxed italic">{entry.text}</p>
@@ -21242,7 +21242,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               )}
 
               {/* CTA acknowledgement - "Begin next section" */}
-              {entry.role === 'user' && getMessageTypeSOT(entry) === 'CTA_ACK' && (
+              {entry.role === 'user' && getMessageTypeSOT_SAFE(entry) === 'CTA_ACK' && (
                 <div style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
@@ -21268,7 +21268,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               )}
 
               {/* Session resumed marker (collapsed system note) */}
-              {getMessageTypeSOT(entry) === 'RESUME' && entry.visibleToCandidate && (
+              {getMessageTypeSOT_SAFE(entry) === 'RESUME' && entry.visibleToCandidate && (
                 <ContentContainer>
                 <div className="w-full bg-blue-900/30 border border-blue-700/40 rounded-xl p-3">
                   <p className="text-blue-300 text-sm">{entry.text}</p>
@@ -21277,9 +21277,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               )}
 
               {/* V3 Pack opener prompt (FOLLOWUP_CARD_SHOWN) - MUST be visible in transcript history */}
-              {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener' && (() => {
+              {entry.role === 'assistant' && getMessageTypeSOT_SAFE(entry) === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener' && (() => {
                 // STEP 2: Sanitize opener prompt in transcript
-                const safeOpenerTranscript = sanitizeCandidateFacingText(entry.text, 'TRANSCRIPT_V3_OPENER');
+                const safeOpenerTranscript = sanitizeCandidateFacingText_SAFE(entry.text, 'TRANSCRIPT_V3_OPENER');
                 
                 // ACTIVE CARD DETECTION: Check if this is the current opener
                 const isActiveOpener = currentItem_S?.type === 'v3_pack_opener' && 
@@ -21312,7 +21312,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 );
               })()}
 
-              {entry.role === 'user' && getMessageTypeSOT(entry) === 'V3_OPENER_ANSWER' && (
+              {entry.role === 'user' && getMessageTypeSOT_SAFE(entry) === 'V3_OPENER_ANSWER' && (
                 <div style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
@@ -21325,9 +21325,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               )}
 
               {/* Required Anchor Question - Deterministic fallback question */}
-              {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'REQUIRED_ANCHOR_QUESTION' && (() => {
+              {entry.role === 'assistant' && getMessageTypeSOT_SAFE(entry) === 'REQUIRED_ANCHOR_QUESTION' && (() => {
                 // V3_OPENER PRECEDENCE: Suppress fallback questions when opener is active
-                if (activeUiItem_S?.kind === "V3_OPENER") {
+                if (activeUiItem_S_SAFE?.kind === "V3_OPENER") {
                   console.log('[V3_OPENER][FALLBACK_QUESTION_SUPPRESSED]', {
                     packId: currentItem_S?.packId,
                     instanceNumber: currentItem_S?.instanceNumber,
@@ -21390,9 +21390,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               })()}
 
               {/* Prompt Lane Context - Non-chat context rows (e.g., fallback questions) */}
-              {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'PROMPT_LANE_CONTEXT' && entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK' && (() => {
+              {entry.role === 'assistant' && getMessageTypeSOT_SAFE(entry) === 'PROMPT_LANE_CONTEXT' && entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK' && (() => {
                 // V3_OPENER PRECEDENCE: Suppress fallback context when opener is active
-                if (activeUiItem_S?.kind === "V3_OPENER") {
+                if (activeUiItem_S_SAFE?.kind === "V3_OPENER") {
                   console.log('[V3_OPENER][FALLBACK_CONTEXT_SUPPRESSED]', {
                     packId: currentItem_S?.packId,
                     instanceNumber: currentItem_S?.instanceNumber,
@@ -21456,10 +21456,10 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               {entry.role === 'assistant' && entry.type === 'base_question' && (() => {
                 // UI CONTRACT: NO inline actions - all actions in bottom bar only
                 const questionId = entry.questionId;
-                const isActiveBaseQuestion = effectiveItemType === 'question' && 
+                const isActiveBaseQuestion = effectiveItemType_SAFE === 'question' && 
                   currentItem_S?.type === 'question' &&
                   currentItem_S?.id === questionId &&
-                  activeUiItem_S?.kind === 'DEFAULT' &&
+                  activeUiItem_S_SAFE?.kind === 'DEFAULT' &&
                   bottomBarModeSOT === 'YES_NO';
                 
                 // AUDIT: Inline actions should never render (legacy type)
@@ -21477,7 +21477,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                   <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-base font-semibold text-blue-400">
-                        Question {entry.questionNumber || getQuestionDisplayNumber(entry.questionId)}
+                        Question {entry.questionNumber || getQuestionDisplayNumber_SAFE(entry.questionId)}
                       </span>
                       <span className="text-sm text-slate-500">•</span>
                       <span className="text-sm font-medium text-slate-300">{entry.category}</span>
@@ -21506,10 +21506,10 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               {entry.type === 'question' && entry.answer && !entry.role && (() => {
                 // UI CONTRACT: NO inline actions for legacy combined entries
                 const questionId = entry.questionId;
-                const isActiveBaseQuestion = effectiveItemType === 'question' && 
+                const isActiveBaseQuestion = effectiveItemType_SAFE === 'question' && 
                   currentItem_S?.type === 'question' &&
                   currentItem_S?.id === questionId &&
-                  activeUiItem_S?.kind === 'DEFAULT' &&
+                  activeUiItem_S_SAFE?.kind === 'DEFAULT' &&
                   bottomBarModeSOT === 'YES_NO';
                 
                 // AUDIT: Log if this legacy type is somehow active (should not happen)
@@ -21528,7 +21528,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                     <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-base font-semibold text-blue-400">
-                          Question {getQuestionDisplayNumber(entry.questionId)}
+                          Question {getQuestionDisplayNumber_SAFE(entry.questionId)}
                         </span>
                         <span className="text-sm text-slate-500">•</span>
                         <span className="text-sm font-medium text-slate-300">{entry.category}</span>
@@ -21563,8 +21563,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 const activePackId = currentItem_S?.packId || v3ProbingContext_S?.packId || activeUiItem_S?.packId;
                 const packConfig = activePackId ? FOLLOWUP_PACK_CONFIGS?.[activePackId] : null;
                 const isActivePackV3 = Boolean(packConfig?.isV3Pack === true || packConfig?.engine_SVersion === 'v3');
-                const isV3UiActive = (activeUiItem_S?.kind === 'V3_OPENER' || 
-                                     activeUiItem_S?.kind === 'V3_PROBING' || 
+                const isV3UiActive = (activeUiItem_S_SAFE?.kind === 'V3_OPENER' || 
+                                     activeUiItem_S_SAFE?.kind === 'V3_PROBING' || 
                                      currentItem_S?.type === 'v3_pack_opener' ||
                                      v3ProbingActive);
                 
@@ -21621,8 +21621,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 const activePackId = currentItem_S?.packId || v3ProbingContext_S?.packId || activeUiItem_S?.packId;
                 const packConfig = activePackId ? FOLLOWUP_PACK_CONFIGS?.[activePackId] : null;
                 const isActivePackV3 = Boolean(packConfig?.isV3Pack === true || packConfig?.engine_SVersion === 'v3');
-                const isV3UiActive = (activeUiItem_S?.kind === 'V3_OPENER' || 
-                                     activeUiItem_S?.kind === 'V3_PROBING' || 
+                const isV3UiActive = (activeUiItem_S_SAFE?.kind === 'V3_OPENER' || 
+                                     activeUiItem_S_SAFE?.kind === 'V3_PROBING' || 
                                      currentItem_S?.type === 'v3_pack_opener' ||
                                      v3ProbingActive);
                 
@@ -21685,7 +21685,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                   })())}
 
                   {/* Section Completion Messages */}
-              {entry.role === 'assistant' && getMessageTypeSOT(entry) === 'SECTION_COMPLETE' && entry.visibleToCandidate && (
+              {entry.role === 'assistant' && getMessageTypeSOT_SAFE(entry) === 'SECTION_COMPLETE' && entry.visibleToCandidate && (
                 <ContentContainer>
                 <div className="w-full bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
                   <div className="flex items-start gap-4">
@@ -21724,44 +21724,44 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
           })()}
 
           {/* ACTIVE CARD LANE: Render active prompt card at bottom (after transcript) */}
-          {activeCard_S && (activeUiItem_S.kind === "REQUIRED_ANCHOR_FALLBACK" || activeUiItem_S.kind === "V3_OPENER" || activeUiItem_S.kind === "V3_PROMPT" || activeUiItem_S.kind === "MI_GATE" || activeCard_S.kind === "base_question_yesno") && (() => {
+          {activeCard_S && (activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" || activeUiItem_S_SAFE.kind === "V3_OPENER" || activeUiItem_S_SAFE.kind === "V3_PROMPT" || activeUiItem_S_SAFE.kind === "MI_GATE" || activeCard_S_SAFE.kind === "base_question_yesno") && (() => {
             console.log('[UI_CONTRACT][ACTIVE_LANE_POSITION_SOT]', {
-              activeUiItem_SKind: isV3DebugEnabled ? cqRead('activeUiItem_S.kind', () => activeUiItem_S?.kind) : activeUiItem_S?.kind,
+              activeUiItem_SKind: isV3DebugEnabled ? cqRead('activeUiItem_S_SAFE.kind', () => activeUiItem_S_SAFE?.kind) : activeUiItem_S_SAFE?.kind,
               placedAfterTranscript: true,
-              transcriptLen: isV3DebugEnabled ? cqRead('finalTranscriptList_S.length', () => finalTranscriptList_S.length) : finalTranscriptList_S.length || 0,
-              activeCard_SKind: isV3DebugEnabled ? cqRead('activeCard_S.kind', () => activeCard_S.kind) : activeCard_S.kind,
+              transcriptLen: isV3DebugEnabled ? cqRead('finalTranscriptList_S_SAFE.length', () => finalTranscriptList_S_SAFE.length) : finalTranscriptList_S_SAFE.length || 0,
+              activeCard_SKind: isV3DebugEnabled ? cqRead('activeCard_S_SAFE.kind', () => activeCard_S_SAFE.kind) : activeCard_S_SAFE.kind,
               packId: isV3DebugEnabled ? cqRead('activeCard_S.packId', () => activeCard_S.packId) : activeCard_S.packId,
               instanceNumber: isV3DebugEnabled ? cqRead('activeCard_S.instanceNumber', () => activeCard_S.instanceNumber) : activeCard_S.instanceNumber
             });
 
-            const cardKind = activeCard_S.kind;
+            const cardKind = activeCard_S_SAFE.kind;
 
             if (cardKind === "required_anchor_fallback_prompt") {
               // V3_OPENER PRECEDENCE: Suppress fallback card when opener is active
-              if (activeUiItem_S?.kind === "V3_OPENER") {
+              if (activeUiItem_S_SAFE?.kind === "V3_OPENER") {
                 console.log('[V3_OPENER][ACTIVE_LANE_FALLBACK_SUPPRESSED]', {
-                  packId: activeCard_S?.packId,
-                  instanceNumber: activeCard_S?.instanceNumber,
+                  packId: activeCard_S_SAFE?.packId,
+                  instanceNumber: activeCard_S_SAFE?.instanceNumber,
                   reason: 'Active V3 opener owns active lane - suppressing fallback card'
                 });
                 return null;
               }
               
-              const safeCardPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_FALLBACK_PROMPT');
+              const safeCardPrompt = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_FALLBACK_PROMPT');
               
               console.log('[REQUIRED_ANCHOR_FALLBACK][ACTIVE_LANE_RENDER_OVERRIDE]', {
                 reason: 'ignore_currentItem_SType_gate',
                 kind: 'required_anchor_fallback_prompt',
                 promptPreview: safeCardPrompt?.substring(0, 60),
                 currentItem_SType: currentItem_S?.type,
-                activeUiItem_SKind: activeUiItem_S?.kind
+                activeUiItem_SKind: activeUiItem_S_SAFE?.kind
               });
               
               return (
                 <div 
-                  key={`active-${activeCard_S.stableKey}`}
+                  key={`active-${activeCard_S_SAFE.stableKey}`}
                   ref={activeLaneCardRef}
-                  data-stablekey={activeCard_S.stableKey}
+                  data-stablekey={activeCard_S_SAFE.stableKey}
                   data-cq-active-card="true"
                   data-ui-contract-card="true"
                   style={{
@@ -21787,14 +21787,14 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             }
 
             if (cardKind === "v3_probe_q") {
-              const safeCardPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_V3_PROBE');
+              const safeCardPrompt = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_V3_PROBE');
               return (
-                <div key={`active-${activeCard_S.stableKey}`}>
+                <div key={`active-${activeCard_S_SAFE.stableKey}`}>
                   <ContentContainer>
                     <div 
                       className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150"
                       data-cq-active-card="true"
-                      data-stablekey={activeCard_S.stableKey}
+                      data-stablekey={activeCard_S_SAFE.stableKey}
                       data-ui-contract-card="true"
                     >
                       <div className="flex items-center gap-2 mb-1">
@@ -21814,10 +21814,10 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             }
 
             if (cardKind === "v3_pack_opener") {
-              const cardStableKey = activeCard_S.stableKey || `followup-card:${activeCard_S.packId}:opener:${activeCard_S.instanceNumber}`;
+              const cardStableKey = activeCard_S_SAFE.stableKey || `followup-card:${activeCard_S.packId}:opener:${activeCard_S.instanceNumber}`;
               
               // FORCED RENDERING: Active opener MUST render in main pane (owner swap suppression removed)
-              if (activeUiItem_S?.kind === "V3_OPENER") {
+              if (activeUiItem_S_SAFE?.kind === "V3_OPENER") {
                 console.log('[V3_OPENER][FORCE_MAIN_PANE_RENDER]', {
                   packId: activeCard_S.packId,
                   instanceNumber: activeCard_S.instanceNumber,
@@ -21826,7 +21826,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               }
               
               // V3_OPENER PRECEDENCE: Only render the CURRENT active opener card
-              if (activeUiItem_S?.kind === "V3_OPENER") {
+              if (activeUiItem_S_SAFE?.kind === "V3_OPENER") {
                 const activeKeySOT = activeCard_SKeySOT;
                 if (activeKeySOT && cardStableKey && cardStableKey !== activeKeySOT) {
                   console.log('[V3_OPENER][ACTIVE_LANE_EXTRA_OPENER_SUPPRESSED]', {
@@ -21844,7 +21844,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 match: cardStableKey === activeCard_SKeySOT
               });
               
-              const safeOpenerPrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_V3_OPENER');
+              const safeOpenerPrompt = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_V3_OPENER');
               
               const instanceTitle = activeCard_S.categoryLabel && activeCard_S.instanceNumber > 1 
                 ? `${activeCard_S.categoryLabel} — Instance ${activeCard_S.instanceNumber}` 
@@ -21892,8 +21892,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             }
 
             if (cardKind === "multi_instance_gate") {
-              const safeMiGatePrompt = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_MI_GATE');
-              const cardStableKey = activeCard_S.stableKey || `mi-gate:${activeCard_S.packId}:${activeCard_S.instanceNumber}:q`;
+              const safeMiGatePrompt = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_MI_GATE');
+              const cardStableKey = activeCard_S_SAFE.stableKey || `mi-gate:${activeCard_S.packId}:${activeCard_S.instanceNumber}:q`;
               
               // SUPPRESS: Skip rendering if this is just "Instance X" preview
               const isInstancePreviewOnly = /^Instance\s+\d+$/i.test((safeMiGatePrompt || '').trim());
@@ -21932,7 +21932,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
             if (cardKind === "v3_thinking") {
               return (
-                <div key={`active-${activeCard_S.stableKey}`} data-stablekey={activeCard_S.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
+                <div key={`active-${activeCard_S_SAFE.stableKey}`} data-stablekey={activeCard_S_SAFE.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
                   <ContentContainer>
                     <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                       <div className="flex items-center gap-2">
@@ -21946,8 +21946,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             }
 
             if (cardKind === "base_question_yesno") {
-              const safeQuestionText = sanitizeCandidateFacingText(activeCard_S.text, 'ACTIVE_LANE_BASE_QUESTION');
-              const cardStableKey = activeCard_S.stableKey || `question-shown:${activeCard_S.questionId}`;
+              const safeQuestionText = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_BASE_QUESTION');
+              const cardStableKey = activeCard_S_SAFE.stableKey || `question-shown:${activeCard_S.questionId}`;
               const activeQuestionId = activeCard_S.questionId;
               
               // FIX: Find most recent answer for this question in render stream
@@ -22062,7 +22062,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       {/* V3 Pack Opener Card - SYNTHETIC RENDER (disabled by ENABLE_SYNTHETIC_TRANSCRIPT) */}
       {false && ENABLE_SYNTHETIC_TRANSCRIPT && (() => {
             // UI CONTRACT: Use effectiveItemType (never render opener during probing)
-            const isV3OpenerMode = effectiveItemType === 'v3_pack_opener';
+            const isV3OpenerMode = effectiveItemType_SAFE === 'v3_pack_opener';
             
             // V3 UI CONTRACT: Hard block opener card during active V3 probing
             if (v3ProbingActive) {
@@ -22360,7 +22360,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
           {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarModeSOT guard above */}
-          {bottomBarModeSOT === "CTA" && screenMode === 'WELCOME' ? (
+          {bottomBarModeSOT_SAFE === "CTA" && screenMode === 'WELCOME' ? (
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
@@ -22436,7 +22436,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                   // TDZ-SAFE: Compute fresh flags at call time
                   setTimeout(() => {
                     const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
-                    const isMiGateFresh = effectiveItemType === 'multi_instance_gate' || activeUiItem_S?.kind === 'MI_GATE';
+                    const isMiGateFresh = effectiveItemType_SAFE === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
                     
                     requestAnimationFrame(() => {
                       ensureActiveVisibleAfterRender("WELCOME_DISMISSED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
@@ -22449,7 +22449,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 Got it — Let's Begin
               </Button>
             </div>
-          ) : bottomBarModeSOT === "CTA" && (activeBlocker?.type === 'SECTION_MESSAGE' || pendingSectionTransition) ? (
+          ) : bottomBarModeSOT_SAFE === "CTA" && (activeBlocker?.type === 'SECTION_MESSAGE' || pendingSectionTransition) ? (
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
@@ -22503,7 +22503,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                Click to continue to {(activeBlocker?.nextSectionName || pendingSectionTransition?.nextSectionName)}
               </p>
             </div>
-          ) : bottomBarModeSOT === "YES_NO" && !isMultiInstanceGate && (activeBlocker?.type === 'V3_GATE' || isV3Gate) ? (
+          ) : bottomBarModeSOT_SAFE === "YES_NO" && !isMultiInstanceGate && (activeBlocker?.type === 'V3_GATE' || isV3Gate) ? (
            (() => {
              // TRUTH TEST: Detect legacy red/green V3_GATE renderer
              logOnce(`alt_yesno_v3gate_${sessionId}`, () => {
@@ -22538,15 +22538,15 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                />
              );
            })()
-          ) : bottomBarModeSOT === "YES_NO" && (bottomBarRenderTypeSOT === "multi_instance_gate" || isMultiInstanceGate) ? (
+          ) : bottomBarModeSOT_SAFE === "YES_NO" && (bottomBarRenderTypeSOT === "multi_instance_gate" || isMultiInstanceGate) ? (
           <div className="space-y-3">
            {/* UI CONTRACT: MI_GATE footer shows buttons ONLY (no prompt text) */}
            {(() => {
              // Confirmation log: MI_GATE footer is buttons-only
              const isMiGateFooter = 
-               activeUiItem_S?.kind === "MI_GATE" &&
-               effectiveItemType === 'multi_instance_gate' &&
-               bottomBarModeSOT === "YES_NO";
+               activeUiItem_S_SAFE?.kind === "MI_GATE" &&
+               effectiveItemType_SAFE === 'multi_instance_gate' &&
+               bottomBarModeSOT_SAFE === "YES_NO";
 
              if (isMiGateFooter) {
                console.log('[MI_GATE][FOOTER_BUTTONS_ONLY]', {
@@ -22609,7 +22609,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                    packId: gate.packId,
                    instanceNumber: gate.instanceNumber,
                    answerYesNo: 'Yes',
-                   activeUiItem_SKind: activeUiItem_S?.kind,
+                   activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
                    currentItem_SId: currentItem_S?.id,
                    stableKey: `mi-gate:${gate.packId}:${gate.instanceNumber}`
                  });
@@ -22643,7 +22643,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                    packId: gate.packId,
                    instanceNumber: gate.instanceNumber,
                    answerYesNo: 'No',
-                   activeUiItem_SKind: activeUiItem_S?.kind,
+                   activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
                    currentItem_SId: currentItem_S?.id,
                    stableKey: `mi-gate:${gate.packId}:${gate.instanceNumber}`
                  });
@@ -22662,7 +22662,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
              }}
            />
           </div>
-          ) : bottomBarModeSOT === "YES_NO" && bottomBarRenderTypeSOT !== "v3_probing" ? (
+          ) : bottomBarModeSOT_SAFE === "YES_NO" && bottomBarRenderTypeSOT_SAFE !== "v3_probing" ? (
           (() => {
             // TRUTH TEST: Assert YesNoControls is the only renderer for base questions
             logOnce(`yesno_renderer_assert_base_${sessionId}`, () => {
@@ -22697,7 +22697,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               />
             );
           })()
-          ) : bottomBarModeSOT === "V3_WAITING" ? (
+          ) : bottomBarModeSOT_SAFE === "V3_WAITING" ? (
           <div className="space-y-2">
             <div className="flex gap-3">
               <Textarea
@@ -22718,7 +22718,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               </Button>
             </div>
           </div>
-          ) : bottomBarModeSOT === "DISABLED" || (v3ProbingActive && !hasActiveV3Prompt) ? (
+          ) : bottomBarModeSOT_SAFE === "DISABLED" || (v3ProbingActive && !hasActiveV3Prompt) ? (
           <div className="space-y-2">
             <div className="flex gap-3">
               <Textarea
@@ -22738,7 +22738,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               </Button>
             </div>
           </div>
-          ) : bottomBarModeSOT === "SELECT" ? (
+          ) : bottomBarModeSOT_SAFE === "SELECT" ? (
             <div className="flex flex-wrap gap-2">
               {currentPrompt?.options?.map((option) => (
                 <Button
@@ -22751,7 +22751,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 </Button>
               ))}
             </div>
-          ) : bottomBarModeSOT === "TEXT_INPUT" ? (
+          ) : bottomBarModeSOT_SAFE === "TEXT_INPUT" ? (
           <div className="space-y-2">
           {/* UI CONTRACT: Footer shows input + send only (no prompt text) */}
           {(() => {
@@ -22762,11 +22762,11 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               });
             }
             
-            const isV3PromptActive = activeUiItem_S?.kind === "V3_PROMPT" && bottomBarModeSOT === "TEXT_INPUT";
+            const isV3PromptActive = activeUiItem_S_SAFE?.kind === "V3_PROMPT" && bottomBarModeSOT_SAFE === "TEXT_INPUT";
             if (isV3PromptActive) {
               console.log("[V3_PROMPT][FOOTER_INPUT_ONLY]", { 
-                bottomBarModeSOT, 
-                effectiveItemType,
+                bottomBarModeSOT_SAFE, 
+                effectiveItemType_SAFE,
                 note: 'Footer shows input + send only - question renders in main pane'
               });
             }
@@ -22776,7 +22776,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             {/* STEP 3: Placeholder sanitization (only if dynamic) - currently constant so simplified */}
 
           {/* LLM Suggestion - show if available for this field (hide during V3 probing or missing prompt) */}
-          {!v3ProbingActive && hasPrompt && (() => {
+          {!v3ProbingActive && hasPrompt_SAFE && (() => {
             const suggestionKey = currentItem_S?.packId && currentItem_S?.fieldKey
               ? `${currentItem_S.packId}_${currentItem_S.instanceNumber || 1}_${currentItem_S.fieldKey}`
               : null;
@@ -22819,7 +22819,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 // Sanitization happens at render time only (safeActivePromptText)
 
                 // GUARD: Never allow prompt text as value
-                const promptText = currentItem_S?.openerText || safeActivePromptText || "";
+                const promptText = currentItem_S?.openerText || safeActivePromptText_SAFE || "";
                 const valueMatchesPrompt = value.trim() === promptText.trim() && value.length > 10;
 
                 if (valueMatchesPrompt) {
@@ -22870,8 +22870,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             aria-label="Answer input"
             className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
             style={{ maxHeight: '120px', overflowY: 'auto' }}
-            disabled={effectiveItemType === 'v3_pack_opener' ? v3OpenerTextareaDisabled : isCommitting}
-            autoFocus={hasPrompt || currentItem_S?.type === 'v3_pack_opener'}
+            disabled={effectiveItemType_SAFE === 'v3_pack_opener' ? v3OpenerTextareaDisabled : isCommitting}
+            autoFocus={hasPrompt_SAFE || currentItem_S?.type === 'v3_pack_opener'}
             rows={1}
             />
              {/* V3 UI CONTRACT: Violation detection */}
@@ -22904,29 +22904,29 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                  packId: currentItem_S?.packId, 
                  fieldKey: currentItem_S?.fieldKey,
                  v3ProbingActive,
-                 hasPrompt,
-                 effectiveItemType,
+                 hasPrompt_SAFE,
+                 effectiveItemType_SAFE,
                  openerInputLen: openerInputValue?.length || 0
                });
                
                console.log('[BOTTOM_BAR][SEND_DISPATCH]', {
-                 bottomBarModeSOT,
-                 effectiveItemType,
-                 activeUiItem_SKind: activeUiItem_S?.kind
+                 bottomBarModeSOT_SAFE,
+                 effectiveItemType_SAFE,
+                 activeUiItem_SKind: activeUiItem_S_SAFE?.kind
                });
                
                handleBottomBarSubmit();
              }}
              disabled={
-               effectiveItemType === 'required_anchor_fallback' 
+               effectiveItemType_SAFE === 'required_anchor_fallback' 
                  ? !(input ?? "").trim()
-                 : effectiveItemType === 'v3_pack_opener' 
+                 : effectiveItemType_SAFE === 'v3_pack_opener' 
                    ? v3OpenerSubmitDisabled 
-                   : (isBottomBarSubmitDisabled || !hasPrompt)
+                   : (isBottomBarSubmitDisabled_SAFE || !hasPrompt_SAFE)
              }
              className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5 disabled:opacity-50"
            >
-             {(currentItem_S?.type !== 'v3_pack_opener' && !hasPrompt) ? (
+             {(currentItem_S?.type !== 'v3_pack_opener' && !hasPrompt_SAFE) ? (
                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
              ) : (
                <Send className="w-4 h-4 mr-2" />
@@ -22955,7 +22955,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             }
             
             // FIX C: Count actual active card in stream
-            const mainBodyPromptCards = activeCard_S?.kind === "v3_probe_q" ? 1 : 0;
+            const mainBodyPromptCards = activeCard_S_SAFE?.kind === "v3_probe_q" ? 1 : 0;
             
             console.log('[V3_UI_CONTRACT] ENFORCED', {
               v3ProbingActive,
@@ -22964,9 +22964,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               mainBodyPromptCards,
               transcriptPromptCards,
               transcriptLen: transcriptLengthNow,
-              activeCard_SKind: activeCard_S?.kind || null,
+              activeCard_SKind: activeCard_S_SAFE?.kind || null,
               hasActiveV3Prompt,
-              activeUiItem_SKind: activeUiItem_S?.kind
+              activeUiItem_SKind: activeUiItem_S_SAFE?.kind
             });
             return null;
           })()}
@@ -22994,14 +22994,14 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 openerTextRaw || 'Please describe the details for this section in your own words.';
 
               console.log('[V3_OPENER][PROMPT_TEXT_LOCK]', {
-                effectiveItemType,
+                effectiveItemType_SAFE,
                 instanceNumber: currentItem_S?.instanceNumber,
                 usedOpenerText: !!openerTextRaw,
                 preview: promptTextUsed.substring(0, 80),
                 reason: openerTextRaw ? 'opener_text_found' : 'opener_blank_using_fallback',
               });
             } else {
-              promptTextUsed = activePromptText || safeActivePromptText || '';
+              promptTextUsed = activePromptText_SAFE || safeActivePromptText_SAFE || '';
               
               // V3_WAITING SAFETY NET: Show "Thinking…" instead of empty prompt
               if (bottomBarModeSOT === 'V3_WAITING' && v3ProbingActive && !promptTextUsed.trim()) {
@@ -23014,17 +23014,17 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             const labelUsed = ''; // No label in footer (question in main pane)
             
             console.log('[BOTTOM_BAR_FOOTER]', {
-              shouldRenderFooter,
+              shouldRenderFooter_SAFE,
               screenMode,
-              bottomBarModeSOT: isV3DebugEnabled ? cqRead('FOOTER_IIFE:bottomBarModeSOT', () => bottomBarModeSOT) : bottomBarModeSOT,
-              effectiveItemType: isV3DebugEnabled ? cqRead('FOOTER_IIFE:effectiveItemType', () => effectiveItemType) : effectiveItemType,
+              bottomBarModeSOT: isV3DebugEnabled ? cqRead('FOOTER_IIFE:bottomBarModeSOT', () => bottomBarModeSOT) : bottomBarModeSOT_SAFE,
+              effectiveItemType: isV3DebugEnabled ? cqRead('FOOTER_IIFE:effectiveItemType', () => effectiveItemType) : effectiveItemType_SAFE,
               v3ProbingActive
             });
             
             // LOG: Footer prompt payload (what gets wired into textarea)
             console.log('[REQUIRED_ANCHOR_FALLBACK][FOOTER_PROMPT_PAYLOAD]', {
-              effectiveItemType,
-              bottomBarModeSOT,
+              effectiveItemType_SAFE,
+              bottomBarModeSOT_SAFE,
               promptTextUsed,
               placeholderUsed: placeholderUsedActual,
               labelUsed,
@@ -23032,7 +23032,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               contractCompliant: true
             });
 
-            return shouldRenderFooter ? (
+            return shouldRenderFooter_SAFE ? (
               <p className="text-xs text-slate-400 text-center mt-3">
                 Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
               </p>
