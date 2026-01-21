@@ -7440,7 +7440,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         const isLastField = fieldIndex >= totalFieldsInPack - 1;
 
         // CRITICAL: Declare isCurrentItemCommitting before any usage to avoid TDZ errors
-        const isV2FieldCommitGuard = isCommitting && committingItemIdRef.current === currentItem_S.id; // [CQ_ANCHOR_V2_FIELD_COMMITTING_LINE]
+        const isV2FieldCommitGuard = cqIsItemCommitting(currentItem_S?.id); // [CQ_ANCHOR_V2_FIELD_COMMITTING_LINE]
 
         console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] Processing field ${fieldIndex + 1}/${totalFieldsInPack}: ${fieldKey}`);
 
@@ -12362,6 +12362,11 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
   // ITEM-SCOPED COMMIT TRACKING: Track which item is being submitted
   const committingItemIdRef = useRef(null);
+  
+  // HELPER: TDZ-safe commit guard (prevents minifier collision with isCommitting state)
+  const cqIsItemCommitting = (itemId) => {
+    return Boolean(isCommitting) && Boolean(itemId) && committingItemIdRef.current === itemId;
+  };
 
   // V3 question append moved to commitV3PromptToBottomBar (synchronous, one-time)
   // This effect removed to eliminate repeated DB fetches
@@ -15704,7 +15709,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     const openerInputValue = openerDraft || "";
     const openerTextTrimmed = openerInputValue.trim();
     const openerTextTrimmedLen = openerTextTrimmed.length;
-    const isV3OpenerCommitGuard = isCommitting && committingItemIdRef.current === currentItem_S.id; // [CQ_ANCHOR_V3_OPENER_COMMITTING_LINE]
+    const isV3OpenerCommitGuard = cqIsItemCommitting(currentItem_S?.id); // [CQ_ANCHOR_V3_OPENER_COMMITTING_LINE]
     
     // TASK B: Single source of truth for textarea disabled
     const textareaDisabledRaw = Boolean(isV3OpenerCommitGuard) || Boolean(v3ProbingActive);
