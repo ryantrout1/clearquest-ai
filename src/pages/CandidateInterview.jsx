@@ -1357,7 +1357,7 @@ const runV2FieldProbeIfNeeded = async ({
 // - Welcome / start screens must NEVER reappear mid-session
 
 function CandidateInterviewInner() {
-  const __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ = 'CQ_CI_BUILDSTAMP_2026-01-20T00:00Z_v1';
+  const __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ = 'CQ_CI_BUILDSTAMP_2026-01-20T00:00Z_v2';
   console.log("[TDZ_TRACE][FN_ENTER]");
   try {
     if (typeof window !== 'undefined') {
@@ -7440,7 +7440,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         const isLastField = fieldIndex >= totalFieldsInPack - 1;
 
         // CRITICAL: Declare isCurrentItemCommitting before any usage to avoid TDZ errors
-        const isV2FieldCommitting = isCommitting && committingItemIdRef.current === currentItem_S.id; // [CQ_ANCHOR_V2_FIELD_COMMITTING_LINE]
+        const isV2FieldCommitGuard = isCommitting && committingItemIdRef.current === currentItem_S.id; // [CQ_ANCHOR_V2_FIELD_COMMITTING_LINE]
 
         console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] Processing field ${fieldIndex + 1}/${totalFieldsInPack}: ${fieldKey}`);
 
