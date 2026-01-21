@@ -4506,7 +4506,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // FIX #1: Diagnostic log for base yes/no routing (TDZ-SAFE: uses only early variables)
   if ((typeof bottomBarRenderTypeSOT !== 'undefined' ? bottomBarRenderTypeSOT : null) === "yes_no") {
     console.log('[UI_CONTRACT][BASE_YESNO_BOTTOM_BAR_ROUTE]', {
-      activeCard_SKind: activeCard_S_SAFE?.kind,
+      activeCard_SKind: (typeof activeCard_S_SAFE !== 'undefined' ? activeCard_S_SAFE : null)?.kind,
       bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== 'undefined' ? bottomBarRenderTypeSOT_SAFE : null),
       bottomBarModeSOTSafe,
       currentItem_SId: currentItem_S?.id,
