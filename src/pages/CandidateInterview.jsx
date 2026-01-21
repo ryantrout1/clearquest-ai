@@ -5461,6 +5461,10 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     return `cq_draft_${sessionId}_${packId || "none"}_${fieldKey || "none"}_${instanceNumber || 0}`;
   }, []);
 
+  const cqIsItemCommitting = (itemId) => {
+    return Boolean(isCommitting) && Boolean(itemId) && committingItemIdRef.current === itemId;
+  };
+
   // UX: Save draft to sessionStorage
   const saveDraft = useCallback((value) => {
     if (!sessionId) return;
@@ -15704,7 +15708,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     const openerInputValue = openerDraft || "";
     const openerTextTrimmed = openerInputValue.trim();
     const openerTextTrimmedLen = openerTextTrimmed.length;
-    const isV3OpenerCommitGuard = isCommitting && committingItemIdRef.current === currentItem_S.id; // [CQ_ANCHOR_V3_OPENER_COMMITTING_LINE]
+    const isV3OpenerCommitGuard = cqIsItemCommitting(currentItem_S?.id); // [CQ_ANCHOR_V3_OPENER_COMMITTING_LINE]
     
     // TASK B: Single source of truth for textarea disabled
     const textareaDisabledRaw = Boolean(isV3OpenerCommitGuard) || Boolean(v3ProbingActive);
