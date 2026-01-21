@@ -4498,52 +4498,57 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '5:BEFORE_MODE_SAFE' });
   window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_1:ENTER_MODE_BLOCK';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_1:ENTER_MODE_BLOCK' });
-  const VALID_MODES = ['YES_NO', 'TEXT_INPUT', 'DEFAULT', 'V3_WAITING', 'CTA', 'SELECT', 'HIDDEN', 'DISABLED'];
-  const bottomBarModeSOTSafe = VALID_MODES.includes(typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : null) ? (typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : 'DEFAULT') : 'DEFAULT';
   
-  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_2:AFTER_MODE_SAFE_COMPUTE';
-  console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_2:AFTER_MODE_SAFE_COMPUTE' });
-  
-  if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-    cqLog('DEBUG', '[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== 'undefined' ? bottomBarRenderTypeSOT_SAFE : null), bottomBarModeSOT_SAFE: (typeof bottomBarModeSOT_SAFE !== 'undefined' ? bottomBarModeSOT_SAFE : null), bottomBarModeSOTSafe });
-  }
-  
-  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_3:AFTER_CQLOG_DEBUG';
-  console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_3:AFTER_CQLOG_DEBUG' });
-  
-  // FIX #1: Diagnostic log for base yes/no routing (TDZ-SAFE: uses only early variables)
-  if ((typeof bottomBarRenderTypeSOT !== 'undefined' ? bottomBarRenderTypeSOT : null) === "yes_no") {
-    console.log('[UI_CONTRACT][BASE_YESNO_BOTTOM_BAR_ROUTE]', {
-      activeCard_SKind: (typeof activeCard_S_SAFE !== 'undefined' ? activeCard_S_SAFE : null)?.kind,
-      bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== 'undefined' ? bottomBarRenderTypeSOT_SAFE : null),
-      bottomBarModeSOTSafe,
-      currentItem_SId: currentItem_S?.id,
-      currentItem_SType: currentItem_S?.type,
-      questionResponseType: engine_S?.QById?.[currentItem_S?.id]?.response_type
-    });
-  }
-  
-  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_4:AFTER_YESNO_ROUTE_LOG';
-  console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_4:AFTER_YESNO_ROUTE_LOG' });
-  
-  // TDZ GUARD: Do not reference late-derived vars (effectiveItemType_SAFE, etc.) above this line.
-  
-  // One-time warning if fallback triggered (dev-only, once per mount)
-  const fallbackWarningLoggedRef = React.useRef(false);
-  if (bottomBarModeSOTSafe !== (typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : null) && !fallbackWarningLoggedRef.current) {
-    fallbackWarningLoggedRef.current = true;
+  try {
+    const VALID_MODES = ['YES_NO', 'TEXT_INPUT', 'DEFAULT', 'V3_WAITING', 'CTA', 'SELECT', 'HIDDEN', 'DISABLED'];
+    const bottomBarModeSOTSafe = VALID_MODES.includes(typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : null) ? (typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : 'DEFAULT') : 'DEFAULT';
+    
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_2:AFTER_MODE_SAFE_COMPUTE';
+    console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_2:AFTER_MODE_SAFE_COMPUTE' });
+    
     if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-      console.warn('[BOTTOM_BAR_MODE_SOT][FALLBACK]', { 
-        bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== 'undefined' ? bottomBarRenderTypeSOT_SAFE : null), 
-        bottomBarModeSOT_SAFE: (typeof bottomBarModeSOT_SAFE !== 'undefined' ? bottomBarModeSOT_SAFE : null), 
+      cqLog('DEBUG', '[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== 'undefined' ? bottomBarRenderTypeSOT_SAFE : null), bottomBarModeSOT_SAFE: (typeof bottomBarModeSOT_SAFE !== 'undefined' ? bottomBarModeSOT_SAFE : null), bottomBarModeSOTSafe });
+    }
+    
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_3:AFTER_CQLOG_DEBUG';
+    console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_3:AFTER_CQLOG_DEBUG' });
+    
+    // FIX #1: Diagnostic log for base yes/no routing (TDZ-SAFE: uses only early variables)
+    if ((typeof bottomBarRenderTypeSOT !== 'undefined' ? bottomBarRenderTypeSOT : null) === "yes_no") {
+      console.log('[UI_CONTRACT][BASE_YESNO_BOTTOM_BAR_ROUTE]', {
+        activeCard_SKind: (typeof activeCard_S_SAFE !== 'undefined' ? activeCard_S_SAFE : null)?.kind,
+        bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== 'undefined' ? bottomBarRenderTypeSOT_SAFE : null),
         bottomBarModeSOTSafe,
-        reason: 'Invalid mode detected - using DEFAULT fallback'
+        currentItem_SId: currentItem_S?.id,
+        currentItem_SType: currentItem_S?.type,
+        questionResponseType: engine_S?.QById?.[currentItem_S?.id]?.response_type
       });
     }
+    
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_4:AFTER_YESNO_ROUTE_LOG';
+    console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_4:AFTER_YESNO_ROUTE_LOG' });
+    
+    // TDZ GUARD: Do not reference late-derived vars (effectiveItemType_SAFE, etc.) above this line.
+    
+    // One-time warning if fallback triggered (dev-only, once per mount)
+    const fallbackWarningLoggedRef = React.useRef(false);
+    if (bottomBarModeSOTSafe !== (typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : null) && !fallbackWarningLoggedRef.current) {
+      fallbackWarningLoggedRef.current = true;
+      if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
+        console.warn('[BOTTOM_BAR_MODE_SOT][FALLBACK]', { 
+          bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== 'undefined' ? bottomBarRenderTypeSOT_SAFE : null), 
+          bottomBarModeSOT_SAFE: (typeof bottomBarModeSOT_SAFE !== 'undefined' ? bottomBarModeSOT_SAFE : null), 
+          bottomBarModeSOTSafe,
+          reason: 'Invalid mode detected - using DEFAULT fallback'
+        });
+      }
+    }
+    
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_5:AFTER_FALLBACK_WARN';
+    console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_5:AFTER_FALLBACK_WARN' });
+  } catch (e) {
+    console.error('[CQ_MODE_BLOCK][FAILOPEN]', { message: e?.message, name: e?.name, stack: e?.stack });
   }
-  
-  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_5:AFTER_FALLBACK_WARN';
-  console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_5:AFTER_FALLBACK_WARN' });
   
   window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5A:AFTER_MODE_WINDOW';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '5A:AFTER_MODE_WINDOW' });
