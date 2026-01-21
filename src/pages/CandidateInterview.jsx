@@ -4531,6 +4531,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     }
   }
   
+  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5A:AFTER_MODE_WINDOW';
+  console.log('[CQ_DIAG][TRY1_STEP]', { step: '5A:AFTER_MODE_WINDOW' });
+  
+  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5B:RIGHT_BEFORE_STEP6';
+  console.log('[CQ_DIAG][TRY1_STEP]', { step: '5B:RIGHT_BEFORE_STEP6' });
+  
   window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_6:AFTER_MODE_VALIDATION';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '6:AFTER_MODE_VALIDATION' });
   
