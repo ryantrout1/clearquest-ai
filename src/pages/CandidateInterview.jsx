@@ -7439,6 +7439,9 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         const totalFieldsInPack = activeV2Pack.fields?.length || packConfig?.fields?.length || 0;
         const isLastField = fieldIndex >= totalFieldsInPack - 1;
 
+        // CRITICAL: Declare isCurrentItemCommitting before any usage to avoid TDZ errors
+        const isCurrentItemCommitting = isCommitting && committingItemIdRef.current === currentItem_S.id; // [CQ_ANCHOR_V2_FIELD_COMMITTING_LINE]
+
         console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] Processing field ${fieldIndex + 1}/${totalFieldsInPack}: ${fieldKey}`);
 
         // CRITICAL: Declare v2Result early so it can be referenced throughout this handler
