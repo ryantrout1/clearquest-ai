@@ -3009,10 +3009,10 @@ function CandidateInterviewInner() {
     try {
       console.log('[CQ_DIAG][RENDER_STEP]', {
         step,
-        sessionId,
-        isLoading,
-        hasSession: !!session,
-        hasEngine: !!engine_S,
+        sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
+        isLoading: (typeof isLoading !== 'undefined' ? isLoading : null),
+        hasSession: (typeof session !== 'undefined' ? !!session : false),
+        hasEngine: (typeof engine_S !== 'undefined' ? !!engine_S : false),
         ...(extra || {}),
       });
     } catch (_) {}
