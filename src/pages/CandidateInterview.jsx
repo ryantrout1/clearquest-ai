@@ -3005,7 +3005,7 @@ function CandidateInterviewInner() {
   let __cqRenderStep = 'AFTER_HOOKS';
   const cqMark = (step, extra) => {
     try { if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = step; } catch (_) {}
-    __cqRenderStep = step;
+    try { __cqRenderStep = step; } catch (_) {}
     try {
       console.log('[CQ_DIAG][RENDER_STEP]', {
         step,
