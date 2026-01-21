@@ -34,9 +34,16 @@ export default function Home() {
 
   const loadQuestionCount = async () => {
     try {
+      console.log('[HOME_DIAG][QUESTION_LOAD_START]', { ts: Date.now() });
       const questions = await base44.entities.Question.filter({ active: true });
+      console.log('[HOME_DIAG][QUESTION_LOAD_SUCCESS]', { ts: Date.now(), count: questions?.length ?? null });
       setTotalQuestions(questions.length);
     } catch (err) {
+      console.error('[HOME_DIAG][QUESTION_LOAD_ERROR]', {
+        ts: Date.now(),
+        message: err?.message ?? String(err),
+        status: err?.status ?? err?.response?.status ?? null
+      });
       console.error("Error loading question count:", err);
     }
   };
@@ -45,7 +52,13 @@ export default function Home() {
     <div className="min-h-screen overflow-x-hidden" style={{ background: 'linear-gradient(180deg, #0B1F3F 0%, #102B57 50%, #0C234A 100%)' }}>
       {/* Hero Section */}
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/06ef5407d_image.png')] bg-cover bg-center opacity-10" />
+        <img 
+          src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/06ef5407d_image.png"
+          onLoad={() => console.log('[HOME_DIAG][HERO_IMAGE_LOAD_SUCCESS]')}
+          onError={() => console.error('[HOME_DIAG][HERO_IMAGE_LOAD_ERROR]', { src: 'hero-bg' })}
+          className="absolute inset-0 w-full h-full bg-cover bg-center opacity-10 object-cover"
+          alt="ClearQuest background"
+        />
         {/* Hero to content fade */}
         <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-b from-transparent to-[#0B1F3F]" />
         
@@ -76,6 +89,8 @@ export default function Home() {
                   src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/271f2b6c5_IMG_2762.PNG" 
                   alt="ClearQuest" 
                   className="relative w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 object-contain drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]"
+                  onLoad={() => console.log('[HOME_DIAG][LOGO_IMAGE_LOAD_SUCCESS]')}
+                  onError={() => console.error('[HOME_DIAG][LOGO_IMAGE_LOAD_ERROR]', { src: 'logo' })}
                 />
               </div>
             </div>
