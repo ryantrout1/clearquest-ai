@@ -15704,7 +15704,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     const openerInputValue = openerDraft || "";
     const openerTextTrimmed = openerInputValue.trim();
     const openerTextTrimmedLen = openerTextTrimmed.length;
-    const isV3OpenerCommitting = isCommitting && committingItemIdRef.current === currentItem_S.id; // [CQ_ANCHOR_V3_OPENER_COMMITTING_LINE]
+    const isV3OpenerCommitting = isCommitting && committingItemIdRef.current === currentItem_S.id;
     
     // TASK B: Single source of truth for textarea disabled
     const textareaDisabledRaw = Boolean(isV3OpenerCommitting) || Boolean(v3ProbingActive);
