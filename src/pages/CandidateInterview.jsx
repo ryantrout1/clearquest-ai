@@ -2928,6 +2928,32 @@ function CandidateInterviewInner() {
       const boot = await bootstrapEngine(sessionId);
       console.log('[CQ_INIT][BOOTSTRAP_ENGINE_OK]', { sessionId, hasBoot: !!boot });
 
+      // GUARD: Validate bootstrap result before using
+      if (!boot) {
+        console.error('[CQ_INIT][BOOTSTRAP_NULL]', { 
+          sessionId, 
+          reason: 'bootstrapEngine returned null/undefined' 
+        });
+        setError('Failed to initialize interview engine');
+        setIsLoading(false);
+        return;
+      }
+
+      // GUARD: Validate expected engine shape exists
+      if (!boot.engine && !boot.QById) {
+        console.error('[CQ_INIT][BOOTSTRAP_INVALID_SHAPE]', { 
+          sessionId, 
+          bootKeys: Object.keys(boot || {}),
+          hasBoot: !!boot,
+          hasEngine: !!boot?.engine,
+          hasQById: !!boot?.QById,
+          reason: 'Bootstrap result missing expected properties' 
+        });
+        setError('Failed to initialize interview engine');
+        setIsLoading(false);
+        return;
+      }
+
       // 2) Hydrate engine into state
       if (boot?.engine) {
         setEngine(boot.engine);
