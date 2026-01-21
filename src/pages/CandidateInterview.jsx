@@ -1376,18 +1376,6 @@ function CandidateInterviewInner() {
   const __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ = 'CQ_CI_BUILDSTAMP_2026-01-20T00:00Z_v2';
   console.log("[TDZ_TRACE][FN_ENTER]");
   try {
-    if (typeof window !== 'undefined') {
-      window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
-      window.CQ_RUNTIME_PROBE = window.CQ_RUNTIME_PROBE || {};
-      window.__CQ_RUNTIME_PROBE__.resumeFromDB_type_at_render = typeof resumeFromDB;
-      window.__CQ_RUNTIME_PROBE__.resumeFromDB_val_at_render = (typeof resumeFromDB === 'function') ? resumeFromDB : null;
-      window.CQ_RUNTIME_PROBE.resumeFromDB_type_at_render = typeof resumeFromDB;
-      window.CQ_RUNTIME_PROBE.resumeFromDB_val_at_render = (typeof resumeFromDB === 'function') ? resumeFromDB : null;
-    }
-    console.log('[CQ_DIAG][RUNTIME_PROBE][RESUME_FROM_DB]', { type: typeof resumeFromDB });
-  } catch (_) {}
-
-  try {
     const scripts = (typeof document !== 'undefined')
       ? Array.from(document.querySelectorAll('script[src]')).map(s => s.getAttribute('src')).filter(Boolean)
       : [];
@@ -6585,12 +6573,6 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     });
   }, []); // Run once on mount
 
-    try {
-    if (typeof window !== 'undefined') {
-      window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
-      window.__CQ_RUNTIME_PROBE__.resumeFromDB_type_at_define = typeof resumeFromDB;
-    }
-  } catch (_) {}
     resumeFromDB = async () => {
     try {
       console.log('[BOOT][RESUME] Light resume from DB', { sessionId });
