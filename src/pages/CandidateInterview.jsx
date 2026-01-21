@@ -1366,6 +1366,13 @@ const runV2FieldProbeIfNeeded = async ({
 // - Welcome / start screens must NEVER reappear mid-session
 
 function CandidateInterviewInner() {
+  try {
+    if (typeof window !== 'undefined') {
+      window.__CQ_LAST_RENDER_STEP__ = 'ENTER_RENDER';
+    }
+    console.log('[CQ_DIAG][EARLY_STEP]', { step: 'ENTER_RENDER' });
+  } catch (_) {}
+  
   const __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ = 'CQ_CI_BUILDSTAMP_2026-01-20T00:00Z_v2';
   console.log("[TDZ_TRACE][FN_ENTER]");
   try {
@@ -3921,6 +3928,16 @@ function CandidateInterviewInner() {
   } catch (_) {}
 
   try {
+    if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = 'BEFORE_TRY1';
+    console.log('[CQ_DIAG][EARLY_STEP]', { step: 'BEFORE_TRY1' });
+  } catch (_) {}
+  
+  try {
+    try {
+      if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = 'TRY1_ENTER';
+      console.log('[CQ_DIAG][EARLY_STEP]', { step: 'TRY1_ENTER' });
+    } catch (_) {}
+    
     cqMark('BEFORE_DERIVED');
 
   
