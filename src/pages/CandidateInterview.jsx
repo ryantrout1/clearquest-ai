@@ -1402,8 +1402,6 @@ function CandidateInterviewInner() {
       console.log('[CQ_DIAG][RUNTIME_PROBE_FIELDS]', {
         __CQ_buildStamp: __CQ?.buildStamp ?? null,
         CQ_buildStamp: CQ?.buildStamp ?? null,
-        __CQ_resumeType: __CQ?.resumeFromDB_type_at_render ?? null,
-        CQ_resumeType: CQ?.resumeFromDB_type_at_render ?? null,
         __CQ_hasResumeFn: typeof __CQ?.resumeFromDB_val_at_render === 'function',
         CQ_hasResumeFn: typeof CQ?.resumeFromDB_val_at_render === 'function',
         __CQ_resumeRefAssigned: __CQ?.resumeFromDB_ref_assigned ?? null,
