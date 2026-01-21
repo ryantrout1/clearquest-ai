@@ -4254,7 +4254,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // FIX A1: TIGHTENED - Only block when there's an ACTIVE prompt waiting for answer
   // DO NOT block if v3PromptPhase === 'IDLE' and no active prompt text
   // NOTE: hasV3PromptText already declared above (line ~1511) - reusing existing
-  const isV3Blocking = hasActiveV3Prompt || 
+  const isV3Blocking = (((hasV3PromptText || (v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0) || v3ActiveProbeQuestionLoopKeyRef.current) && v3PromptPhase === "ANSWER_NEEDED")) || 
                        v3PromptPhase === 'ANSWER_NEEDED' || 
                        hasV3PromptText;
   
