@@ -4517,6 +4517,9 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     }
   }
   
+  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_6:AFTER_MODE_VALIDATION';
+  console.log('[CQ_DIAG][TRY1_STEP]', { step: '6:AFTER_MODE_VALIDATION' });
+  
   // V3 PROMPT PHASE CHANGE TRACKER (unconditional hook)
   useEffect(() => {
     if (v3PromptPhase !== lastV3PromptPhaseRef.current) {
