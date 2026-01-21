@@ -674,6 +674,15 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
       name: error?.name,
       ringTail: ring
     });
+    
+    try {
+      console.error('[CQ_DIAG][ERROR_BOUNDARY_CAUGHT]', {
+        message: error?.message,
+        name: error?.name,
+        lastRenderStep: (typeof window !== 'undefined' ? (window.__CQ_LAST_RENDER_STEP__ || null) : null),
+        buildStamp: (typeof window !== 'undefined' && window.__CQ_RUNTIME_PROBE__ ? window.__CQ_RUNTIME_PROBE__.buildStamp : null),
+      });
+    } catch (_) {}
 
     // CRASH_CONTEXT_SNAPSHOT
     try {
@@ -23105,6 +23114,21 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       bottomBarModeSOT: typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : 'undefined',
       v3ProbingActive: typeof v3ProbingActive !== 'undefined' ? v3ProbingActive : 'undefined',
     });
+    
+    try {
+      console.error('[CQ_DIAG][JSX_TRY2_CAUGHT]', {
+        message: e?.message,
+        name: e?.name,
+        lastRenderStep: (typeof window !== 'undefined' ? (window.__CQ_LAST_RENDER_STEP__ || null) : null),
+        // presence map for key SAFE aliases
+        safePresence: {
+          finalTranscriptList_S_SAFE: (typeof finalTranscriptList_S_SAFE !== 'undefined'),
+          activeUiItem_S_SAFE: (typeof activeUiItem_S_SAFE !== 'undefined'),
+          effectiveItemType_SAFE: (typeof effectiveItemType_SAFE !== 'undefined'),
+          bottomBarModeSOT_SAFE: (typeof bottomBarModeSOT_SAFE !== 'undefined'),
+        }
+      });
+    } catch (_) {}
   }
 
   return (
