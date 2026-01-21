@@ -7440,7 +7440,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         const isLastField = fieldIndex >= totalFieldsInPack - 1;
 
         // CRITICAL: Declare isCurrentItemCommitting before any usage to avoid TDZ errors
-        const isV2FieldCommitGuard = isCommitting && committingItemIdRef.current === currentItem_S.id; // [CQ_ANCHOR_V2_FIELD_COMMITTING_LINE]
+        const isV2FieldCommitGuard = cqIsItemCommitting(currentItem_S?.id); // [CQ_ANCHOR_V2_FIELD_COMMITTING_LINE]
 
         console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] Processing field ${fieldIndex + 1}/${totalFieldsInPack}: ${fieldKey}`);
 
