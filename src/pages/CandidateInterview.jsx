@@ -4497,17 +4497,17 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5:BEFORE_MODE_SAFE';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '5:BEFORE_MODE_SAFE' });
   const VALID_MODES = ['YES_NO', 'TEXT_INPUT', 'DEFAULT', 'V3_WAITING', 'CTA', 'SELECT', 'HIDDEN', 'DISABLED'];
-  const bottomBarModeSOTSafe = VALID_MODES.includes(bottomBarModeSOT) ? bottomBarModeSOT : 'DEFAULT';
+  const bottomBarModeSOTSafe = VALID_MODES.includes(typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : null) ? (typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : 'DEFAULT') : 'DEFAULT';
   
   if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-    cqLog('DEBUG', '[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT_SAFE, bottomBarModeSOT_SAFE, bottomBarModeSOTSafe });
+    cqLog('DEBUG', '[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== 'undefined' ? bottomBarRenderTypeSOT_SAFE : null), bottomBarModeSOT_SAFE: (typeof bottomBarModeSOT_SAFE !== 'undefined' ? bottomBarModeSOT_SAFE : null), bottomBarModeSOTSafe });
   }
   
   // FIX #1: Diagnostic log for base yes/no routing (TDZ-SAFE: uses only early variables)
-  if (bottomBarRenderTypeSOT === "yes_no") {
+  if ((typeof bottomBarRenderTypeSOT !== 'undefined' ? bottomBarRenderTypeSOT : null) === "yes_no") {
     console.log('[UI_CONTRACT][BASE_YESNO_BOTTOM_BAR_ROUTE]', {
       activeCard_SKind: activeCard_S_SAFE?.kind,
-      bottomBarRenderTypeSOT_SAFE,
+      bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== 'undefined' ? bottomBarRenderTypeSOT_SAFE : null),
       bottomBarModeSOTSafe,
       currentItem_SId: currentItem_S?.id,
       currentItem_SType: currentItem_S?.type,
@@ -4519,12 +4519,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   
   // One-time warning if fallback triggered (dev-only, once per mount)
   const fallbackWarningLoggedRef = React.useRef(false);
-  if (bottomBarModeSOTSafe !== bottomBarModeSOT && !fallbackWarningLoggedRef.current) {
+  if (bottomBarModeSOTSafe !== (typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : null) && !fallbackWarningLoggedRef.current) {
     fallbackWarningLoggedRef.current = true;
     if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
       console.warn('[BOTTOM_BAR_MODE_SOT][FALLBACK]', { 
-        bottomBarRenderTypeSOT_SAFE, 
-        bottomBarModeSOT_SAFE, 
+        bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== 'undefined' ? bottomBarRenderTypeSOT_SAFE : null), 
+        bottomBarModeSOT_SAFE: (typeof bottomBarModeSOT_SAFE !== 'undefined' ? bottomBarModeSOT_SAFE : null), 
         bottomBarModeSOTSafe,
         reason: 'Invalid mode detected - using DEFAULT fallback'
       });
