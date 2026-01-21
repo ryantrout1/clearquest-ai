@@ -48,17 +48,21 @@ export default function Home() {
     }
   };
 
+  // Non-visual Image preloader for hero background diagnostics
+  useEffect(() => {
+    try {
+      const heroImg = new Image();
+      heroImg.onload = () => console.log('[HOME_DIAG][HERO_IMAGE_LOAD_SUCCESS]');
+      heroImg.onerror = () => console.error('[HOME_DIAG][HERO_IMAGE_LOAD_ERROR]', { src: 'hero-bg' });
+      heroImg.src = 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/06ef5407d_image.png';
+    } catch (_) {}
+  }, []);
+
   return (
     <div className="min-h-screen overflow-x-hidden" style={{ background: 'linear-gradient(180deg, #0B1F3F 0%, #102B57 50%, #0C234A 100%)' }}>
       {/* Hero Section */}
       <div className="relative overflow-hidden">
-        <img 
-          src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/06ef5407d_image.png"
-          onLoad={() => console.log('[HOME_DIAG][HERO_IMAGE_LOAD_SUCCESS]')}
-          onError={() => console.error('[HOME_DIAG][HERO_IMAGE_LOAD_ERROR]', { src: 'hero-bg' })}
-          className="absolute inset-0 w-full h-full bg-cover bg-center opacity-10 object-cover"
-          alt="ClearQuest background"
-        />
+        <div className="absolute inset-0 bg-[url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/06ef5407d_image.png')] bg-cover bg-center opacity-10" />
         {/* Hero to content fade */}
         <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-b from-transparent to-[#0B1F3F]" />
         
