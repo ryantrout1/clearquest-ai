@@ -3261,10 +3261,10 @@ function CandidateInterviewInner() {
     return cqBootBlockUI;
   }
   
-  // BOOT READY LOG: One-time confirmation when guard passes
+  // BOOT READY LOG: One-time confirmation when guard passes (DEPRECATED - uses latch instead)
   if (typeof window !== 'undefined' && sessionId) {
     const readyKey = `cqBootReady_${sessionId}`;
-    if (window[readyKey] === false) {
+    if (window[readyKey] === false && cqBootReadyLatchedRef.current) {
       window[readyKey] = true;
       console.log('[CQ_BOOT_GUARD][READY]', { 
         sessionId, 
@@ -3272,7 +3272,8 @@ function CandidateInterviewInner() {
         hasSession: !!session,
         hasSessionObj: !!session,
         sessionObjId: session?.id || null,
-        hasEngine: !!engine_S 
+        hasEngine: !!engine_S,
+        bootReadyLatched: true
       });
     }
   }
