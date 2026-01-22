@@ -4474,7 +4474,10 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         currentItem_SType: (typeof currentItem_S !== 'undefined' && currentItem_S?.type) || null,
         currentItem_SId: (typeof currentItem_S !== 'undefined' && currentItem_S?.id) || null
       };
-    }
+
+      window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3F:AFTER_PRIORITY2_RETURN';
+      console.log('[CQ_DIAG][TRY1_STEP]', { step: '3F:AFTER_PRIORITY2_RETURN' });
+      }
     
     // TASK B: Priority 3: Multi-instance gate (ONLY if phase allows)
     // PHASE ALIGNMENT: Block MI_GATE based on phase authority
@@ -20309,6 +20312,11 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
   cqMark('BEFORE_RETURN');
   } catch (e) {
+    try {
+      if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = `TRY1_CATCH_ENTER:${typeof window.__CQ_LAST_RENDER_STEP__ !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : 'UNKNOWN'}`;
+      console.log('[CQ_DIAG][TRY1_CATCH_ENTER]', { lastStep: (typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null) });
+    } catch (_) {}
+    
     console.error('[CQ_TRY1_CATCH][ERROR]', {
       message: e?.message,
       name: e?.name,
