@@ -4456,7 +4456,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         packId: currentItem_S.packId,
         categoryId: currentItem_S.categoryId,
         instanceNumber: currentItem_S.instanceNumber || 1,
-        promptText: currentItem_S.openerText || "",
+        promptText: (typeof currentItem_S !== 'undefined' && currentItem_S?.openerText) || "",
         currentItem_SType: currentItem_S.type,
         currentItem_SId: currentItem_S.id
       };
