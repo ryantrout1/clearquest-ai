@@ -20397,17 +20397,18 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   
   const bottomSpacerPx_SAFE = (typeof bottomSpacerPx !== 'undefined') ? bottomSpacerPx : 80;
   const finalTranscriptList_S_SAFE = (typeof finalTranscriptList_S !== 'undefined') ? finalTranscriptList_S : [];
-  const activeUiItem_S_SAFE = (typeof activeUiItem_S !== 'undefined') ? activeUiItem_S : null;
-  const effectiveItemType_SAFE = (typeof effectiveItemType !== 'undefined') ? effectiveItemType : null;
-  const bottomBarModeSOT_SAFE = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : 'DEFAULT';
-  const bottomBarRenderTypeSOT_SAFE = (typeof bottomBarRenderTypeSOT !== 'undefined') ? bottomBarRenderTypeSOT : 'default';
-  const activeCard_S_SAFE = (typeof activeCard_S !== 'undefined') ? activeCard_S : null;
+  // activeUiItem_S_SAFE declared earlier (line ~20344)
+  // effectiveItemType_SAFE declared earlier (line ~20340)
+  // bottomBarModeSOT_SAFE declared earlier (line ~20344)
+  // bottomBarRenderTypeSOT_SAFE - using earlier declaration
+  // activeCard_S_SAFE declared earlier (line ~20347)
   
   const shouldRenderFooter_SAFE = (typeof shouldRenderFooter !== 'undefined') ? shouldRenderFooter : false;
   const hasPrompt_SAFE = (typeof hasPrompt !== 'undefined') ? hasPrompt : false;
   const activePromptText_SAFE = (typeof activePromptText !== 'undefined') ? activePromptText : '';
   const safeActivePromptText_SAFE = (typeof safeActivePromptText !== 'undefined') ? safeActivePromptText : '';
   const isBottomBarSubmitDisabled_SAFE = (typeof isBottomBarSubmitDisabled !== 'undefined') ? isBottomBarSubmitDisabled : true;
+  const bottomBarRenderTypeSOT_SAFE = (typeof bottomBarRenderTypeSOT !== 'undefined') ? bottomBarRenderTypeSOT : 'default';
   
   const showMissingSession_SAFE = (typeof showMissingSession !== 'undefined') ? showMissingSession : false;
   const showError_SAFE = (typeof showError !== 'undefined') ? showError : false;
