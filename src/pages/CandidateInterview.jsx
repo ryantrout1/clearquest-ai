@@ -1623,7 +1623,6 @@ function CandidateInterviewInner() {
   // 
   // FORENSIC: TDZ FIX - showRedirectFallback state MUST be before early return
   const [showRedirectFallback, setShowRedirectFallback] = useState(false);
-  var resumeFromDB;
 
   const [engine_S, setEngine] = useState(null);
   
@@ -2893,6 +2892,58 @@ function CandidateInterviewInner() {
     }
   }, []); // Run once on mount (before kickstart effect with sessionId dep)
 
+  const resumeFromDB = useCallback(async () => {
+    try {
+      console.log('[BOOT][RESUME] Light resume from DB', { sessionId });
+      
+      const loadedSession = await base44.entities.InterviewSession.get(sessionId);
+      if (!loadedSession) {
+        setError('Session not found');
+        setIsLoading(false);
+        return;
+      }
+      
+      // CHANGE 1: Clean legacy V3 probe prompts on resume
+      const rawTranscript = loadedSession.transcript_snapshot || [];
+      const freshTranscript = rawTranscript;
+      
+      // MERGE STRATEGY: Use functional update to guarantee latest canonical state
+      setDbTranscriptSafe(prev => {
+        const merged = mergeTranscript(prev, freshTranscript, sessionId);
+        console.log('[BOOT][RESUME][MERGE]', { prevLen: prev.length, freshLen: freshTranscript.length, mergedLen: merged.length });
+        return merged;
+      });
+      
+      setSession(loadedSession);
+      setQueue(loadedSession.queue_snapshot || []);
+      setCurrentItem(loadedSession.current_item_snapshot || null);
+      
+      // Restore UI state WITHOUT resetting transcript
+      const hasAnyResponses = freshTranscript.length > 0;
+      setIsNewSession(!hasAnyResponses);
+      setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
+      
+      setIsLoading(false);
+
+      // BOOT SUCCESS: Log completion and clear watchdog.
+      console.log('[CQ_INIT][BOOT_COMPLETE]', { sessionId });
+      if (typeof window !== 'undefined' && sessionId && window.__CQ_BOOT_START_TS_BY_SESSION__) {
+        delete window.__CQ_BOOT_START_TS_BY_SESSION__[sessionId];
+      }
+
+      setTimeout(() => autoScrollToBottom(), 100);
+      
+      console.log('[BOOT][RESUME][OK]', { 
+        transcriptLen: freshTranscript.length,
+        currentItem_SType: loadedSession.current_item_snapshot?.type
+      });
+    } catch (err) {
+      console.error('[BOOT][RESUME][ERROR]', err.message);
+      setError(`Resume failed: ${err.message}`);
+      setIsLoading(false);
+    }
+  }, [sessionId, setSession, setQueue, setCurrentItem, setIsNewSession, setScreenMode, setIsLoading, setError, setDbTranscriptSafe, autoScrollToBottom]);
+
 // DUPLICATE useEffect block removed
 
   // ============================================================================
@@ -3017,7 +3068,7 @@ function CandidateInterviewInner() {
       setIsLoading(false);
       console.error('[CQ_INIT][BOOTSTRAP_FAILED]', { sessionId, err: err.message, stack: err.stack });
     }
-  }, [sessionId, resumeFromDB]);
+  }, [sessionId]);
 
   // ============================================================================
   // BOOTSTRAP KICKSTART - Replaces legacy render-kick
@@ -6797,58 +6848,6 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       }
     });
   }, []); // Run once on mount
-
-    resumeFromDB = async () => {
-    try {
-      console.log('[BOOT][RESUME] Light resume from DB', { sessionId });
-      
-      const loadedSession = await base44.entities.InterviewSession.get(sessionId);
-      if (!loadedSession) {
-        setError('Session not found');
-        setIsLoading(false);
-        return;
-      }
-      
-      // CHANGE 1: Clean legacy V3 probe prompts on resume
-      const rawTranscript = loadedSession.transcript_snapshot || [];
-      const freshTranscript = rawTranscript;
-      
-      // MERGE STRATEGY: Use functional update to guarantee latest canonical state
-      setDbTranscriptSafe(prev => {
-        const merged = mergeTranscript(prev, freshTranscript, sessionId);
-        console.log('[BOOT][RESUME][MERGE]', { prevLen: prev.length, freshLen: freshTranscript.length, mergedLen: merged.length });
-        return merged;
-      });
-      
-      setSession(loadedSession);
-      setQueue(loadedSession.queue_snapshot || []);
-      setCurrentItem(loadedSession.current_item_snapshot || null);
-      
-      // Restore UI state WITHOUT resetting transcript
-      const hasAnyResponses = freshTranscript.length > 0;
-      setIsNewSession(!hasAnyResponses);
-      setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
-      
-      setIsLoading(false);
-
-      // BOOT SUCCESS: Log completion and clear watchdog.
-      console.log('[CQ_INIT][BOOT_COMPLETE]', { sessionId });
-      if (typeof window !== 'undefined' && sessionId && window.__CQ_BOOT_START_TS_BY_SESSION__) {
-        delete window.__CQ_BOOT_START_TS_BY_SESSION__[sessionId];
-      }
-
-      setTimeout(() => autoScrollToBottom(), 100);
-      
-      console.log('[BOOT][RESUME][OK]', { 
-        transcriptLen: freshTranscript.length,
-        currentItem_SType: loadedSession.current_item_snapshot?.type
-      });
-    } catch (err) {
-      console.error('[BOOT][RESUME][ERROR]', err.message);
-      setError(`Resume failed: ${err.message}`);
-      setIsLoading(false);
-    }
-  };
 
 
 
