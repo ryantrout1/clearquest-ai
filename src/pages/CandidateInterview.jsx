@@ -4439,7 +4439,11 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     // INSTANCE START RULE: For multi-instance packs, ALWAYS show opener first for new instances
     window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3E:BEFORE_PRIORITY2';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '3E:BEFORE_PRIORITY2' });
-    if (currentItem_S?.type === 'v3_pack_opener') {
+    
+    // TDZ FIX: Precompute type safely before Priority 2 condition
+    const currentItemType__SAFE = (typeof currentItem_S !== 'undefined' && currentItem_S) ? currentItem_S.type : null;
+    
+    if (currentItemType__SAFE === 'v3_pack_opener') {
       const isMultiInstancePack = currentItem_S?.packId === 'PACK_PRIOR_LE_APPS_STANDARD';
       const isInstance2OrHigher = (currentItem_S?.instanceNumber || 1) > 1;
       
