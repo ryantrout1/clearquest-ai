@@ -3144,9 +3144,15 @@ function CandidateInterviewInner() {
   // ============================================================================
   // BOOT GUARD - Ultra-minimal early return during unstable boot/LOADING
   // ============================================================================
-  console.log('[CQ_BOOT_GUARD][EVAL]', { sessionId, isLoading, hasSession: !!session, hasEngine: !!engine_S });
-  console.log('[CQ_BOOT_GUARD][EVAL]', { sessionId, isLoading, hasSession: !!session, hasEngine: !!engine_S });
-  const cqBootNotReady = isLoading || !session || !engine_S;
+  console.log('[CQ_BOOT_GUARD][EVAL]', { 
+    sessionId, 
+    isLoading, 
+    hasSession: !!session,
+    hasSessionObj: !!session,
+    sessionObjId: session?.id || null,
+    hasEngine: !!engine_S 
+  });
+  const cqBootNotReady = isLoading || !session || !(session.id) || !engine_S;
   const cqShouldRenderBootBlock = cqBootNotReady;
   
   const cqBootBlockUI = (() => {
@@ -3236,6 +3242,8 @@ function CandidateInterviewInner() {
       sessionId,
       isLoading,
       hasSession: !!session,
+      hasSessionObj: !!session,
+      sessionObjId: session?.id || null,
       hasEngine: !!engine_S,
       action: 'SHORT_CIRCUIT_BEFORE_TRY1'
     });
@@ -3250,7 +3258,9 @@ function CandidateInterviewInner() {
       console.log('[CQ_BOOT_GUARD][READY]', { 
         sessionId, 
         isLoading, 
-        hasSession: !!session, 
+        hasSession: !!session,
+        hasSessionObj: !!session,
+        sessionObjId: session?.id || null,
         hasEngine: !!engine_S 
       });
     }
