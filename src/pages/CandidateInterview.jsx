@@ -3266,19 +3266,8 @@ function CandidateInterviewInner() {
       );
   })();
   
-  // HARD SHORT-CIRCUIT: Return boot UI immediately when boot incomplete (prevents TRY1 execution)
-  if (cqShouldRenderBootBlock) {
-    console.log('[CQ_BOOT_GUARD][HARD_RETURN]', {
-      sessionId,
-      isLoading,
-      hasSession: !!session,
-      hasSessionObj: !!session,
-      sessionObjId: session?.id || null,
-      hasEngine: !!engine_S,
-      action: 'SHORT_CIRCUIT_BEFORE_TRY1'
-    });
-    return cqBootBlockUI;
-  }
+  // BOOT GATE: Skip TRY1/derived logic when boot incomplete (preserves hook order)
+  const __cqBootNotReady = Boolean(isLoading) || !session || !session.id || !engine_S;
   
   // BOOT READY LOG: One-time confirmation when guard passes (DEPRECATED - uses latch instead)
   if (typeof window !== 'undefined' && sessionId) {
@@ -4088,15 +4077,20 @@ function CandidateInterviewInner() {
     console.log('[CQ_DIAG][EARLY_STEP]', { step: 'BEFORE_TRY1' });
   } catch (_) {}
   
-  try {
+  // TRY1 EXECUTION GATE: Only run when boot is ready
+  let __cqTry1Result = null;
+  
+  if (!__cqBootNotReady) {
+    // Boot ready - execute TRY1 normally
     try {
-      if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = 'TRY1_ENTER';
-      console.log('[CQ_DIAG][EARLY_STEP]', { step: 'TRY1_ENTER' });
-    } catch (_) {}
-    
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_1:BEFORE_FIRST_CQMARK';
-    console.log('[CQ_DIAG][TRY1_STEP]', { step: '1:BEFORE_FIRST_CQMARK' });
-    cqMark('BEFORE_DERIVED');
+      try {
+        if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = 'TRY1_ENTER';
+        console.log('[CQ_DIAG][EARLY_STEP]', { step: 'TRY1_ENTER' });
+      } catch (_) {}
+      
+      window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_1:BEFORE_FIRST_CQMARK';
+      console.log('[CQ_DIAG][TRY1_STEP]', { step: '1:BEFORE_FIRST_CQMARK' });
+      cqMark('BEFORE_DERIVED');
 
   
   // MI_GATE UI CONTRACT SELF-TEST: Track main pane render + footer buttons per itemId
@@ -20552,12 +20546,12 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     };
   };
 
-  cqMark('BEFORE_RETURN');
-  } catch (e) {
-    try {
-      if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = `TRY1_CATCH_ENTER:${typeof window.__CQ_LAST_RENDER_STEP__ !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : 'UNKNOWN'}`;
-      console.log('[CQ_DIAG][TRY1_CATCH_ENTER]', { lastStep: (typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null) });
-    } catch (_) {}
+    cqMark('BEFORE_RETURN');
+    } catch (e) {
+      try {
+        if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = `TRY1_CATCH_ENTER:${typeof window.__CQ_LAST_RENDER_STEP__ !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : 'UNKNOWN'}`;
+        console.log('[CQ_DIAG][TRY1_CATCH_ENTER]', { lastStep: (typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null) });
+      } catch (_) {}
     
     console.error('[CQ_TRY1_CATCH][ERROR]', {
       message: e?.message,
@@ -20598,8 +20592,18 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       return null;
     }
     
-    // Keep behavior minimal: return null (no new UI)
-    return null;
+      // Keep behavior minimal: return null (no new UI)
+      return null;
+    }
+  } else {
+    // Boot not ready - skip TRY1 execution
+    console.log('[CQ_BOOT_GUARD][SKIP_TRY1_BOOT_NOT_READY]', {
+      sessionId: sessionId || null,
+      isLoading: !!isLoading,
+      hasSession: !!session,
+      sessionObjId: session?.id || null,
+      hasEngine: !!engine_S
+    });
   }
   
   // [TDZ_SHIELD_ALL] Safe aliases for JSX render (declared outside the main try/catch)
@@ -23555,7 +23559,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
         showRedirectFallback: typeof showRedirectFallback !== 'undefined' ? showRedirectFallback : 'undefined',
       })}
     >
-      {cqShouldRenderBootBlock ? cqBootBlockUI : __tdzTraceJsx || <div className="min-h-screen bg-slate-900" />}
+      {__cqBootNotReady ? cqBootBlockUI : (__tdzTraceJsx || <div className="min-h-screen bg-slate-900" />)}
     </CQTdzLocatorBoundary>
   );
 }
