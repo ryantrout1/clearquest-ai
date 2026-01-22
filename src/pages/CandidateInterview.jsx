@@ -20397,6 +20397,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   
   const bottomSpacerPx_SAFE = (typeof bottomSpacerPx !== 'undefined') ? bottomSpacerPx : 80;
   const finalTranscriptList_S_SAFE = (typeof finalTranscriptList_S !== 'undefined') ? finalTranscriptList_S : [];
+  const questionCompletionPct = 0;
   // activeUiItem_S_SAFE declared earlier (line 3193)
   // bottomBarModeSOT_SAFE declared earlier (line 3196)
   const activeCard_S_SAFE = (typeof activeCard_S !== 'undefined') ? activeCard_S : null;
