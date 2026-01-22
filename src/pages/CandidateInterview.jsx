@@ -3043,7 +3043,9 @@ function CandidateInterviewInner() {
           reason: 'bootstrapEngine returned null/undefined' 
         });
         setError('Failed to initialize interview engine');
-        setIsLoading(false);
+        if (!cqBootReadyLatchedRef.current) {
+          setIsLoading(false);
+        }
         return;
       }
 
@@ -3058,7 +3060,9 @@ function CandidateInterviewInner() {
           reason: 'Bootstrap result missing expected properties' 
         });
         setError('Failed to initialize interview engine');
-        setIsLoading(false);
+        if (!cqBootReadyLatchedRef.current) {
+          setIsLoading(false);
+        }
         return;
       }
 
