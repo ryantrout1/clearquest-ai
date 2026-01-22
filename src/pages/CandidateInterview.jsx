@@ -4425,6 +4425,48 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // REQUIRED_ANCHOR_FALLBACK > V3_PROMPT > V3_WAITING > V3_OPENER > MI_GATE > DEFAULT
   window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3:BEFORE_RESOLVE_ACTIVE_UI';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '3:BEFORE_RESOLVE_ACTIVE_UI' });
+  
+  // BOOT-PHASE BYPASS: Skip resolveActiveUiItem() during incomplete boot
+  const __cqBootIncomplete = Boolean(isLoading) || !session || !engine_S;
+  
+  let activeUiItem_S = null;
+  
+  if (__cqBootIncomplete) {
+    console.log('[CQ_ACTIVE_UI_CALL][SKIP_BOOT_INCOMPLETE]', {
+      sessionId,
+      isLoading,
+      hasSession: !!session,
+      hasEngine: !!engine_S
+    });
+    
+    // Safe DEFAULT during boot
+    activeUiItem_S = {
+      kind: "DEFAULT",
+      reason: "BOOT_INCOMPLETE",
+      currentItem_SType: null,
+      currentItem_SId: null,
+      promptText: null
+    };
+  } else {
+    // Boot complete - call resolver with failopen wrapper
+    try {
+      activeUiItem_S = resolveActiveUiItem();
+    } catch (e) {
+      console.error('[CQ_ACTIVE_UI_CALL][FAILOPEN]', {
+        sessionId,
+        lastStep: (typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null),
+        message: e?.message,
+        name: e?.name,
+        stack: e?.stack
+      });
+      
+      activeUiItem_S = {
+        kind: "DEFAULT",
+        reason: "ACTIVE_UI_CALL_FAILOPEN"
+      };
+    }
+  }
+  
   const resolveActiveUiItem = () => {
     let __cqPriority = 'P0_START';
     
@@ -4832,7 +4874,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
   const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && 
                             v3PromptPhase === "ANSWER_NEEDED";
-  const activeUiItem_S = resolveActiveUiItem();
+  // NOTE: activeUiItem_S now computed earlier (line ~4427) with boot bypass + failopen wrapper
   const bottomBarRenderTypeSOT = (() => {
     if (activeUiItem_S?.kind === "REQUIRED_ANCHOR_FALLBACK") return "required_anchor_fallback";
     if (activeUiItem_S?.kind === "V3_PROMPT") return "v3_probing";
