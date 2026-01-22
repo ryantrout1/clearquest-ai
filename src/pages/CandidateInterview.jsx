@@ -2930,8 +2930,6 @@ function CandidateInterviewInner() {
       if (typeof window !== 'undefined' && sessionId && window.__CQ_BOOT_START_TS_BY_SESSION__) {
         delete window.__CQ_BOOT_START_TS_BY_SESSION__[sessionId];
       }
-
-      setTimeout(() => autoScrollToBottom(), 100);
       
       console.log('[BOOT][RESUME][OK]', { 
         transcriptLen: freshTranscript.length,
@@ -2942,7 +2940,7 @@ function CandidateInterviewInner() {
       setError(`Resume failed: ${err.message}`);
       setIsLoading(false);
     }
-  }, [sessionId, setSession, setQueue, setCurrentItem, setIsNewSession, setScreenMode, setIsLoading, setError, setDbTranscriptSafe, autoScrollToBottom]);
+  }, [sessionId, setSession, setQueue, setCurrentItem, setIsNewSession, setScreenMode, setIsLoading, setError, setDbTranscriptSafe]);
 
 // DUPLICATE useEffect block removed
 
