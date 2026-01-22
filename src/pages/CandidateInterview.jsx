@@ -2930,7 +2930,7 @@ function CandidateInterviewInner() {
       
       let boot = null;
       try {
-        boot = await bootstrapEngine(sessionId);
+        boot = await bootstrapEngine(base44);
         console.log('[CQ_INIT][BOOTSTRAP_ENGINE_OK]', { sessionId, hasBoot: !!boot });
       } catch (bootstrapErr) {
         console.error('[CQ_INIT][BOOTSTRAP_THROWN]', {

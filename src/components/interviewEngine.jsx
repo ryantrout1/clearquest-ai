@@ -1854,6 +1854,17 @@ export async function bootstrapEngine(base44) {
   const startTime = performance.now();
 
   try {
+    // GUARD: Validate base44 parameter is SDK client (not sessionId string)
+    if (!base44 || typeof base44 !== 'object' || !base44.entities) {
+      console.error('[CQ_ENGINE][BOOTSTRAP_MISSING_QUESTION_SHAPE]', {
+        receivedType: typeof base44,
+        receivedValuePreview: typeof base44 === 'string' ? base44.substring(0, 20) : String(base44),
+        hasEntities: !!(base44 && base44.entities),
+        reason: 'bootstrapEngine expects Base44 SDK client, not sessionId string'
+      });
+      throw new Error(`bootstrapEngine: Invalid parameter - expected Base44 SDK client, received ${typeof base44}`);
+    }
+    
     // V3_ONLY_MODE: Skip V2 pack bootstrap when true (conversational probing only)
     // TIMEOUT GUARD: 20s max for entity fetches (prevents indefinite hang)
     const ENTITY_FETCH_TIMEOUT_MS = 20000;
