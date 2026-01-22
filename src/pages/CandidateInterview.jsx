@@ -4467,12 +4467,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       
       return {
         kind: "V3_OPENER",
-        packId: currentItem_S.packId,
-        categoryId: currentItem_S.categoryId,
-        instanceNumber: currentItem_S.instanceNumber || 1,
+        packId: (typeof currentItem_S !== 'undefined' && currentItem_S?.packId) || null,
+        categoryId: (typeof currentItem_S !== 'undefined' && currentItem_S?.categoryId) || null,
+        instanceNumber: (typeof currentItem_S !== 'undefined' && currentItem_S?.instanceNumber) || 1,
         promptText: (typeof currentItem_S !== 'undefined' && currentItem_S?.openerText) || "",
-        currentItem_SType: currentItem_S.type,
-        currentItem_SId: currentItem_S.id
+        currentItem_SType: (typeof currentItem_S !== 'undefined' && currentItem_S?.type) || null,
+        currentItem_SId: (typeof currentItem_S !== 'undefined' && currentItem_S?.id) || null
       };
     }
     
@@ -4560,8 +4560,11 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     // FIX #1: Diagnostic log for base yes/no routing (TDZ-SAFE: uses only early variables)
     if ((typeof bottomBarRenderTypeSOT !== 'undefined' ? bottomBarRenderTypeSOT : null) === "yes_no") {
+      // TDZ FIX: Precompute activeCard_S kind safely
+      const activeCard_SKindLocal = (typeof activeCard_S_SAFE !== 'undefined' && activeCard_S_SAFE) ? activeCard_S_SAFE.kind : null;
+      
       console.log('[UI_CONTRACT][BASE_YESNO_BOTTOM_BAR_ROUTE]', {
-        activeCard_SKind: (typeof activeCard_S_SAFE !== 'undefined' ? activeCard_S_SAFE : null)?.kind,
+        activeCard_SKind: activeCard_SKindLocal,
         bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== 'undefined' ? bottomBarRenderTypeSOT_SAFE : null),
         bottomBarModeSOTSafe,
         currentItem_SId: currentItem_S?.id,
