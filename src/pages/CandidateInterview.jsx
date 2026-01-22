@@ -3185,6 +3185,303 @@ function CandidateInterviewInner() {
   }, [sessionId, initializeInterview, isLoading, session, engine_S]);
   
   // ============================================================================
+  // BATCH 1: HOISTED HOOKS - Moved outside TRY1 gate to fix React #310
+  // ============================================================================
+  // These hooks were inside TRY1 conditional gate, causing hook count mismatch
+  // Now unconditional with boot guards to preserve original behavior
+  
+  // HOOK 1/7: V3 prompt phase change tracker
+  useEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    if (v3PromptPhase !== lastV3PromptPhaseRef.current) {
+      console.log('[V3_PROMPT_PHASE]', {
+        prev: lastV3PromptPhaseRef.current,
+        next: v3PromptPhase,
+        promptTextPreview: v3ActivePromptText?.substring(0, 40) || null,
+        hasV3PromptText,
+        hasActiveV3Prompt,
+        activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
+        loopKeyPreview: v3ActiveProbeQuestionLoopKeyRef.current || null,
+        promptIdPreview: lastV3PromptSnapshotRef.current?.promptId || null
+      });
+      lastV3PromptPhaseRef.current = v3PromptPhase;
+    }
+    
+    // EDIT 1: Clear V3_WAITING failopen guard when real prompt arrives
+    if (v3PromptPhase === 'ANSWER_NEEDED' && hasActiveV3Prompt && v3ProbingActive) {
+      const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
+      if (loopKey && v3WaitingFailopenFiredRef.current.has(loopKey)) {
+        v3WaitingFailopenFiredRef.current.delete(loopKey);
+        console.log('[V3_WAITING][FAILOPEN_CLEARED]', { loopKey, reason: 'prompt_arrived' });
+      }
+    }
+  }, [__cqBootNotReady, v3PromptPhase, v3ActivePromptText, hasV3PromptText, hasActiveV3Prompt, activeUiItem_S, v3ProbingActive, v3ProbingContext_S, sessionId]);
+  
+  // HOOK 2/7: V3 waiting watchdog
+  useEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
+    const isStuck = v3ProbingActive && 
+                    bottomBarModeSOT === 'V3_WAITING' && 
+                    !hasActiveV3Prompt && 
+                    screenMode === 'QUESTION' &&
+                    loopKey;
+    
+    const armKey = loopKey || 'none';
+    
+    if (isStuck && armKey !== 'none') {
+      // IMMEDIATE FAILOPEN: Don't wait 12s - force prompt immediately
+      if (!v3WaitingFailopenFiredRef.current.has(armKey)) {
+        v3WaitingFailopenFiredRef.current.add(armKey);
+        
+        console.warn('[V3_WAITING][FAILOPEN_PROMPT_FORCED]', { 
+          loopKey: armKey,
+          reason: 'V3_WAITING with no prompt - forcing failopen immediately'
+        });
+        
+        const fallbackPromptId = `${armKey}:failopen`;
+        setV3PromptPhase('ANSWER_NEEDED');
+        setV3ActivePromptText("What additional details can you provide to make this complete?");
+        setV3ProbingContext(prev => ({
+          ...prev,
+          promptId: fallbackPromptId
+        }));
+        
+        // Create parent snapshot marker
+        lastV3PromptSnapshotRef.current = {
+          loopKey: armKey,
+          decideSeq: Date.now(),
+          promptPreview: "What additional details can you provide",
+          promptLen: 61,
+          ts: Date.now()
+        };
+      }
+      
+      if (v3WaitingLastArmKeyRef.current !== armKey) {
+        if (v3WaitingWatchdogRef.current) {
+          clearTimeout(v3WaitingWatchdogRef.current);
+        }
+        
+        v3WaitingLastArmKeyRef.current = armKey;
+        
+        v3WaitingWatchdogRef.current = setTimeout(() => {
+          console.warn('[V3_WAITING][WATCHDOG_FIRE]', { 
+            sessionId, 
+            loopKey, 
+            reason: 'no_prompt_after_12s' 
+          });
+          
+          const fallbackPromptId = `${loopKey}:fallback`;
+          setV3PromptPhase('ANSWER_NEEDED');
+          setV3ActivePromptText("Please restate the missing detail you want to add, including the agency name.");
+          setV3ProbingContext(prev => ({
+            ...prev,
+            promptId: fallbackPromptId
+          }));
+        }, 12000);
+      }
+    } else {
+      if (v3WaitingWatchdogRef.current) {
+        clearTimeout(v3WaitingWatchdogRef.current);
+        v3WaitingWatchdogRef.current = null;
+        
+        if (v3WaitingLastArmKeyRef.current) {
+          console.log('[V3_WAITING][WATCHDOG_CLEARED]', { 
+            sessionId, 
+            loopKey: v3WaitingLastArmKeyRef.current 
+          });
+          v3WaitingLastArmKeyRef.current = null;
+        }
+      }
+    }
+    
+    return () => {
+      if (v3WaitingWatchdogRef.current) {
+        clearTimeout(v3WaitingWatchdogRef.current);
+      }
+    };
+  }, [__cqBootNotReady, v3ProbingActive, bottomBarModeSOT_SAFE, hasActiveV3Prompt, screenMode, v3ProbingContext_S, sessionId]);
+  
+  // HOOK 3/7: V3 gate prompt handler
+  useEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    if (!v3Gate.active && v3Gate.promptText) {
+      console.log('[V3_GATE][ACTIVATE]', {
+        promptText: v3Gate.promptText?.substring(0, 50),
+        categoryId: v3Gate.categoryId,
+        instanceNumber: v3Gate.instanceNumber
+      });
+
+      setV3Gate(prev => ({ ...prev, active: true }));
+    }
+  }, [__cqBootNotReady, v3Gate]);
+  
+  // HOOK 4/7: V3 gate decision handler
+  useEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    if (!v3GateDecision) return;
+
+    console.log('[V3_GATE][DECISION_CONSUMED]', v3GateDecision);
+
+    if (v3MultiInstanceHandler) {
+      v3MultiInstanceHandler(v3GateDecision);
+    }
+
+    // Mark blocker resolved (UI-only)
+    if (uiBlocker?.type === 'V3_GATE' && !uiBlocker.resolved) {
+      setUiBlocker(prev => ({ ...prev, resolved: true, answer: v3GateDecision }));
+    }
+
+    // Clear decision
+    setV3GateDecision(null);
+  }, [__cqBootNotReady, v3GateDecision, v3MultiInstanceHandler]);
+  
+  // HOOK 5/7: Deferred gate prompt handler
+  useEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    if (!pendingGatePrompt) return;
+    
+    const { promptData, v3Context } = pendingGatePrompt;
+    
+    if (promptData) {
+      console.log('[V3_GATE][RECEIVED]', { promptText: promptData?.substring(0, 50) });
+
+      // Set multi-instance gate as first-class state
+      setMultiInstanceGate({
+        active: true,
+        packId: v3Context?.packId,
+        categoryId: v3Context?.categoryId,
+        categoryLabel: v3Context?.categoryLabel,
+        promptText: promptData,
+        instanceNumber: v3Context?.instanceNumber || 1,
+        baseQuestionId: v3BaseQuestionIdRef.current,
+        packData: v3Context?.packData
+      });
+
+      // Also set currentItem_S to multi_instance_gate type
+      setCurrentItem({
+        id: `multi-instance-gate-${v3Context?.packId}-${v3Context?.instanceNumber || 1}`,
+        type: 'multi_instance_gate',
+        packId: v3Context?.packId,
+        categoryId: v3Context?.categoryId,
+        categoryLabel: v3Context?.categoryLabel,
+        promptText: promptData,
+        instanceNumber: v3Context?.instanceNumber || 1,
+        baseQuestionId: v3BaseQuestionIdRef.current,
+        packData: v3Context?.packData
+      });
+    } else {
+      console.log('[V3_GATE][CLEAR]');
+      setMultiInstanceGate(null);
+    }
+    
+    setPendingGatePrompt(null);
+  }, [__cqBootNotReady, pendingGatePrompt]);
+  
+  // HOOK 6/7: Repair orphaned required anchor answers
+  useEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    if (!Array.isArray(canonicalTranscriptRef.current)) return;
+    
+    const orphanAnswers = canonicalTranscriptRef.current.filter(e => 
+      (e.stableKey || e.id || '').startsWith('required-anchor:a:') &&
+      e.messageType === 'ANSWER' &&
+      e.meta?.answerContext === 'REQUIRED_ANCHOR_FALLBACK'
+    );
+    
+    if (orphanAnswers.length === 0) return;
+    
+    for (const answer of orphanAnswers) {
+      const answerKey = answer.stableKey || answer.id;
+      const anchorKey = answer.meta?.anchor || answer.anchor;
+      
+      if (!anchorKey) continue;
+      
+      // Build expected question key
+      const questionKey = `required-anchor:q:${sessionId}:${answer.meta?.categoryId || ''}:${answer.meta?.instanceNumber || 1}:${anchorKey}`;
+      
+      // Check if question exists
+      const questionExists = canonicalTranscriptRef.current.some(e => e.stableKey === questionKey);
+      
+      if (!questionExists) {
+        console.log('[REQUIRED_ANCHOR_FALLBACK][REPAIR_INSERT_Q]', {
+          anchorKey,
+          stableKeyQ: questionKey,
+          reason: 'Orphan answer found - inserting missing question'
+        });
+        
+        // NO-CRASH WRAPPER: Fire-and-forget repair using hoisted-safe function
+        (async () => {
+          try {
+            // QUESTION TEXT SOT: Use resolver for repair
+            const repairQuestionText = resolveAnchorToHumanQuestion(
+              anchorKey,
+              answer.meta?.packId
+            );
+
+            // DEFENSIVE: Check function exists before calling
+            if (typeof ensureRequiredAnchorQuestionInTranscript === "function") {
+              await ensureRequiredAnchorQuestionInTranscript({
+              sessionId,
+              categoryId: answer.meta?.categoryId,
+              instanceNumber: answer.meta?.instanceNumber,
+              anchor: anchorKey,
+              questionText: repairQuestionText,
+              appendFn: appendAssistantMessageImport,
+              existingTranscript: canonicalTranscriptRef.current,
+              packId: answer.meta?.packId,
+                canonicalRef: canonicalTranscriptRef,
+                syncStateFn: upsertTranscriptState
+              });
+            } else {
+              console.error('[REQUIRED_ANCHOR_FALLBACK][ENSURE_HELPER_MISSING]', {
+                anchor: anchorKey,
+                phase: 'REPAIR',
+                stability: 'NON_FATAL',
+                note: 'Helper not in scope - skipping'
+              });
+            }
+          } catch (err) {
+            // Already logged by safe function - no-op
+          }
+        })();
+      }
+    }
+  }, [__cqBootNotReady, canonicalTranscriptRef.current.length, sessionId, ensureRequiredAnchorQuestionInTranscript]);
+  
+  // HOOK 7/7: Verification instrumentation
+  useEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    if (!Array.isArray(renderedTranscript) || renderedTranscript.length === 0) return;
+    const last = renderedTranscript[renderedTranscript.length - 1];
+    if (!last || last.messageType !== 'MULTI_INSTANCE_GATE_SHOWN') return;
+
+    const effectiveType = v3ProbingActive ? 'v3_probing' : (currentItem_S?.type || null);
+    const isGate = effectiveType === 'multi_instance_gate';
+    const footerIsYesNo = isGate; // simplified to avoid TDZ on currentPrompt
+
+    if (!(isGate && footerIsYesNo)) {
+      const key = `${last.stableKey || last.id || 'gate'}:${effectiveType}`;
+      if (uiContractViolationKeyRef.current !== key) {
+        uiContractViolationKeyRef.current = key;
+        console.error('[UI_CONTRACT][VIOLATION]', {
+          reason: 'Gate prompt visible but footer not in YES_NO with multi_instance_gate',
+          effectiveType,
+          bottomBarModeSOT: footerIsYesNo ? 'YES_NO' : 'other',
+          lastMessageType: last.messageType
+        });
+      }
+    }
+  }, [__cqBootNotReady, renderedTranscript, currentItem_S, v3ProbingActive]);
+  
+  // ============================================================================
   // CQMARK DECLARATION - MOVED BEFORE FIRST USE (TDZ FIX)
   // ============================================================================
   // [CQ_RENDER_DIAG] render-time snapshot (effects may never run if render crashes)
@@ -5213,152 +5510,6 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   const displayNumberMapRef = useRef({});
 
   const totalQuestionsAllSections = engine_S?.TotalQuestions || 0;
-  const answeredQuestionsAllSections = React.useMemo(
-    () => transcriptSOT_S.filter(t => t.type === 'question').length,
-    [transcriptSOT_S]
-  );
-  const questionCompletionPct = totalQuestionsAllSections > 0
-    ? Math.round((answeredQuestionsAllSections / totalQuestionsAllSections) * 100)
-    : 0;
-
-  // DEV DEBUG: Generate and copy evidence bundle
-
-  
-
-
-  // Compute next renderable (dedupe + filter)
-  // CRITICAL: This memo MUST NOT trigger component remount
-  const nextRenderable = React.useMemo(() => {
-    const base = Array.isArray(transcriptSOT_S) ? transcriptSOT_S : [];
-    
-    // V3 probe Q/A now allowed in transcript (no longer filtered)
-    const baseWithoutV3Probes = base;
-    
-    // Log if any were removed
-    const removedCount = base.length - baseWithoutV3Probes.length;
-    if (removedCount > 0) {
-      const removedKeys = base
-        .filter(e => {
-          const mt = e.messageType || e.type;
-          const stableKey = e.stableKey || '';
-          return mt === 'V3_PROBE_QUESTION' || stableKey.startsWith('v3-probe-q:');
-        })
-        .map(e => e.stableKey || e.id);
-      
-      console.log('[V3_UI_CONTRACT][RENDER_FILTER_REMOVED]', {
-        removedCount,
-        sampleKeysPreview: removedKeys.slice(0, 3),
-        reason: 'V3 probe prompts found in transcript - filtering for render'
-      });
-    }
-    
-    // REQUIREMENT: Filter first, then dedupe (preserve insertion order)
-    const filtered = baseWithoutV3Probes.filter(entry => isRenderableTranscriptEntry(entry));
-    const deduped = dedupeByStableKey(filtered);
-    
-    // GUARD: Detect candidate-visible entries being filtered
-    const candidateVisibleInBase = baseWithoutV3Probes.filter(e => e.visibleToCandidate === true).length;
-    const candidateVisibleInFiltered = deduped.filter(e => e.visibleToCandidate === true).length;
-    
-    if (candidateVisibleInFiltered < candidateVisibleInBase) {
-      console.error('[TRANSCRIPT_FILTER][ILLEGAL_DROP]', {
-        baseLen: baseWithoutV3Probes.length,
-        candidateVisibleInBase,
-        candidateVisibleInFiltered,
-        droppedCount: candidateVisibleInBase - candidateVisibleInFiltered
-      });
-    }
-    
-    // FALLBACK: If filter hides all messages but we have canonical data, use last 10
-    if (baseWithoutV3Probes.length > 0 && deduped.length === 0) {
-      console.warn('[TRANSCRIPT_FILTER_FALLBACK]', {
-        canonicalLen: baseWithoutV3Probes.length,
-        currentItem_SType: currentItem_S?.type,
-        screenMode,
-        messageTypeCounts: baseWithoutV3Probes.reduce((acc, e) => {
-          const mt = e.messageType || e.type || 'unknown';
-          acc[mt] = (acc[mt] || 0) + 1;
-          return acc;
-        }, {})
-      });
-      return baseWithoutV3Probes.slice(-10); // Show last 10 messages as fallback
-    }
-    
-    return deduped;
-  }, [transcriptSOT_S]);
-
-  // Loading watchdog state
-  const [showLoadingRetry, setShowLoadingRetry] = useState(false);
-  
-  // REPAIR PASS: Ensure orphaned required anchor answers have their questions
-  useEffect(() => {
-    if (!Array.isArray(canonicalTranscriptRef.current)) return;
-    
-    const orphanAnswers = canonicalTranscriptRef.current.filter(e => 
-      (e.stableKey || e.id || '').startsWith('required-anchor:a:') &&
-      e.messageType === 'ANSWER' &&
-      e.meta?.answerContext === 'REQUIRED_ANCHOR_FALLBACK'
-    );
-    
-    if (orphanAnswers.length === 0) return;
-    
-    for (const answer of orphanAnswers) {
-      const answerKey = answer.stableKey || answer.id;
-      const anchorKey = answer.meta?.anchor || answer.anchor;
-      
-      if (!anchorKey) continue;
-      
-      // Build expected question key
-      const questionKey = `required-anchor:q:${sessionId}:${answer.meta?.categoryId || ''}:${answer.meta?.instanceNumber || 1}:${anchorKey}`;
-      
-      // Check if question exists
-      const questionExists = canonicalTranscriptRef.current.some(e => e.stableKey === questionKey);
-      
-      if (!questionExists) {
-        console.log('[REQUIRED_ANCHOR_FALLBACK][REPAIR_INSERT_Q]', {
-          anchorKey,
-          stableKeyQ: questionKey,
-          reason: 'Orphan answer found - inserting missing question'
-        });
-        
-        // NO-CRASH WRAPPER: Fire-and-forget repair using hoisted-safe function
-        (async () => {
-          try {
-            // QUESTION TEXT SOT: Use resolver for repair
-            const repairQuestionText = resolveAnchorToHumanQuestion(
-              anchorKey,
-              answer.meta?.packId
-            );
-
-            // DEFENSIVE: Check function exists before calling
-            if (typeof ensureRequiredAnchorQuestionInTranscript === "function") {
-              await ensureRequiredAnchorQuestionInTranscript({
-              sessionId,
-              categoryId: answer.meta?.categoryId,
-              instanceNumber: answer.meta?.instanceNumber,
-              anchor: anchorKey,
-              questionText: repairQuestionText,
-              appendFn: appendAssistantMessageImport,
-              existingTranscript: canonicalTranscriptRef.current,
-              packId: answer.meta?.packId,
-                canonicalRef: canonicalTranscriptRef,
-                syncStateFn: upsertTranscriptState
-              });
-            } else {
-              console.error('[REQUIRED_ANCHOR_FALLBACK][ENSURE_HELPER_MISSING]', {
-                anchor: anchorKey,
-                phase: 'REPAIR',
-                stability: 'NON_FATAL',
-                note: 'Helper not in scope - skipping'
-              });
-            }
-          } catch (err) {
-            // Already logged by safe function - no-op
-          }
-        })();
-      }
-    }
-  }, [canonicalTranscriptRef.current.length, sessionId, ensureRequiredAnchorQuestionInTranscript]);
 
   // STABLE RENDER LIST: Pure deterministic filtering (no UI-state-dependent shrink/grow)
   const renderedTranscript = useMemo(() => {
@@ -5643,232 +5794,10 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
   // Verification instrumentation (moved above early returns)
   const uiContractViolationKeyRef = useRef(null);
-  useEffect(() => {
-    if (!Array.isArray(renderedTranscript) || renderedTranscript.length === 0) return;
-    const last = renderedTranscript[renderedTranscript.length - 1];
-    if (!last || last.messageType !== 'MULTI_INSTANCE_GATE_SHOWN') return;
 
-    const effectiveType = v3ProbingActive ? 'v3_probing' : (currentItem_S?.type || null);
-    const isGate = effectiveType === 'multi_instance_gate';
-    const footerIsYesNo = isGate; // simplified to avoid TDZ on currentPrompt
+  const displayNumberMapRef = useRef({});
 
-    if (!(isGate && footerIsYesNo)) {
-      const key = `${last.stableKey || last.id || 'gate'}:${effectiveType}`;
-      if (uiContractViolationKeyRef.current !== key) {
-        uiContractViolationKeyRef.current = key;
-        console.error('[UI_CONTRACT][VIOLATION]', {
-          reason: 'Gate prompt visible but footer not in YES_NO with multi_instance_gate',
-          effectiveType,
-          bottomBarModeSOT: footerIsYesNo ? 'YES_NO' : 'other',
-          lastMessageType: last.messageType
-        });
-      }
-    }
-  }, [renderedTranscript, currentItem_S, v3ProbingActive]);
-
-  // Hooks must remain unconditional; keep memoized values above early returns.
-  // Derive UI current item (prioritize gates over base question) - MUST be before early returns
-  // uiCurrentItem removed: use currentItem_S directly everywhere to avoid TDZ
-  const uiCurrentItem = React.useMemo(() => {
-    // Priority 1: V3 gate
-    if (v3GateActive) {
-      return {
-        type: 'v3_gate',
-        id: `v3-gate-${v3Gate.packId}-${v3Gate.instanceNumber}`,
-        packId: v3Gate.packId,
-        categoryId: v3Gate.categoryId,
-        promptText: v3Gate.promptText,
-        instanceNumber: v3Gate.instanceNumber
-      };
-    }
-
-    // Priority 2: V3 probing active
-    if (v3ProbingActive) {
-      return {
-        type: 'v3_probing',
-        id: `v3-probing-${v3ProbingContext_S?.packId}`,
-        packId: v3ProbingContext_S?.packId
-      };
-    }
-
-    // Priority 3: Section transition pending
-    if (pendingSectionTransition) {
-      return {
-        type: 'section_transition',
-        id: `section-transition-${pendingSectionTransition.nextSectionIndex}`
-      };
-    }
-
-    // Priority 4: Base current item
-    return currentItem_S;
-  }, [v3GateActive, v3Gate, v3ProbingActive, v3ProbingContext_S, pendingSectionTransition, currentItem_S]);
-
-  const MAX_PROBE_TURNS = 6;
-  const AI_RESPONSE_TIMEOUT_MS = 45000;
-  const TYPING_TIMEOUT_MS = 240000;
-  const TYPING_IDLE_MS = 4000; // 4 seconds after last keystroke = not typing
-
-  // UX: Text normalization for duplicate detection
-  const normalizeText = (s) => {
-    if (!s || typeof s !== 'string') return '';
-    return s.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[?.!]+$/, '');
-  };
-
-  // UX: Check if scroll container is near bottom
-  const isNearBottom = (el, thresholdPx = 80) => {
-    if (!el) return false;
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    return distanceFromBottom <= thresholdPx;
-  };
-  
-  // GRAVITY FOLLOW: Compute near-bottom for auto-scroll decisions (NO footer math)
-  const computeNearBottom = (scrollContainer, thresholdPx = 80) => {
-    if (!scrollContainer) return false;
-    const distanceFromBottom = scrollContainer.scrollHeight - (scrollContainer.scrollTop + scrollContainer.clientHeight);
-    return distanceFromBottom <= thresholdPx;
-  };
-  
-  // BOTTOM ANCHOR HELPERS: Deterministic bottom-pinning for short transcripts
-  const isNearBottomStrict = (el, thresholdPx = 24) => {
-    if (!el) return false;
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    return distanceFromBottom <= thresholdPx;
-  };
-  
-  // TDZ GUARD: Safe length counter for bottom-anchor effect (avoids finalTranscriptList_S TDZ)
-  const bottomAnchorLenRef = React.useRef(0);
-  
-  // TDZ GUARD: Hooks/memos must not reference finalList before it is initialized. Use finalListRef/finalListLenRef.
-  const finalListRef = React.useRef([]);
-  const finalListLenRef = React.useRef(0);
-  
-  // UI CONTRACT HELPER: Detect non-card structural elements (wrappers, spacers, anchors)
-  const isUiContractNonCard = (el) => {
-    if (!el) return true; // Null element = not a card
-    
-    // Check data attributes
-    if (el.getAttribute('data-ui-contract-spacer') === 'true') return true;
-    if (el.getAttribute('data-ui-contract-struct') === 'true') return true;
-    if (el.getAttribute('data-ui-contract-anchor') === 'true') return true;
-    if (el.getAttribute('data-cq-footer-spacer') === 'true') return true;
-    
-    // Check classes (fallback for unmarked legacy elements)
-    const classList = el.classList;
-    if (classList.contains('cq-footer-spacer')) return true;
-    if (classList.contains('cq-gravity-rail')) return true;
-    if (classList.contains('cq-gravity-bottom')) return true;
-    
-    return false; // Not a structural element
-  };
-  
-  // Throttled suspect element logger (prevents spam)
-  const lastSuspectLogTimeRef = React.useRef(0);
-  const logSuspectElement = (el, context) => {
-    const now = Date.now();
-    const elapsed = now - lastSuspectLogTimeRef.current;
-    
-    // Throttle: only log once per 2 seconds
-    if (elapsed < 2000) return;
-    
-    lastSuspectLogTimeRef.current = now;
-    
-    console.error('[UI_CONTRACT][FOOTER_MEASURE_TARGET_SUSPECT_DETAIL]', {
-      context,
-      tagName: el.tagName,
-      classNames: el.className,
-      datasetKeys: Object.keys(el.dataset),
-      hasStablekey: el.hasAttribute('data-stablekey'),
-      outerHTMLPreview: el.outerHTML?.substring(0, 120) || '(unavailable)'
-    });
-  };
-
-  // MESSAGE TYPE SOT: Canonical messageType normalizer (handles DB casing mismatches)
-  const getMessageTypeSOT = (entry) => {
-    if (!entry) return '';
-    const raw = entry.messageType || entry.type || entry.meta?.messageType || '';
-    if (!raw) return '';
-    
-    // 1) HARDEN: Normalize whitespace, hyphen, dot, slash, colon to underscore
-    const normalized = String(raw)
-      .trim()
-      .toUpperCase()
-      .replace(/[\s\-./:]+/g, '_')  // Replace all delimiters with underscore
-      .replace(/_+/g, '_')  // Collapse multiple underscores
-      .replace(/^_+|_+$/g, '');  // Trim leading/trailing underscores
-    
-    return normalized;
-  };
-  
-  // STEP 1: Candidate-facing text sanitizer (prevents developer instructions from showing in UI)
-  const DEV_LEAK_PATTERNS = [
-    'BEGIN PROMPT',
-    'END PROMPT',
-    'PASS CRITERIA',
-    'DETAILED CHANGE REPORT',
-    'Anything I Need to Know',
-    'Run the exact GIF repro',
-    'If PASS',
-    'If FAIL',
-    'ACCEPTANCE CRITERIA',
-    'files touched',
-    'diff summary',
-    'root cause'
-  ];
-  
-  const sanitizeCandidateFacingText = (raw, contextLabel) => {
-    if (!raw) return raw;
-    
-    const rawLower = String(raw).toLowerCase();
-    const hasCorruption = DEV_LEAK_PATTERNS.some(pattern => 
-      rawLower.includes(pattern.toLowerCase())
-    );
-    
-    if (hasCorruption && typeof window !== 'undefined' && 
-        (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-      console.log('[CQ_UI][CANDIDATE_TEXT_SANITIZED]', {
-        context: contextLabel,
-        preview: String(raw).substring(0, 80)
-      });
-      return ''; // Return empty string to hide corrupted text
-    }
-    
-    return raw;
-  };
-  
-
-  
-  // STABLE KEY SOT: Canonical stableKey extractor
-  const getStableKeySOT = (entry) => {
-    if (!entry) return '';
-    return entry.stableKey || entry.id || '';
-  };
-  
-  // STABLE KEY HELPER: Deterministic key for each transcript entry
-  const getTranscriptEntryKey = useCallback((entry) => {
-    if (!entry) return 'fallback-null-entry';
-    
-    // Priority 1: Stable key (best)
-    if (entry.stableKey) return entry.stableKey;
-    
-    // Priority 2: ID (good)
-    if (entry.id) return entry.id;
-    if (entry._id) return entry._id;
-    
-    // Priority 3: Deterministic composite (fallback)
-    const role = entry.role || 'unknown';
-    const type = entry.messageType || entry.type || 'message';
-    const qId = entry.questionDbId || entry.questionId || entry.meta?.questionDbId || '';
-    const pId = entry.packId || entry.meta?.packId || '';
-    const inst = entry.instanceNumber || entry.meta?.instanceNumber || '';
-    // SINGLE-SOURCE: Normalize opener key shape to prevent duplicates
-    const isOpener = type === 'FOLLOWUP_CARD_SHOWN' && (entry.meta?.variant === 'opener' || entry.variant === 'opener');
-    if (isOpener && pId) {
-      return `followup-card:${pId}:opener:${inst || 1}`;
-    }
-    const idx = entry.index || 0;
-    
-    return `${role}-${type}-${qId}-${pId}-${inst}-${idx}`;
-  }, []);
+  const totalQuestionsAllSections = engine_S?.TotalQuestions || 0;
 
   const scrollToBottomSafely = useCallback((reason = 'default') => {
     if (!autoScrollEnabledRef.current) return;
