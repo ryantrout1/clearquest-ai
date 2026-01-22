@@ -2834,7 +2834,7 @@ function CandidateInterviewInner() {
   // showRedirectFallback moved to top (line ~1338) - prevents TDZ crash
   
   // FAILOPEN ONCE-LATCH: Prevent repeated failopen side-effects from causing render loops
-  const cqFailopenOnceRef = useRef({ modeBlock: false, try1Tdz: false, priority2Failopen: false });
+  const cqFailopenOnceRef = useRef({ modeBlock: false, try1Tdz: false, priority2Failopen: false, resolveActiveUiFailopen: false });
   
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
@@ -4426,15 +4426,20 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3:BEFORE_RESOLVE_ACTIVE_UI';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '3:BEFORE_RESOLVE_ACTIVE_UI' });
   const resolveActiveUiItem = () => {
-    // PHASE ALIGNMENT: Compute phase for consistency checks
-    const resolverPhaseSOT = computeInterviewPhaseSOT();
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3A:AFTER_PHASE_COMPUTE';
-    console.log('[CQ_DIAG][TRY1_STEP]', { step: '3A:AFTER_PHASE_COMPUTE' });
+    let __cqPriority = 'P0_START';
     
-    // Priority 0: Required anchor fallback (deadlock breaker)
-    // GUARD: Never allow fallback to override v3_pack_opener (instance start takes precedence)
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3B:BEFORE_PRIORITY0';
-    console.log('[CQ_DIAG][TRY1_STEP]', { step: '3B:BEFORE_PRIORITY0' });
+    try {
+      // PHASE ALIGNMENT: Compute phase for consistency checks
+      __cqPriority = 'P0';
+      const resolverPhaseSOT = computeInterviewPhaseSOT();
+      window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3A:AFTER_PHASE_COMPUTE';
+      console.log('[CQ_DIAG][TRY1_STEP]', { step: '3A:AFTER_PHASE_COMPUTE' });
+    
+      // Priority 0: Required anchor fallback (deadlock breaker)
+      // GUARD: Never allow fallback to override v3_pack_opener (instance start takes precedence)
+      __cqPriority = 'P0';
+      window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3B:BEFORE_PRIORITY0';
+      console.log('[CQ_DIAG][TRY1_STEP]', { step: '3B:BEFORE_PRIORITY0' });
     if (requiredAnchorFallbackActive && requiredAnchorCurrent && currentItem_S?.type !== 'v3_pack_opener') {
       return {
         kind: "REQUIRED_ANCHOR_FALLBACK",
@@ -4453,10 +4458,11 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
     }
     
-    // Priority 1: V3 prompt active (multi-signal detection)
-    // HARDENED: V3_PROMPT takes absolute precedence - even if MI_GATE exists in state
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3C:BEFORE_PRIORITY1';
-    console.log('[CQ_DIAG][TRY1_STEP]', { step: '3C:BEFORE_PRIORITY1' });
+      // Priority 1: V3 prompt active (multi-signal detection)
+      // HARDENED: V3_PROMPT takes absolute precedence - even if MI_GATE exists in state
+      __cqPriority = 'P1';
+      window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3C:BEFORE_PRIORITY1';
+      console.log('[CQ_DIAG][TRY1_STEP]', { step: '3C:BEFORE_PRIORITY1' });
     if (hasActiveV3Prompt) {
       return {
         kind: "V3_PROMPT",
@@ -4470,11 +4476,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       };
     }
     
-    // Priority 1.5: V3 probing active but no prompt yet (V3_WAITING state)
-    // CRITICAL FIX: Force V3_WAITING kind when effectiveItemType is v3_probing
-    // OVERRIDE: Do NOT enter V3_WAITING if fallback is active
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3D:BEFORE_PRIORITY1_5';
-    console.log('[CQ_DIAG][TRY1_STEP]', { step: '3D:BEFORE_PRIORITY1_5' });
+      // Priority 1.5: V3 probing active but no prompt yet (V3_WAITING state)
+      // CRITICAL FIX: Force V3_WAITING kind when effectiveItemType is v3_probing
+      // OVERRIDE: Do NOT enter V3_WAITING if fallback is active
+      __cqPriority = 'P1_5';
+      window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3D:BEFORE_PRIORITY1_5';
+      console.log('[CQ_DIAG][TRY1_STEP]', { step: '3D:BEFORE_PRIORITY1_5' });
     if (v3ProbingActive && !hasActiveV3Prompt && !requiredAnchorFallbackActive) {
       const forcedKind = "V3_WAITING";
       console.log('[V3_CONTROLLER][FORCE_ACTIVE_KIND]', {
@@ -4505,10 +4512,11 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       // Do NOT return V3_WAITING - fall through to other priorities
     }
     
-    // Priority 2: V3 pack opener (must not be superseded by MI_GATE or REQUIRED_ANCHOR_FALLBACK)
-    // INSTANCE START RULE: For multi-instance packs, ALWAYS show opener first for new instances
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3E:BEFORE_PRIORITY2';
-    console.log('[CQ_DIAG][TRY1_STEP]', { step: '3E:BEFORE_PRIORITY2' });
+      // Priority 2: V3 pack opener (must not be superseded by MI_GATE or REQUIRED_ANCHOR_FALLBACK)
+      // INSTANCE START RULE: For multi-instance packs, ALWAYS show opener first for new instances
+      __cqPriority = 'P2';
+      window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3E:BEFORE_PRIORITY2';
+      console.log('[CQ_DIAG][TRY1_STEP]', { step: '3E:BEFORE_PRIORITY2' });
 
     // TDZ FIX: Precompute type safely before Priority 2 condition
     const currentItemType__SAFE = (typeof currentItem_S !== 'undefined' && currentItem_S) ? currentItem_S.type : null;
@@ -4578,9 +4586,10 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3F:AFTER_PRIORITY2_RETURN' });
       }
     
-    // TASK B: Priority 3: Multi-instance gate (ONLY if phase allows)
-    // PHASE ALIGNMENT: Block MI_GATE based on phase authority
-    if (currentItem_S?.type === 'multi_instance_gate') {
+      // TASK B: Priority 3: Multi-instance gate (ONLY if phase allows)
+      // PHASE ALIGNMENT: Block MI_GATE based on phase authority
+      __cqPriority = 'P3';
+      if (currentItem_S?.type === 'multi_instance_gate') {
       if (resolverPhaseSOT.derivedFlags.shouldSuppressMiGate) {
         console.log('[FLOW][MI_GATE_STAGED_BUT_BLOCKED_BY_V3]', {
           phase: resolverPhaseSOT.phase,
@@ -4611,13 +4620,32 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       };
     }
     
-    // Priority 4: Default (regular questions, v2 pack fields, etc.)
-    return {
-      kind: "DEFAULT",
-      currentItem_SType: currentItem_S?.type,
-      currentItem_SId: currentItem_S?.id,
-      promptText: null
-    };
+      // Priority 4: Default (regular questions, v2 pack fields, etc.)
+      __cqPriority = 'P4';
+      return {
+        kind: "DEFAULT",
+        currentItem_SType: currentItem_S?.type,
+        currentItem_SId: currentItem_S?.id,
+        promptText: null
+      };
+    } catch (e) {
+      // FAILOPEN: resolveActiveUiItem threw - return safe DEFAULT
+      if (!cqFailopenOnceRef.current.resolveActiveUiFailopen) {
+        cqFailopenOnceRef.current.resolveActiveUiFailopen = true;
+        console.error('[RESOLVE_ACTIVE_UI][FAILOPEN]', {
+          priority: __cqPriority,
+          message: e?.message,
+          name: e?.name,
+          stack: e?.stack
+        });
+      }
+      
+      // Safe default (no late-derived refs)
+      return {
+        kind: "DEFAULT",
+        reason: "resolveActiveUiItem_failopen"
+      };
+    }
   };
   
   // TDZ FIX: Hoisted from component body to prevent use-before-declare
@@ -4700,6 +4728,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_3:AFTER_CQLOG_DEBUG';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_3:AFTER_CQLOG_DEBUG' });
     
+    // TDZ FIX: Dev-only diagnostic block disabled (refs late-derived vars)
+    /*
     // TDZ FIX: compute renderType locally for diagnostic (no late-derived refs)
     const bottomBarRenderTypeSOT__LOCAL_DIAG = (() => {
       const currentType = currentItem_S?.type;
@@ -4736,6 +4766,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         questionResponseType: engine_S?.QById?.[currentItem_S?.id]?.response_type
       });
     }
+    */
     
     window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_4:AFTER_YESNO_ROUTE_LOG';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_4:AFTER_YESNO_ROUTE_LOG' });
