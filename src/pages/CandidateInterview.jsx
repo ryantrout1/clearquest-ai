@@ -4518,72 +4518,90 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3E:BEFORE_PRIORITY2';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3E:BEFORE_PRIORITY2' });
 
-    // TDZ FIX: Precompute type safely before Priority 2 condition
-    const currentItemType__SAFE = (typeof currentItem_S !== 'undefined' && currentItem_S) ? currentItem_S.type : null;
-
-    if (currentItemType__SAFE === 'v3_pack_opener') {
+      // MICRO TRY/CATCH: Wrap entire Priority 2 boundary for pinpoint TDZ detection
       try {
-        const isMultiInstancePack = currentItem_S?.packId === 'PACK_PRIOR_LE_APPS_STANDARD';
-        const isInstance2OrHigher = (currentItem_S?.instanceNumber || 1) > 1;
+        // TDZ FIX: Precompute type safely before Priority 2 condition
+        const currentItemType__SAFE = (typeof currentItem_S !== 'undefined' && currentItem_S) ? currentItem_S.type : null;
 
-        if (isMultiInstancePack && isInstance2OrHigher) {
-          // Check if opener has been answered for this instance
-          const openerAnswerStableKey = `v3-opener-a:${sessionId}:${currentItem_S.packId}:${currentItem_S.instanceNumber}`;
-          const openerAnswered = transcriptSOT_S.some(e => e.stableKey === openerAnswerStableKey);
+        if (currentItemType__SAFE === 'v3_pack_opener') {
+          try {
+            const isMultiInstancePack = currentItem_S?.packId === 'PACK_PRIOR_LE_APPS_STANDARD';
+            const isInstance2OrHigher = (currentItem_S?.instanceNumber || 1) > 1;
 
-          if (!openerAnswered) {
-            console.log('[INSTANCE_START][FORCE_DETERMINISTIC_OPENER]', {
-              packId: currentItem_S.packId,
-              instanceNumber: currentItem_S.instanceNumber,
-              reason: 'opener_not_answered'
-            });
+            if (isMultiInstancePack && isInstance2OrHigher) {
+              // Check if opener has been answered for this instance
+              const openerAnswerStableKey = `v3-opener-a:${sessionId}:${currentItem_S.packId}:${currentItem_S.instanceNumber}`;
+              const openerAnswered = transcriptSOT_S.some(e => e.stableKey === openerAnswerStableKey);
 
-            // SUPPRESS any competing UI (fallback, V3 prompt, etc.)
-            if (requiredAnchorFallbackActive) {
-              console.log('[INSTANCE_START][SUPPRESS_FOLLOWUPS_UNTIL_OPENER]', {
-                instanceNumber: currentItem_S.instanceNumber,
-                suppressedKind: 'REQUIRED_ANCHOR_FALLBACK'
+              if (!openerAnswered) {
+                console.log('[INSTANCE_START][FORCE_DETERMINISTIC_OPENER]', {
+                  packId: currentItem_S.packId,
+                  instanceNumber: currentItem_S.instanceNumber,
+                  reason: 'opener_not_answered'
+                });
+
+                // SUPPRESS any competing UI (fallback, V3 prompt, etc.)
+                if (requiredAnchorFallbackActive) {
+                  console.log('[INSTANCE_START][SUPPRESS_FOLLOWUPS_UNTIL_OPENER]', {
+                    instanceNumber: currentItem_S.instanceNumber,
+                    suppressedKind: 'REQUIRED_ANCHOR_FALLBACK'
+                  });
+                }
+              }
+            }
+
+            return {
+              kind: "V3_OPENER",
+              packId: (typeof currentItem_S !== 'undefined' && currentItem_S?.packId) || null,
+              categoryId: (typeof currentItem_S !== 'undefined' && currentItem_S?.categoryId) || null,
+              instanceNumber: (typeof currentItem_S !== 'undefined' && currentItem_S?.instanceNumber) || 1,
+              promptText: (typeof currentItem_S !== 'undefined' && currentItem_S?.openerText) || "",
+              currentItem_SType: (typeof currentItem_S !== 'undefined' && currentItem_S?.type) || null,
+              currentItem_SId: (typeof currentItem_S !== 'undefined' && currentItem_S?.id) || null
+            };
+          } catch (e) {
+            // FAILOPEN: Priority 2 threw - return safe DEFAULT (once-latch spam prevention)
+            if (!cqFailopenOnceRef.current.priority2Failopen) {
+              cqFailopenOnceRef.current.priority2Failopen = true;
+              console.error('[RESOLVE_ACTIVE_UI][PRIORITY2_FAILOPEN]', {
+                message: e?.message,
+                name: e?.name,
+                stack: e?.stack,
+                sessionId,
+                currentItemType: currentItemType__SAFE,
+                currentItemId: (typeof currentItem_S !== 'undefined' && currentItem_S?.id) || null,
+                packId: (typeof currentItem_S !== 'undefined' && currentItem_S?.packId) || null,
+                instanceNumber: (typeof currentItem_S !== 'undefined' && currentItem_S?.instanceNumber) || null
               });
             }
+
+            // Deterministic safe fallback return (must not reference late-derived vars)
+            return {
+              kind: "DEFAULT",
+              reason: "PRIORITY2_FAILOPEN",
+              currentItem_SType: currentItemType__SAFE,
+              currentItem_SId: (typeof currentItem_S !== 'undefined' && currentItem_S?.id) || null
+            };
           }
-        }
 
-        return {
-          kind: "V3_OPENER",
-          packId: (typeof currentItem_S !== 'undefined' && currentItem_S?.packId) || null,
-          categoryId: (typeof currentItem_S !== 'undefined' && currentItem_S?.categoryId) || null,
-          instanceNumber: (typeof currentItem_S !== 'undefined' && currentItem_S?.instanceNumber) || 1,
-          promptText: (typeof currentItem_S !== 'undefined' && currentItem_S?.openerText) || "",
-          currentItem_SType: (typeof currentItem_S !== 'undefined' && currentItem_S?.type) || null,
-          currentItem_SId: (typeof currentItem_S !== 'undefined' && currentItem_S?.id) || null
-        };
+          window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3F:AFTER_PRIORITY2_RETURN';
+          console.log('[CQ_DIAG][TRY1_STEP]', { step: '3F:AFTER_PRIORITY2_RETURN' });
+        }
       } catch (e) {
-        // FAILOPEN: Priority 2 threw - return safe DEFAULT (once-latch spam prevention)
-        if (!cqFailopenOnceRef.current.priority2Failopen) {
-          cqFailopenOnceRef.current.priority2Failopen = true;
-          console.error('[RESOLVE_ACTIVE_UI][PRIORITY2_FAILOPEN]', {
-            message: e?.message,
-            name: e?.name,
-            stack: e?.stack,
-            sessionId,
-            currentItemType: currentItemType__SAFE,
-            currentItemId: (typeof currentItem_S !== 'undefined' && currentItem_S?.id) || null,
-            packId: (typeof currentItem_S !== 'undefined' && currentItem_S?.packId) || null,
-            instanceNumber: (typeof currentItem_S !== 'undefined' && currentItem_S?.instanceNumber) || null
-          });
-        }
+        // MICRO BOUNDARY FAILOPEN: Catches TDZ at Priority 2 boundary setup
+        console.error('[CQ_P2_BOUNDARY][FAILOPEN]', {
+          message: e?.message,
+          name: e?.name,
+          stack: e?.stack,
+          sessionId,
+          currentItemType: (typeof currentItem_S !== 'undefined' && currentItem_S) ? currentItem_S.type : null,
+          currentItemId: (typeof currentItem_S !== 'undefined' && currentItem_S) ? currentItem_S.id : null
+        });
 
-        // Deterministic safe fallback return (must not reference late-derived vars)
         return {
           kind: "DEFAULT",
-          reason: "PRIORITY2_FAILOPEN",
-          currentItem_SType: currentItemType__SAFE,
-          currentItem_SId: (typeof currentItem_S !== 'undefined' && currentItem_S?.id) || null
+          reason: "P2_BOUNDARY_FAILOPEN"
         };
-      }
-
-      window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3F:AFTER_PRIORITY2_RETURN';
-      console.log('[CQ_DIAG][TRY1_STEP]', { step: '3F:AFTER_PRIORITY2_RETURN' });
       }
     
       // TASK B: Priority 3: Multi-instance gate (ONLY if phase allows)
