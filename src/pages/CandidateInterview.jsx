@@ -5512,10 +5512,6 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     setPendingGatePrompt(null);
   }, [pendingGatePrompt]);
 
-  const displayNumberMapRef = useRef({});
-
-  const totalQuestionsAllSections = engine_S?.TotalQuestions || 0;
-
   // STABLE RENDER LIST: Pure deterministic filtering (no UI-state-dependent shrink/grow)
   const renderedTranscript = useMemo(() => {
     const base = Array.isArray(transcriptSOT_S) ? transcriptSOT_S : [];
