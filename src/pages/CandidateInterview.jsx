@@ -20397,11 +20397,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   
   const bottomSpacerPx_SAFE = (typeof bottomSpacerPx !== 'undefined') ? bottomSpacerPx : 80;
   const finalTranscriptList_S_SAFE = (typeof finalTranscriptList_S !== 'undefined') ? finalTranscriptList_S : [];
-  // activeUiItem_S_SAFE declared earlier (line ~20344)
-  // effectiveItemType_SAFE declared earlier (line ~20340)
-  // bottomBarModeSOT_SAFE declared earlier (line ~20344)
-  // bottomBarRenderTypeSOT_SAFE - using earlier declaration
-  // activeCard_S_SAFE declared earlier (line ~20347)
+  const activeUiItem_S_SAFE = (typeof activeUiItem_S !== 'undefined') ? activeUiItem_S : null;
+  const activeCard_S_SAFE = (typeof activeCard_S !== 'undefined') ? activeCard_S : null;
+  const bottomBarModeSOT_SAFE = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : 'DEFAULT';
   
   const shouldRenderFooter_SAFE = (typeof shouldRenderFooter !== 'undefined') ? shouldRenderFooter : false;
   const hasPrompt_SAFE = (typeof hasPrompt !== 'undefined') ? hasPrompt : false;
