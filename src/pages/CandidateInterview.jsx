@@ -2928,8 +2928,22 @@ function CandidateInterviewInner() {
         }, 10000);
       }
       
-      const boot = await bootstrapEngine(sessionId);
-      console.log('[CQ_INIT][BOOTSTRAP_ENGINE_OK]', { sessionId, hasBoot: !!boot });
+      let boot = null;
+      try {
+        boot = await bootstrapEngine(sessionId);
+        console.log('[CQ_INIT][BOOTSTRAP_ENGINE_OK]', { sessionId, hasBoot: !!boot });
+      } catch (bootstrapErr) {
+        console.error('[CQ_INIT][BOOTSTRAP_THROWN]', {
+          sessionId,
+          message: bootstrapErr?.message,
+          name: bootstrapErr?.name,
+          stack: bootstrapErr?.stack,
+          reason: 'bootstrapEngine threw exception during execution'
+        });
+        setError(`Bootstrap failed: ${bootstrapErr?.message || 'Unknown error'}`);
+        setIsLoading(false);
+        return;
+      }
 
       // GUARD: Validate bootstrap result before using
       if (!boot) {
