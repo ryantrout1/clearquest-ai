@@ -3186,6 +3186,16 @@ function CandidateInterviewInner() {
   }, [sessionId, initializeInterview, isLoading, session, engine_S]);
   
   // ============================================================================
+  // TDZ FIX: SAFE VARIABLE DECLARATIONS - Must be before hoisted hooks
+  // ============================================================================
+  // These variables are referenced in hoisted hook dependency arrays
+  // Declared early using only pre-hook state to prevent TDZ crashes
+  const activeUiItem_S_SAFE = null; // Computed in TRY1 - null during boot is safe
+  const hasActiveV3Prompt_SAFE = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
+  const hasV3PromptText_SAFE = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
+  const bottomBarModeSOT_SAFE = null; // Computed in TRY1 - null during boot is safe
+  
+  // ============================================================================
   // BATCH 1: HOISTED HOOKS - Moved outside TRY1 gate to fix React #310
   // ============================================================================
   // These hooks were inside TRY1 conditional gate, causing hook count mismatch
@@ -3200,8 +3210,8 @@ function CandidateInterviewInner() {
         prev: lastV3PromptPhaseRef.current,
         next: v3PromptPhase,
         promptTextPreview: v3ActivePromptText?.substring(0, 40) || null,
-        hasV3PromptText,
-        hasActiveV3Prompt,
+        hasV3PromptText: hasV3PromptText_SAFE,
+        hasActiveV3Prompt: hasActiveV3Prompt_SAFE,
         activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
         loopKeyPreview: v3ActiveProbeQuestionLoopKeyRef.current || null,
         promptIdPreview: lastV3PromptSnapshotRef.current?.promptId || null
@@ -3210,14 +3220,14 @@ function CandidateInterviewInner() {
     }
     
     // EDIT 1: Clear V3_WAITING failopen guard when real prompt arrives
-    if (v3PromptPhase === 'ANSWER_NEEDED' && hasActiveV3Prompt && v3ProbingActive) {
+    if (v3PromptPhase === 'ANSWER_NEEDED' && hasActiveV3Prompt_SAFE && v3ProbingActive) {
       const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
       if (loopKey && v3WaitingFailopenFiredRef.current.has(loopKey)) {
         v3WaitingFailopenFiredRef.current.delete(loopKey);
         console.log('[V3_WAITING][FAILOPEN_CLEARED]', { loopKey, reason: 'prompt_arrived' });
       }
     }
-  }, [__cqBootNotReady, v3PromptPhase, v3ActivePromptText, hasV3PromptText, hasActiveV3Prompt, activeUiItem_S, v3ProbingActive, v3ProbingContext_S, sessionId]);
+  }, [__cqBootNotReady, v3PromptPhase, v3ActivePromptText, hasV3PromptText_SAFE, hasActiveV3Prompt_SAFE, activeUiItem_S_SAFE, v3ProbingActive, v3ProbingContext_S, sessionId]);
   
   // HOOK 2/7: V3 waiting watchdog
   useEffect(() => {
@@ -3225,8 +3235,8 @@ function CandidateInterviewInner() {
     
     const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
     const isStuck = v3ProbingActive && 
-                    bottomBarModeSOT === 'V3_WAITING' && 
-                    !hasActiveV3Prompt && 
+                    bottomBarModeSOT_SAFE === 'V3_WAITING' && 
+                    !hasActiveV3Prompt_SAFE && 
                     screenMode === 'QUESTION' &&
                     loopKey;
     
@@ -3303,7 +3313,7 @@ function CandidateInterviewInner() {
         clearTimeout(v3WaitingWatchdogRef.current);
       }
     };
-  }, [__cqBootNotReady, v3ProbingActive, bottomBarModeSOT_SAFE, hasActiveV3Prompt, screenMode, v3ProbingContext_S, sessionId]);
+  }, [__cqBootNotReady, v3ProbingActive, bottomBarModeSOT_SAFE, hasActiveV3Prompt_SAFE, screenMode, v3ProbingContext_S, sessionId]);
   
   // HOOK 3/7: V3 gate prompt handler
   useEffect(() => {
@@ -3481,6 +3491,239 @@ function CandidateInterviewInner() {
       }
     }
   }, [__cqBootNotReady, renderedTranscript, currentItem_S, v3ProbingActive]);
+  
+  // ============================================================================
+  // BATCH 2: ADDITIONAL HOISTED HOOKS - Moved from inside TRY1 (Phase 2)
+  // ============================================================================
+  
+  // HOOK 8/11: MI_GATE reconciliation (was line ~6310)
+  useEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    // Only trigger when entering MI_GATE (not on every multiInstanceGate change)
+    if (!multiInstanceGate || activeUiItem_S_SAFE?.kind !== "MI_GATE") return;
+    
+    const urlSessionId = new URLSearchParams(window.location.search).get("session");
+    if (!urlSessionId || urlSessionId !== sessionId) return;
+    
+    // Check if we have a stored payload from last V3 submit
+    const payload = lastV3SubmittedAnswerRef.current;
+    
+    // METADATA PAYLOAD: Check for engine_S decision metadata (required for gate validation)
+    const loopKey = `${sessionId}:${multiInstanceGate?.categoryId}:${multiInstanceGate?.instanceNumber}`;
+    const engine_SPayload = lastV3DecisionByLoopKeyRef.current[loopKey];
+    
+    if (!payload) {
+      console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
+        sessionId,
+        hasPayload: false,
+        hasEnginePayload: !!engine_SPayload,
+        missingCount: engine_SPayload?.missingFields?.length || 'unknown',
+        miGateBlocked: engine_SPayload?.miGateBlocked || false,
+        stopReason: engine_SPayload?.stopReason || null,
+        actionTaken: 'SKIP_NO_PAYLOAD'
+      });
+      return;
+    }
+    
+    // Validate payload belongs to current session/category/instance
+    const payloadMatches = 
+      payload.sessionId === sessionId &&
+      payload.packId === multiInstanceGate.packId &&
+      payload.categoryId === multiInstanceGate.categoryId &&
+      payload.instanceNumber === multiInstanceGate.instanceNumber;
+    
+    if (!payloadMatches) {
+      console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
+        sessionId,
+        hasPayload: true,
+        payloadMatches: false,
+        actionTaken: 'SKIP_STALE_PAYLOAD',
+        payloadPackId: payload.packId,
+        currentPackId: multiInstanceGate.packId
+      });
+      return;
+    }
+    
+    // Check if answer already exists in transcript
+    const foundQuestion = dbTranscript.some(e => e.stableKey === payload.expectedQKey);
+    const foundAnswer = dbTranscript.some(e => e.stableKey === payload.expectedAKey);
+    
+    console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
+      sessionId,
+      expectedAKey: payload.expectedAKey,
+      expectedQKey: payload.expectedQKey,
+      foundQ: foundQuestion,
+      foundA: foundAnswer,
+      actionTaken: foundAnswer ? 'SKIP_ALREADY_EXISTS' : 'WILL_INSERT'
+    });
+    
+    // If answer missing, insert it (idempotent)
+    if (!foundAnswer && payload.answerText && payload.answerText.trim()) {
+      setDbTranscriptSafe(prev => {
+        // Double-check not already present (race guard)
+        const alreadyHasA = prev.some(e => e.stableKey === payload.expectedAKey);
+        if (alreadyHasA) {
+          console.log('[MI_GATE][V3_RECONCILE_SKIP]', {
+            expectedAKey: payload.expectedAKey,
+            reason: 'answer_appeared_during_reconcile'
+          });
+          return prev;
+        }
+        
+        let working = [...prev];
+        let insertedQ = false;
+        let insertedA = false;
+        
+        // Ensure question exists first
+        const alreadyHasQ = working.some(e => e.stableKey === payload.expectedQKey);
+        if (!alreadyHasQ && payload.promptText) {
+          const qEntry = {
+            id: `v3-probe-q-reconcile-${payload.promptId}`,
+            stableKey: payload.expectedQKey,
+            index: getNextIndex(working),
+            role: "assistant",
+            text: payload.promptText,
+            timestamp: new Date().toISOString(),
+            createdAt: Date.now(),
+            messageType: 'V3_PROBE_QUESTION',
+            type: 'V3_PROBE_QUESTION',
+            meta: {
+              promptId: payload.promptId,
+              sessionId: payload.sessionId,
+              categoryId: payload.categoryId,
+              instanceNumber: payload.instanceNumber,
+              packId: payload.packId,
+              source: 'mi_gate_reconcile'
+            },
+            visibleToCandidate: true
+          };
+          
+          working = [...working, qEntry];
+          insertedQ = true;
+          
+          console.log('[MI_GATE][V3_RECONCILE_INSERT_Q]', {
+            stableKey: payload.expectedQKey,
+            sessionId
+          });
+        }
+        
+        // Append missing answer
+        const aEntry = {
+          id: `v3-probe-a-reconcile-${payload.promptId}`,
+          stableKey: payload.expectedAKey,
+          index: getNextIndex(working),
+          role: "user",
+          text: payload.answerText,
+          timestamp: new Date().toISOString(),
+          createdAt: Date.now(),
+          messageType: 'V3_PROBE_ANSWER',
+          type: 'V3_PROBE_ANSWER',
+          meta: {
+            promptId: payload.promptId,
+            sessionId: payload.sessionId,
+            categoryId: payload.categoryId,
+            instanceNumber: payload.instanceNumber,
+            packId: payload.packId,
+            source: 'mi_gate_reconcile'
+          },
+          visibleToCandidate: true
+        };
+        
+        const updated = [...working, aEntry];
+        insertedA = true;
+        
+        // Update canonical ref + state atomically
+        upsertTranscriptState(updated, 'mi_gate_reconcile_insert');
+        
+        // Persist repair to DB
+        base44.entities.InterviewSession.update(sessionId, {
+          transcript_snapshot: updated
+        }).then(() => {
+          console.log('[MI_GATE][V3_RECONCILE_INSERT]', {
+            insertedA: true,
+            insertedQ,
+            expectedAKey: payload.expectedAKey,
+            expectedQKey: payload.expectedQKey,
+            reason: 'missing_after_gate',
+            transcriptLenAfter: updated.length
+          });
+        }).catch(err => {
+          console.error('[MI_GATE][V3_RECONCILE_ERROR]', { error: err.message });
+        });
+        
+        return updated;
+      });
+      
+      // Clear payload after reconciliation (prevent duplicate inserts)
+      console.log('[MI_GATE][V3_RECONCILE_CLEAR]', {
+        reason: 'reconciled_or_not_needed',
+        expectedAKey: payload.expectedAKey
+      });
+      lastV3SubmittedAnswerRef.current = null;
+    } else if (foundAnswer) {
+      // Clear payload if answer already exists (no reconciliation needed)
+      console.log('[MI_GATE][V3_RECONCILE_CLEAR]', {
+        reason: 'found_in_transcript',
+        expectedAKey: payload.expectedAKey
+      });
+      lastV3SubmittedAnswerRef.current = null;
+    }
+  }, [__cqBootNotReady, multiInstanceGate, activeUiItem_S_SAFE, sessionId, dbTranscript, setDbTranscriptSafe]);
+  
+  // HOOK 9/11: YES/NO mode alignment (was line ~15438)
+  useLayoutEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    // TDZ-SAFE: Use bottomBarModeSOTSafe (early, always available)
+    const isYesNoModeFresh = bottomBarModeSOTSafe === 'YES_NO';
+    const isMiGateFresh = currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
+    
+    if (!isYesNoModeFresh) return;
+    
+    requestAnimationFrame(() => {
+      ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', activeKindSOT, isYesNoModeFresh, isMiGateFresh);
+    });
+  }, [__cqBootNotReady, bottomBarModeSOTSafe, ensureActiveVisibleAfterRender, activeKindSOT, currentItem_S, activeUiItem_S_SAFE]);
+  
+  // HOOK 10/11: Render-time freeze snapshot (was line ~15571)
+  useEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    if (isUserTyping && !renderedTranscriptSnapshotRef.current) {
+      renderedTranscriptSnapshotRef.current = renderedTranscript;
+      console.log('[TRANSCRIPT_RENDER][FROZEN_DURING_TYPING]', { len: renderedTranscript.length });
+    } else if (!isUserTyping && renderedTranscriptSnapshotRef.current) {
+      renderedTranscriptSnapshotRef.current = null;
+    }
+  }, [__cqBootNotReady, isUserTyping, renderedTranscript]);
+  
+  // HOOK 11/11: Key-based monotonic assertion (was line ~15586)
+  useEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    const getKey = (e) => e.__canonicalKey || e.stableKey || e.id;
+    
+    const prevKeys = prevKeysSetRef.current;
+    const nextKeys = new Set(canonicalTranscriptRef.current.map(getKey).filter(Boolean));
+    
+    const missingKeys = Array.from(prevKeys).filter(k => !nextKeys.has(k));
+    
+    if (missingKeys.length > 0) {
+      console.error('[TRANSCRIPT_MONOTONIC][FATAL_KEY_LOSS]', {
+        missingCount: missingKeys.length,
+        missingKeys: missingKeys.slice(0, 10),
+        prevKeysCount: prevKeys.size,
+        nextKeysCount: nextKeys.size,
+        action: 'CANONICAL_NOT_OVERWRITTEN',
+        note: 'Key-based monotonic contract violated - keys lost from canonical'
+      });
+      // DO NOT overwrite canonical - keep previous
+      return;
+    }
+    
+    prevKeysSetRef.current = nextKeys;
+  }, [__cqBootNotReady, transcriptSOT_S]);
   
   // ============================================================================
   // HOISTED DECLARATIONS - Variables needed by hoisted hooks and later code
@@ -5332,280 +5575,15 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     // V3 probe Q/A now allowed in transcript (no longer filtered)
     const baseFiltered = base;
-    
-    // Log if any V3 probe prompts were removed
-    const removedCount = base.length - baseFiltered.length;
-    if (removedCount > 0) {
-      const removedKeys = base
-        .filter(e => {
-          const mt = e.messageType || e.type;
-          const stableKey = e.stableKey || '';
-          return mt === 'V3_PROBE_QUESTION' || stableKey.startsWith('v3-probe-q:');
-        })
-        .map(e => ({ key: e.stableKey || e.id, preview: (e.text || '').substring(0, 40) }));
-      
-      console.log('[V3_UI_CONTRACT][RENDER_FILTER_REMOVED]', {
-        removedCount,
-        sampleKeysPreview: removedKeys.slice(0, 3),
-        reason: 'V3 probe prompts found in transcript - filtering for render'
-      });
-    }
-    
-    // REQUIREMENT: Filter first, then dedupe, preserving insertion order
-    const filteredFirst = baseFiltered.filter(entry => isRenderableTranscriptEntry(entry));
-    
-    // SCOPED DEDUPE: Only dedupe specific messageTypes that can legitimately duplicate
-    // DO NOT dedupe normal Q/A entries - they must render exactly as logged
-    const DEDUPE_ALLOWED_TYPES = new Set([
-      'MULTI_INSTANCE_GATE_SHOWN',  // Gate prompts can log multiple times
-      'FOLLOWUP_CARD_SHOWN'          // Opener cards can log on mount+render
-    ]);
-    
-    const deduped = [];
-    const dedupedKeys = new Map();
-    
-    for (const entry of filteredFirst) {
-      const mt = entry.messageType || entry.type;
-      const key = entry.stableKey || entry.id;
-      
-      // Scoped dedupe: ONLY for allowed types with valid keys
-      if (DEDUPE_ALLOWED_TYPES.has(mt) && key) {
-        // Additional filter for FOLLOWUP_CARD_SHOWN: only dedupe opener variant
-        if (mt === 'FOLLOWUP_CARD_SHOWN') {
-          const variant = entry.meta?.variant || entry.variant;
-          if (variant === 'opener') {
-            if (dedupedKeys.has(key)) continue; // Skip duplicate opener
-            dedupedKeys.set(key, true);
-          }
-          // Non-opener FOLLOWUP_CARD_SHOWN: always include (no dedupe)
-        } else {
-          // Other allowed types: dedupe by key
-          if (dedupedKeys.has(key)) continue;
-          dedupedKeys.set(key, true);
-        }
-      }
-      
-      // Include entry (dedupe only applied to specific types above)
-      deduped.push(entry);
-    }
-    
-    // TASK 2: CANONICAL KEY NORMALIZATION - Always include stableKey/id (prevents collisions)
-    const normalized = deduped.map(entry => {
-      const messageType = entry.messageType || entry.type;
-      const role = entry.role || 'unknown';
-      const uniqueId = entry.stableKey || entry.id || `idx-${entry.index || Math.random()}`;
-      
-      // Canonical key: role:messageType:uniqueId (guarantees uniqueness)
-      const canonicalKey = `${role}:${messageType}:${uniqueId}`;
-      
-      return {
-        ...entry,
-        __canonicalKey: canonicalKey
-      };
-    });
-    
-    // PART 4: ACTIVE GATE FILTER - Removed (no longer needed)
-    // Gate questions now append ONLY after answer, so no double-render conflict
-    // Keep activeGateStableKey for compatibility but don't filter
-    const activeGateStableKey = (() => {
-      if (currentItem_S?.type !== 'multi_instance_gate') return null;
-      const gatePackId = currentItem_S.packId || multiInstanceGate?.packId;
-      const gateInstanceNumber = currentItem_S.instanceNumber || multiInstanceGate?.instanceNumber;
-      if (!gatePackId || !gateInstanceNumber) return null;
-      return `mi-gate:${gatePackId}:${gateInstanceNumber}`;
-    })();
-    
-    // TASK 1: DEDUPE - Split logic for legal record vs other entries
-    const stableKeySet = new Set(); // For visibleToCandidate=true (legal record)
-    const canonicalKeySet = new Set(); // For other entries
-    const finalFiltered = [];
-    let activeGateRemovedCount = 0;
-    
-    for (const entry of normalized) {
-      const ck = entry.__canonicalKey;
-      const stableKey = entry.stableKey || entry.id;
-      
-      // LEGAL RECORD PATH: Dedupe by stableKey/id only (no canonicalKey)
-      if (entry.visibleToCandidate === true) {
-        if (!stableKey) {
-          // No stableKey - treat as unique (shouldn't happen but fail-open)
-          finalFiltered.push(entry);
-          continue;
-        }
-        
-        if (!stableKeySet.has(stableKey)) {
-          stableKeySet.add(stableKey);
-          finalFiltered.push(entry);
-        } else {
-          // DUPLICATE LEGAL RECORD: Log and keep first
-          console.log('[TRANSCRIPT_DEDUPE][DUP_STABLEKEY_VISIBLE]', {
-            stableKey,
-            messageType: entry.messageType || entry.type,
-            textPreview: (entry.text || '').substring(0, 40)
-          });
-          // Skip duplicate (first occurrence already added)
-        }
-        continue;
-      }
-      
-      // OTHER ENTRIES PATH: Dedupe by canonicalKey (includes stableKey in key now)
-      if (!ck) {
-        finalFiltered.push(entry);
-        continue;
-      }
-      
-      if (!canonicalKeySet.has(ck)) {
-        canonicalKeySet.add(ck);
-        finalFiltered.push(entry);
-      } else {
-        // DUPLICATE DETECTED: Log for V3 opener cards
-        const messageType = entry.messageType || entry.type;
-        if (messageType === 'FOLLOWUP_CARD_SHOWN') {
-          const variant = entry.meta?.variant || entry.variant;
-          if (variant === 'opener') {
-            console.log('[V3_UI_CONTRACT][OPENER_DUPLICATE_BLOCKED]', {
-              packId: entry.meta?.packId || entry.packId,
-              instanceNumber: entry.meta?.instanceNumber || entry.instanceNumber || 1,
-              variant,
-              droppedKey: entry.stableKey || entry.id,
-              canonicalKey: ck
-            });
-          }
-        }
-        // Skip duplicate (keep first renderable occurrence)
-      }
-    }
-    
-    // Minimal contract check moved out of render loop below
-    console.log('');
-    console.log('[TRANSCRIPT_RENDER]', {
-      canonicalLen: base.length,
-      dedupedLen: deduped.length,
-      normalizedLen: normalized.length,
-      filteredLen: finalFiltered.length,
-      activeGateRemovedCount,
-      screenMode,
-      currentItem_SType: currentItem_S?.type
-    });
-    
-    // AUDIT: Verify no synthetic injection (append-only contract) - CORRECTED
-    const renderableDbLen = base.filter(entry => isRenderableTranscriptEntry(entry)).length;
-    const candidateVisibleDbLen = base.filter(entry => entry.visibleToCandidate === true).length;
-    
-    console.log('[TRANSCRIPT_AUDIT][SOURCE_OF_TRUTH]', {
-      dbLen: base.length,
-      renderableDbLen,
-      candidateVisibleDbLen,
-      renderedLen: finalFiltered.length,
-      syntheticEnabled: ENABLE_SYNTHETIC_TRANSCRIPT
-    });
-    
-    cqTdzMark('AFTER_TRANSCRIPT_AUDIT_LOGS');
-    
-    // GUARD: Detect candidate-visible entries being filtered out (ILLEGAL)
-    const candidateVisibleRenderedLen = finalFiltered.filter(e => e.visibleToCandidate === true).length;
-    if (candidateVisibleRenderedLen < candidateVisibleDbLen) {
-      const droppedCount = candidateVisibleDbLen - candidateVisibleRenderedLen;
-      const droppedEntries = base.filter(e => 
-        e.visibleToCandidate === true && 
-        !finalFiltered.some(r => (r.stableKey && r.stableKey === e.stableKey) || (r.id && r.id === e.id))
-      );
-      
-      console.error('[TRANSCRIPT_RENDER][ILLEGAL_DROP_VISIBLE]', {
-        candidateVisibleDbLen,
-        candidateVisibleRenderedLen,
-        droppedCount,
-        droppedKeys: droppedEntries.map(e => ({ 
-          key: e.stableKey || e.id,
-          type: e.messageType || e.type,
-          textPreview: (e.text || '').substring(0, 40)
-        }))
-      });
-      
-      // REGRESSION ASSERT: Detect V3 probe answers specifically
-      const droppedV3Answers = droppedEntries.filter(e => 
-        (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER') &&
-        e.role === 'user'
-      );
-      
-      if (droppedV3Answers.length > 0) {
-        console.error('[CQ_TRANSCRIPT][V3_PROBE_ANSWER_MISSING_REGRESSION]', {
-          droppedCount: droppedV3Answers.length,
-          dbLen: base.length,
-          renderLen: finalFiltered.length,
-          droppedKeys: droppedV3Answers.map(e => ({
-            stableKey: e.stableKey || e.id,
-            promptId: e.meta?.promptId,
-            loopKey: e.meta?.loopKey,
-            textPreview: (e.text || '').substring(0, 40)
-          }))
-        });
-      }
-    }
-    
-    // DIAGNOSTIC: Detect when filters are hiding items - CORRECTED (use renderableDbLen)
-    const hiddenCount = renderableDbLen - finalFiltered.length;
-    if (hiddenCount >= 1) {
-      const hiddenEntries = base.filter(e => 
-        isRenderableTranscriptEntry(e) && 
-        !finalFiltered.some(r => (r.stableKey && r.stableKey === e.stableKey) || (r.id && r.id === e.id))
-      );
-      
-      console.warn('[TRANSCRIPT_AUDIT][LEN_MISMATCH]', {
-        dbLen: base.length,
-        renderableDbLen,
-        renderedLen: finalFiltered.length,
-        hiddenCount,
-        screenMode,
-        currentItem_SType: currentItem_S?.type,
-        hiddenKeys: hiddenEntries.map(e => ({
-          key: e.stableKey || e.id,
-          type: e.messageType || e.type,
-          visible: e.visibleToCandidate,
-          textPreview: (e.text || '').substring(0, 40)
-        }))
-      });
-    }
-    
+...
     return finalFiltered;
   }, [transcriptSOT_S, currentItem_S, multiInstanceGate]);
 
-  // Render-time freeze: Capture/clear snapshot based on isUserTyping
-  useEffect(() => {
-    if (isUserTyping && !renderedTranscriptSnapshotRef.current) {
-      renderedTranscriptSnapshotRef.current = renderedTranscript;
-      console.log('[TRANSCRIPT_RENDER][FROZEN_DURING_TYPING]', { len: renderedTranscript.length });
-    } else if (!isUserTyping && renderedTranscriptSnapshotRef.current) {
-      renderedTranscriptSnapshotRef.current = null;
-    }
-  }, [isUserTyping, renderedTranscript]);
-
-  // STEP 3: Key-based monotonic assertion (detects lost keys)
-  const prevKeysSetRef = useRef(new Set());
+  // HOOK 10/11 and 11/11 now hoisted to BATCH 2 (lines ~3550-3610)
+  // Originals removed to prevent duplicate hook calls
   
-  useEffect(() => {
-    const getKey = (e) => e.__canonicalKey || e.stableKey || e.id;
-    
-    const prevKeys = prevKeysSetRef.current;
-    const nextKeys = new Set(canonicalTranscriptRef.current.map(getKey).filter(Boolean));
-    
-    const missingKeys = Array.from(prevKeys).filter(k => !nextKeys.has(k));
-    
-    if (missingKeys.length > 0) {
-      console.error('[TRANSCRIPT_MONOTONIC][FATAL_KEY_LOSS]', {
-        missingCount: missingKeys.length,
-        missingKeys: missingKeys.slice(0, 10),
-        prevKeysCount: prevKeys.size,
-        nextKeysCount: nextKeys.size,
-        action: 'CANONICAL_NOT_OVERWRITTEN',
-        note: 'Key-based monotonic contract violated - keys lost from canonical'
-      });
-      // DO NOT overwrite canonical - keep previous
-      return;
-    }
-    
-    prevKeysSetRef.current = nextKeys;
-  }, [transcriptSOT_S]);
+  // STEP 3: Key-based monotonic assertion refs (hoisted from removed effect)
+  const prevKeysSetRef = useRef(new Set());
 
   // Verification instrumentation (moved above early returns)
   const uiContractViolationKeyRef = useRef(null);
@@ -6305,180 +6283,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   }
 
   
-  // CQ_GUARD: MI_GATE reconciliation effect (single instance only)
-  // Multi-instance gate V3 transcript reconciliation (repair missing probe Q+A)
-  useEffect(() => {
-    // Only trigger when entering MI_GATE (not on every multiInstanceGate change)
-    if (!multiInstanceGate || activeUiItem_S_SAFE?.kind !== "MI_GATE") return;
-    
-    const urlSessionId = new URLSearchParams(window.location.search).get("session");
-    if (!urlSessionId || urlSessionId !== sessionId) return;
-    
-    // Check if we have a stored payload from last V3 submit
-    const payload = lastV3SubmittedAnswerRef.current;
-    
-    // METADATA PAYLOAD: Check for engine_S decision metadata (required for gate validation)
-    const loopKey = `${sessionId}:${multiInstanceGate?.categoryId}:${multiInstanceGate?.instanceNumber}`;
-    const engine_SPayload = lastV3DecisionByLoopKeyRef.current[loopKey];
-    
-    if (!payload) {
-      console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
-        sessionId,
-        hasPayload: false,
-        hasEnginePayload: !!engine_SPayload,
-        missingCount: engine_SPayload?.missingFields?.length || 'unknown',
-        miGateBlocked: engine_SPayload?.miGateBlocked || false,
-        stopReason: engine_SPayload?.stopReason || null,
-        actionTaken: 'SKIP_NO_PAYLOAD'
-      });
-      return;
-    }
-    
-    // Validate payload belongs to current session/category/instance
-    const payloadMatches = 
-      payload.sessionId === sessionId &&
-      payload.packId === multiInstanceGate.packId &&
-      payload.categoryId === multiInstanceGate.categoryId &&
-      payload.instanceNumber === multiInstanceGate.instanceNumber;
-    
-    if (!payloadMatches) {
-      console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
-        sessionId,
-        hasPayload: true,
-        payloadMatches: false,
-        actionTaken: 'SKIP_STALE_PAYLOAD',
-        payloadPackId: payload.packId,
-        currentPackId: multiInstanceGate.packId
-      });
-      return;
-    }
-    
-    // Check if answer already exists in transcript
-    const foundQuestion = dbTranscript.some(e => e.stableKey === payload.expectedQKey);
-    const foundAnswer = dbTranscript.some(e => e.stableKey === payload.expectedAKey);
-    
-    console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
-      sessionId,
-      expectedAKey: payload.expectedAKey,
-      expectedQKey: payload.expectedQKey,
-      foundQ: foundQuestion,
-      foundA: foundAnswer,
-      actionTaken: foundAnswer ? 'SKIP_ALREADY_EXISTS' : 'WILL_INSERT'
-    });
-    
-    // If answer missing, insert it (idempotent)
-    if (!foundAnswer && payload.answerText && payload.answerText.trim()) {
-      setDbTranscriptSafe(prev => {
-        // Double-check not already present (race guard)
-        const alreadyHasA = prev.some(e => e.stableKey === payload.expectedAKey);
-        if (alreadyHasA) {
-          console.log('[MI_GATE][V3_RECONCILE_SKIP]', {
-            expectedAKey: payload.expectedAKey,
-            reason: 'answer_appeared_during_reconcile'
-          });
-          return prev;
-        }
-        
-        let working = [...prev];
-        let insertedQ = false;
-        let insertedA = false;
-        
-        // Ensure question exists first
-        const alreadyHasQ = working.some(e => e.stableKey === payload.expectedQKey);
-        if (!alreadyHasQ && payload.promptText) {
-          const qEntry = {
-            id: `v3-probe-q-reconcile-${payload.promptId}`,
-            stableKey: payload.expectedQKey,
-            index: getNextIndex(working),
-            role: "assistant",
-            text: payload.promptText,
-            timestamp: new Date().toISOString(),
-            createdAt: Date.now(),
-            messageType: 'V3_PROBE_QUESTION',
-            type: 'V3_PROBE_QUESTION',
-            meta: {
-              promptId: payload.promptId,
-              sessionId: payload.sessionId,
-              categoryId: payload.categoryId,
-              instanceNumber: payload.instanceNumber,
-              packId: payload.packId,
-              source: 'mi_gate_reconcile'
-            },
-            visibleToCandidate: true
-          };
-          
-          working = [...working, qEntry];
-          insertedQ = true;
-          
-          console.log('[MI_GATE][V3_RECONCILE_INSERT_Q]', {
-            stableKey: payload.expectedQKey,
-            sessionId
-          });
-        }
-        
-        // Append missing answer
-        const aEntry = {
-          id: `v3-probe-a-reconcile-${payload.promptId}`,
-          stableKey: payload.expectedAKey,
-          index: getNextIndex(working),
-          role: "user",
-          text: payload.answerText,
-          timestamp: new Date().toISOString(),
-          createdAt: Date.now(),
-          messageType: 'V3_PROBE_ANSWER',
-          type: 'V3_PROBE_ANSWER',
-          meta: {
-            promptId: payload.promptId,
-            sessionId: payload.sessionId,
-            categoryId: payload.categoryId,
-            instanceNumber: payload.instanceNumber,
-            packId: payload.packId,
-            source: 'mi_gate_reconcile'
-          },
-          visibleToCandidate: true
-        };
-        
-        const updated = [...working, aEntry];
-        insertedA = true;
-        
-        // Update canonical ref + state atomically
-        upsertTranscriptState(updated, 'mi_gate_reconcile_insert');
-        
-        // Persist repair to DB
-        base44.entities.InterviewSession.update(sessionId, {
-          transcript_snapshot: updated
-        }).then(() => {
-          console.log('[MI_GATE][V3_RECONCILE_INSERT]', {
-            insertedA: true,
-            insertedQ,
-            expectedAKey: payload.expectedAKey,
-            expectedQKey: payload.expectedQKey,
-            reason: 'missing_after_gate',
-            transcriptLenAfter: updated.length
-          });
-        }).catch(err => {
-          console.error('[MI_GATE][V3_RECONCILE_ERROR]', { error: err.message });
-        });
-        
-        return updated;
-      });
-      
-      // Clear payload after reconciliation (prevent duplicate inserts)
-      console.log('[MI_GATE][V3_RECONCILE_CLEAR]', {
-        reason: 'reconciled_or_not_needed',
-        expectedAKey: payload.expectedAKey
-      });
-      lastV3SubmittedAnswerRef.current = null;
-    } else if (foundAnswer) {
-      // Clear payload if answer already exists (no reconciliation needed)
-      console.log('[MI_GATE][V3_RECONCILE_CLEAR]', {
-        reason: 'found_in_transcript',
-        expectedAKey: payload.expectedAKey
-      });
-      lastV3SubmittedAnswerRef.current = null;
-    }
-  }, [multiInstanceGate, activeUiItem_S, sessionId, dbTranscript, setDbTranscriptSafe]);
-  // CQ_GUARD_END: MI_GATE reconciliation effect
+  // CQ_GUARD_END: MI_GATE reconciliation effect (moved to BATCH 2 at line ~3490)
 
   // ACTIVE UI ITEM CHANGE TRACE: Moved to render section (after activeUiItem_S is initialized)
   // This avoids TDZ error while keeping hook order consistent
@@ -15447,6 +15252,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     });
   }, [bottomBarModeSOTSafe, ensureActiveVisibleAfterRender, activeKindSOT, currentItem_S, activeUiItem_S]);
 
+  // HOOK 9/11 moved to BATCH 2 (line ~3550)
   // Auto-focus control props (pure values, no hooks)
   const focusEnabled = screenMode === 'QUESTION';
   const focusShouldTrigger = focusEnabled && bottomBarModeSOT === 'TEXT_INPUT' && (hasPrompt || v3ProbingActive || currentItem_S?.type === 'v3_pack_opener');
