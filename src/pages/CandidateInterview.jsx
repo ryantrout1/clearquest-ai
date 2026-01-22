@@ -17445,6 +17445,44 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     isBottomBarSubmitDisabled,
   };
 
+  // TDZ FIX: Hoisted shouldRenderInTranscript before planner invocations
+  const shouldRenderInTranscript = (entry) => {
+    if (!entry) return false;
+    
+    // Rule 1: Filter non-chat/prompt-lane context, with exception for FALLBACK
+    if (entry.messageType === 'PROMPT_LANE_CONTEXT') {
+      if (entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK') {
+        return true; // ALLOW this specific non-chat item
+      }
+      return false; // BLOCK all other prompt context items
+    }
+    if (entry.meta?.isNonChat === true) return false; // Block other non-chat items
+    if (entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK') return false; // Block other fallback markers
+    
+    // Rule 2: Filter V3 probe questions (prompt-lane only)
+    const isV3ProbeQuestion = 
+      entry?.kind === 'v3_probe_question' ||
+      entry?.type === 'v3_probe_question' ||
+      entry?.messageType === 'V3_PROBE_QUESTION' ||
+      entry?.meta?.kind === 'v3_probe_question' ||
+      entry?.meta?.uiKind === 'v3_probe_question' ||
+      entry?.meta?.isV3ProbeQuestion === true;
+    if (isV3ProbeQuestion) return false;
+    
+    // Rule 3: Filter empty/non-renderable content
+    const text = entry.text || entry.questionText || entry.content || '';
+    if (text.trim().length === 0) {
+      if (entry.messageType === 'WELCOME' && (!entry.lines || entry.lines.length === 0)) {
+        return false;
+      }
+      if (entry.messageType !== 'WELCOME') {
+        return false;
+      }
+    }
+    
+    return true;
+  };
+
   const finalTranscriptList_S_memo = useMemo(() => {
     const hasVisibleActivePromptForSuppression = (activePromptText || '').trim().length > 0;
     cqTdzMark('INSIDE_FINAL_TRANSCRIPT_LIST_MEMO_START');
@@ -20566,43 +20604,6 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                   : null;
 
               const renderedV3OpenerKeysSOT = new Set();
-
-              const shouldRenderInTranscript = (entry) => {
-                if (!entry) return false;
-        
-                // Rule 1: Filter non-chat/prompt-lane context, with exception for FALLBACK
-                if (entry.messageType === 'PROMPT_LANE_CONTEXT') {
-                  if (entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK') {
-                    return true; // ALLOW this specific non-chat item
-                  }
-                  return false; // BLOCK all other prompt context items
-                }
-                if (entry.meta?.isNonChat === true) return false; // Block other non-chat items
-                if (entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK') return false; // Block other fallback markers
-                
-                // Rule 2: Filter V3 probe questions (prompt-lane only)
-                const isV3ProbeQuestion = 
-                    entry?.kind === 'v3_probe_question' ||
-                    entry?.type === 'v3_probe_question' ||
-                    entry?.messageType === 'V3_PROBE_QUESTION' ||
-                    entry?.meta?.kind === 'v3_probe_question' ||
-                    entry?.meta?.uiKind === 'v3_probe_question' ||
-                    entry?.meta?.isV3ProbeQuestion === true;
-                if (isV3ProbeQuestion) return false;
-        
-                // Rule 3: Filter empty/non-renderable content
-                const text = entry.text || entry.questionText || entry.content || '';
-                if (text.trim().length === 0) {
-                    if (entry.messageType === 'WELCOME' && (!entry.lines || entry.lines.length === 0)) {
-                        return false;
-                    }
-                    if (entry.messageType !== 'WELCOME') {
-                         return false;
-                    }
-                }
-                
-                return true;
-              };
 
               const transcriptRenderableList = isV3DebugEnabled ? cqRead('finalTranscriptList_S_SAFE.filter', () => finalTranscriptList_S_SAFE.filter(shouldRenderInTranscript)) : finalTranscriptList_S_SAFE.filter(shouldRenderInTranscript);
       
