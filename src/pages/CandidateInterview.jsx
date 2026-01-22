@@ -20097,11 +20097,6 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   cqTdzMark('BEFORE_MAIN_RETURN_EXPR', { screenModeNow: screenMode, shouldShowFullScreenLoader, currentItem_SType: currentItem_S?.type, effectiveItemType: effectiveItemType_SAFE });
   
   // LIKELY_OFFENDER_SNAPSHOT: Safe typeof checks for identifiers declared ABOVE this point
-   const bottomBarModeSOT_SAFE = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
-   const activeUiItem_S_SAFE = (typeof activeUiItem_S !== 'undefined') ? activeUiItem_S : null;
-   const hasActiveV3Prompt_SAFE = (typeof hasActiveV3Prompt !== 'undefined') ? hasActiveV3Prompt : null;
-   const activeCard_S_SAFE = (typeof activeCard_S !== 'undefined') ? activeCard_S : null;
-
   console.log('[TDZ_TRACE][LIKELY_OFFENDER_SNAPSHOT]', {
     keys: {
       screenMode: typeof screenMode,
