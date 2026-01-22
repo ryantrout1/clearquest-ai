@@ -4609,6 +4609,19 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
       // Priority 2: V3 pack opener (must not be superseded by MI_GATE or REQUIRED_ANCHOR_FALLBACK)
       // INSTANCE START RULE: For multi-instance packs, ALWAYS show opener first for new instances
+      try {
+        const __cqProbePre3E = {
+          sessionId: sessionId || null,
+          hasCurrentItem: typeof currentItem_S !== 'undefined' && !!currentItem_S,
+          currentItemType: (typeof currentItem_S !== 'undefined' && currentItem_S) ? (currentItem_S.type || null) : null,
+          hasEngine: typeof engine_S !== 'undefined' && !!engine_S,
+          isLoading: !!isLoading
+        };
+        console.log('[CQ_SS_PINPOINT][BEFORE_STEP_3E]', __cqProbePre3E);
+      } catch (e) {
+        console.error('[CQ_SS_PINPOINT][PROBE_FAILED_BEFORE_3E]', { message: e?.message, name: e?.name });
+      }
+      
       __cqPriority = 'P2';
       window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3E:BEFORE_PRIORITY2';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3E:BEFORE_PRIORITY2' });
