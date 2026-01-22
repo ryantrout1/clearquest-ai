@@ -2016,7 +2016,13 @@ function CandidateInterviewInner() {
       
       // ATOMIC SYNC: Use unified helper
       upsertTranscriptState(merged, `refresh_${reason}`);
-      setSession(freshSession);
+      
+      const __cqNextSession = freshSession;
+      if (!__cqNextSession) {
+        console.error('[CQ_SESSION_SET][NULL_BLOCKED]', { sessionId: session?.id || sessionId || null, source: 'freshSession' });
+      } else {
+        setSession(__cqNextSession);
+      }
       
       // DIAGNOSTIC: Check for YES ambiguity in last 5 entries
       if (merged.length >= 5) {
@@ -2163,7 +2169,13 @@ function CandidateInterviewInner() {
         if (freshTranscript.length >= canonicalTranscriptRef.current.length) {
           const refreshed = upsertTranscriptMonotonic(canonicalTranscriptRef.current, freshTranscript, `refresh_after_${reasonLabel}`);
           upsertTranscriptState(refreshed, `refresh_after_${reasonLabel}`);
-          setSession(freshAfterAppend);
+          
+          const __cqNextSession = freshAfterAppend;
+          if (!__cqNextSession) {
+            console.error('[CQ_SESSION_SET][NULL_BLOCKED]', { sessionId: session?.id || sessionId || null, source: 'freshAfterAppend' });
+          } else {
+            setSession(__cqNextSession);
+          }
         } else {
           console.log('[APPEND_REFRESH_BG][SKIP_SHORTER]', {
             freshLen: freshTranscript.length,
@@ -4600,6 +4612,19 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       __cqPriority = 'P2';
       window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3E:BEFORE_PRIORITY2';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3E:BEFORE_PRIORITY2' });
+      
+      try {
+        const __cqProbe = {
+          sessionId: sessionId || null,
+          hasCurrentItem: typeof currentItem_S !== 'undefined' && !!currentItem_S,
+          currentItemType: (typeof currentItem_S !== 'undefined' && currentItem_S) ? (currentItem_S.type || null) : null,
+          hasEngine: typeof engine_S !== 'undefined' && !!engine_S,
+          isLoading: !!isLoading
+        };
+        console.log('[CQ_SS_PINPOINT][AFTER_STEP_3E]', __cqProbe);
+      } catch (e) {
+        console.error('[CQ_SS_PINPOINT][PROBE_FAILED]', { message: e?.message, name: e?.name });
+      }
 
       // MICRO TRY/CATCH: Wrap entire Priority 2 boundary for pinpoint TDZ detection
       try {
