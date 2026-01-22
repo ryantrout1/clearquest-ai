@@ -3482,6 +3482,11 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, renderedTranscript, currentItem_S, v3ProbingActive]);
   
   // ============================================================================
+  // HOISTED DECLARATIONS - Variables needed by hoisted hooks and later code
+  // ============================================================================
+
+  
+  // ============================================================================
   // CQMARK DECLARATION - MOVED BEFORE FIRST USE (TDZ FIX)
   // ============================================================================
   // [CQ_RENDER_DIAG] render-time snapshot (effects may never run if render crashes)
@@ -5794,10 +5799,6 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
   // Verification instrumentation (moved above early returns)
   const uiContractViolationKeyRef = useRef(null);
-
-  const displayNumberMapRef = useRef({});
-
-  const totalQuestionsAllSections = engine_S?.TotalQuestions || 0;
 
   const scrollToBottomSafely = useCallback((reason = 'default') => {
     if (!autoScrollEnabledRef.current) return;
