@@ -3269,6 +3269,11 @@ function CandidateInterviewInner() {
   // BOOT GATE: Skip TRY1/derived logic when boot incomplete (preserves hook order)
   const __cqBootNotReady = Boolean(isLoading) || !session || !session.id || !engine_S;
   
+  // BOOT READY LATCH: One-time activation when boot completes
+  if (!__cqBootNotReady && !cqBootReadyLatchedRef.current) {
+    cqBootReadyLatchedRef.current = true;
+  }
+  
   // BOOT READY LOG: One-time confirmation when guard passes (DEPRECATED - uses latch instead)
   if (typeof window !== 'undefined' && sessionId) {
     const readyKey = `cqBootReady_${sessionId}`;
