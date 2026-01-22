@@ -4530,7 +4530,9 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   
   try {
     const VALID_MODES = ['YES_NO', 'TEXT_INPUT', 'DEFAULT', 'V3_WAITING', 'CTA', 'SELECT', 'HIDDEN', 'DISABLED'];
-    const bottomBarModeSOTSafe = VALID_MODES.includes(typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : null) ? (typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : 'DEFAULT') : 'DEFAULT';
+    const modeExists = typeof bottomBarModeSOT !== 'undefined';
+    const modeValue = modeExists ? bottomBarModeSOT : null;
+    const bottomBarModeSOTSafe = VALID_MODES.includes(modeValue) ? (modeExists ? bottomBarModeSOT : 'DEFAULT') : 'DEFAULT';
     
     window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_2:AFTER_MODE_SAFE_COMPUTE';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_2:AFTER_MODE_SAFE_COMPUTE' });
@@ -4590,6 +4592,37 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   
   window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_6:AFTER_MODE_VALIDATION';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '6:AFTER_MODE_VALIDATION' });
+  
+  // DERIVED EARLY: Prevent TDZ in useEffect dep arrays (hoisted from derived snapshot)
+  const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
+  const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
+  const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
+  const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && 
+                            v3PromptPhase === "ANSWER_NEEDED";
+  const activeUiItem_S = resolveActiveUiItem();
+  const bottomBarRenderTypeSOT = (() => {
+    if (activeUiItem_S?.kind === "REQUIRED_ANCHOR_FALLBACK") return "required_anchor_fallback";
+    if (activeUiItem_S?.kind === "V3_PROMPT") return "v3_probing";
+    if (activeUiItem_S?.kind === "V3_WAITING") return "v3_waiting";
+    if (activeUiItem_S?.kind === "V3_OPENER") return "v3_pack_opener";
+    if (activeUiItem_S?.kind === "MI_GATE") return "multi_instance_gate";
+    if (activeUiItem_S?.kind === "DEFAULT" && 
+        currentItem_S?.type === "question" && 
+        engine_S?.QById?.[currentItem_S.id]?.response_type === "yes_no") {
+      return "yes_no";
+    }
+    return "default";
+  })();
+  const bottomBarModeSOT = (() => {
+    if (bottomBarRenderTypeSOT === "required_anchor_fallback") return "TEXT_INPUT";
+    if (bottomBarRenderTypeSOT === "multi_instance_gate") return "YES_NO";
+    if (bottomBarRenderTypeSOT === "yes_no") return "YES_NO";
+    if (bottomBarRenderTypeSOT === "v3_pack_opener") return "TEXT_INPUT";
+    if (bottomBarRenderTypeSOT === "v3_probing") return "TEXT_INPUT";
+    if (bottomBarRenderTypeSOT === "v3_waiting") return "V3_WAITING";
+    if (screenMode === 'WELCOME') return "CTA";
+    return "DEFAULT";
+  })();
   
   // V3 PROMPT PHASE CHANGE TRACKER (unconditional hook)
   useEffect(() => {
@@ -17083,13 +17116,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // [TDZ_GUARD][DERIVED_SNAPSHOT]
   // Centralized render-time derived computations (NO hooks in this block).
   // Ordered to prevent TDZ and used as the single source of truth for planner inputs.
-  const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
-  const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
-  const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
-  const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && 
-                            v3PromptPhase === "ANSWER_NEEDED";
+  // NOTE: hasV3PromptText, hasActiveV3Prompt, activeUiItem_S, bottomBarRenderTypeSOT, bottomBarModeSOT hoisted to line ~4561 (before useEffect deps)
   let effectiveItemType = v3ProbingActive ? 'v3_probing' : currentItem_SType;
-  const activeUiItem_S = resolveActiveUiItem();
   const activeKindSOT = activeUiItem_S_SAFE?.kind || currentItem_S?.type || 'UNKNOWN';
   effectiveItemType = activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
                            activeUiItem_S_SAFE.kind === "V3_PROMPT" ? 'v3_probing' : 
@@ -17097,29 +17125,6 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
                            activeUiItem_S_SAFE.kind === "MI_GATE" ? 'multi_instance_gate' :
                            v3ProbingActive ? 'v3_probing' : 
                            currentItem_SType;
-  const bottomBarRenderTypeSOT = (() => {
-    if (activeUiItem_S_SAFE?.kind === "REQUIRED_ANCHOR_FALLBACK") return "required_anchor_fallback";
-    if (activeUiItem_S_SAFE?.kind === "V3_PROMPT") return "v3_probing";
-    if (activeUiItem_S_SAFE?.kind === "V3_WAITING") return "v3_waiting";
-    if (activeUiItem_S_SAFE?.kind === "V3_OPENER") return "v3_pack_opener";
-    if (activeUiItem_S_SAFE?.kind === "MI_GATE") return "multi_instance_gate";
-    if (activeUiItem_S_SAFE?.kind === "DEFAULT" && 
-        currentItem_S?.type === "question" && 
-        engine_S?.QById?.[currentItem_S.id]?.response_type === "yes_no") {
-      return "yes_no";
-    }
-    return "default";
-  })();
-  const bottomBarModeSOT = (() => {
-    if (bottomBarRenderTypeSOT === "required_anchor_fallback") return "TEXT_INPUT";
-    if (bottomBarRenderTypeSOT === "multi_instance_gate") return "YES_NO";
-    if (bottomBarRenderTypeSOT === "yes_no") return "YES_NO";
-    if (bottomBarRenderTypeSOT === "v3_pack_opener") return "TEXT_INPUT";
-    if (bottomBarRenderTypeSOT === "v3_probing") return "TEXT_INPUT";
-    if (bottomBarRenderTypeSOT === "v3_waiting") return "V3_WAITING";
-    if (screenMode === 'WELCOME') return "CTA";
-    return "DEFAULT";
-  })();
   const activeCard_SKeySOT = (() => {
     if (activeUiItem_S_SAFE.kind === "V3_PROMPT") {
       const promptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
