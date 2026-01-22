@@ -4543,16 +4543,56 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_1:ENTER_MODE_BLOCK' });
   
   try {
+    // TDZ FIX: LOCAL mode computation (uses only early-available state, no late-derived refs)
+    const bottomBarRenderTypeSOT__LOCAL = (() => {
+      const currentType = currentItem_S?.type;
+      
+      // Priority 0: Required anchor fallback
+      if (requiredAnchorFallbackActive && requiredAnchorCurrent) return "required_anchor_fallback";
+      
+      // Priority 1: Multi-instance gate
+      if (currentType === "multi_instance_gate") return "multi_instance_gate";
+      
+      // Priority 2: Base yes/no question
+      if (currentType === "question" && engine_S?.QById?.[currentItem_S?.id]?.response_type === "yes_no") {
+        return "yes_no";
+      }
+      
+      // Priority 3: V3 pack opener
+      if (currentType === "v3_pack_opener") return "v3_pack_opener";
+      
+      // Priority 4: V3 probing
+      if (v3ProbingActive && v3ActivePromptText) return "v3_probing";
+      if (v3ProbingActive && !v3ActivePromptText) return "v3_waiting";
+      
+      // Default
+      return "default";
+    })();
+    
+    const bottomBarModeSOT__LOCAL = (() => {
+      if (bottomBarRenderTypeSOT__LOCAL === "required_anchor_fallback") return "TEXT_INPUT";
+      if (bottomBarRenderTypeSOT__LOCAL === "multi_instance_gate") return "YES_NO";
+      if (bottomBarRenderTypeSOT__LOCAL === "yes_no") return "YES_NO";
+      if (bottomBarRenderTypeSOT__LOCAL === "v3_pack_opener") return "TEXT_INPUT";
+      if (bottomBarRenderTypeSOT__LOCAL === "v3_probing") return "TEXT_INPUT";
+      if (bottomBarRenderTypeSOT__LOCAL === "v3_waiting") return "V3_WAITING";
+      if (screenMode === 'WELCOME') return "CTA";
+      return "DEFAULT";
+    })();
+    
+    const bottomBarModeSOT_SAFE__LOCAL = bottomBarModeSOT__LOCAL; // Already safe
+    const bottomBarRenderTypeSOT_SAFE__LOCAL = bottomBarRenderTypeSOT__LOCAL; // Already safe
+    
     const VALID_MODES = ['YES_NO', 'TEXT_INPUT', 'DEFAULT', 'V3_WAITING', 'CTA', 'SELECT', 'HIDDEN', 'DISABLED'];
-    const modeExists = typeof bottomBarModeSOT !== 'undefined';
-    const modeValue = modeExists ? bottomBarModeSOT : null;
-    const bottomBarModeSOTSafe = VALID_MODES.includes(modeValue) ? (modeExists ? bottomBarModeSOT : 'DEFAULT') : 'DEFAULT';
+    const modeExists = typeof bottomBarModeSOT__LOCAL !== 'undefined';
+    const modeValue = modeExists ? bottomBarModeSOT__LOCAL : null;
+    const bottomBarModeSOTSafe = VALID_MODES.includes(modeValue) ? (modeExists ? bottomBarModeSOT__LOCAL : 'DEFAULT') : 'DEFAULT';
     
     window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_2:AFTER_MODE_SAFE_COMPUTE';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_2:AFTER_MODE_SAFE_COMPUTE' });
     
     if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-      cqLog('DEBUG', '[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== 'undefined' ? bottomBarRenderTypeSOT_SAFE : null), bottomBarModeSOT_SAFE: (typeof bottomBarModeSOT_SAFE !== 'undefined' ? bottomBarModeSOT_SAFE : null), bottomBarModeSOTSafe });
+      cqLog('DEBUG', '[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT_SAFE: bottomBarRenderTypeSOT_SAFE__LOCAL, bottomBarModeSOT_SAFE: bottomBarModeSOT_SAFE__LOCAL, bottomBarModeSOTSafe });
     }
     
     window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_3:AFTER_CQLOG_DEBUG';
@@ -4580,12 +4620,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     // One-time warning if fallback triggered (dev-only, once per mount)
     const fallbackWarningLoggedRef = React.useRef(false);
-    if (bottomBarModeSOTSafe !== (typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : null) && !fallbackWarningLoggedRef.current) {
+    if (bottomBarModeSOTSafe !== bottomBarModeSOT__LOCAL && !fallbackWarningLoggedRef.current) {
       fallbackWarningLoggedRef.current = true;
       if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
         console.warn('[BOTTOM_BAR_MODE_SOT][FALLBACK]', { 
-          bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== 'undefined' ? bottomBarRenderTypeSOT_SAFE : null), 
-          bottomBarModeSOT_SAFE: (typeof bottomBarModeSOT_SAFE !== 'undefined' ? bottomBarModeSOT_SAFE : null), 
+          bottomBarRenderTypeSOT_SAFE: bottomBarRenderTypeSOT_SAFE__LOCAL, 
+          bottomBarModeSOT_SAFE: bottomBarModeSOT_SAFE__LOCAL, 
           bottomBarModeSOTSafe,
           reason: 'Invalid mode detected - using DEFAULT fallback'
         });
