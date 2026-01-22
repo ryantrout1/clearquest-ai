@@ -1436,6 +1436,16 @@ function CandidateInterviewInner() {
   // TDZ FIX: Missing function declaration (used at lines ~13435, ~17381, ~20422)
   const sanitizeCandidateFacingText = (text, _label) => (text == null ? '' : String(text));
   
+  // TDZ FIX: Missing helper declaration (used at lines ~13565, ~13792, ~19902, ~20140)
+  const isNearBottomStrict = (container, thresholdPx = 24) => {
+    if (!container) return false;
+    const scrollTop = container.scrollTop || 0;
+    const scrollHeight = container.scrollHeight || 0;
+    const clientHeight = container.clientHeight || 0;
+    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+    return distanceFromBottom <= thresholdPx;
+  };
+  
   const navigate = useNavigate();
   
   // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
