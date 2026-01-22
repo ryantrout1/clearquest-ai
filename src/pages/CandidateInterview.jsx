@@ -1449,6 +1449,9 @@ function CandidateInterviewInner() {
   // TDZ FIX: Missing planner utility (used at lines ~19899, ~20171, ~20251, ~20286, ~20604, ~20673)
   const cqRead = (_label, fn) => (typeof fn === 'function' ? fn() : fn);
   
+  // TDZ FIX: Missing function declaration (used at line 19944, 20182)
+  const getTranscriptEntryKey = (e) => e?.stableKey || e?.id || e?.__canonicalKey || `fallback-${e?.kind || 'unknown'}`;
+  
   const navigate = useNavigate();
   
   // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
