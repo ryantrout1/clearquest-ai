@@ -19935,6 +19935,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   const currentItem_SAFE = currentItem_S ?? null;
   const v3ProbingContext_SAFE = v3ProbingContext_S ?? null;
 
+  // TDZ FIX: Missing scroll margin computation (used in planner args and JSX)
+  const activeCard_SScrollMarginBottomPx = ((typeof dynamicFooterHeightPx !== 'undefined' ? dynamicFooterHeightPx : 80) + 16);
 
 const transcriptPlan = isV3DebugEnabled
     ? cqComputeGuard('computeTranscriptRenderPlan', () => computeTranscriptRenderPlan({
