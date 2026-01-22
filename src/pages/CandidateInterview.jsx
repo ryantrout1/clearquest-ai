@@ -2872,6 +2872,27 @@ function CandidateInterviewInner() {
     return () => clearTimeout(t);
   }, [sessionId, isLoading, session, engine_S]);
 
+  // BOOT FIX: Assign ref in useEffect to guarantee assignment before kickstart reads it
+  useEffect(() => {
+    try {
+      resumeFromDBFnRef.current = resumeFromDB;
+      if (typeof window !== 'undefined') {
+        window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
+        window.__CQ_RUNTIME_PROBE__.resumeFromDB_ref_assigned = true;
+        window.__CQ_RUNTIME_PROBE__.resumeFromDB_val_at_render = resumeFromDB;
+        window.CQ_RUNTIME_PROBE = window.CQ_RUNTIME_PROBE || {};
+        window.CQ_RUNTIME_PROBE.resumeFromDB_ref_assigned = true;
+        window.CQ_RUNTIME_PROBE.resumeFromDB_val_at_render = resumeFromDB;
+      }
+      console.log('[CQ_INIT][RESUME_REF_ASSIGNED_IN_EFFECT]', { 
+        type: typeof resumeFromDB,
+        isFunction: typeof resumeFromDB === 'function'
+      });
+    } catch (e) {
+      console.error('[CQ_INIT][RESUME_REF_ASSIGN_FAILED]', { error: e?.message });
+    }
+  }, []); // Run once on mount (before kickstart effect with sessionId dep)
+
 // DUPLICATE useEffect block removed
 
   // ============================================================================
@@ -4648,6 +4669,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     // TDZ GUARD: Do not reference late-derived vars (effectiveItemType_SAFE, etc.) above this line.
     
     // One-time warning if fallback triggered (dev-only, once per mount)
+    // DISABLED: Hook inside try/catch causes minifier TDZ (js)
+    /*
     const fallbackWarningLoggedRef = React.useRef(false);
     if (bottomBarModeSOTSafe !== bottomBarModeSOT__LOCAL && !fallbackWarningLoggedRef.current) {
       fallbackWarningLoggedRef.current = true;
@@ -4660,6 +4683,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
         });
       }
     }
+    */
     
     window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_5:AFTER_FALLBACK_WARN';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_5:AFTER_FALLBACK_WARN' });
@@ -6825,27 +6849,6 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       setIsLoading(false);
     }
   };
-
-  // BOOT FIX: Assign ref in useEffect to guarantee assignment before kickstart reads it
-  useEffect(() => {
-    try {
-      resumeFromDBFnRef.current = resumeFromDB;
-      if (typeof window !== 'undefined') {
-        window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
-        window.__CQ_RUNTIME_PROBE__.resumeFromDB_ref_assigned = true;
-        window.__CQ_RUNTIME_PROBE__.resumeFromDB_val_at_render = resumeFromDB;
-        window.CQ_RUNTIME_PROBE = window.CQ_RUNTIME_PROBE || {};
-        window.CQ_RUNTIME_PROBE.resumeFromDB_ref_assigned = true;
-        window.CQ_RUNTIME_PROBE.resumeFromDB_val_at_render = resumeFromDB;
-      }
-      console.log('[CQ_INIT][RESUME_REF_ASSIGNED_IN_EFFECT]', { 
-        type: typeof resumeFromDB,
-        isFunction: typeof resumeFromDB === 'function'
-      });
-    } catch (e) {
-      console.error('[CQ_INIT][RESUME_REF_ASSIGN_FAILED]', { error: e?.message });
-    }
-  }, []); // Run once on mount (before kickstart effect with sessionId dep)
 
 
 
