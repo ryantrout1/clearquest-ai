@@ -1629,6 +1629,9 @@ function CandidateInterviewInner() {
   // BOOT READY LATCH: One-way flag to prevent boot state regression (once ready, always ready)
   const cqBootReadyLatchedRef = useRef(false);
   
+  // BOOT WARN ONCE: Prevent spam when blocking regression setters
+  const cqBootWarnOnceRef = useRef({ loadingTrue: false, sessionNull: false, engineNull: false });
+  
   // SESSION RECOVERY STATE: Track recovery in-flight to prevent redirect during lookup
   const [isRecoveringSession, setIsRecoveringSession] = useState(false);
   
@@ -2926,7 +2929,9 @@ function CandidateInterviewInner() {
       setIsNewSession(!hasAnyResponses);
       setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
       
-      setIsLoading(false);
+      if (!cqBootReadyLatchedRef.current) {
+        setIsLoading(false);
+      }
 
       // BOOT SUCCESS: Log completion and clear watchdog.
       console.log('[CQ_INIT][BOOT_COMPLETE]', { sessionId });
@@ -2941,7 +2946,9 @@ function CandidateInterviewInner() {
     } catch (err) {
       console.error('[BOOT][RESUME][ERROR]', err.message);
       setError(`Resume failed: ${err.message}`);
-      setIsLoading(false);
+      if (!cqBootReadyLatchedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [sessionId, setSession, setQueue, setCurrentItem, setIsNewSession, setScreenMode, setIsLoading, setError, setDbTranscriptSafe]);
 
@@ -2985,7 +2992,8 @@ function CandidateInterviewInner() {
       // Ensure loading is on during initialization (gated - prevent regression after ready)
       if (!cqBootReadyLatchedRef.current) {
         setIsLoading(true);
-      } else {
+      } else if (!cqBootWarnOnceRef.current.loadingTrue) {
+        cqBootWarnOnceRef.current.loadingTrue = true;
         console.warn('[CQ_BOOT][BLOCKED_SET_ISLOADING_TRUE]', { 
           sessionId: session?.id || sessionId || null,
           reason: 'Boot already latched ready - preventing regression',
@@ -3022,7 +3030,9 @@ function CandidateInterviewInner() {
           reason: 'bootstrapEngine threw exception during execution'
         });
         setError(`Bootstrap failed: ${bootstrapErr?.message || 'Unknown error'}`);
-        setIsLoading(false);
+        if (!cqBootReadyLatchedRef.current) {
+          setIsLoading(false);
+        }
         return;
       }
 
@@ -3074,7 +3084,9 @@ function CandidateInterviewInner() {
     } catch (err) {
       // Set error using existing error setter
       setError(err);
-      setIsLoading(false);
+      if (!cqBootReadyLatchedRef.current) {
+        setIsLoading(false);
+      }
       console.error('[CQ_INIT][BOOTSTRAP_FAILED]', { sessionId, err: err.message, stack: err.stack });
     }
   }, [sessionId]);
@@ -3168,9 +3180,12 @@ function CandidateInterviewInner() {
   
   const cqBootBlockUI = (() => {
       console.log('[CQ_BOOT_GUARD][RETURN]', {
+          sessionId,
           isLoading,
-          hasSession: !!session,
-          hasEngine: !!engine_S
+          hasSessionObj: !!session,
+          sessionObjId: session?.id || null,
+          hasEngine: !!engine_S,
+          bootReadyLatched: cqBootReadyLatchedRef.current
       });
 
       // STUCK-BOOT DETECTION: Track boot start timestamp (window-scoped, keyed by sessionId)
@@ -5984,6 +5999,14 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     // CRITICAL: Reset canonical transcript ref (prevents cross-session contamination)
     canonicalTranscriptRef.current = [];
+    
+    // BOOT REGRESSION GUARD: Reset latch for new session
+    cqBootReadyLatchedRef.current = false;
+    cqBootWarnOnceRef.current = { loadingTrue: false, sessionNull: false, engineNull: false };
+    console.log('[CQ_BOOT][LATCH_RESET_FOR_NEW_SESSION]', { 
+      newSessionId: sessionId,
+      reason: 'Session changed - allowing fresh boot cycle'
+    });
     
     // Reset all V3 probing state
     setV3ProbeDisplayHistory([]);
