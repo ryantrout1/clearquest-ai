@@ -3230,6 +3230,18 @@ function CandidateInterviewInner() {
       );
   })();
   
+  // HARD SHORT-CIRCUIT: Return boot UI immediately when boot incomplete (prevents TRY1 execution)
+  if (cqShouldRenderBootBlock) {
+    console.log('[CQ_BOOT_GUARD][HARD_RETURN]', {
+      sessionId,
+      isLoading,
+      hasSession: !!session,
+      hasEngine: !!engine_S,
+      action: 'SHORT_CIRCUIT_BEFORE_TRY1'
+    });
+    return cqBootBlockUI;
+  }
+  
   // BOOT READY LOG: One-time confirmation when guard passes
   if (typeof window !== 'undefined' && sessionId) {
     const readyKey = `cqBootReady_${sessionId}`;
