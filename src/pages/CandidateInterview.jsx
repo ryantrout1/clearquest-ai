@@ -4605,14 +4605,36 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_3:AFTER_CQLOG_DEBUG';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_3:AFTER_CQLOG_DEBUG' });
     
-    // FIX #1: Diagnostic log for base yes/no routing (TDZ-SAFE: uses only early variables)
-    if ((typeof bottomBarRenderTypeSOT !== 'undefined' ? bottomBarRenderTypeSOT : null) === "yes_no") {
-      // TDZ FIX: Precompute activeCard_S kind safely
-      const activeCard_SKindLocal = (typeof activeCard_S_SAFE !== 'undefined' && activeCard_S_SAFE) ? activeCard_S_SAFE.kind : null;
-      
+    // TDZ FIX: compute renderType locally for diagnostic (no late-derived refs)
+    const bottomBarRenderTypeSOT__LOCAL_DIAG = (() => {
+      const currentType = currentItem_S?.type;
+      if (requiredAnchorFallbackActive && requiredAnchorCurrent) return "required_anchor_fallback";
+      if (currentType === "multi_instance_gate") return "multi_instance_gate";
+      if (currentType === "question" && engine_S?.QById?.[currentItem_S?.id]?.response_type === "yes_no") return "yes_no";
+      if (currentType === "v3_pack_opener") return "v3_pack_opener";
+      if (v3ProbingActive && v3ActivePromptText) return "v3_probing";
+      if (v3ProbingActive && !v3ActivePromptText) return "v3_waiting";
+      return "default";
+    })();
+    
+    const activeCard_SKindLocal__SAFE = (() => {
+      // Compute activeCard_S.kind locally (same logic as line 20229)
+      // GUARD: Use params from hoisted activeUiItem_S resolver (not late-derived activeCard_S_SAFE)
+      const resolverResult = resolveActiveUiItem();
+      if (resolverResult.kind === "REQUIRED_ANCHOR_FALLBACK") return "required_anchor_fallback_prompt";
+      if (resolverResult.kind === "V3_PROMPT") return "v3_probe_q";
+      if (resolverResult.kind === "V3_OPENER") return "v3_pack_opener";
+      if (resolverResult.kind === "MI_GATE") return "multi_instance_gate";
+      if (resolverResult.kind === "DEFAULT" && currentItem_S?.type === "question" && engine_S?.QById?.[currentItem_S?.id]?.response_type === "yes_no") {
+        return "base_question_yesno";
+      }
+      return null;
+    })();
+    
+    if (bottomBarRenderTypeSOT__LOCAL_DIAG === "yes_no") {
       console.log('[UI_CONTRACT][BASE_YESNO_BOTTOM_BAR_ROUTE]', {
-        activeCard_SKind: activeCard_SKindLocal,
-        bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== 'undefined' ? bottomBarRenderTypeSOT_SAFE : null),
+        activeCard_SKind: activeCard_SKindLocal__SAFE,
+        bottomBarRenderTypeSOT_LOCAL: bottomBarRenderTypeSOT__LOCAL_DIAG,
         bottomBarModeSOTSafe,
         currentItem_SId: currentItem_S?.id,
         currentItem_SType: currentItem_S?.type,
@@ -6804,13 +6826,26 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     }
   };
 
-   try {
-     resumeFromDBFnRef.current = resumeFromDB;
-     if (typeof window !== 'undefined') {
-       window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
-       window.__CQ_RUNTIME_PROBE__.resumeFromDB_ref_assigned = true;
-     }
-   } catch (_) {}
+  // BOOT FIX: Assign ref in useEffect to guarantee assignment before kickstart reads it
+  useEffect(() => {
+    try {
+      resumeFromDBFnRef.current = resumeFromDB;
+      if (typeof window !== 'undefined') {
+        window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
+        window.__CQ_RUNTIME_PROBE__.resumeFromDB_ref_assigned = true;
+        window.__CQ_RUNTIME_PROBE__.resumeFromDB_val_at_render = resumeFromDB;
+        window.CQ_RUNTIME_PROBE = window.CQ_RUNTIME_PROBE || {};
+        window.CQ_RUNTIME_PROBE.resumeFromDB_ref_assigned = true;
+        window.CQ_RUNTIME_PROBE.resumeFromDB_val_at_render = resumeFromDB;
+      }
+      console.log('[CQ_INIT][RESUME_REF_ASSIGNED_IN_EFFECT]', { 
+        type: typeof resumeFromDB,
+        isFunction: typeof resumeFromDB === 'function'
+      });
+    } catch (e) {
+      console.error('[CQ_INIT][RESUME_REF_ASSIGN_FAILED]', { error: e?.message });
+    }
+  }, []); // Run once on mount (before kickstart effect with sessionId dep)
 
 
 
