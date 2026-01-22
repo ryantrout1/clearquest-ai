@@ -2704,6 +2704,52 @@ function CandidateInterviewInner() {
   // These are callback PARAMETERS, not closure deps - passed fresh on every call.
   }, [currentItem_S, lockScrollWrites, unlockScrollWrites, selfHealFooterOverlap]);
   
+  // SCROLL HANDLER: Transcript scroll event handler (hoisted outside TRY1 for boot-phase availability)
+  const handleTranscriptScroll = useCallback(() => {
+    // GUARD: Ignore programmatic scroll events to prevent flapping
+    if (isProgrammaticScrollRef.current) return;
+    
+    const el = historyRef.current;
+    if (!el) return;
+    
+    // STICKY AUTOSCROLL: Detect if user is near bottom (24px threshold)
+    const NEAR_BOTTOM_THRESHOLD_PX = 24;
+    const distanceFromBottom = el.scrollHeight - (el.scrollTop + el.clientHeight);
+    const nearBottom = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD_PX;
+    
+    // GUARD: Don't flip auto-scroll state during system transitions OR force-once window
+    const recentAnchorAge = Date.now() - recentAnchorRef.current.ts;
+    const hasRecentAnchor = recentAnchorRef.current.kind === 'V3_PROBE_ANSWER' && recentAnchorAge < 1500;
+    const hasForceScrollPending = forceAutoScrollOnceRef.current;
+    
+    if (hasRecentAnchor || hasForceScrollPending) {
+      if (cqDiagEnabled) {
+        console.log('[SCROLL][AUTO_SCROLL_STATE][GUARD]', {
+          reason: hasRecentAnchor ? 'recent_v3_answer_anchor' : 'force_scroll_pending',
+          ignored: true,
+          recentAnchorAge,
+          hasForceScrollPending,
+          stableKey: recentAnchorRef.current.stableKey
+        });
+      }
+      return; // Ignore scroll events during anchor window or force-once
+    }
+    
+    // Update sticky autoscroll state based on user scroll position
+    const wasShouldAutoScroll = shouldAutoScrollRef.current;
+    const nowShouldAutoScroll = nearBottom;
+    
+    if (wasShouldAutoScroll !== nowShouldAutoScroll) {
+      shouldAutoScrollRef.current = nowShouldAutoScroll;
+      console.log('[SCROLL][AUTO_SCROLL_STATE]', {
+        nearBottom,
+        shouldAutoScroll: nowShouldAutoScroll,
+        distanceFromBottom: Math.round(distanceFromBottom),
+        reason: nowShouldAutoScroll ? 'user_scrolled_to_bottom' : 'user_scrolled_up'
+      });
+    }
+  }, [cqDiagEnabled]);
+  
   const didInitialSnapRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
   const pendingScrollRafRef = useRef(null);
@@ -5823,51 +5869,6 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     return `${role}-${type}-${qId}-${pId}-${inst}-${idx}`;
   }, []);
-
-  const handleTranscriptScroll = useCallback(() => {
-    // GUARD: Ignore programmatic scroll events to prevent flapping
-    if (isProgrammaticScrollRef.current) return;
-    
-    const el = historyRef.current;
-    if (!el) return;
-    
-    // STICKY AUTOSCROLL: Detect if user is near bottom (24px threshold)
-    const NEAR_BOTTOM_THRESHOLD_PX = 24;
-    const distanceFromBottom = el.scrollHeight - (el.scrollTop + el.clientHeight);
-    const nearBottom = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD_PX;
-    
-    // GUARD: Don't flip auto-scroll state during system transitions OR force-once window
-    const recentAnchorAge = Date.now() - recentAnchorRef.current.ts;
-    const hasRecentAnchor = recentAnchorRef.current.kind === 'V3_PROBE_ANSWER' && recentAnchorAge < 1500;
-    const hasForceScrollPending = forceAutoScrollOnceRef.current;
-    
-    if (hasRecentAnchor || hasForceScrollPending) {
-      if (cqDiagEnabled) {
-        console.log('[SCROLL][AUTO_SCROLL_STATE][GUARD]', {
-          reason: hasRecentAnchor ? 'recent_v3_answer_anchor' : 'force_scroll_pending',
-          ignored: true,
-          recentAnchorAge,
-          hasForceScrollPending,
-          stableKey: recentAnchorRef.current.stableKey
-        });
-      }
-      return; // Ignore scroll events during anchor window or force-once
-    }
-    
-    // Update sticky autoscroll state based on user scroll position
-    const wasShouldAutoScroll = shouldAutoScrollRef.current;
-    const nowShouldAutoScroll = nearBottom;
-    
-    if (wasShouldAutoScroll !== nowShouldAutoScroll) {
-      shouldAutoScrollRef.current = nowShouldAutoScroll;
-      console.log('[SCROLL][AUTO_SCROLL_STATE]', {
-        nearBottom,
-        shouldAutoScroll: nowShouldAutoScroll,
-        distanceFromBottom: Math.round(distanceFromBottom),
-        reason: nowShouldAutoScroll ? 'user_scrolled_to_bottom' : 'user_scrolled_up'
-      });
-    }
-  }, [cqDiagEnabled]);
 
   const scrollToBottomSafely = useCallback((reason = 'default') => {
     if (!autoScrollEnabledRef.current) return;
