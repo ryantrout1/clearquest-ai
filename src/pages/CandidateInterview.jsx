@@ -1446,6 +1446,9 @@ function CandidateInterviewInner() {
     return distanceFromBottom <= thresholdPx;
   };
   
+  // TDZ FIX: Missing planner utility (used at lines ~19899, ~20171, ~20251, ~20286, ~20604, ~20673)
+  const cqRead = (_label, fn) => (typeof fn === 'function' ? fn() : fn);
+  
   const navigate = useNavigate();
   
   // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
