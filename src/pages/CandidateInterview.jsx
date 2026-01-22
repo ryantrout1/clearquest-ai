@@ -1626,6 +1626,9 @@ function CandidateInterviewInner() {
 
   const [engine_S, setEngine] = useState(null);
   
+  // BOOT READY LATCH: One-way flag to prevent boot state regression (once ready, always ready)
+  const cqBootReadyLatchedRef = useRef(false);
+  
   // SESSION RECOVERY STATE: Track recovery in-flight to prevent redirect during lookup
   const [isRecoveringSession, setIsRecoveringSession] = useState(false);
   
@@ -2979,8 +2982,16 @@ function CandidateInterviewInner() {
         console.log('[CQ_INIT][STARTED_FLAG_SET]', { key: cqStartedKey });
       }
 
-      // Ensure loading is on during initialization
-      setIsLoading(true);
+      // Ensure loading is on during initialization (gated - prevent regression after ready)
+      if (!cqBootReadyLatchedRef.current) {
+        setIsLoading(true);
+      } else {
+        console.warn('[CQ_BOOT][BLOCKED_SET_ISLOADING_TRUE]', { 
+          sessionId: session?.id || sessionId || null,
+          reason: 'Boot already latched ready - preventing regression',
+          caller: 'initializeInterview'
+        });
+      }
 
       // 1) Bootstrap engine (minimal required missing call)
       console.log('[CQ_INIT][BOOTSTRAP_ENGINE_CALL]', { sessionId });
