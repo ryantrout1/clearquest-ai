@@ -2929,9 +2929,7 @@ function CandidateInterviewInner() {
       setIsNewSession(!hasAnyResponses);
       setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
       
-      if (!cqBootReadyLatchedRef.current) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
 
       // BOOT SUCCESS: Log completion and clear watchdog.
       console.log('[CQ_INIT][BOOT_COMPLETE]', { sessionId });
@@ -2946,9 +2944,7 @@ function CandidateInterviewInner() {
     } catch (err) {
       console.error('[BOOT][RESUME][ERROR]', err.message);
       setError(`Resume failed: ${err.message}`);
-      if (!cqBootReadyLatchedRef.current) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
   }, [sessionId, setSession, setQueue, setCurrentItem, setIsNewSession, setScreenMode, setIsLoading, setError, setDbTranscriptSafe]);
 
@@ -3030,9 +3026,7 @@ function CandidateInterviewInner() {
           reason: 'bootstrapEngine threw exception during execution'
         });
         setError(`Bootstrap failed: ${bootstrapErr?.message || 'Unknown error'}`);
-        if (!cqBootReadyLatchedRef.current) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
         return;
       }
 
@@ -3043,9 +3037,7 @@ function CandidateInterviewInner() {
           reason: 'bootstrapEngine returned null/undefined' 
         });
         setError('Failed to initialize interview engine');
-        if (!cqBootReadyLatchedRef.current) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
         return;
       }
 
@@ -3060,9 +3052,7 @@ function CandidateInterviewInner() {
           reason: 'Bootstrap result missing expected properties' 
         });
         setError('Failed to initialize interview engine');
-        if (!cqBootReadyLatchedRef.current) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
         return;
       }
 
@@ -3088,9 +3078,7 @@ function CandidateInterviewInner() {
     } catch (err) {
       // Set error using existing error setter
       setError(err);
-      if (!cqBootReadyLatchedRef.current) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
       console.error('[CQ_INIT][BOOTSTRAP_FAILED]', { sessionId, err: err.message, stack: err.stack });
     }
   }, [sessionId]);
