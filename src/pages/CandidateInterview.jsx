@@ -2834,6 +2834,9 @@ function CandidateInterviewInner() {
   const didTerminalRedirectRef = useRef(false);
   // showRedirectFallback moved to top (line ~1338) - prevents TDZ crash
   
+  // FAILOPEN ONCE-LATCH: Prevent repeated failopen side-effects from causing render loops
+  const cqFailopenOnceRef = useRef({ modeBlock: false, try1Tdz: false });
+  
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
 
@@ -4573,7 +4576,10 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_5:AFTER_FALLBACK_WARN';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_5:AFTER_FALLBACK_WARN' });
   } catch (e) {
-    console.error('[CQ_MODE_BLOCK][FAILOPEN]', { message: e?.message, name: e?.name, stack: e?.stack });
+    if (!cqFailopenOnceRef.current.modeBlock) {
+      cqFailopenOnceRef.current.modeBlock = true;
+      console.error('[CQ_MODE_BLOCK][FAILOPEN]', { message: e?.message, name: e?.name, stack: e?.stack });
+    }
   }
   
   window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5A:AFTER_MODE_WINDOW';
@@ -20273,7 +20279,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     const _cqIsTdzRefErr =
       (e && (e.name === 'ReferenceError' || String(e.message || '').includes('before initialization')));
     
-    if (_cqIsTdzRefErr) {
+    if (_cqIsTdzRefErr && !cqFailopenOnceRef.current.try1Tdz) {
+      cqFailopenOnceRef.current.try1Tdz = true;
       try { if (typeof setError === 'function') setError(String(e?.message || 'Render TDZ')); } catch (_) {}
       try { if (typeof setIsLoading === 'function') setIsLoading(false); } catch (_) {}
       return null;
