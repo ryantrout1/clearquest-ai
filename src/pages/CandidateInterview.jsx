@@ -1433,6 +1433,9 @@ function CandidateInterviewInner() {
     }
   }
   
+  // TDZ FIX: Missing function declaration (used at lines ~13435, ~17381, ~20422)
+  const sanitizeCandidateFacingText = (text, _label) => (text == null ? '' : String(text));
+  
   const navigate = useNavigate();
   
   // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
