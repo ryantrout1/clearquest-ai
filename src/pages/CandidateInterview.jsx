@@ -20362,6 +20362,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   const footerClearancePx_SAFE = (typeof footerClearancePx !== 'undefined') ? footerClearancePx : 0;
   
   const bottomSpacerPx_SAFE = (typeof bottomSpacerPx !== 'undefined') ? bottomSpacerPx : 80;
+  const effectiveItemType_SAFE = effectiveItemType;
   const finalTranscriptList_S_SAFE = (typeof finalTranscriptList_S !== 'undefined') ? finalTranscriptList_S : [];
   const questionCompletionPct = 0;
   // activeUiItem_S_SAFE declared earlier (line 3193)
