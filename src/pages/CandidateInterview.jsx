@@ -19681,22 +19681,9 @@ function CandidateInterviewInner() {
     }
     
     return renderedItems;
-  }, cqTdzIsolate ? [] : [
-    renderableTranscriptStream,
-    activeUiItem_S,
-    currentItem_S,
-    v3ProbingActive,
-    v3HasVisiblePromptCard,
-    v3ProbingContext_S,
-    hasActiveV3Prompt,
-    v3PromptPhase,
-    sessionId,
-    dbTranscript,
-    cqDiagEnabled,
-    v3UiRenderable
-  ]);
+  })(); // IIFE instead of useMemo (hook order fix)
 
-  finalTranscriptList_S = finalTranscriptList_S_memo;
+  finalTranscriptList_S = finalTranscriptList_S_computed;
 
   // ============================================================================
   // SESSION URL REPAIR: Auto-fix stripped session param before redirect
