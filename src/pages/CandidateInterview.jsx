@@ -1966,6 +1966,9 @@ function CandidateInterviewInner() {
   const CTA_GAP_PX = 12;
   const CTA_FALLBACK_FOOTER_PX = 64; // Conservative minimum
   const CTA_MIN_PADDING_PX = CTA_FALLBACK_FOOTER_PX + CTA_GAP_PX; // 76px hard floor
+  
+  // TYPING LOCK: Idle timeout before unlocking typing state
+  const TYPING_IDLE_MS = 1500; // 1.5s idle timeout
 
 
   const [session, setSession] = useState(null);
@@ -5076,6 +5079,26 @@ function CandidateInterviewInner() {
   const v3RefreshRequestedRef = useRef(null); // { reason, promptId, stableKeyA, requestedAt }
   const v3RefreshInFlightRef = useRef(false);
   const [v3RefreshTick, setV3RefreshTick] = useState(0);
+  
+  // HOOK ORDER FIX: Refs used inside TRY1 - must be declared unconditionally
+  // MI_GATE UI CONTRACT SELF-TEST: Track main pane render + footer buttons per itemId
+  const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { mainPaneRendered: bool, footerButtonsOnly: bool, testStarted: bool }>
+  const miGateTestTimeoutRef = useRef(null);
+  
+  // MI_GATE SENTINEL: Track active state log key (prevents duplicate logs)
+  const miGateActiveLogKeyRef = useRef(null);
+  
+  // V3 PROMPT DEDUPE: Track last rendered active prompt to prevent duplicate cards
+  const lastRenderedV3PromptKeyRef = useRef(null);
+  
+  // STICKY AUTOSCROLL: Single source of truth for auto-scroll behavior
+  const shouldAutoScrollRef = useRef(true);
+  
+  // TYPING LOCK BYPASS: Force one-time scroll on explicit user navigation (Yes/No, Submit)
+  const forceAutoScrollOnceRef = useRef(false);
+  
+  // Verification instrumentation
+  const uiContractViolationKeyRef = useRef(null);
 
   try {
     console.log('[CQ_DIAG][INIT_CHAIN_SNAPSHOT_RENDER]', {
@@ -5106,22 +5129,6 @@ function CandidateInterviewInner() {
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '1:BEFORE_FIRST_CQMARK' });
       cqMark('BEFORE_DERIVED');
 
-  
-  // MI_GATE UI CONTRACT SELF-TEST: Track main pane render + footer buttons per itemId
-  const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { mainPaneRendered: bool, footerButtonsOnly: bool, testStarted: bool }>
-  const miGateTestTimeoutRef = useRef(null);
-  
-  // MI_GATE SENTINEL: Track active state log key (prevents duplicate logs)
-  const miGateActiveLogKeyRef = useRef(null);
-  
-  // V3 PROMPT DEDUPE: Track last rendered active prompt to prevent duplicate cards
-  const lastRenderedV3PromptKeyRef = useRef(null);
-  
-  // STICKY AUTOSCROLL: Single source of truth for auto-scroll behavior
-  const shouldAutoScrollRef = useRef(true);
-  
-  // TYPING LOCK BYPASS: Force one-time scroll on explicit user navigation (Yes/No, Submit)
-  const forceAutoScrollOnceRef = useRef(false);
   
   // ============================================================================
   // TDZ TRACE HELPER - MOVED TO TOP OF COMPONENT (hoisted out of TRY1)
@@ -5775,9 +5782,6 @@ function CandidateInterviewInner() {
 
   // HOOK 12/12 now hoisted to BATCH 2 (lines ~3728-3974)
   // Original removed from TRY1 to prevent conditional hook count
-
-  // Verification instrumentation (moved above early returns)
-  const uiContractViolationKeyRef = useRef(null);
 
   const scrollToBottomSafely = useCallback((reason = 'default') => {
     if (!autoScrollEnabledRef.current) return;
