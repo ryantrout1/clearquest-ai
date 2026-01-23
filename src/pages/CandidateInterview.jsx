@@ -17439,8 +17439,8 @@ function CandidateInterviewInner() {
   // TDZ FIX: shouldRenderInTranscript MOVED TO TOP OF COMPONENT (hoisted out of TRY1)
   // Hoisted to prevent crash-before-declare ReferenceError in transcript planners.
   
-  // HOOK ORDER FIX: Direct computation (useMemo removed from TRY1)
-  const finalTranscriptList_S_computed = (() => {
+  // HOOK ORDER FIX: Ref-cached computation (memoization restored)
+    finalTranscriptList_S_computed = (() => {
     const hasVisibleActivePromptForSuppression = (activePromptText || '').trim().length > 0;
     cqTdzMark('INSIDE_FINAL_TRANSCRIPT_LIST_MEMO_START');
 
