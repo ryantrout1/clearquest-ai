@@ -1568,6 +1568,9 @@ function CandidateInterviewInner() {
     return "Please answer the following question.";
   }
   
+  // TDZ FIX: Early declaration (before computeActivePromptText invocation)
+  const effectiveItemType = v3ProbingActive ? 'v3_probing' : (currentItem_S?.type || null);
+  
   /**
    * Compute active prompt text from UI state (TDZ-proof, pure function)
    * CRITICAL: Function declaration (hoisted) - safe to call from any code path
@@ -17254,7 +17257,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // Centralized render-time derived computations (NO hooks in this block).
   // Ordered to prevent TDZ and used as the single source of truth for planner inputs.
   // NOTE: hasV3PromptText, hasActiveV3Prompt, activeUiItem_S, bottomBarRenderTypeSOT, bottomBarModeSOT hoisted to line ~4561 (before useEffect deps)
-  let effectiveItemType = v3ProbingActive ? 'v3_probing' : currentItem_SType;
+  // TDZ FIX: effectiveItemType declared earlier (see near computeActivePromptText)
   const activeKindSOT = activeUiItem_S_SAFE?.kind || currentItem_S?.type || 'UNKNOWN';
   effectiveItemType = activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
                            activeUiItem_S_SAFE.kind === "V3_PROMPT" ? 'v3_probing' : 
