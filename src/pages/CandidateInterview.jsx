@@ -1540,6 +1540,26 @@ function CandidateInterviewInner() {
     return true;
   };
   
+  // ============================================================================
+  // TRY2 FALLBACKS - Safe defaults when TRY1 skipped during boot-not-ready
+  // ============================================================================
+  // These variables are computed inside TRY1 but referenced by JSX_TRY2 (loading fallback render).
+  // When boot incomplete (__cqBootNotReady=true), TRY1 is skipped and these remain safe defaults.
+  // TRY1 MUST assign to these (not redeclare) when boot completes.
+  let activeCard_S = null;
+  let effectiveItemType = null;
+  let bottomBarModeSOT = 'DEFAULT';
+  let bottomBarRenderTypeSOT = 'default';
+  let shouldRenderFooter = false;
+  let hasPrompt = false;
+  let activePromptText = '';
+  let safeActivePromptText = '';
+  let finalTranscriptList_S = [];
+  let isBottomBarSubmitDisabled = true;
+  let shouldApplyFooterClearance = false;
+  let footerClearancePx = 96;
+  let bottomSpacerPx = 80;
+  
   // TDZ FIX: Missing planner utility (used at lines ~19899, ~20171, ~20251, ~20286, ~20604, ~20673)
   const cqRead = (_label, fn) => (typeof fn === 'function' ? fn() : fn);
   
@@ -5717,7 +5737,7 @@ function CandidateInterviewInner() {
   const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && 
                             v3PromptPhase === "ANSWER_NEEDED";
   // NOTE: activeUiItem_S now computed earlier (line ~4427) with boot bypass + failopen wrapper
-  const bottomBarRenderTypeSOT = (() => {
+  bottomBarRenderTypeSOT = (() => {
     if (activeUiItem_S?.kind === "REQUIRED_ANCHOR_FALLBACK") return "required_anchor_fallback";
     if (activeUiItem_S?.kind === "V3_PROMPT") return "v3_probing";
     if (activeUiItem_S?.kind === "V3_WAITING") return "v3_waiting";
@@ -5730,7 +5750,7 @@ function CandidateInterviewInner() {
     }
     return "default";
   })();
-  const bottomBarModeSOT = (() => {
+  bottomBarModeSOT = (() => {
     if (bottomBarRenderTypeSOT === "required_anchor_fallback") return "TEXT_INPUT";
     if (bottomBarRenderTypeSOT === "multi_instance_gate") return "YES_NO";
     if (bottomBarRenderTypeSOT === "yes_no") return "YES_NO";
@@ -13353,7 +13373,7 @@ function CandidateInterviewInner() {
     
     cqTdzMark('AFTER_ACTIVE_PROMPT_TEXT_RESOLUTION', { hasText: !!activePromptText_TRY1 });
     
-    const safeActivePromptText_TRY1 = sanitizeCandidateFacingText(activePromptText_TRY1, 'ACTIVE_PROMPT_TEXT');
+    safeActivePromptText = sanitizeCandidateFacingText(activePromptText_TRY1, 'ACTIVE_PROMPT_TEXT');
   } catch (e) {
     __cqTdzError = e;
     console.error('[CQ_TDZ_PROBE][ERROR]', { message: e?.message, stack: e?.stack });
@@ -17144,7 +17164,7 @@ function CandidateInterviewInner() {
   // NOTE: hasV3PromptText, hasActiveV3Prompt, activeUiItem_S, bottomBarRenderTypeSOT, bottomBarModeSOT hoisted to line ~4561 (before useEffect deps)
   // TDZ FIX: effectiveItemType declared earlier (see near computeActivePromptText)
   const activeKindSOT = activeUiItem_S_SAFE?.kind || currentItem_S?.type || 'UNKNOWN';
-  let effectiveItemType = activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
+  effectiveItemType = activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
                            activeUiItem_S_SAFE.kind === "V3_PROMPT" ? 'v3_probing' : 
                            activeUiItem_S_SAFE.kind === "V3_OPENER" ? 'v3_pack_opener' :
                            activeUiItem_S_SAFE.kind === "MI_GATE" ? 'multi_instance_gate' :
@@ -17171,7 +17191,7 @@ function CandidateInterviewInner() {
     return null;
   })();
   const hasActiveCardSOT = Boolean(activeCard_SKeySOT);
-  let activeCard_S = null;
+  activeCard_S = null;
   const transcriptRenderable = renderedTranscriptSnapshotRef.current || dbTranscript || [];
   const currentPromptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
   if (activeUiItem_S_SAFE.kind === "V3_PROMPT") {
@@ -17317,11 +17337,11 @@ function CandidateInterviewInner() {
       v2ClarifierState,
       currentPrompt
     });
-  const safeActivePromptText = sanitizeCandidateFacingText(activePromptText, 'ACTIVE_PROMPT_TEXT');
+  safeActivePromptText = sanitizeCandidateFacingText(activePromptText, 'ACTIVE_PROMPT_TEXT');
   const needsPrompt = bottomBarModeSOT === 'TEXT_INPUT' || 
                       ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
-  const hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
-  const shouldRenderFooter = (screenMode === 'QUESTION' && 
+  hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
+  shouldRenderFooter = (screenMode === 'QUESTION' && 
                                 (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO' || bottomBarModeSOT === 'SELECT' || bottomBarModeSOT === 'V3_WAITING')) ||
                                 bottomBarModeSOT === 'CTA';
   const hasInterviewContent = Boolean(
@@ -17330,8 +17350,8 @@ function CandidateInterviewInner() {
     activeUiItem_S_SAFE?.kind !== 'DEFAULT' ||
     screenMode === 'QUESTION'
   );
-  const shouldApplyFooterClearance = shouldRenderFooter && hasInterviewContent;
-  const footerClearancePx = Math.max(dynamicFooterHeightPx + 32, 96);
+  shouldApplyFooterClearance = shouldRenderFooter && hasInterviewContent;
+  footerClearancePx = Math.max(dynamicFooterHeightPx + 32, 96);
   const baseSpacerPx = Math.max(footerShellHeightPx + 16, 80);
   const isV3OpenerForSpacer = (activeUiItem_S_SAFE?.kind === 'V3_OPENER') || 
                                   (currentItem_S?.type === 'v3_pack_opener');
@@ -17342,10 +17362,10 @@ function CandidateInterviewInner() {
   const isMiGateDerived = effectiveItemType_SAFE === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
   const yesNoModeClearance = dynamicFooterHeightPx + 32;
   const normalModeClearance = spacerWithV3Expansion;
-  const bottomSpacerPx = (isYesNoModeDerived || isMiGateDerived)
+  bottomSpacerPx = (isYesNoModeDerived || isMiGateDerived)
     ? Math.max(yesNoModeClearance, normalModeClearance)
     : normalModeClearance;
-  const isBottomBarSubmitDisabled = requiredAnchorFallbackActive 
+  isBottomBarSubmitDisabled = requiredAnchorFallbackActive 
     ? (!(input ?? "").trim())
     : (!currentItem_S || isCommitting || !(input ?? "").trim());
 
@@ -19656,7 +19676,7 @@ function CandidateInterviewInner() {
     v3UiRenderable
   ]);
 
-  const finalTranscriptList_S = finalTranscriptList_S_memo;
+  finalTranscriptList_S = finalTranscriptList_S_memo;
 
   // ============================================================================
   // SESSION URL REPAIR: Auto-fix stripped session param before redirect
