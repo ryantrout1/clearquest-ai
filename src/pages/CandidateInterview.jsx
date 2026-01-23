@@ -1563,6 +1563,13 @@ function CandidateInterviewInner() {
   // TDZ FIX: Missing planner utility (used at lines ~19899, ~20171, ~20251, ~20286, ~20604, ~20673)
   const cqRead = (_label, fn) => (typeof fn === 'function' ? fn() : fn);
   
+  // TRY2 FALLBACK: handleCompletionConfirm no-op (prevents modal crash during boot-not-ready)
+  let handleCompletionConfirm = () => {
+    console.log('[COMPLETION][BLOCKED_BOOT_NOT_READY]', { 
+      reason: 'Boot incomplete - completion handler not initialized yet' 
+    });
+  };
+  
   // TDZ FIX: Missing function declaration (used at line 19944, 20182)
   const getTranscriptEntryKey = (e) => e?.stableKey || e?.id || e?.__canonicalKey || `fallback-${e?.kind || 'unknown'}`;
   
@@ -13287,7 +13294,7 @@ function CandidateInterviewInner() {
   };
 
 
-  const handleCompletionConfirm = async () => {
+  handleCompletionConfirm = async () => {
     setIsCompletingInterview(true);
 
     try {
@@ -20363,6 +20370,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   
   const bottomSpacerPx_SAFE = (typeof bottomSpacerPx !== 'undefined') ? bottomSpacerPx : 80;
   const effectiveItemType_SAFE = effectiveItemType;
+  const renderedTranscriptSnapshotRef_SAFE = renderedTranscriptSnapshotRef;
   const finalTranscriptList_S_SAFE = (typeof finalTranscriptList_S !== 'undefined') ? finalTranscriptList_S : [];
   const questionCompletionPct = 0;
   // activeUiItem_S_SAFE declared earlier (line 3193)
