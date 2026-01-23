@@ -17199,7 +17199,7 @@ function CandidateInterviewInner() {
   })();
   const hasActiveCardSOT = Boolean(activeCard_SKeySOT);
   activeCard_S = null;
-  const transcriptRenderable = renderedTranscriptSnapshotRef.current || dbTranscript || [];
+  const transcriptRenderable = renderedTranscriptSnapshotRef_SAFE.current || dbTranscript || [];
   const currentPromptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
   if (activeUiItem_S_SAFE.kind === "V3_PROMPT") {
     const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
