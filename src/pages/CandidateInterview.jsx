@@ -5194,6 +5194,42 @@ function CandidateInterviewInner() {
     console.log('[CQ_DIAG][EARLY_STEP]', { step: 'BEFORE_TRY1' });
   } catch (_) {}
   
+  // ACTIVE KIND CHANGE DETECTION: Track last logged kind to prevent spam
+  const lastLoggedActiveKindRef = useRef(null);
+  
+  // RENDER STREAM SNAPSHOT: Track last stream length for change detection (PART E)
+  const lastRenderStreamLenRef = useRef(null);
+  
+  // RECENT ANSWER ANCHOR: Track last submitted answer for viewport anchoring
+  const recentAnchorRef = useRef({ kind: null, stableKey: null, ts: 0 });
+  
+  // V3 SCROLL ANCHOR: Track last appended V3 probe question for viewport anchoring
+  const v3ScrollAnchorRef = useRef({ kind: null, stableKey: null, ts: 0 });
+  
+  // AUTO-GROWING INPUT: Refs for textarea auto-resize
+  const footerTextareaRef = useRef(null);
+  const [footerMeasuredHeightPx, setFooterMeasuredHeightPx] = useState(0); // Start at 0 (prevents initial jump)
+  const lastAutoGrowHeightRef = useRef(0); // Stable throttle (no dataset mutation)
+  const cqDiagEnabledRef = useRef(false); // Stable diagnostic flag for long-lived callbacks
+  
+  // V3 UI-ONLY HISTORY: Display V3 probe Q/A without polluting transcript
+  // MOVED UP: Must be declared before refreshTranscriptFromDB (TDZ fix)
+  const v3ActiveProbeQuestionRef = useRef(null);
+  const v3ActiveProbeQuestionLoopKeyRef = useRef(null);
+  
+  // Transcript monotonicity audit (log-only regression detection)
+  const prevRenderedLenRef = useRef(null);
+  
+  // HOOK ORDER FIX: Safety net reinjection tracker (MUST be top-level)
+  // Moved from line 8752 to prevent "change in order of Hooks" error
+  const reinjectedOpenerAnswersRef = useRef(new Set());
+  const reinjectedV3ProbeQARef = useRef(new Set());
+  
+  // B) Recent submit protection: Track recently submitted user answer stableKeys with lifecycle
+  const recentlySubmittedUserAnswersRef = useRef(new Set());
+  const recentlySubmittedUserAnswersMetaRef = useRef(new Map()); // Map<stableKey, {firstSeenAt, renderedAt}>
+  const lastRegressionLogRef = useRef(new Set()); // Track logged regressions (prevent spam)
+
   // TRY1 EXECUTION GATE: Only run when boot is ready
   let __cqTry1Result = null;
   
