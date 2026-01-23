@@ -5203,9 +5203,24 @@ function CandidateInterviewInner() {
       try {
         if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = 'TRY1_ENTER';
         console.log('[CQ_DIAG][EARLY_STEP]', { step: 'TRY1_ENTER' });
-      } catch (_) {}
-      
-      window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_1:BEFORE_FIRST_CQMARK';
+        } catch (_) {}
+
+        try {
+        if (typeof window !== 'undefined' && typeof React !== 'undefined') {
+          const same = window.CQ_REACT_OBJ ? (window.CQ_REACT_OBJ === React) : true;
+          if (!window.CQ_REACT_OBJ) window.CQ_REACT_OBJ = React;
+
+          if (!same) {
+            console.error('[CQ_MULTI_REACT_OBJ_DETECTED]', {
+              ts: Date.now(),
+              reactVersion: React?.version || 'unknown',
+              note: 'React object identity differs across renders'
+            });
+          }
+        }
+        } catch (_) {}
+
+        window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_1:BEFORE_FIRST_CQMARK';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '1:BEFORE_FIRST_CQMARK' });
       try {
         console.error('[CQ_CRASH_PROBE][BEFORE_BEFORE_DERIVED]', {
@@ -5273,6 +5288,15 @@ function CandidateInterviewInner() {
       });
     }
   }
+  
+  try {
+    console.error('[CQ_CRASH_PROBE][AFTER_TDZ_TRACE_STATUS]', {
+      ts: Date.now(),
+      reactVersion: (typeof React !== 'undefined' && React?.version) ? React.version : 'unknown',
+      buildStamp: (typeof __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ !== 'undefined') ? __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ : 'unknown',
+      sessionId: (typeof sessionId !== 'undefined') ? sessionId : null
+    });
+  } catch (_) {}
   
   // ACTIVE KIND CHANGE DETECTION: Track last logged kind to prevent spam
   const lastLoggedActiveKindRef = useRef(null);
@@ -5371,6 +5395,15 @@ function CandidateInterviewInner() {
     lastKeysPreview: (v3ProbeDisplayHistory_S || []).slice(-4).map(x => x.stableKey)
   });
 
+  try {
+    console.error('[CQ_CRASH_PROBE][BEFORE_TRY1_STEP_2]', {
+      ts: Date.now(),
+      reactVersion: (typeof React !== 'undefined' && React?.version) ? React.version : 'unknown',
+      buildStamp: (typeof __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ !== 'undefined') ? __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ : 'unknown',
+      sessionId: (typeof sessionId !== 'undefined') ? sessionId : null
+    });
+  } catch (_) {}
+  
   window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_2:BEFORE_ACTIVE_UI_PICK';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '2:BEFORE_ACTIVE_UI_PICK' });
   cqMark('BEFORE_ACTIVE_UI_PICK');
