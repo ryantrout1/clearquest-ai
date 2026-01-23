@@ -20,24 +20,6 @@ export default function YesNoControls({
   disabled = false,
   debugMeta = null
 }) {
-  // STYLE LOCK: Hard-override to prevent legacy styling
-  const lockedYesLabel = "Yes";
-  const lockedNoLabel = "No";
-  
-  // Mount-time diagnostic (once per component instance)
-  const loggedRef = React.useRef(false);
-  React.useEffect(() => {
-    if (!loggedRef.current) {
-      console.log('[UI_CONTRACT][YESNO_STYLE_LOCK]', {
-        labels: `${lockedYesLabel}/${lockedNoLabel}`,
-        colors: 'neutral (slate-700)',
-        legacyDisabled: true,
-        reason: 'Modern neutral disclosure model - no red/green Y/N ever'
-      });
-      loggedRef.current = true;
-    }
-  }, []);
-  
   // UI CONTRACT ENFORCEMENT: Hard boundary - transcript NEVER renders controls
   if (renderContext === "TRANSCRIPT") {
     // Minimal guard log only if caller attempted render from transcript
@@ -60,6 +42,24 @@ export default function YesNoControls({
     });
     return null;
   }
+
+  // STYLE LOCK: Hard-override to prevent legacy styling
+  const lockedYesLabel = "Yes";
+  const lockedNoLabel = "No";
+  
+  // Mount-time diagnostic (once per component instance)
+  const loggedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!loggedRef.current) {
+      console.log('[UI_CONTRACT][YESNO_STYLE_LOCK]', {
+        labels: `${lockedYesLabel}/${lockedNoLabel}`,
+        colors: 'neutral (slate-700)',
+        legacyDisabled: true,
+        reason: 'Modern neutral disclosure model - no red/green Y/N ever'
+      });
+      loggedRef.current = true;
+    }
+  }, []);
 
   // FOOTER CONTEXT: Render interactive buttons
   // DESIGN: Neutral disclosure model (legal/investigative context)
