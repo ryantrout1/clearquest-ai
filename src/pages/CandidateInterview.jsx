@@ -19708,7 +19708,11 @@ function CandidateInterviewInner() {
     }
     
     return renderedItems;
-  })(); // IIFE instead of useMemo (hook order fix)
+    })();
+    
+    // Store in cache for next render
+    finalTranscriptMemoCacheRef.current = { key: _ft_key, value: finalTranscriptList_S_computed };
+  }
 
   finalTranscriptList_S = finalTranscriptList_S_computed;
 
