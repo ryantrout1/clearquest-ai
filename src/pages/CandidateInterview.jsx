@@ -18815,9 +18815,9 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     
     // Diagnostic logging
     if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
-      const openerAnswerCount = transcriptToRenderDeduped.filter(e => getMessageTypeSOT(e) === 'V3_OPENER_ANSWER').length;
-      const probeAnswerCount = transcriptToRenderDeduped.filter(e => getMessageTypeSOT(e) === 'V3_PROBE_ANSWER').length;
-      const probeQuestionCount = transcriptToRenderDeduped.filter(e => getMessageTypeSOT(e) === 'V3_PROBE_QUESTION').length;
+      const openerAnswerCount = transcriptToRenderDeduped.filter(e => getMessageTypeSOT_SAFE(e) === 'V3_OPENER_ANSWER').length;
+      const probeAnswerCount = transcriptToRenderDeduped.filter(e => getMessageTypeSOT_SAFE(e) === 'V3_PROBE_ANSWER').length;
+      const probeQuestionCount = transcriptToRenderDeduped.filter(e => getMessageTypeSOT_SAFE(e) === 'V3_PROBE_QUESTION').length;
       
       console.log('[CQ_TRANSCRIPT][TYPE_COUNTS_SOT]', {
         openerAnswerCount,
