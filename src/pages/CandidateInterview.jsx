@@ -1452,6 +1452,15 @@ function CandidateInterviewInner() {
   // TDZ FIX: Missing function declaration (used at line 19944, 20182)
   const getTranscriptEntryKey = (e) => e?.stableKey || e?.id || e?.__canonicalKey || `fallback-${e?.kind || 'unknown'}`;
   
+  // TDZ FIX: Missing helper aliases (prevent post-render crashes)
+  const computeNearBottom = (container, thresholdPx = 24) => isNearBottomStrict(container, thresholdPx);
+  const isUiContractNonCard = (el) => {
+    const kind = el?.kind || el?.type || el?.messageType || el?.meta?.kind || '';
+    return kind === 'PROMPT_LANE_CONTEXT' || kind === 'V3_PROMPT' || kind === 'V3_OPENER' || kind === 'V3_PROMPT_LANE_CONTEXT';
+  };
+  const logSuspectElement = (..._args) => {};
+  const isCurrentItemCommitting = false;
+  
   const navigate = useNavigate();
   
   // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
