@@ -3927,23 +3927,6 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, renderedTranscript, currentItem_S, v3ProbingActive]);
   
   // ============================================================================
-  // HOOK ORDER FIX: finalTranscriptList_S_memo - MOVED OUT OF TRY1 (must be unconditional)
-  // ============================================================================
-  // CRITICAL: This useMemo MUST be declared unconditionally (before TRY1) to fix React #310
-  // The actual computation happens inside TRY1 where dependencies are available
-  // When boot not ready, returns empty array
-  let finalTranscriptList_S_memo = [];
-  
-  // Declare hook unconditionally with minimal deps (actual computation in TRY1)
-  const finalTranscriptList_S_memoHook = useMemo(() => {
-    // BOOT GUARD: Skip computation when boot incomplete
-    if (__cqBootNotReady) return [];
-    
-    // Placeholder - actual value computed inside TRY1 and assigned to finalTranscriptList_S
-    return [];
-  }, [__cqBootNotReady]);
-  
-  // ============================================================================
   // BATCH 2: ADDITIONAL HOISTED HOOKS - Moved from inside TRY1 (Phase 2)
   // ============================================================================
   
