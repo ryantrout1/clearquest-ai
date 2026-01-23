@@ -1570,6 +1570,11 @@ function CandidateInterviewInner() {
     });
   };
   
+  // TRY2 FALLBACK: Auto-focus control props (safe defaults when TRY1 skipped)
+  let focusEnabled = false;
+  let focusShouldTrigger = false;
+  let focusKey = 'boot-not-ready';
+  
   // TDZ FIX: Missing function declaration (used at line 19944, 20182)
   const getTranscriptEntryKey = (e) => e?.stableKey || e?.id || e?.__canonicalKey || `fallback-${e?.kind || 'unknown'}`;
   
@@ -15440,9 +15445,9 @@ function CandidateInterviewInner() {
 
   // HOOK 9/11 moved to BATCH 2 (line ~3550)
   // Auto-focus control props (pure values, no hooks)
-  const focusEnabled = screenMode === 'QUESTION';
-  const focusShouldTrigger = focusEnabled && bottomBarModeSOT === 'TEXT_INPUT' && (hasPrompt || v3ProbingActive || currentItem_S?.type === 'v3_pack_opener');
-  const focusKey = v3ProbingActive 
+  focusEnabled = screenMode === 'QUESTION';
+  focusShouldTrigger = focusEnabled && bottomBarModeSOT === 'TEXT_INPUT' && (hasPrompt || v3ProbingActive || currentItem_S?.type === 'v3_pack_opener');
+  focusKey = v3ProbingActive 
     ? `v3:${v3ProbingContext_S?.packId}:${v3ProbingContext_S?.instanceNumber}:${v3ActivePromptText?.substring(0, 20)}`
     : currentItem_S?.type === 'v3_pack_opener'
     ? `opener:${currentItem_S?.id}`
