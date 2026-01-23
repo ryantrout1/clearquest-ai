@@ -5085,6 +5085,10 @@ function CandidateInterviewInner() {
   const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { mainPaneRendered: bool, footerButtonsOnly: bool, testStarted: bool }>
   const miGateTestTimeoutRef = useRef(null);
   
+  // HOOK ORDER FIX: Memo cache ref for finalTranscriptList_S (React #310 fix)
+  // Replaces conditional useMemo with ref-based caching (stable hook count)
+  const finalTranscriptMemoCacheRef = useRef({ key: null, value: [] });
+  
   // MI_GATE SENTINEL: Track active state log key (prevents duplicate logs)
   const miGateActiveLogKeyRef = useRef(null);
   
