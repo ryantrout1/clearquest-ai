@@ -9,6 +9,15 @@ if (typeof window !== 'undefined') {
   if (canaryEnabled) {
     console.error('[CQ_BUNDLE_CANARY][ARMED]', { file: 'YesNoControls.jsx', enabled: true });
     
+    // Canary breadcrumb (non-console)
+    try {
+      window.__CQ_CANARY_HIT__ = Array.isArray(window.__CQ_CANARY_HIT__) ? window.__CQ_CANARY_HIT__ : [];
+      window.__CQ_CANARY_HIT__.push({ file: 'YesNoControls.jsx', ts: Date.now(), buildStamp: 'YESNO_FIXED_2026-01-23T00:00:00Z' });
+      if (typeof document !== 'undefined' && document.documentElement) {
+        document.documentElement.setAttribute('data-cq-canary-yesno', 'YESNO_FIXED_2026-01-23T00:00:00Z');
+      }
+    } catch (_) {}
+    
     const reactVer = React?.version || 'unknown';
     const buildStamp = 'YESNO_FIXED_2026-01-23T00:00:00Z';
     

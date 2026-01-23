@@ -1389,6 +1389,15 @@ function CandidateInterviewInner() {
       if (canaryEnabled) {
         console.error('[CQ_BUNDLE_CANARY][ARMED]', { file: 'CandidateInterview.jsx', enabled: true });
         
+        // Canary breadcrumb (non-console)
+        try {
+          window.__CQ_CANARY_HIT__ = Array.isArray(window.__CQ_CANARY_HIT__) ? window.__CQ_CANARY_HIT__ : [];
+          window.__CQ_CANARY_HIT__.push({ file: 'CandidateInterview.jsx', ts: Date.now(), buildStamp: 'CI_2026-01-23T00:00:00Z' });
+          if (typeof document !== 'undefined' && document.documentElement) {
+            document.documentElement.setAttribute('data-cq-canary-ci', 'CI_2026-01-23T00:00:00Z');
+          }
+        } catch (_) {}
+        
         const reactVer = React?.version || 'unknown';
         const buildStamp = 'CI_2026-01-23T00:00:00Z';
         
