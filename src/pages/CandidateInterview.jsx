@@ -19976,7 +19976,7 @@ const transcriptPlan = isV3DebugEnabled
     isNearBottomStrict,
     historyRef,
     scrollToBottom,
-    dynamicBottomPaddingPx,
+    dynamicBottomPaddingPx: dynamicBottomPaddingPx_SAFE,
     isScrollWriteLocked,
     isUserTyping,
     forceAutoScrollOnceRef,
