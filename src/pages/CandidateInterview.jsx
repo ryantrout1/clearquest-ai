@@ -1568,8 +1568,8 @@ function CandidateInterviewInner() {
     return "Please answer the following question.";
   }
   
-  // TDZ FIX: Early declaration (before computeActivePromptText invocation)
-  const effectiveItemType = v3ProbingActive ? 'v3_probing' : (currentItem_S?.type || null);
+  // TDZ FIX: Early declaration removed - single let declaration in derived snapshot prevents collision
+  // effectiveItemType now declared as let in derived snapshot section
   
   /**
    * Compute active prompt text from UI state (TDZ-proof, pure function)
@@ -4035,6 +4035,8 @@ function CandidateInterviewInner() {
   // HOISTED DECLARATIONS - Variables needed by hoisted hooks and later code
   // ============================================================================
 
+  // STEP 3: Key-based monotonic assertion refs (hoisted from removed effect)
+  const prevKeysSetRef = useRef(new Set());
   
   // ============================================================================
   // CQMARK DECLARATION - MOVED BEFORE FIRST USE (TDZ FIX)
@@ -5857,9 +5859,6 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
   // HOOK 12/12 now hoisted to BATCH 2 (lines ~3728-3974)
   // Original removed from TRY1 to prevent conditional hook count
-  
-  // STEP 3: Key-based monotonic assertion refs (hoisted from removed effect)
-  const prevKeysSetRef = useRef(new Set());
 
   // Verification instrumentation (moved above early returns)
   const uiContractViolationKeyRef = useRef(null);
@@ -13456,7 +13455,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     // ACTIVE PROMPT TEXT RESOLUTION - Consolidated render-time derivations (TDZ-safe)
     // ============================================================================
     // CRITICAL: All prompt-related consts consolidated here (after dependencies)
-    activePromptText = computeActivePromptText({
+    const activePromptText_TRY1 = computeActivePromptText({
       requiredAnchorFallbackActive,
       requiredAnchorCurrent,
       v3ProbingContext_S,
@@ -13468,9 +13467,9 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
       currentPrompt
     });
     
-    cqTdzMark('AFTER_ACTIVE_PROMPT_TEXT_RESOLUTION', { hasText: !!activePromptText });
+    cqTdzMark('AFTER_ACTIVE_PROMPT_TEXT_RESOLUTION', { hasText: !!activePromptText_TRY1 });
     
-    safeActivePromptText = sanitizeCandidateFacingText(activePromptText, 'ACTIVE_PROMPT_TEXT');
+    const safeActivePromptText_TRY1 = sanitizeCandidateFacingText(activePromptText_TRY1, 'ACTIVE_PROMPT_TEXT');
   } catch (e) {
     __cqTdzError = e;
     console.error('[CQ_TDZ_PROBE][ERROR]', { message: e?.message, stack: e?.stack });
@@ -17261,7 +17260,7 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
   // NOTE: hasV3PromptText, hasActiveV3Prompt, activeUiItem_S, bottomBarRenderTypeSOT, bottomBarModeSOT hoisted to line ~4561 (before useEffect deps)
   // TDZ FIX: effectiveItemType declared earlier (see near computeActivePromptText)
   const activeKindSOT = activeUiItem_S_SAFE?.kind || currentItem_S?.type || 'UNKNOWN';
-  effectiveItemType = activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
+  let effectiveItemType = activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
                            activeUiItem_S_SAFE.kind === "V3_PROMPT" ? 'v3_probing' : 
                            activeUiItem_S_SAFE.kind === "V3_OPENER" ? 'v3_pack_opener' :
                            activeUiItem_S_SAFE.kind === "MI_GATE" ? 'multi_instance_gate' :
