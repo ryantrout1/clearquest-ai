@@ -3244,6 +3244,35 @@ function CandidateInterviewInner() {
   // to ensure they are initialized before any code path that might call them,
   // especially the render-time kickstart which is not protected by the boot guard.
 
+  // ENGINE_BOOT RETRY: Helper for transient 502/503/504 errors
+  const withRetry = async (fn, retries = 3, label = 'operation') => {
+    const delays = [250, 750, 1750];
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        return await fn();
+      } catch (err) {
+        const status = err?.response?.status || err?.status;
+        const isTransient = 
+          [502, 503, 504].includes(status) || 
+          String(err?.message || '').toLowerCase().includes('network') || 
+          String(err?.message || '').toLowerCase().includes('timeout');
+        
+        if (!isTransient || attempt === retries) {
+          throw err;
+        }
+        
+        console.log('[ENGINE_BOOT][RETRY]', {
+          label,
+          attempt,
+          status: status || 'network_error',
+          message: err?.message || String(err),
+          nextRetryMs: delays[attempt - 1] || 0
+        });
+        
+        await new Promise(r => setTimeout(r, delays[attempt - 1] || 0));
+      }
+    }
+  };
   
   const initializeInterview = useCallback(async () => {
     // Guard: require sessionId
@@ -3302,7 +3331,7 @@ function CandidateInterviewInner() {
       
       let boot = null;
       try {
-        boot = await bootstrapEngine(base44);
+        boot = await withRetry(() => bootstrapEngine(base44), 3, 'bootstrapEngine');
         console.log('[CQ_INIT][BOOTSTRAP_ENGINE_OK]', { sessionId, hasBoot: !!boot });
       } catch (bootstrapErr) {
         console.error('[CQ_INIT][BOOTSTRAP_THROWN]', {
