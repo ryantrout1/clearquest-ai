@@ -17326,7 +17326,7 @@ function CandidateInterviewInner() {
       };
     }
   }
-  const activePromptText = computeActivePromptText({
+  activePromptText = computeActivePromptText({
       requiredAnchorFallbackActive,
       requiredAnchorCurrent,
       v3ProbingContext_S,
