@@ -5207,7 +5207,26 @@ function CandidateInterviewInner() {
       
       window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_1:BEFORE_FIRST_CQMARK';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '1:BEFORE_FIRST_CQMARK' });
+      try {
+        console.error('[CQ_CRASH_PROBE][BEFORE_BEFORE_DERIVED]', {
+          ts: Date.now(),
+          reactVersion: (typeof React !== 'undefined' && React?.version) ? React.version : 'unknown',
+          buildStamp: (typeof __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ !== 'undefined') ? __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ : 'unknown',
+          sessionId: (typeof sessionId !== 'undefined') ? sessionId : null
+        });
+      } catch (_) {}
       cqMark('BEFORE_DERIVED');
+    try {
+      console.error('[CQ_CRASH_PROBE][AFTER_BEFORE_DERIVED]', {
+        ts: Date.now(),
+        reactVersion: (typeof React !== 'undefined' && React?.version) ? React.version : 'unknown',
+        buildStamp: (typeof __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ !== 'undefined') ? __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ : 'unknown',
+        sessionId: (typeof sessionId !== 'undefined') ? sessionId : null,
+        isLoading: (typeof isLoading !== 'undefined') ? isLoading : null,
+        hasSession: (typeof session !== 'undefined') ? !!session : null,
+        hasEngine: (typeof engine_S !== 'undefined') ? !!engine_S : null
+      });
+    } catch (_) {}
 
   
   // ============================================================================
