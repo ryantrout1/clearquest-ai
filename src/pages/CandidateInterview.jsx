@@ -3927,6 +3927,20 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, renderedTranscript, currentItem_S, v3ProbingActive]);
   
   // ============================================================================
+  // HOOK ORDER FIX: finalTranscriptList_S_memo - MOVED OUT OF TRY1 (must be unconditional)
+  // ============================================================================
+  const finalTranscriptList_S_memo = useMemo(() => {
+    // BOOT GUARD: Return empty during boot
+    if (__cqBootNotReady) return [];
+    
+    const hasVisibleActivePromptForSuppression = (activePromptText || '').trim().length > 0;
+    cqTdzMark('INSIDE_FINAL_TRANSCRIPT_LIST_MEMO_START');
+    
+    // ... rest of memo body will be populated
+    return [];
+  }, [__cqBootNotReady]);
+  
+  // ============================================================================
   // BATCH 2: ADDITIONAL HOISTED HOOKS - Moved from inside TRY1 (Phase 2)
   // ============================================================================
   
