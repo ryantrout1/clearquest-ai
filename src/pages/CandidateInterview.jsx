@@ -17216,6 +17216,24 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
 
 
   // ============================================================================
+  // [SAFE_SURFACE_ZONE] TDZ-proof defaults for derived snapshot + planners
+  // ============================================================================
+  const dynamicBottomPaddingPx_SAFE = 80;
+  
+  const finalListRef = (typeof finalListRef !== 'undefined' && finalListRef)
+    ? finalListRef
+    : React.useRef([]);
+  
+  const effectiveItemType_SAFE_EARLY = null;
+  const bottomBarRenderTypeSOT_SAFE_EARLY = 'default';
+  const bottomBarModeSOT_SAFE_EARLY = 'DEFAULT';
+  const hasPrompt_SAFE_EARLY = false;
+  const shouldRenderFooter_SAFE_EARLY = false;
+  const activePromptText_SAFE_EARLY = '';
+  const safeActivePromptText_SAFE_EARLY = '';
+  const sanitizeCandidateFacingText_SAFE_EARLY = (text) => (text == null ? '' : String(text));
+  
+  // ============================================================================
   // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
   // ============================================================================
   // [TDZ_GUARD][DERIVED_SNAPSHOT]
@@ -17433,12 +17451,12 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     hasActiveV3Prompt,
     activeUiItem_S,
     activeKindSOT,
-    effectiveItemType_SAFE,
-    bottomBarRenderTypeSOT_SAFE,
-    bottomBarModeSOT_SAFE,
+    effectiveItemType_SAFE: effectiveItemType_SAFE_EARLY,
+    bottomBarRenderTypeSOT_SAFE: bottomBarRenderTypeSOT_SAFE_EARLY,
+    bottomBarModeSOT_SAFE: bottomBarModeSOT_SAFE_EARLY,
     needsPrompt,
-    hasPrompt_SAFE,
-    shouldRenderFooter_SAFE,
+    hasPrompt_SAFE: hasPrompt_SAFE_EARLY,
+    shouldRenderFooter_SAFE: shouldRenderFooter_SAFE_EARLY,
     shouldApplyFooterClearance,
     footerClearancePx,
     bottomSpacerPx,
@@ -19987,7 +20005,7 @@ const transcriptPlan = isV3DebugEnabled
     isNearBottomStrict,
     historyRef,
     scrollToBottom,
-    dynamicBottomPaddingPx,
+    dynamicBottomPaddingPx: dynamicBottomPaddingPx_SAFE,
     isScrollWriteLocked,
     isUserTyping,
     forceAutoScrollOnceRef,
@@ -20305,15 +20323,15 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     const cardKind = activeCard_S_SAFE.kind;
     let safeCardPrompt = "";
     if (cardKind === "v3_probe_q") {
-        safeCardPrompt = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_V3_PROBE');
+        safeCardPrompt = sanitizeCandidateFacingText_SAFE_EARLY(activeCard_S_SAFE.text, 'ACTIVE_LANE_V3_PROBE');
     } else if (cardKind === "required_anchor_fallback_prompt") {
-        safeCardPrompt = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_FALLBACK_PROMPT');
+        safeCardPrompt = sanitizeCandidateFacingText_SAFE_EARLY(activeCard_S_SAFE.text, 'ACTIVE_LANE_FALLBACK_PROMPT');
     } else if (cardKind === "v3_pack_opener") {
-        safeCardPrompt = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_V3_OPENER');
+        safeCardPrompt = sanitizeCandidateFacingText_SAFE_EARLY(activeCard_S_SAFE.text, 'ACTIVE_LANE_V3_OPENER');
     } else if (cardKind === "multi_instance_gate") {
-        safeCardPrompt = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_MI_GATE');
+        safeCardPrompt = sanitizeCandidateFacingText_SAFE_EARLY(activeCard_S_SAFE.text, 'ACTIVE_LANE_MI_GATE');
     } else if (cardKind === "base_question_yesno"){
-        safeCardPrompt = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_BASE_QUESTION');
+        safeCardPrompt = sanitizeCandidateFacingText_SAFE_EARLY(activeCard_S_SAFE.text, 'ACTIVE_LANE_BASE_QUESTION');
     }
 
     return {
