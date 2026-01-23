@@ -1430,7 +1430,7 @@ function CandidateInterviewInner() {
     console.log('[CQ_DIAG][EARLY_STEP]', { step: 'ENTER_RENDER' });
   } catch (_) {}
   
-  const __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ = 'CQ_CI_BUILDSTAMP_2026-01-20T00:00Z_v2';
+  const __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ = 'CQ_CI_BUILDSTAMP_2026-01-23T01:00Z_v3';
   console.log("[TDZ_TRACE][FN_ENTER]");
   try {
     const scripts = (typeof document !== 'undefined')
