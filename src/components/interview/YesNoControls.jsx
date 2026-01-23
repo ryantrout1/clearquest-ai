@@ -1,6 +1,13 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 
+// BUILD FINGERPRINT (always-on)
+try {
+  if (typeof document !== 'undefined' && document.documentElement) {
+    document.documentElement.setAttribute('data-cq-build-yesno', 'YESNO_FIXED_2026-01-23T00:00:00Z');
+  }
+} catch (_) {}
+
 // BUNDLE CANARY: Detect stale bundle + multiple React instances
 if (typeof window !== 'undefined') {
   const canaryEnabled = window.CQ_BUNDLE_CANARY === true || 

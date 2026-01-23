@@ -1381,6 +1381,13 @@ function CandidateInterviewInner() {
       window.__CQ_LAST_RENDER_STEP__ = 'ENTER_RENDER';
     }
     
+    // BUILD FINGERPRINT (always-on)
+    try {
+      if (typeof document !== 'undefined' && document.documentElement) {
+        document.documentElement.setAttribute('data-cq-build-ci', 'CI_2026-01-23T00:00:00Z');
+      }
+    } catch (_) {}
+    
     // BUNDLE CANARY: Detect stale bundle + multiple React instances
     if (typeof window !== 'undefined') {
       const canaryEnabled = window.CQ_BUNDLE_CANARY === true || 
