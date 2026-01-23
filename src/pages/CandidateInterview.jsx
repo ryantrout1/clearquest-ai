@@ -2350,6 +2350,9 @@ function CandidateInterviewInner() {
   const [v3ProbeDisplayHistory_S, setV3ProbeDisplayHistory] = useState([]);
   const lastPersistedV3OpenerKeyRef = useRef(null);
 
+  // Render-time freeze: Snapshot transcript while typing to prevent flicker
+  const renderedTranscriptSnapshotRef = useRef(null);
+
   const [aiSessionId, setAiSessionId] = useState(null);
   const [aiProbingPackInstanceKey, setAiProbingPackInstanceKey] = useState(null);
   const [agentMessages, setAgentMessages] = useState([]);
@@ -5185,9 +5188,6 @@ function CandidateInterviewInner() {
   
   // Transcript monotonicity audit (log-only regression detection)
   const prevRenderedLenRef = useRef(null);
-  
-  // Render-time freeze: Snapshot transcript while typing to prevent flicker
-  const renderedTranscriptSnapshotRef = useRef(null);
   
   // HOOK ORDER FIX: Safety net reinjection tracker (MUST be top-level)
   // Moved from line 8752 to prevent "change in order of Hooks" error
