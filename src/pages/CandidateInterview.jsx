@@ -5454,7 +5454,7 @@ function CandidateInterviewInner() {
     }
   }
   
-  const resolveActiveUiItem = () => {
+  function resolveActiveUiItem() {
     let __cqPriority = 'P0_START';
     
     try {
@@ -5719,7 +5719,7 @@ function CandidateInterviewInner() {
         reason: "resolveActiveUiItem_failopen"
       };
     }
-  };
+  }
   
   // TDZ FIX: Hoisted from component body to prevent use-before-declare
   window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_4:BEFORE_CURRENT_ITEM_TYPE';
