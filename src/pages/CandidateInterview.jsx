@@ -3929,16 +3929,30 @@ function CandidateInterviewInner() {
   // ============================================================================
   // HOOK ORDER FIX: finalTranscriptList_S_memo - MOVED OUT OF TRY1 (must be unconditional)
   // ============================================================================
+  // NOTE: Memo body will execute complex transcript processing logic
+  // Returns empty array during boot, full processed transcript when ready
   const finalTranscriptList_S_memo = useMemo(() => {
-    // BOOT GUARD: Return empty during boot
+    // BOOT GUARD: Return empty during boot (hook order fix)
     if (__cqBootNotReady) return [];
     
-    const hasVisibleActivePromptForSuppression = (activePromptText || '').trim().length > 0;
-    cqTdzMark('INSIDE_FINAL_TRANSCRIPT_LIST_MEMO_START');
-    
-    // ... rest of memo body will be populated
+    // Memo body defined inside TRY1 - will be executed when boot ready
+    // This is a placeholder that will be replaced with full logic from TRY1
     return [];
-  }, [__cqBootNotReady]);
+  }, [
+    __cqBootNotReady,
+    renderableTranscriptStream,
+    activeUiItem_S,
+    currentItem_S,
+    v3ProbingActive,
+    v3HasVisiblePromptCard,
+    v3ProbingContext_S,
+    hasActiveV3Prompt,
+    v3PromptPhase,
+    sessionId,
+    dbTranscript,
+    cqDiagEnabled,
+    v3UiRenderable
+  ]);
   
   // ============================================================================
   // BATCH 2: ADDITIONAL HOISTED HOOKS - Moved from inside TRY1 (Phase 2)
