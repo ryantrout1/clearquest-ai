@@ -3502,267 +3502,8 @@ function CandidateInterviewInner() {
     }
   }, [__cqBootNotReady, canonicalTranscriptRef.current.length, sessionId, ensureRequiredAnchorQuestionInTranscript]);
   
-  // HOOK 7/7: Verification instrumentation
-  useEffect(() => {
-    if (__cqBootNotReady) return;
-    
-    if (!Array.isArray(renderedTranscript) || renderedTranscript.length === 0) return;
-    const last = renderedTranscript[renderedTranscript.length - 1];
-    if (!last || last.messageType !== 'MULTI_INSTANCE_GATE_SHOWN') return;
-
-    const effectiveType = v3ProbingActive ? 'v3_probing' : (currentItem_S?.type || null);
-    const isGate = effectiveType === 'multi_instance_gate';
-    const footerIsYesNo = isGate; // simplified to avoid TDZ on currentPrompt
-
-    if (!(isGate && footerIsYesNo)) {
-      const key = `${last.stableKey || last.id || 'gate'}:${effectiveType}`;
-      if (uiContractViolationKeyRef.current !== key) {
-        uiContractViolationKeyRef.current = key;
-        console.error('[UI_CONTRACT][VIOLATION]', {
-          reason: 'Gate prompt visible but footer not in YES_NO with multi_instance_gate',
-          effectiveType,
-          bottomBarModeSOT: footerIsYesNo ? 'YES_NO' : 'other',
-          lastMessageType: last.messageType
-        });
-      }
-    }
-  }, [__cqBootNotReady, renderedTranscript, currentItem_S, v3ProbingActive]);
-  
   // ============================================================================
-  // BATCH 2: ADDITIONAL HOISTED HOOKS - Moved from inside TRY1 (Phase 2)
-  // ============================================================================
-  
-  // HOOK 8/11: MI_GATE reconciliation (was line ~6310)
-  useEffect(() => {
-    if (__cqBootNotReady) return;
-    
-    // Only trigger when entering MI_GATE (not on every multiInstanceGate change)
-    if (!multiInstanceGate || activeUiItem_S_SAFE?.kind !== "MI_GATE") return;
-    
-    const urlSessionId = new URLSearchParams(window.location.search).get("session");
-    if (!urlSessionId || urlSessionId !== sessionId) return;
-    
-    // Check if we have a stored payload from last V3 submit
-    const payload = lastV3SubmittedAnswerRef.current;
-    
-    // METADATA PAYLOAD: Check for engine_S decision metadata (required for gate validation)
-    const loopKey = `${sessionId}:${multiInstanceGate?.categoryId}:${multiInstanceGate?.instanceNumber}`;
-    const engine_SPayload = lastV3DecisionByLoopKeyRef.current[loopKey];
-    
-    if (!payload) {
-      console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
-        sessionId,
-        hasPayload: false,
-        hasEnginePayload: !!engine_SPayload,
-        missingCount: engine_SPayload?.missingFields?.length || 'unknown',
-        miGateBlocked: engine_SPayload?.miGateBlocked || false,
-        stopReason: engine_SPayload?.stopReason || null,
-        actionTaken: 'SKIP_NO_PAYLOAD'
-      });
-      return;
-    }
-    
-    // Validate payload belongs to current session/category/instance
-    const payloadMatches = 
-      payload.sessionId === sessionId &&
-      payload.packId === multiInstanceGate.packId &&
-      payload.categoryId === multiInstanceGate.categoryId &&
-      payload.instanceNumber === multiInstanceGate.instanceNumber;
-    
-    if (!payloadMatches) {
-      console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
-        sessionId,
-        hasPayload: true,
-        payloadMatches: false,
-        actionTaken: 'SKIP_STALE_PAYLOAD',
-        payloadPackId: payload.packId,
-        currentPackId: multiInstanceGate.packId
-      });
-      return;
-    }
-    
-    // Check if answer already exists in transcript
-    const foundQuestion = dbTranscript.some(e => e.stableKey === payload.expectedQKey);
-    const foundAnswer = dbTranscript.some(e => e.stableKey === payload.expectedAKey);
-    
-    console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
-      sessionId,
-      expectedAKey: payload.expectedAKey,
-      expectedQKey: payload.expectedQKey,
-      foundQ: foundQuestion,
-      foundA: foundAnswer,
-      actionTaken: foundAnswer ? 'SKIP_ALREADY_EXISTS' : 'WILL_INSERT'
-    });
-    
-    // If answer missing, insert it (idempotent)
-    if (!foundAnswer && payload.answerText && payload.answerText.trim()) {
-      setDbTranscriptSafe(prev => {
-        // Double-check not already present (race guard)
-        const alreadyHasA = prev.some(e => e.stableKey === payload.expectedAKey);
-        if (alreadyHasA) {
-          console.log('[MI_GATE][V3_RECONCILE_SKIP]', {
-            expectedAKey: payload.expectedAKey,
-            reason: 'answer_appeared_during_reconcile'
-          });
-          return prev;
-        }
-        
-        let working = [...prev];
-        let insertedQ = false;
-        let insertedA = false;
-        
-        // Ensure question exists first
-        const alreadyHasQ = working.some(e => e.stableKey === payload.expectedQKey);
-        if (!alreadyHasQ && payload.promptText) {
-          const qEntry = {
-            id: `v3-probe-q-reconcile-${payload.promptId}`,
-            stableKey: payload.expectedQKey,
-            index: getNextIndex(working),
-            role: "assistant",
-            text: payload.promptText,
-            timestamp: new Date().toISOString(),
-            createdAt: Date.now(),
-            messageType: 'V3_PROBE_QUESTION',
-            type: 'V3_PROBE_QUESTION',
-            meta: {
-              promptId: payload.promptId,
-              sessionId: payload.sessionId,
-              categoryId: payload.categoryId,
-              instanceNumber: payload.instanceNumber,
-              packId: payload.packId,
-              source: 'mi_gate_reconcile'
-            },
-            visibleToCandidate: true
-          };
-          
-          working = [...working, qEntry];
-          insertedQ = true;
-          
-          console.log('[MI_GATE][V3_RECONCILE_INSERT_Q]', {
-            stableKey: payload.expectedQKey,
-            sessionId
-          });
-        }
-        
-        // Append missing answer
-        const aEntry = {
-          id: `v3-probe-a-reconcile-${payload.promptId}`,
-          stableKey: payload.expectedAKey,
-          index: getNextIndex(working),
-          role: "user",
-          text: payload.answerText,
-          timestamp: new Date().toISOString(),
-          createdAt: Date.now(),
-          messageType: 'V3_PROBE_ANSWER',
-          type: 'V3_PROBE_ANSWER',
-          meta: {
-            promptId: payload.promptId,
-            sessionId: payload.sessionId,
-            categoryId: payload.categoryId,
-            instanceNumber: payload.instanceNumber,
-            packId: payload.packId,
-            source: 'mi_gate_reconcile'
-          },
-          visibleToCandidate: true
-        };
-        
-        const updated = [...working, aEntry];
-        insertedA = true;
-        
-        // Update canonical ref + state atomically
-        upsertTranscriptState(updated, 'mi_gate_reconcile_insert');
-        
-        // Persist repair to DB
-        base44.entities.InterviewSession.update(sessionId, {
-          transcript_snapshot: updated
-        }).then(() => {
-          console.log('[MI_GATE][V3_RECONCILE_INSERT]', {
-            insertedA: true,
-            insertedQ,
-            expectedAKey: payload.expectedAKey,
-            expectedQKey: payload.expectedQKey,
-            reason: 'missing_after_gate',
-            transcriptLenAfter: updated.length
-          });
-        }).catch(err => {
-          console.error('[MI_GATE][V3_RECONCILE_ERROR]', { error: err.message });
-        });
-        
-        return updated;
-      });
-      
-      // Clear payload after reconciliation (prevent duplicate inserts)
-      console.log('[MI_GATE][V3_RECONCILE_CLEAR]', {
-        reason: 'reconciled_or_not_needed',
-        expectedAKey: payload.expectedAKey
-      });
-      lastV3SubmittedAnswerRef.current = null;
-    } else if (foundAnswer) {
-      // Clear payload if answer already exists (no reconciliation needed)
-      console.log('[MI_GATE][V3_RECONCILE_CLEAR]', {
-        reason: 'found_in_transcript',
-        expectedAKey: payload.expectedAKey
-      });
-      lastV3SubmittedAnswerRef.current = null;
-    }
-  }, [__cqBootNotReady, multiInstanceGate, activeUiItem_S_SAFE, sessionId, dbTranscript, setDbTranscriptSafe]);
-  
-  // HOOK 9/11: YES/NO mode alignment (was line ~15438)
-  useLayoutEffect(() => {
-    if (__cqBootNotReady) return;
-    
-    // TDZ-SAFE: Use bottomBarModeSOTSafe (early, always available)
-    const isYesNoModeFresh = bottomBarModeSOTSafe === 'YES_NO';
-    const isMiGateFresh = currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
-    
-    if (!isYesNoModeFresh) return;
-    
-    requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', activeKindSOT, isYesNoModeFresh, isMiGateFresh);
-    });
-  }, [__cqBootNotReady, bottomBarModeSOTSafe, ensureActiveVisibleAfterRender, activeKindSOT, currentItem_S, activeUiItem_S_SAFE]);
-  
-  // HOOK 10/11: Render-time freeze snapshot (was line ~15571)
-  useEffect(() => {
-    if (__cqBootNotReady) return;
-    
-    if (isUserTyping && !renderedTranscriptSnapshotRef.current) {
-      renderedTranscriptSnapshotRef.current = renderedTranscript;
-      console.log('[TRANSCRIPT_RENDER][FROZEN_DURING_TYPING]', { len: renderedTranscript.length });
-    } else if (!isUserTyping && renderedTranscriptSnapshotRef.current) {
-      renderedTranscriptSnapshotRef.current = null;
-    }
-  }, [__cqBootNotReady, isUserTyping, renderedTranscript]);
-  
-  // HOOK 11/11: Key-based monotonic assertion (was line ~15586)
-  useEffect(() => {
-    if (__cqBootNotReady) return;
-    
-    const getKey = (e) => e.__canonicalKey || e.stableKey || e.id;
-    
-    const prevKeys = prevKeysSetRef.current;
-    const nextKeys = new Set(canonicalTranscriptRef.current.map(getKey).filter(Boolean));
-    
-    const missingKeys = Array.from(prevKeys).filter(k => !nextKeys.has(k));
-    
-    if (missingKeys.length > 0) {
-      console.error('[TRANSCRIPT_MONOTONIC][FATAL_KEY_LOSS]', {
-        missingCount: missingKeys.length,
-        missingKeys: missingKeys.slice(0, 10),
-        prevKeysCount: prevKeys.size,
-        nextKeysCount: nextKeys.size,
-        action: 'CANONICAL_NOT_OVERWRITTEN',
-        note: 'Key-based monotonic contract violated - keys lost from canonical'
-      });
-      // DO NOT overwrite canonical - keep previous
-      return;
-    }
-    
-    prevKeysSetRef.current = nextKeys;
-  }, [__cqBootNotReady, transcriptSOT_S]);
-  
-  // ============================================================================
-  // HOOK 12/12: renderedTranscript (hoisted out of TRY1 to preserve hook order)
+  // HOOK 12/12: renderedTranscript (MOVED from line ~3764 to prevent TDZ in Hook 7/7)
   // ============================================================================
   const renderedTranscript = useMemo(() => {
     if (__cqBootNotReady) return [];
@@ -4008,6 +3749,269 @@ function CandidateInterviewInner() {
     
     return finalFiltered;
   }, [__cqBootNotReady, transcriptSOT_S, currentItem_S, multiInstanceGate]);
+  
+  // HOOK 7/7: Verification instrumentation
+  useEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    if (!Array.isArray(renderedTranscript) || renderedTranscript.length === 0) return;
+    const last = renderedTranscript[renderedTranscript.length - 1];
+    if (!last || last.messageType !== 'MULTI_INSTANCE_GATE_SHOWN') return;
+
+    const effectiveType = v3ProbingActive ? 'v3_probing' : (currentItem_S?.type || null);
+    const isGate = effectiveType === 'multi_instance_gate';
+    const footerIsYesNo = isGate; // simplified to avoid TDZ on currentPrompt
+
+    if (!(isGate && footerIsYesNo)) {
+      const key = `${last.stableKey || last.id || 'gate'}:${effectiveType}`;
+      if (uiContractViolationKeyRef.current !== key) {
+        uiContractViolationKeyRef.current = key;
+        console.error('[UI_CONTRACT][VIOLATION]', {
+          reason: 'Gate prompt visible but footer not in YES_NO with multi_instance_gate',
+          effectiveType,
+          bottomBarModeSOT: footerIsYesNo ? 'YES_NO' : 'other',
+          lastMessageType: last.messageType
+        });
+      }
+    }
+  }, [__cqBootNotReady, renderedTranscript, currentItem_S, v3ProbingActive]);
+  
+  // ============================================================================
+  // BATCH 2: ADDITIONAL HOISTED HOOKS - Moved from inside TRY1 (Phase 2)
+  // ============================================================================
+  
+  // HOOK 8/11: MI_GATE reconciliation (was line ~6310)
+  useEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    // Only trigger when entering MI_GATE (not on every multiInstanceGate change)
+    if (!multiInstanceGate || activeUiItem_S_SAFE?.kind !== "MI_GATE") return;
+    
+    const urlSessionId = new URLSearchParams(window.location.search).get("session");
+    if (!urlSessionId || urlSessionId !== sessionId) return;
+    
+    // Check if we have a stored payload from last V3 submit
+    const payload = lastV3SubmittedAnswerRef.current;
+    
+    // METADATA PAYLOAD: Check for engine_S decision metadata (required for gate validation)
+    const loopKey = `${sessionId}:${multiInstanceGate?.categoryId}:${multiInstanceGate?.instanceNumber}`;
+    const engine_SPayload = lastV3DecisionByLoopKeyRef.current[loopKey];
+    
+    if (!payload) {
+      console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
+        sessionId,
+        hasPayload: false,
+        hasEnginePayload: !!engine_SPayload,
+        missingCount: engine_SPayload?.missingFields?.length || 'unknown',
+        miGateBlocked: engine_SPayload?.miGateBlocked || false,
+        stopReason: engine_SPayload?.stopReason || null,
+        actionTaken: 'SKIP_NO_PAYLOAD'
+      });
+      return;
+    }
+    
+    // Validate payload belongs to current session/category/instance
+    const payloadMatches = 
+      payload.sessionId === sessionId &&
+      payload.packId === multiInstanceGate.packId &&
+      payload.categoryId === multiInstanceGate.categoryId &&
+      payload.instanceNumber === multiInstanceGate.instanceNumber;
+    
+    if (!payloadMatches) {
+      console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
+        sessionId,
+        hasPayload: true,
+        payloadMatches: false,
+        actionTaken: 'SKIP_STALE_PAYLOAD',
+        payloadPackId: payload.packId,
+        currentPackId: multiInstanceGate.packId
+      });
+      return;
+    }
+    
+    // Check if answer already exists in transcript
+    const foundQuestion = dbTranscript.some(e => e.stableKey === payload.expectedQKey);
+    const foundAnswer = dbTranscript.some(e => e.stableKey === payload.expectedAKey);
+    
+    console.log('[MI_GATE][V3_RECONCILE_BEGIN]', {
+      sessionId,
+      expectedAKey: payload.expectedAKey,
+      expectedQKey: payload.expectedQKey,
+      foundQ: foundQuestion,
+      foundA: foundAnswer,
+      actionTaken: foundAnswer ? 'SKIP_ALREADY_EXISTS' : 'WILL_INSERT'
+    });
+    
+    // If answer missing, insert it (idempotent)
+    if (!foundAnswer && payload.answerText && payload.answerText.trim()) {
+      setDbTranscriptSafe(prev => {
+        // Double-check not already present (race guard)
+        const alreadyHasA = prev.some(e => e.stableKey === payload.expectedAKey);
+        if (alreadyHasA) {
+          console.log('[MI_GATE][V3_RECONCILE_SKIP]', {
+            expectedAKey: payload.expectedAKey,
+            reason: 'answer_appeared_during_reconcile'
+          });
+          return prev;
+        }
+        
+        let working = [...prev];
+        let insertedQ = false;
+        let insertedA = false;
+        
+        // Ensure question exists first
+        const alreadyHasQ = working.some(e => e.stableKey === payload.expectedQKey);
+        if (!alreadyHasQ && payload.promptText) {
+          const qEntry = {
+            id: `v3-probe-q-reconcile-${payload.promptId}`,
+            stableKey: payload.expectedQKey,
+            index: getNextIndex(working),
+            role: "assistant",
+            text: payload.promptText,
+            timestamp: new Date().toISOString(),
+            createdAt: Date.now(),
+            messageType: 'V3_PROBE_QUESTION',
+            type: 'V3_PROBE_QUESTION',
+            meta: {
+              promptId: payload.promptId,
+              sessionId: payload.sessionId,
+              categoryId: payload.categoryId,
+              instanceNumber: payload.instanceNumber,
+              packId: payload.packId,
+              source: 'mi_gate_reconcile'
+            },
+            visibleToCandidate: true
+          };
+          
+          working = [...working, qEntry];
+          insertedQ = true;
+          
+          console.log('[MI_GATE][V3_RECONCILE_INSERT_Q]', {
+            stableKey: payload.expectedQKey,
+            sessionId
+          });
+        }
+        
+        // Append missing answer
+        const aEntry = {
+          id: `v3-probe-a-reconcile-${payload.promptId}`,
+          stableKey: payload.expectedAKey,
+          index: getNextIndex(working),
+          role: "user",
+          text: payload.answerText,
+          timestamp: new Date().toISOString(),
+          createdAt: Date.now(),
+          messageType: 'V3_PROBE_ANSWER',
+          type: 'V3_PROBE_ANSWER',
+          meta: {
+            promptId: payload.promptId,
+            sessionId: payload.sessionId,
+            categoryId: payload.categoryId,
+            instanceNumber: payload.instanceNumber,
+            packId: payload.packId,
+            source: 'mi_gate_reconcile'
+          },
+          visibleToCandidate: true
+        };
+        
+        const updated = [...working, aEntry];
+        insertedA = true;
+        
+        // Update canonical ref + state atomically
+        upsertTranscriptState(updated, 'mi_gate_reconcile_insert');
+        
+        // Persist repair to DB
+        base44.entities.InterviewSession.update(sessionId, {
+          transcript_snapshot: updated
+        }).then(() => {
+          console.log('[MI_GATE][V3_RECONCILE_INSERT]', {
+            insertedA: true,
+            insertedQ,
+            expectedAKey: payload.expectedAKey,
+            expectedQKey: payload.expectedQKey,
+            reason: 'missing_after_gate',
+            transcriptLenAfter: updated.length
+          });
+        }).catch(err => {
+          console.error('[MI_GATE][V3_RECONCILE_ERROR]', { error: err.message });
+        });
+        
+        return updated;
+      });
+      
+      // Clear payload after reconciliation (prevent duplicate inserts)
+      console.log('[MI_GATE][V3_RECONCILE_CLEAR]', {
+        reason: 'reconciled_or_not_needed',
+        expectedAKey: payload.expectedAKey
+      });
+      lastV3SubmittedAnswerRef.current = null;
+    } else if (foundAnswer) {
+      // Clear payload if answer already exists (no reconciliation needed)
+      console.log('[MI_GATE][V3_RECONCILE_CLEAR]', {
+        reason: 'found_in_transcript',
+        expectedAKey: payload.expectedAKey
+      });
+      lastV3SubmittedAnswerRef.current = null;
+    }
+  }, [__cqBootNotReady, multiInstanceGate, activeUiItem_S_SAFE, sessionId, dbTranscript, setDbTranscriptSafe]);
+  
+  // HOOK 9/11: YES/NO mode alignment (was line ~15438)
+  useLayoutEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    // TDZ-SAFE: Use bottomBarModeSOT_SAFE (early SAFE alias, declared at line ~3224)
+    const isYesNoModeFresh = bottomBarModeSOT_SAFE === 'YES_NO';
+    const isMiGateFresh = currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
+    
+    if (!isYesNoModeFresh) return;
+    
+    requestAnimationFrame(() => {
+      ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', (activeUiItem_S_SAFE?.kind || currentItem_S?.type || 'UNKNOWN'), isYesNoModeFresh, isMiGateFresh);
+    });
+  }, [__cqBootNotReady, bottomBarModeSOT_SAFE, ensureActiveVisibleAfterRender, activeUiItem_S_SAFE, currentItem_S]);
+  
+  // HOOK 10/11: Render-time freeze snapshot (was line ~15571)
+  useEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    if (isUserTyping && !renderedTranscriptSnapshotRef.current) {
+      renderedTranscriptSnapshotRef.current = renderedTranscript;
+      console.log('[TRANSCRIPT_RENDER][FROZEN_DURING_TYPING]', { len: renderedTranscript.length });
+    } else if (!isUserTyping && renderedTranscriptSnapshotRef.current) {
+      renderedTranscriptSnapshotRef.current = null;
+    }
+  }, [__cqBootNotReady, isUserTyping, renderedTranscript]);
+  
+  // HOOK 11/11: Key-based monotonic assertion (was line ~15586)
+  useEffect(() => {
+    if (__cqBootNotReady) return;
+    
+    const getKey = (e) => e.__canonicalKey || e.stableKey || e.id;
+    
+    const prevKeys = prevKeysSetRef.current;
+    const nextKeys = new Set(canonicalTranscriptRef.current.map(getKey).filter(Boolean));
+    
+    const missingKeys = Array.from(prevKeys).filter(k => !nextKeys.has(k));
+    
+    if (missingKeys.length > 0) {
+      console.error('[TRANSCRIPT_MONOTONIC][FATAL_KEY_LOSS]', {
+        missingCount: missingKeys.length,
+        missingKeys: missingKeys.slice(0, 10),
+        prevKeysCount: prevKeys.size,
+        nextKeysCount: nextKeys.size,
+        action: 'CANONICAL_NOT_OVERWRITTEN',
+        note: 'Key-based monotonic contract violated - keys lost from canonical'
+      });
+      // DO NOT overwrite canonical - keep previous
+      return;
+    }
+    
+    prevKeysSetRef.current = nextKeys;
+  }, [__cqBootNotReady, transcriptSOT_S]);
+  
+  // ============================================================================
+  // HOOK 12/12: renderedTranscript - REMOVED (duplicate, moved to before Hook 7/7)
+  // ============================================================================
   
   // ============================================================================
   // HOISTED DECLARATIONS - Variables needed by hoisted hooks and later code
