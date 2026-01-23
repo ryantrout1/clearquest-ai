@@ -17147,6 +17147,9 @@ function CandidateInterviewInner() {
 
   cqTdzMark('BEFORE_FINAL_TRANSCRIPT_LIST_MEMO');
   
+  // HOOK ORDER FIX: Remove useMemo from TRY1 - replace with direct computation
+  // finalTranscriptList_S will be computed inline below (no hook needed)
+  
 
 
 
