@@ -17153,7 +17153,6 @@ function CandidateInterviewInner() {
   
   // HOOK ORDER FIX: Ref-based memo cache (React #310 fix)
   // Lightweight key from available dependencies (stable hook count + memoization)
-  
   const _ft_key = JSON.stringify([
     renderableTranscriptStream?.length || 0,
     activeUiItem_S?.kind || null,
@@ -17176,6 +17175,7 @@ function CandidateInterviewInner() {
   if (finalTranscriptMemoCacheRef.current.key === _ft_key) {
     finalTranscriptList_S_computed = finalTranscriptMemoCacheRef.current.value;
   } else {
+    // Cache miss - recompute
   
 
 
