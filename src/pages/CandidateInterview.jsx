@@ -3929,30 +3929,19 @@ function CandidateInterviewInner() {
   // ============================================================================
   // HOOK ORDER FIX: finalTranscriptList_S_memo - MOVED OUT OF TRY1 (must be unconditional)
   // ============================================================================
-  // NOTE: Memo body will execute complex transcript processing logic
-  // Returns empty array during boot, full processed transcript when ready
-  const finalTranscriptList_S_memo = useMemo(() => {
-    // BOOT GUARD: Return empty during boot (hook order fix)
+  // CRITICAL: This useMemo MUST be declared unconditionally (before TRY1) to fix React #310
+  // The actual computation happens inside TRY1 where dependencies are available
+  // When boot not ready, returns empty array
+  let finalTranscriptList_S_memo = [];
+  
+  // Declare hook unconditionally with minimal deps (actual computation in TRY1)
+  const finalTranscriptList_S_memoHook = useMemo(() => {
+    // BOOT GUARD: Skip computation when boot incomplete
     if (__cqBootNotReady) return [];
     
-    // Memo body defined inside TRY1 - will be executed when boot ready
-    // This is a placeholder that will be replaced with full logic from TRY1
+    // Placeholder - actual value computed inside TRY1 and assigned to finalTranscriptList_S
     return [];
-  }, [
-    __cqBootNotReady,
-    renderableTranscriptStream,
-    activeUiItem_S,
-    currentItem_S,
-    v3ProbingActive,
-    v3HasVisiblePromptCard,
-    v3ProbingContext_S,
-    hasActiveV3Prompt,
-    v3PromptPhase,
-    sessionId,
-    dbTranscript,
-    cqDiagEnabled,
-    v3UiRenderable
-  ]);
+  }, [__cqBootNotReady]);
   
   // ============================================================================
   // BATCH 2: ADDITIONAL HOISTED HOOKS - Moved from inside TRY1 (Phase 2)
