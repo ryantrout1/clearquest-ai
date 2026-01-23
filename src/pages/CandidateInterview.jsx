@@ -4515,7 +4515,7 @@ function CandidateInterviewInner() {
     
     // 7. V3_PROCESSING - V3 answer submitted, engine_S deciding
     if (v3PromptPhase === "PROCESSING" || 
-        (v3ProbingActive && !hasActiveV3Prompt && bottomBarModeSOT_SAFE === "V3_WAITING")) {
+        (v3ProbingActive && !hasActiveV3Prompt_SAFE && bottomBarModeSOT_SAFE === "V3_WAITING")) {
       return {
         phase: "V3_PROCESSING",
         allowedActions: new Set([]),
@@ -4665,7 +4665,7 @@ function CandidateInterviewInner() {
       // V3 LIFECYCLE
       v3PromptPhase: v3PromptPhase,
       v3ProbingActive: v3ProbingActive,
-      hasActiveV3Prompt: hasActiveV3Prompt,
+      hasActiveV3Prompt: hasActiveV3Prompt_SAFE,
       v3ProbingLoopKey: v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null,
       
       // FALLBACK STATE
@@ -5492,7 +5492,7 @@ function CandidateInterviewInner() {
       __cqPriority = 'P1';
       window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3C:BEFORE_PRIORITY1';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3C:BEFORE_PRIORITY1' });
-    if (hasActiveV3Prompt) {
+    if (hasActiveV3Prompt_SAFE) {
       return {
         kind: "V3_PROMPT",
         packId: v3ProbingContext_S?.packId || currentItem_S?.packId,
@@ -5511,7 +5511,7 @@ function CandidateInterviewInner() {
       __cqPriority = 'P1_5';
       window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3D:BEFORE_PRIORITY1_5';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3D:BEFORE_PRIORITY1_5' });
-    if (v3ProbingActive && !hasActiveV3Prompt && !requiredAnchorFallbackActive) {
+    if (v3ProbingActive && !hasActiveV3Prompt_SAFE && !requiredAnchorFallbackActive) {
       const forcedKind = "V3_WAITING";
       console.log('[V3_CONTROLLER][FORCE_ACTIVE_KIND]', {
         effectiveItemType: currentItem_S?.type === 'v3_probing' ? 'v3_probing' : currentItem_S?.type,
