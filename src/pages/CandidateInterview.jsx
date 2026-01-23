@@ -675,6 +675,16 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
       ringTail: ring
     });
     
+    // TDZ_PINPOINT_V2: Error boundary crash diagnostic
+    console.error('[TDZ_PINPOINT_V2][BOUNDARY]', {
+      identifier: String(error?.message || '').match(/Cannot access '([^']+)' before initialization/)?.[1] || 'UNKNOWN',
+      message: String(error?.message || ''),
+      renderStep: (typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null) || 'UNKNOWN',
+      phase: 'ERROR_BOUNDARY',
+      ringTailSteps: Array.isArray(ring) ? ring.slice(-5).map(e => e.step) : [],
+      ts: Date.now()
+    });
+    
     try {
       console.error('[CQ_DIAG][ERROR_BOUNDARY_CAUGHT]', {
         message: error?.message,
@@ -5138,6 +5148,19 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
                   ringTail: ringTail.map(e => e.step)
                 };
                 console.log('[TDZ_TRACE][AUTO_PINPOINT]', pinpointPayload);
+                
+                // TDZ_PINPOINT_V2: Consolidated crash diagnostic (minimal, parseable)
+                console.error('[TDZ_PINPOINT_V2]', {
+                  identifier: match[1] || 'UNKNOWN',
+                  message: String(firstArg?.message || firstArg || ''),
+                  file: 'CandidateInterview.jsx',
+                  line: stackMatch ? parseInt(stackMatch[1]) : null,
+                  col: (stackMatch && stackMatch[2]) ? parseInt(stackMatch[2]) : null,
+                  renderStep: (typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null) || lastStep || 'UNKNOWN',
+                  phase: (typeof cqRenderPhaseTag !== 'undefined' ? cqRenderPhaseTag : null),
+                  ringTailSteps: (window.__CQ_TDZ_TRACE_RING__ || []).slice(-5).map(e => e.step),
+                  ts: Date.now()
+                });
                 
                 console.log('[TDZ_TRACE][STACK_CAPTURE]', { 
                   message: firstArg?.message || String(firstArg || ''), 
