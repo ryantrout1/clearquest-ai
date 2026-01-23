@@ -2910,6 +2910,19 @@ function CandidateInterviewInner() {
   const v3WaitingWatchdogRef = useRef(null); // Timer for V3_WAITING watchdog
   const v3WaitingLastArmKeyRef = useRef(null); // Last arm key for watchdog dedupe
   
+  // V3 GATE STATE: Authoritative multi-instance gate state (BEFORE hoisted hooks)
+  const [v3Gate, setV3Gate] = useState({
+    active: false,
+    packId: null,
+    categoryId: null,
+    promptText: null,
+    instanceNumber: null
+  });
+  const [v3MultiInstanceHandler, setV3MultiInstanceHandler] = useState(null);
+  const [v3GateDecision, setV3GateDecision] = useState(null);
+  const [pendingGatePrompt, setPendingGatePrompt] = useState(null);
+  const [multiInstanceGate, setMultiInstanceGate] = useState(null);
+  
   // V3 PROMPT SNAPSHOTS: In-memory store to track committed prompts (PART B)
   const [v3PromptSnapshots, setV3PromptSnapshots] = useState([]);
   const v3PromptSnapshotsRef = useRef([]);
@@ -4818,27 +4831,7 @@ function CandidateInterviewInner() {
   // Debug mode: Only enable if admin user AND ?debug=1 in URL
   const debugEnabled = isAdminUser && (new URLSearchParams(window.location.search).get("debug") === "1");
 
-  // V3 GATE: Authoritative multi-instance gate state
-  const [v3Gate, setV3Gate] = useState({
-    active: false,
-    packId: null,
-    categoryId: null,
-    promptText: null,
-    instanceNumber: null
-  });
   const v3GateActive = v3Gate.active === true;
-
-  // V3 Multi-instance handler (callback from V3ProbingLoop)
-  const [v3MultiInstanceHandler, setV3MultiInstanceHandler] = useState(null);
-
-  // V3 gate decision intent (prevents setState during render)
-  const [v3GateDecision, setV3GateDecision] = useState(null);
-  
-  // Pending gate prompt (prevents setState during render)
-  const [pendingGatePrompt, setPendingGatePrompt] = useState(null);
-  
-  // Multi-instance gate state (first-class currentItem_SType)
-  const [multiInstanceGate, setMultiInstanceGate] = useState(null);
 
   // V3 EXIT: Idempotency guard + baseQuestionId retention
   const v3BaseQuestionIdRef = useRef(null);
