@@ -2905,6 +2905,11 @@ function CandidateInterviewInner() {
   const [v3PromptPhase, setV3PromptPhase] = useState("IDLE");
   const lastV3PromptPhaseRef = useRef("IDLE");
   
+  // V3 WAITING WATCHDOG: Track failopen state and timer (MUST be before hoisted hooks)
+  const v3WaitingFailopenFiredRef = useRef(new Set()); // Track failopen fired per loopKey
+  const v3WaitingWatchdogRef = useRef(null); // Timer for V3_WAITING watchdog
+  const v3WaitingLastArmKeyRef = useRef(null); // Last arm key for watchdog dedupe
+  
   // V3 PROMPT SNAPSHOTS: In-memory store to track committed prompts (PART B)
   const [v3PromptSnapshots, setV3PromptSnapshots] = useState([]);
   const v3PromptSnapshotsRef = useRef([]);
