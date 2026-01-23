@@ -3215,6 +3215,11 @@ function CandidateInterviewInner() {
   const bottomBarModeSOT_SAFE = null; // Computed in TRY1 - null during boot is safe
   
   // ============================================================================
+  // BOOT GUARD FLAG - Hoisted above hooks to prevent TDZ in dep arrays
+  // ============================================================================
+  const __cqBootNotReady = Boolean(isLoading) || !session || !session.id || !engine_S;
+  
+  // ============================================================================
   // BATCH 1: HOISTED HOOKS - Moved outside TRY1 gate to fix React #310
   // ============================================================================
   // These hooks were inside TRY1 conditional gate, causing hook count mismatch
@@ -4126,7 +4131,7 @@ function CandidateInterviewInner() {
   })();
   
   // BOOT GATE: Skip TRY1/derived logic when boot incomplete (preserves hook order)
-  const __cqBootNotReady = Boolean(isLoading) || !session || !session.id || !engine_S;
+  // NOTE: __cqBootNotReady now declared above BATCH 1 hooks (line ~3220) to prevent TDZ in dep arrays
   
   // BOOT READY LATCH: One-time activation when boot completes
   if (!__cqBootNotReady && !cqBootReadyLatchedRef.current) {
