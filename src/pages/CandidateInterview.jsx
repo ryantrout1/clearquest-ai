@@ -1380,6 +1380,30 @@ function CandidateInterviewInner() {
     if (typeof window !== 'undefined') {
       window.__CQ_LAST_RENDER_STEP__ = 'ENTER_RENDER';
     }
+    
+    // BUNDLE CANARY: Detect stale bundle + multiple React instances
+    if (typeof window !== 'undefined' && window.CQ_BUNDLE_CANARY === true) {
+      const reactVer = React?.version || 'unknown';
+      const buildStamp = 'CI_2026-01-23T00:00:00Z';
+      
+      console.error('[CQ_BUNDLE_CANARY][CI]', {
+        buildStamp,
+        reactVer,
+        componentEntered: true
+      });
+      
+      // Multi-React detector
+      if (typeof window.CQ_REACT_VER !== 'undefined' && window.CQ_REACT_VER !== reactVer) {
+        console.error('[CQ_MULTI_REACT_DETECTED]', {
+          existing: window.CQ_REACT_VER,
+          incoming: reactVer,
+          file: 'CandidateInterview.jsx'
+        });
+      } else {
+        window.CQ_REACT_VER = reactVer;
+      }
+    }
+    
     console.log('[CQ_DIAG][EARLY_STEP]', { step: 'ENTER_RENDER' });
   } catch (_) {}
   

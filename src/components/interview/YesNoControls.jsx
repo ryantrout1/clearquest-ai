@@ -1,6 +1,30 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 
+// BUNDLE CANARY: Detect stale bundle + multiple React instances
+if (typeof window !== 'undefined' && window.CQ_BUNDLE_CANARY === true) {
+  const reactVer = React?.version || 'unknown';
+  const buildStamp = 'YESNO_FIXED_2026-01-23T00:00:00Z';
+  
+  console.error('[CQ_BUNDLE_CANARY][YESNO]', {
+    buildStamp,
+    reactVer,
+    hookOrderFixed: true,
+    fileLoaded: true
+  });
+  
+  // Multi-React detector
+  if (typeof window.CQ_REACT_VER !== 'undefined' && window.CQ_REACT_VER !== reactVer) {
+    console.error('[CQ_MULTI_REACT_DETECTED]', {
+      existing: window.CQ_REACT_VER,
+      incoming: reactVer,
+      file: 'YesNoControls.jsx'
+    });
+  } else {
+    window.CQ_REACT_VER = reactVer;
+  }
+}
+
 /**
  * YesNoControls - SINGLE SOURCE OF TRUTH for Yes/No buttons
  * 
