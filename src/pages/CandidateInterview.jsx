@@ -1446,6 +1446,52 @@ function CandidateInterviewInner() {
   // TDZ FIX: Missing function declaration (used at lines ~13435, ~17381, ~20422)
   const sanitizeCandidateFacingText = (text, _label) => (text == null ? '' : String(text));
   
+  // TDZ FIX: cqTdzMark diagnostic helper (used throughout component, must be top-level)
+  function cqTdzMark(step, extra = {}) {
+    if (typeof window === 'undefined') return;
+    
+    // TDZ-SAFE: Compute preview env locally (no outer-scope dependency)
+    let localIsPreviewEnv = false;
+    try {
+      const hostname = String(window.location?.hostname || '');
+      localIsPreviewEnv = hostname.includes('preview') || hostname.includes('preview-sandbox');
+    } catch (_) {
+      // never throw
+    }
+    
+    const wn = String(window.name || '');
+    let localIsPreviewEnv_SAFE = false;
+    try { localIsPreviewEnv_SAFE = !!localIsPreviewEnv; } catch (_) { localIsPreviewEnv_SAFE = false; }
+
+    const enabled = (window.__CQ_TDZ_TRACE__ === true) || wn.includes('CQ_TDZ_TRACE=1') || localIsPreviewEnv_SAFE;
+    if (!enabled) return;
+    
+    // RING BUFFER: Store last 10 markers for crash forensics
+    try {
+      const existing = window.__CQ_TDZ_TRACE_RING__;
+      const ring = Array.isArray(existing) ? existing : [];
+      const s = String(new Error().stack || '');
+      if (!window.__CQ_TDZ_STACK_SAMPLE_LOGGED__) {
+      window.__CQ_TDZ_STACK_SAMPLE_LOGGED__ = true;
+      console.log('[TDZ_TRACE][STACK_SAMPLE]', s);
+      }
+      const match = s.match(/(?:.*\/)?(?:src\/)?(?:pages\/)?CandidateInterview\.(?:jsx|js)(?:\?[^:]*)?:(\d+)(?::(\d+))?/);
+      const entry = { 
+        step, 
+        ts: Date.now(), 
+        ...extra,
+        srcLine: match ? parseInt(match[1]) : null,
+        srcCol: (match && match[2]) ? parseInt(match[2]) : null
+      };
+      ring.push(entry);
+      window.__CQ_TDZ_TRACE_RING__ = ring.length > 10 ? ring.slice(-10) : ring;
+    } catch (_) {
+      // never throw
+    }
+    
+    console.log('[TDZ_TRACE]', { step, ts: Date.now(), ...extra });
+  }
+  
   // TDZ FIX: Missing helper declaration (used at lines ~13565, ~13792, ~19902, ~20140)
   const isNearBottomStrict = (container, thresholdPx = 24) => {
     if (!container) return false;
@@ -1454,6 +1500,44 @@ function CandidateInterviewInner() {
     const clientHeight = container.clientHeight || 0;
     const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
     return distanceFromBottom <= thresholdPx;
+  };
+  
+  // TDZ FIX: shouldRenderInTranscript helper (used in render planners, must be top-level)
+  const shouldRenderInTranscript = (entry) => {
+    if (!entry) return false;
+    
+    // Rule 1: Filter non-chat/prompt-lane context, with exception for FALLBACK
+    if (entry.messageType === 'PROMPT_LANE_CONTEXT') {
+      if (entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK') {
+        return true; // ALLOW this specific non-chat item
+      }
+      return false; // BLOCK all other prompt context items
+    }
+    if (entry.meta?.isNonChat === true) return false; // Block other non-chat items
+    if (entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK') return false; // Block other fallback markers
+    
+    // Rule 2: Filter V3 probe questions (prompt-lane only)
+    const isV3ProbeQuestion = 
+      entry?.kind === 'v3_probe_question' ||
+      entry?.type === 'v3_probe_question' ||
+      entry?.messageType === 'V3_PROBE_QUESTION' ||
+      entry?.meta?.kind === 'v3_probe_question' ||
+      entry?.meta?.uiKind === 'v3_probe_question' ||
+      entry?.meta?.isV3ProbeQuestion === true;
+    if (isV3ProbeQuestion) return false;
+    
+    // Rule 3: Filter empty/non-renderable content
+    const text = entry.text || entry.questionText || entry.content || '';
+    if (text.trim().length === 0) {
+      if (entry.messageType === 'WELCOME' && (!entry.lines || entry.lines.length === 0)) {
+        return false;
+      }
+      if (entry.messageType !== 'WELCOME') {
+        return false;
+      }
+    }
+    
+    return true;
   };
   
   // TDZ FIX: Missing planner utility (used at lines ~19899, ~20171, ~20251, ~20286, ~20604, ~20673)
@@ -17509,43 +17593,8 @@ console.log('[TDZ_TRACE][RING_TAIL_COMPACT_JSON]', JSON.stringify(ringTailCompac
     isBottomBarSubmitDisabled,
   };
 
-  // TDZ FIX: Hoisted shouldRenderInTranscript before planner invocations
-  const shouldRenderInTranscript = (entry) => {
-    if (!entry) return false;
-    
-    // Rule 1: Filter non-chat/prompt-lane context, with exception for FALLBACK
-    if (entry.messageType === 'PROMPT_LANE_CONTEXT') {
-      if (entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK') {
-        return true; // ALLOW this specific non-chat item
-      }
-      return false; // BLOCK all other prompt context items
-    }
-    if (entry.meta?.isNonChat === true) return false; // Block other non-chat items
-    if (entry.meta?.contextKind === 'REQUIRED_ANCHOR_FALLBACK') return false; // Block other fallback markers
-    
-    // Rule 2: Filter V3 probe questions (prompt-lane only)
-    const isV3ProbeQuestion = 
-      entry?.kind === 'v3_probe_question' ||
-      entry?.type === 'v3_probe_question' ||
-      entry?.messageType === 'V3_PROBE_QUESTION' ||
-      entry?.meta?.kind === 'v3_probe_question' ||
-      entry?.meta?.uiKind === 'v3_probe_question' ||
-      entry?.meta?.isV3ProbeQuestion === true;
-    if (isV3ProbeQuestion) return false;
-    
-    // Rule 3: Filter empty/non-renderable content
-    const text = entry.text || entry.questionText || entry.content || '';
-    if (text.trim().length === 0) {
-      if (entry.messageType === 'WELCOME' && (!entry.lines || entry.lines.length === 0)) {
-        return false;
-      }
-      if (entry.messageType !== 'WELCOME') {
-        return false;
-      }
-    }
-    
-    return true;
-  };
+  // TDZ FIX: shouldRenderInTranscript MOVED TO TOP OF COMPONENT (hoisted out of TRY1)
+  // Hoisted to prevent crash-before-declare ReferenceError in transcript planners.
 
   const finalTranscriptList_S_memo = useMemo(() => {
     const hasVisibleActivePromptForSuppression = (activePromptText || '').trim().length > 0;
