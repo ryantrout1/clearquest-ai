@@ -2,26 +2,33 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 
 // BUNDLE CANARY: Detect stale bundle + multiple React instances
-if (typeof window !== 'undefined' && window.CQ_BUNDLE_CANARY === true) {
-  const reactVer = React?.version || 'unknown';
-  const buildStamp = 'YESNO_FIXED_2026-01-23T00:00:00Z';
+if (typeof window !== 'undefined') {
+  const canaryEnabled = window.CQ_BUNDLE_CANARY === true || 
+                       (typeof localStorage !== 'undefined' && localStorage.getItem('CQ_BUNDLE_CANARY') === '1');
   
-  console.error('[CQ_BUNDLE_CANARY][YESNO]', {
-    buildStamp,
-    reactVer,
-    hookOrderFixed: true,
-    fileLoaded: true
-  });
-  
-  // Multi-React detector
-  if (typeof window.CQ_REACT_VER !== 'undefined' && window.CQ_REACT_VER !== reactVer) {
-    console.error('[CQ_MULTI_REACT_DETECTED]', {
-      existing: window.CQ_REACT_VER,
-      incoming: reactVer,
-      file: 'YesNoControls.jsx'
+  if (canaryEnabled) {
+    console.error('[CQ_BUNDLE_CANARY][ARMED]', { file: 'YesNoControls.jsx', enabled: true });
+    
+    const reactVer = React?.version || 'unknown';
+    const buildStamp = 'YESNO_FIXED_2026-01-23T00:00:00Z';
+    
+    console.error('[CQ_BUNDLE_CANARY][YESNO]', {
+      buildStamp,
+      reactVer,
+      hookOrderFixed: true,
+      fileLoaded: true
     });
-  } else {
-    window.CQ_REACT_VER = reactVer;
+    
+    // Multi-React detector
+    if (typeof window.CQ_REACT_VER !== 'undefined' && window.CQ_REACT_VER !== reactVer) {
+      console.error('[CQ_MULTI_REACT_DETECTED]', {
+        existing: window.CQ_REACT_VER,
+        incoming: reactVer,
+        file: 'YesNoControls.jsx'
+      });
+    } else {
+      window.CQ_REACT_VER = reactVer;
+    }
   }
 }
 
