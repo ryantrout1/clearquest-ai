@@ -17151,8 +17151,31 @@ function CandidateInterviewInner() {
 
   cqTdzMark('BEFORE_FINAL_TRANSCRIPT_LIST_MEMO');
   
-  // HOOK ORDER FIX: Remove useMemo from TRY1 - replace with direct computation
-  // finalTranscriptList_S will be computed inline below (no hook needed)
+  // HOOK ORDER FIX: Ref-based memo cache (React #310 fix)
+  // Lightweight key from available dependencies (stable hook count + memoization)
+  
+  const _ft_key = JSON.stringify([
+    renderableTranscriptStream?.length || 0,
+    activeUiItem_S?.kind || null,
+    currentItem_S?.id || null,
+    v3ProbingActive ? 1 : 0,
+    v3HasVisiblePromptCard ? 1 : 0,
+    v3ProbingContext_S?.packId || null,
+    v3ProbingContext_S?.instanceNumber || null,
+    hasActiveV3Prompt ? 1 : 0,
+    v3PromptPhase || null,
+    sessionId || null,
+    dbTranscript?.length || 0,
+    cqDiagEnabled ? 1 : 0,
+    v3UiRenderable?.length || 0,
+    activePromptText ? 1 : 0
+  ]);
+  
+  // Cache check: Reuse if key unchanged, else recompute
+  let finalTranscriptList_S_computed;
+  if (finalTranscriptMemoCacheRef.current.key === _ft_key) {
+    finalTranscriptList_S_computed = finalTranscriptMemoCacheRef.current.value;
+  } else {
   
 
 
