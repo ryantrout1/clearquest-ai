@@ -4311,6 +4311,21 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, transcriptSOT_S]);
   
   // ============================================================================
+  // HOOK 12/56: V2 pack field tracker (HOISTED from TRY1 - React #310 fix)
+  // ============================================================================
+  // Track last logged V2 pack field to prevent duplicates (logging happens on answer, not render)
+  // This ref is used when logging answers to check for duplicates
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v2 pack field tracker', ts: Date.now() }); } catch(_){} })();
+  useEffect(() => {
+    // REACT #310 FIX: Internal boot guard (moved from TRY1 gate)
+    if (__cqBootNotReady) return;
+    
+    if (v2PackMode !== "V2_PACK") return;
+    if (!activeV2Pack || !currentItem_S || currentItem_S.type !== 'v2_pack_field') return;
+    // Just track the current field - actual logging happens in handleAnswer
+  }, [__cqBootNotReady, v2PackMode, activeV2Pack, currentItem_S]);
+  
+  // ============================================================================
   // HOOK 12/12: renderedTranscript - REMOVED (duplicate, moved to before Hook 7/7)
   // ============================================================================
   
@@ -6181,14 +6196,7 @@ function CandidateInterviewInner() {
     }
   }
 
-  // Track last logged V2 pack field to prevent duplicates (logging happens on answer, not render)
-  // This ref is used when logging answers to check for duplicates
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v2 pack field tracker', ts: Date.now() }); } catch(_){} })();
-  useEffect(() => {
-    if (v2PackMode !== "V2_PACK") return;
-    if (!activeV2Pack || !currentItem_S || currentItem_S.type !== 'v2_pack_field') return;
-    // Just track the current field - actual logging happens in handleAnswer
-  }, [v2PackMode, activeV2Pack, currentItem_S]);
+  // REACT #310 FIX: v2 pack field tracker MOVED to BATCH 2 (hoisted from TRY1)
 
   // FULL SESSION RESET: Cleanup all interview-local state when sessionId changes (prevent cross-session leakage)
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'full session reset', ts: Date.now() }); } catch(_){} })();
