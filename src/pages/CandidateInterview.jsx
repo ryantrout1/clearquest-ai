@@ -17328,6 +17328,7 @@ function CandidateInterviewInner() {
   // Ordered to prevent TDZ and used as the single source of truth for planner inputs.
   // NOTE: hasV3PromptText, hasActiveV3Prompt, activeUiItem_S, bottomBarRenderTypeSOT, bottomBarModeSOT hoisted to line ~4561 (before useEffect deps)
   // TDZ FIX: effectiveItemType declared earlier (see near computeActivePromptText)
+  console.log('[CQ_DERIVED][ENTER]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), activeKind: (typeof activeUiItem_S !== 'undefined' && activeUiItem_S?.kind) || null });
   const activeKindSOT = activeUiItem_S_SAFE?.kind || currentItem_S?.type || 'UNKNOWN';
   effectiveItemType = activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
                            activeUiItem_S_SAFE.kind === "V3_PROMPT" ? 'v3_probing' : 
