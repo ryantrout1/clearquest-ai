@@ -2041,7 +2041,10 @@ function CandidateInterviewInner() {
   const transcriptInitializedRef = useRef(false);
   
   // TRANSCRIPT SOT: Single source of truth for all rendering and metrics
-  const transcriptSOT_S = canonicalTranscriptRef.current.length > 0 ? canonicalTranscriptRef.current : dbTranscript;
+  const transcriptSOT_S = (() => {
+    const candidate = canonicalTranscriptRef.current.length > 0 ? canonicalTranscriptRef.current : dbTranscript;
+    return Array.isArray(candidate) ? candidate : [];
+  })();
 
   // STATE HOISTED: Must be declared before forensicCheck (prevents TDZ crash)
   const [uiBlocker, setUiBlocker] = useState(null);
