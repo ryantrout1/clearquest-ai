@@ -3151,6 +3151,15 @@ function CandidateInterviewInner() {
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
 
+  // REACT #310 FIX: Initialize useEffect sequence counter (render-safe, never throws)
+  (function(){
+    try {
+      const w = (typeof window !== 'undefined') ? window : null;
+      if (!w) return;
+      if (!w.CQ_USEEFFECT_SEQ) w.CQ_USEEFFECT_SEQ = 0;
+    } catch (_) {}
+  })();
+
   // REACT #310 FIX: Sync refs for scrollToBottomSafely (plain function version)
   footerHeightPxRef.current = footerHeightPx;
   transcriptSOTRef.current = transcriptSOT_S;
