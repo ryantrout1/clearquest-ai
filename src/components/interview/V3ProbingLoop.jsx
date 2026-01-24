@@ -42,6 +42,7 @@ export default function V3ProbingLoop({
   onTranscriptUpdate,
   packData, // Pack metadata with author-controlled opener
   openerAnswer, // NEW: Opener narrative from candidate
+  isInitialCall,
   onMultiInstancePrompt, // NEW: Callback when multi-instance question is shown
   onMultiInstanceAnswer, // NEW: Callback to handle Yes/No from footer
   traceId: parentTraceId, // NEW: Correlation trace from parent
@@ -240,7 +241,7 @@ export default function V3ProbingLoop({
       
       // Schedule initial decide cycle on next tick (after mount completes)
       setTimeout(() => {
-        handleSubmit(null, openerAnswer, true);
+        handleSubmit(null, openerAnswer, isInitialCall);
       }, 0);
     }
 
