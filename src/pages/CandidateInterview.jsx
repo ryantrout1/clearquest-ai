@@ -6074,8 +6074,8 @@ function CandidateInterviewInner() {
 
   // UX: Mark user as typing and set timeout to unlock after idle period
   // CRITICAL: Does NOT trigger transcript refresh (prevents flashing)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'markUserTyping', ts: Date.now() }); } catch(_){} })();
-  const markUserTyping = useCallback(() => {
+  // REACT #310 FIX: Converted from useCallback to plain function (removes hook dispatcher slot)
+  function markUserTyping() {
     if (!isUserTyping) {
       console.log("[UX][TYPING_LOCK]", { locked: true, note: "scroll locked, no transcript refresh" });
       setIsUserTyping(true);
@@ -6090,7 +6090,7 @@ function CandidateInterviewInner() {
       setIsUserTyping(false);
       typingLockTimeoutRef.current = null;
     }, TYPING_IDLE_MS);
-  }, [isUserTyping]);
+  }
 
   // UX: Build draft key for sessionStorage
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'buildDraftKey', ts: Date.now() }); } catch(_){} })();
