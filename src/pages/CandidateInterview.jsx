@@ -3135,6 +3135,18 @@ function CandidateInterviewInner() {
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
 
+  // REACT #310 CANARY: Detect multi-React instance (one-render diagnostic)
+  (function(){
+    try {
+      const w = (typeof window !== 'undefined') ? window : null;
+      if (!w) return;
+      if (!w.CQ_REACT_CANARY) w.CQ_REACT_CANARY = { reactObj: React, count: 0, ver: React?.version || 'unknown' };
+      w.CQ_REACT_CANARY.count += 1;
+      const same = w.CQ_REACT_CANARY.reactObj === React;
+      console.error('[CQ_REACT_CANARY]', { ver: React?.version || 'unknown', same, count: w.CQ_REACT_CANARY.count });
+    } catch (_) {}
+  })();
+
   useEffect(() => {
     // BOOT-STATE INVARIANT: Detect duplicate runs per session.
     if (typeof window !== 'undefined' && sessionId) {
