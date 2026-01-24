@@ -6278,8 +6278,11 @@ function CandidateInterviewInner() {
   cqHookMark('BEFORE_FULL_SESSION_RESET');
   cqHookMark('PRE_RESET_BLOCK_A');
   
+  console.log('[CQ_310_SLOT][PRE_RESET]', { rid: __cqRid, ts: Date.now() });
+  
   // FULL SESSION RESET: Cleanup all interview-local state when sessionId changes (prevent cross-session leakage)
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'full session reset', ts: Date.now() }); } catch(_){} })();
+  console.log('[CQ_310_SLOT][POST_RESET_DECL]', { rid: __cqRid, ts: Date.now() });
   useEffect(() => {
     // REACT #310 CENSUS: Invariant - effect body executed
     console.log('[REACT_310_PROBE][FULL_SESSION_RESET_EFFECT_RAN]', { rid: __cqRid, ts: Date.now(), sessionId });
@@ -20742,6 +20745,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       if (__cqHookCensusEnabled) console.log('[CQ_HOOK_CENSUS_END]', { rid: __cqRid, hookCount: window.CQ_HOOK_INDEX, ts: Date.now() });
     }
   } catch (_) {}
+  console.log('[CQ_310_SLOT][RENDER_END]', { rid: __cqRid, ts: Date.now() });
   
   const effectiveItemType_SAFE = effectiveItemType;
   const renderedTranscriptSnapshotRef_SAFE = renderedTranscriptSnapshotRef;
