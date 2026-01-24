@@ -4199,6 +4199,10 @@ function CandidateInterviewInner() {
     });
   }, [__cqBootNotReady, bottomBarModeSOT_SAFE, ensureActiveVisibleAfterRender, activeUiItem_S_SAFE, currentItem_S]);
   
+  // HOOK ORDER FIX: Ref-based memo cache for finalTranscriptList_S (React #310 fix)
+  // Replaces conditional useMemo with ref-based caching (stable hook count)
+  const finalTranscriptMemoCacheRef = useRef({ key: null, value: [] });
+  
   // HOOK 10/11: Render-time freeze snapshot (was line ~15571)
   useEffect(() => {
     if (__cqBootNotReady) return;
@@ -5163,10 +5167,6 @@ function CandidateInterviewInner() {
   // MI_GATE UI CONTRACT SELF-TEST: Track main pane render + footer buttons per itemId
   const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { mainPaneRendered: bool, footerButtonsOnly: bool, testStarted: bool }>
   const miGateTestTimeoutRef = useRef(null);
-  
-  // HOOK ORDER FIX: Memo cache ref for finalTranscriptList_S (React #310 fix)
-  // Replaces conditional useMemo with ref-based caching (stable hook count)
-  const finalTranscriptMemoCacheRef = useRef({ key: null, value: [] });
   
   // MI_GATE SENTINEL: Track active state log key (prevents duplicate logs)
   const miGateActiveLogKeyRef = useRef(null);
@@ -14409,6 +14409,63 @@ function CandidateInterviewInner() {
   // TDZ GUARD: Track previous render list length for append detection (using ref, not direct variable)
   const prevFinalListLenForScrollRef = useRef(0);
   
+  // GOLDEN CONTRACT CHECK: Emit deterministic verification bundle (deduped)
+  const emitGoldenContractCheck = React.useCallback(() => {
+    const payload = {
+      sessionId,
+      activeUiItem_SKind: activeUiItem_SAFE?.kind,
+      bottomBarModeSOT_SAFE,
+      footerClearanceStatus: footerClearanceStatusRef.current,
+      openerHistoryStatus: openerMergeStatusRef.current,
+      suppressProbesInTranscript: (activeUiItem_SAFE?.kind === "V3_PROMPT" || activeUiItem_SAFE?.kind === "V3_WAITING") && v3ProbingActive,
+      lastMeasuredOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
+      hasFooterSpacer: typeof window !== 'undefined' && !!historyRef.current?.querySelector('[data-cq-footer-spacer="true"]'),
+      transcriptLen: finalTranscriptList_S_SAFE.length || 0
+    };
+    
+    // Dedupe: Only emit if payload changed
+    const payloadKey = JSON.stringify(payload);
+    if (lastGoldenCheckPayloadRef.current === payloadKey) {
+      return; // No change - skip emission
+    }
+    
+    lastGoldenCheckPayloadRef.current = payloadKey;
+    console.log('[UI_CONTRACT][GOLDEN_CHECK]', payload);
+  }, [sessionId, activeUiItem_SAFE, bottomBarModeSOT_SAFE, v3ProbingActive, finalTranscriptList_S_SAFE]);
+  
+  // CONSOLIDATED UI CONTRACT STATUS LOG (Single Source of Truth)
+  // Emits once per mode change with all three contract aspects
+  React.useEffect(() => {
+    const footerStatus = footerClearanceStatusRef.current || 'UNKNOWN';
+    const openerStatus = openerMergeStatusRef.current || 'UNKNOWN';
+    const suppressProbes = (activeUiItem_SAFE?.kind === "V3_PROMPT" || activeUiItem_SAFE?.kind === "V3_WAITING") && v3ProbingActive;
+    
+    console.log('[UI_CONTRACT][SOT_STATUS]', {
+      footerClearance: footerStatus,
+      openerHistory: openerStatus,
+      probePolicy: suppressProbes ? 'ACTIVE_SUPPRESS' : 'HISTORY_ALLOWED',
+      activeUiItem_SKind: activeUiItem_SAFE?.kind,
+      bottomBarModeSOT_SAFE,
+      sessionId
+    });
+    
+    // Emit golden check after SOT status (only for active modes)
+    if (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO') {
+      emitGoldenContractCheck();
+    }
+  }, [bottomBarModeSOT_SAFE, activeUiItem_SAFE?.kind, v3ProbingActive, sessionId, emitGoldenContractCheck]);
+  
+  // UI CONTRACT STATUS RESET: Clear status refs on session change
+  React.useEffect(() => {
+    openerMergeStatusRef.current = 'UNKNOWN';
+    footerClearanceStatusRef.current = 'UNKNOWN';
+    
+    console.log('[UI_CONTRACT][SOT_STATUS_RESET]', {
+      sessionId,
+      reason: 'New session started - status refs cleared'
+    });
+  }, [sessionId]);
+  
   // PART B: ACTIVE ITEM CHANGED - Call ensureActiveVisibleAfterRender when active item changes
   React.useLayoutEffect(() => {
     if (!shouldRenderFooter_SAFE) return;
@@ -19935,63 +19992,6 @@ function CandidateInterviewInner() {
 
 // [TDZ_FIX] Duplicate declaration block removed by tool.
   
-  // GOLDEN CONTRACT CHECK: Emit deterministic verification bundle (deduped)
-  const emitGoldenContractCheck = React.useCallback(() => {
-    const payload = {
-      sessionId,
-      activeUiItem_SKind: activeUiItem_SAFE?.kind,
-      bottomBarModeSOT_SAFE,
-      footerClearanceStatus: footerClearanceStatusRef.current,
-      openerHistoryStatus: openerMergeStatusRef.current,
-      suppressProbesInTranscript: (activeUiItem_SAFE?.kind === "V3_PROMPT" || activeUiItem_SAFE?.kind === "V3_WAITING") && v3ProbingActive,
-      lastMeasuredOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
-      hasFooterSpacer: typeof window !== 'undefined' && !!historyRef.current?.querySelector('[data-cq-footer-spacer="true"]'),
-      transcriptLen: finalTranscriptList_S_SAFE.length || 0
-    };
-    
-    // Dedupe: Only emit if payload changed
-    const payloadKey = JSON.stringify(payload);
-    if (lastGoldenCheckPayloadRef.current === payloadKey) {
-      return; // No change - skip emission
-    }
-    
-    lastGoldenCheckPayloadRef.current = payloadKey;
-    console.log('[UI_CONTRACT][GOLDEN_CHECK]', payload);
-  }, [sessionId, activeUiItem_SAFE, bottomBarModeSOT_SAFE, v3ProbingActive, finalTranscriptList_S_SAFE]);
-  
-  // CONSOLIDATED UI CONTRACT STATUS LOG (Single Source of Truth)
-  // Emits once per mode change with all three contract aspects
-  React.useEffect(() => {
-    const footerStatus = footerClearanceStatusRef.current || 'UNKNOWN';
-    const openerStatus = openerMergeStatusRef.current || 'UNKNOWN';
-    const suppressProbes = (activeUiItem_SAFE?.kind === "V3_PROMPT" || activeUiItem_SAFE?.kind === "V3_WAITING") && v3ProbingActive;
-    
-    console.log('[UI_CONTRACT][SOT_STATUS]', {
-      footerClearance: footerStatus,
-      openerHistory: openerStatus,
-      probePolicy: suppressProbes ? 'ACTIVE_SUPPRESS' : 'HISTORY_ALLOWED',
-      activeUiItem_SKind: activeUiItem_SAFE?.kind,
-      bottomBarModeSOT_SAFE,
-      sessionId
-    });
-    
-    // Emit golden check after SOT status (only for active modes)
-    if (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO') {
-      emitGoldenContractCheck();
-    }
-  }, [bottomBarModeSOT_SAFE, activeUiItem_SAFE?.kind, v3ProbingActive, sessionId, emitGoldenContractCheck]);
-  
-  // UI CONTRACT STATUS RESET: Clear status refs on session change
-  React.useEffect(() => {
-    openerMergeStatusRef.current = 'UNKNOWN';
-    footerClearanceStatusRef.current = 'UNKNOWN';
-    
-    console.log('[UI_CONTRACT][SOT_STATUS_RESET]', {
-      sessionId,
-      reason: 'New session started - status refs cleared'
-    });
-  }, [sessionId]);
-
   // [TDZ_SHIELD_V2] Safe aliases for render-time reads (MUST stay below all hooks)
 
   // This block was moved by the TDZ fix.
