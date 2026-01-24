@@ -5479,6 +5479,7 @@ function CandidateInterviewInner() {
       }
 
       console.log('[CQ_AFTER_RESOLVER][OK]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), kind: (typeof activeUiItem_S !== 'undefined' && activeUiItem_S?.kind) || null });
+      console.log('[CQ_TRY1_STEP2_GUARD][AFTER_STEP2]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), activeUiKind: (typeof activeUiItem_S !== 'undefined' && activeUiItem_S?.kind) || null });
 
       function resolveActiveUiItem() {
     let __cqPriority = 'P0_START';
