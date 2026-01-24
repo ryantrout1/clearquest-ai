@@ -5545,7 +5545,7 @@ function CandidateInterviewInner() {
     }
     
     // GUARD: Block V3_WAITING if fallback active
-    if (v3ProbingActive && !hasActiveV3Prompt && requiredAnchorFallbackActive) {
+    if (v3ProbingActive && !hasActiveV3Prompt_SAFE && requiredAnchorFallbackActive) {
       console.log('[REQUIRED_ANCHOR_FALLBACK][BLOCK_V3_WAITING_BRANCH]', {
         reason: 'fallback_active'
       });
