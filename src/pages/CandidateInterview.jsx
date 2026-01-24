@@ -2301,6 +2301,7 @@ function CandidateInterviewInner() {
   
   // TDZ HARDENING: Mount-only forensic log
   const tdzHardenLoggedRef = useRef(false);
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'tdz harden log', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!tdzHardenLoggedRef.current) {
       tdzHardenLoggedRef.current = true;
@@ -3012,6 +3013,7 @@ function CandidateInterviewInner() {
   
   // HOOK ORDER FIX: Overflow detection MUST be top-level (before early returns)
   // Computes if scroll container content exceeds viewport - drives dynamic footer padding
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'overflow detection', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     const el = historyRef.current;
     if (!el) return;
@@ -3126,6 +3128,7 @@ function CandidateInterviewInner() {
   const v3PromptSnapshotsRef = useRef([]);
   
   // PART 3: Sync snapshots state to ref (prevents stale closure in watchdog)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 snapshots sync', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     v3PromptSnapshotsRef.current = v3PromptSnapshots;
   }, [v3PromptSnapshots]);
@@ -3185,6 +3188,7 @@ function CandidateInterviewInner() {
     } catch (_) {}
   })();
 
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'boot state snapshot', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     // BOOT-STATE INVARIANT: Detect duplicate runs per session.
     if (typeof window !== 'undefined' && sessionId) {
@@ -3204,6 +3208,7 @@ function CandidateInterviewInner() {
     });
   }, [sessionId, isLoading, session, engine_S]);
 
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'boot watchdog 5s', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!sessionId) return;
     const t = setTimeout(() => {
@@ -3218,6 +3223,7 @@ function CandidateInterviewInner() {
   }, [sessionId, isLoading, session, engine_S]);
 
   // BOOT FIX: Assign ref in useEffect to guarantee assignment before kickstart reads it
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'resume ref assign', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     try {
       resumeFromDBFnRef.current = resumeFromDB;
@@ -3455,6 +3461,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // BOOTSTRAP KICKSTART - Replaces legacy render-kick
   // ============================================================================
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'bootstrap kickstart', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     // KICKSTART INVARIANT: Detect duplicate runs per session.
     if (typeof window !== 'undefined' && sessionId) {
@@ -3517,6 +3524,7 @@ function CandidateInterviewInner() {
   // Now unconditional with boot guards to preserve original behavior
   
   // HOOK 1/7: V3 prompt phase change tracker
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 prompt phase tracker', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (__cqBootNotReady) return;
     
@@ -3545,6 +3553,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, v3PromptPhase, v3ActivePromptText, hasV3PromptText_SAFE, hasActiveV3Prompt_SAFE, activeUiItem_S_SAFE, v3ProbingActive, v3ProbingContext_S, sessionId]);
   
   // HOOK 2/7: V3 waiting watchdog
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 waiting watchdog', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (__cqBootNotReady) return;
     
@@ -3631,6 +3640,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, v3ProbingActive, bottomBarModeSOT_SAFE, hasActiveV3Prompt_SAFE, screenMode, v3ProbingContext_S, sessionId]);
   
   // HOOK 3/7: V3 gate prompt handler
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 gate prompt handler', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (__cqBootNotReady) return;
     
@@ -3646,6 +3656,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, v3Gate]);
   
   // HOOK 4/7: V3 gate decision handler
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 gate decision handler', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (__cqBootNotReady) return;
     
@@ -3667,6 +3678,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, v3GateDecision, v3MultiInstanceHandler]);
   
   // HOOK 5/7: Deferred gate prompt handler
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'deferred gate prompt', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (__cqBootNotReady) return;
     
@@ -3710,6 +3722,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, pendingGatePrompt]);
   
   // HOOK 6/7: Repair orphaned required anchor answers
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'repair orphaned anchors', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (__cqBootNotReady) return;
     
@@ -4030,6 +4043,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, transcriptSOT_S, currentItem_S, multiInstanceGate]);
   
   // HOOK 7/7: Verification instrumentation
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'verification instrumentation', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (__cqBootNotReady) return;
     
@@ -4060,6 +4074,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   
   // HOOK 8/11: MI_GATE reconciliation (was line ~6310)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'mi gate reconciliation', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (__cqBootNotReady) return;
     
@@ -4235,6 +4250,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, multiInstanceGate, activeUiItem_S_SAFE, sessionId, dbTranscript, setDbTranscriptSafe]);
   
   // HOOK 9/11: YES/NO mode alignment (was line ~15438)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'yesno mode alignment', ts: Date.now() }); } catch(_){} })();
   useLayoutEffect(() => {
     if (__cqBootNotReady) return;
     
@@ -4254,6 +4270,7 @@ function CandidateInterviewInner() {
   const finalTranscriptMemoCacheRef = useRef({ key: null, value: [] });
   
   // HOOK 10/11: Render-time freeze snapshot (was line ~15571)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'render freeze snapshot', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (__cqBootNotReady) return;
     
@@ -4266,6 +4283,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, isUserTyping, renderedTranscript]);
   
   // HOOK 11/11: Key-based monotonic assertion (was line ~15586)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'key monotonic assertion', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (__cqBootNotReady) return;
     
@@ -6165,6 +6183,7 @@ function CandidateInterviewInner() {
 
   // Track last logged V2 pack field to prevent duplicates (logging happens on answer, not render)
   // This ref is used when logging answers to check for duplicates
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v2 pack field tracker', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (v2PackMode !== "V2_PACK") return;
     if (!activeV2Pack || !currentItem_S || currentItem_S.type !== 'v2_pack_field') return;
@@ -6172,6 +6191,7 @@ function CandidateInterviewInner() {
   }, [v2PackMode, activeV2Pack, currentItem_S]);
 
   // FULL SESSION RESET: Cleanup all interview-local state when sessionId changes (prevent cross-session leakage)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'full session reset', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!sessionId) return;
     
@@ -6741,6 +6761,7 @@ function CandidateInterviewInner() {
   // SESSION RECOVERY: Attempt to find session by dept+file if sessionId missing
   const sessionRecoveryAttemptedRef = useRef(false);
   
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'session recovery', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     // Only run recovery if sessionId is missing AND no lock exists
     if (effectiveSessionId) return;
@@ -6808,6 +6829,7 @@ function CandidateInterviewInner() {
   // STABLE: Component instance tracking - MUST NOT change during session
   const componentInstanceId = useRef(`CandidateInterview-${sessionId}`);
   
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'component mount tracking', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     candidateInterviewMountCount++;
     
@@ -6978,6 +7000,7 @@ function CandidateInterviewInner() {
   }, [sessionId]);
 
   // Global TDZ Trap
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'global tdz trap', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     const handleGlobalTdz = (event) => {
       try {
@@ -7007,6 +7030,7 @@ function CandidateInterviewInner() {
   }, []);
 
   // UI_CONTRACT: 3-row shell audit (unconditional hook - must run on every render)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: '3-row shell audit', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (typeof window === 'undefined' || !historyRef.current) return;
     
@@ -7109,6 +7133,7 @@ function CandidateInterviewInner() {
     }
   }, [flushPersist]);
 
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'flush persist cleanup', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     return () => {
       if (pendingPersistRef.current) {
@@ -11080,6 +11105,7 @@ function CandidateInterviewInner() {
   }, [sessionId]);
 
   // V3 OPENER PERSISTENCE: DISABLED - Append on submit only (prevents duplicate during active state)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 opener persistence', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!activeUiItem_S || activeUiItem_S_SAFE.kind !== "V3_OPENER" || !currentItem_S) return;
 
@@ -12049,6 +12075,7 @@ function CandidateInterviewInner() {
   }, [v3ProbingContext_S, sessionId, v3ActivePromptText, currentItem_S, setDbTranscriptSafe, dbTranscript]);
   
   // V3 REFRESH RUNNER: Safe post-commit transcript refresh
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 refresh runner', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     const request = v3RefreshRequestedRef.current;
     if (!request) return;
@@ -12093,6 +12120,7 @@ function CandidateInterviewInner() {
   }, [v3RefreshTick, refreshTranscriptFromDB]);
   
   // V3 COMMIT ACK VERIFICATION: Verify answer persisted + repair if missing
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 commit ack verify', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     // KILL SWITCH: Allow instant disable if needed
     if (!ENABLE_V3_ACK_REPAIR) return;
@@ -12607,6 +12635,7 @@ function CandidateInterviewInner() {
   }, [v3ProbingActive, v3ActivePromptText, v3ProbingContext_S, sessionId, exitV3Once, transitionToAnotherInstanceGate]);
 
   // Deferred transition handler (fixes React warning)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'deferred transition', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!pendingTransition) return;
 
@@ -12808,6 +12837,7 @@ function CandidateInterviewInner() {
   // This effect removed to eliminate repeated DB fetches
   
   // FIX B4: V3 draft restore - load draft when V3 prompt becomes active (with fallback promptId)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 draft restore', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
   if (!v3ProbingActive || !v3ProbingContext_S) return;
 
@@ -12860,6 +12890,7 @@ function CandidateInterviewInner() {
   }, [v3ProbingActive, v3ProbingContext_S?.promptId, sessionId]);
   
   // FIX B4: V3 draft save - persist draft on input change during V3 probing (with fallback promptId)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 draft save', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!v3ProbingActive || !v3ProbingContext_S) return;
     
@@ -12896,6 +12927,7 @@ function CandidateInterviewInner() {
   }, [input, v3ProbingActive, v3ProbingContext_S?.promptId, sessionId]);
   
   // FIX C: V3 UI history persistence - save to localStorage
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 ui history persist', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!v3ProbingActive || !v3ProbingContext_S) return;
     if (v3ProbeDisplayHistory_S.length === 0) return;
@@ -12912,6 +12944,7 @@ function CandidateInterviewInner() {
   }, [v3ProbeDisplayHistory_S, v3ProbingActive, v3ProbingContext_S?.categoryId, sessionId]);
   
   // FIX C: V3 UI history restore - load from localStorage on mount
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 ui history restore', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!v3ProbingActive || !v3ProbingContext_S) return;
     
@@ -12935,6 +12968,7 @@ function CandidateInterviewInner() {
   }, [v3ProbingActive, v3ProbingContext_S?.categoryId, v3ProbingContext_S?.instanceNumber, sessionId]);
 
   // UX: Restore draft when currentItem_S changes
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'draft restore current item', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!currentItem_S || !sessionId) return;
     
@@ -13038,6 +13072,7 @@ function CandidateInterviewInner() {
   }, [currentItem_S, sessionId, buildDraftKey, v3ProbingActive]);
 
   // Measure question card height dynamically
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'question card height', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (questionCardRef.current) {
       const resizeObserver = new ResizeObserver((entries) => {
@@ -13051,11 +13086,13 @@ function CandidateInterviewInner() {
   }, [currentItem_S, validationHint]);
 
   // AUTO-GROWING INPUT: Sync cqDiagEnabled to ref for stable logging in long-lived callbacks
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'cqdiag sync', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     cqDiagEnabledRef.current = cqDiagEnabled;
   }, [cqDiagEnabled]);
   
   // PART A: Initialize scroll owner on mount
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'scroll owner init', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!bottomAnchorRef.current) return;
     
@@ -13085,6 +13122,7 @@ function CandidateInterviewInner() {
   const footerObservedRef = React.useRef(false);
   const footerObserverAttachLoggedRef = React.useRef(false);
   
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'footer measurement', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     let resizeObserver = null;
     let settlingTimers = [];
@@ -13180,6 +13218,7 @@ function CandidateInterviewInner() {
   }, []); // TDZ-SAFE: No deps on mode variables
 
   // PART B: Measure footer shell height from stable wrapper (all modes)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'footer shell height', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!footerShellRef.current) return;
     
@@ -13683,6 +13722,7 @@ function CandidateInterviewInner() {
   
   // GUARDRAIL C: Mode switch assertion (verify bottom spacer on mode changes)
   const prevBottomBarModeRef = React.useRef(bottomBarModeSOT);
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'mode switch assertion', ts: Date.now() }); } catch(_){} })();
   React.useEffect(() => {
     const prevMode = prevBottomBarModeRef.current;
     const currentMode = bottomBarModeSOT;
@@ -14130,6 +14170,7 @@ function CandidateInterviewInner() {
 
   // AUTO-GROWING INPUT: Re-measure footer on mode changes (prevents stale height during transitions)
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'footer remeasure mode', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     if (!footerRef.current) return;
     
@@ -14159,6 +14200,7 @@ function CandidateInterviewInner() {
 
   // Re-anchor bottom on footer height changes when auto-scroll is enabled
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'footer height reanchor', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     // SCROLL LOCK GATE: Block footer height re-anchor during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14177,6 +14219,7 @@ function CandidateInterviewInner() {
   // SMOOTH GLIDE AUTOSCROLL: ChatGPT-style smooth scrolling on new content
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
   // TDZ-SAFE: bottomBarModeSOT declared above (line ~7876) before this effect
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'smooth glide autoscroll', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block auto-scroll during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14324,6 +14367,7 @@ function CandidateInterviewInner() {
   ]);
 
   // ANCHOR LAST V3 ANSWER: Keep recently submitted answer visible during transitions
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'anchor last v3 answer', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block anchor during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14412,6 +14456,7 @@ function CandidateInterviewInner() {
   }, [transcriptSOT_S.length, bottomBarModeSOT_SAFE, effectiveItemType_SAFE, dynamicBottomPaddingPx, cqDiagEnabled]);
   
   // ANCHOR V3 PROBE QUESTION: Keep just-appended question visible (ChatGPT-style)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'anchor v3 probe question', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block anchor during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14515,6 +14560,7 @@ function CandidateInterviewInner() {
   
   // CONSOLIDATED UI CONTRACT STATUS LOG (Single Source of Truth)
   // Emits once per mode change with all three contract aspects
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'ui contract status', ts: Date.now() }); } catch(_){} })();
   React.useEffect(() => {
     const footerStatus = footerClearanceStatusRef.current || 'UNKNOWN';
     const openerStatus = openerMergeStatusRef.current || 'UNKNOWN';
@@ -14536,6 +14582,7 @@ function CandidateInterviewInner() {
   }, [bottomBarModeSOT_SAFE, activeUiItem_SAFE?.kind, v3ProbingActive, sessionId, emitGoldenContractCheck]);
   
   // UI CONTRACT STATUS RESET: Clear status refs on session change
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'ui contract reset', ts: Date.now() }); } catch(_){} })();
   React.useEffect(() => {
     openerMergeStatusRef.current = 'UNKNOWN';
     footerClearanceStatusRef.current = 'UNKNOWN';
@@ -14547,6 +14594,7 @@ function CandidateInterviewInner() {
   }, [sessionId]);
   
   // PART B: ACTIVE ITEM CHANGED - Call ensureActiveVisibleAfterRender when active item changes
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'active item changed', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     if (!shouldRenderFooter_SAFE) return;
     
@@ -14564,6 +14612,7 @@ function CandidateInterviewInner() {
   }, [activeCard_SKeySOT, currentItem_S?.id, currentItem_S?.type, shouldRenderFooter_SAFE, ensureActiveVisibleAfterRender, activeKindSOT, bottomBarModeSOTSafe, effectiveItemType_SAFE, activeUiItem_S]);
   
   // PART B: RENDER LIST APPENDED - TDZ-safe using ref (no direct finalTranscriptList_S reference)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'render list appended', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     if (!shouldRenderFooter_SAFE) return;
     
@@ -14586,6 +14635,7 @@ function CandidateInterviewInner() {
   }, [shouldRenderFooter_SAFE, ensureActiveVisibleAfterRender, activeCard_SKeySOT, activeKindSOT, bottomBarModeSOTSafe, effectiveItemType_SAFE, activeUiItem_S]);
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'force scroll question shown', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block force-scroll during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14688,6 +14738,7 @@ function CandidateInterviewInner() {
   }, [effectiveItemType_SAFE, shouldRenderFooter_SAFE, currentItem_S?.id, currentItem_S?.type, footerMeasuredHeightPx, dynamicBottomPaddingPx]);
   
   // FOOTER PADDING COMPENSATION: Prevent jump when footer height changes
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'footer padding compensate', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block padding compensation during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14767,6 +14818,7 @@ function CandidateInterviewInner() {
   
   // TDZ GUARD: Do not reference finalTranscriptList_S in hook deps before it is initialized.
   // DETERMINISTIC BOTTOM ANCHOR ENFORCEMENT: Keep transcript pinned to bottom when expected
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'bottom anchor enforce', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block bottom anchor during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14810,6 +14862,7 @@ function CandidateInterviewInner() {
   ]);
   
   // GRAVITY FOLLOW: Auto-scroll active card into view when it changes (ChatGPT-style)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'gravity follow', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block gravity follow during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14977,6 +15030,7 @@ function CandidateInterviewInner() {
   }, [shouldRenderFooter_SAFE, hasActiveCardSOT, activeCard_SKeySOT, dynamicFooterHeightPx]);
   
   // ACTIVE CARD OVERLAP NUDGE: Ensure active card never hides behind footer when footer changes
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'active card overlap nudge', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block overlap nudge during any scroll lock
     if (isScrollWriteLocked()) {
@@ -15131,6 +15185,7 @@ function CandidateInterviewInner() {
   ]);
 
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 prompt visibility', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     // SCROLL LOCK GATE: Block prompt visibility during any scroll lock
     if (isScrollWriteLocked()) {
@@ -15222,6 +15277,7 @@ function CandidateInterviewInner() {
   }, [v3ProbingActive, v3ActivePromptText, isUserTyping, bottomBarModeSOT_SAFE, shouldRenderFooter]);
 
   // AUTO-GROWING INPUT: Auto-resize textarea based on content (ChatGPT-style)
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'auto grow textarea', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     const textarea = footerTextareaRef.current || inputRef.current;
     if (!textarea) return;
@@ -15276,6 +15332,7 @@ function CandidateInterviewInner() {
   }, [input, openerDraft, bottomBarModeSOT]);
 
   // DEFENSIVE GUARD: Force exit WELCOME mode when interview has progressed
+  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'force exit welcome', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (screenMode !== "WELCOME") return; // Only act if we're in WELCOME
     
