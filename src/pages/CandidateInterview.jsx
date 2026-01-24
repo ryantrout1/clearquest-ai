@@ -6093,10 +6093,10 @@ function CandidateInterviewInner() {
   }
 
   // UX: Build draft key for sessionStorage
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'buildDraftKey', ts: Date.now() }); } catch(_){} })();
-  const buildDraftKey = useCallback((sessionId, packId, fieldKey, instanceNumber) => {
+  // REACT #310 FIX: Converted from useCallback to plain function (removes hook dispatcher slot)
+  function buildDraftKey(sessionId, packId, fieldKey, instanceNumber) {
     return `cq_draft_${sessionId}_${packId || "none"}_${fieldKey || "none"}_${instanceNumber || 0}`;
-  }, []);
+  }
 
   // UX: Save draft to sessionStorage
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'saveDraft', ts: Date.now() }); } catch(_){} })();
