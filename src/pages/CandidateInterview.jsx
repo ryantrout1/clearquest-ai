@@ -5025,7 +5025,6 @@ function CandidateInterviewInner() {
     });
   }, [isUserTyping, currentItem_S]);
   
-  console.log('[CQ_USECALLBACK_MARK]', { idx: 16, name: 'scrollToBottomSafely', ts: Date.now() });
   const lastQuestionShownIdRef = useRef(null); // Track last question shown for force-scroll dedupe
   
   // DEV DEBUG: Enable evidence bundle capture (v3debug=1 or localStorage flag)
