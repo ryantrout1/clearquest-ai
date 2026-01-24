@@ -6099,8 +6099,8 @@ function CandidateInterviewInner() {
   }
 
   // UX: Save draft to sessionStorage
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'saveDraft', ts: Date.now() }); } catch(_){} })();
-  const saveDraft = useCallback((value) => {
+  // REACT #310 FIX: Converted from useCallback to plain function (removes hook dispatcher slot)
+  function saveDraft(value) {
     if (!sessionId) return;
 
     const packId = currentItem_S?.packId || activeV2Pack?.packId || null;
@@ -6130,7 +6130,7 @@ function CandidateInterviewInner() {
       });
       console.warn("[UX][DRAFT] Failed to save draft", e);
     }
-  }, [sessionId, currentItem_S, activeV2Pack, buildDraftKey]);
+  }
 
   // UX: Clear draft from sessionStorage
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'clearDraft', ts: Date.now() }); } catch(_){} })();
