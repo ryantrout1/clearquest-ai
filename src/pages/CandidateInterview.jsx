@@ -4246,10 +4246,6 @@ function CandidateInterviewInner() {
   // HOOK 12/12: renderedTranscript - REMOVED (duplicate, moved to before Hook 7/7)
   // ============================================================================
   
-  // HOOK ORDER FIX: Ref-based memo cache for finalTranscriptList_S (React #310 fix)
-  // Replaces conditional useMemo with ref-based caching (stable hook count)
-  const finalTranscriptMemoCacheRef = useRef({ key: null, value: [] });
-  
   // ============================================================================
   // HOISTED DECLARATIONS - Variables needed by hoisted hooks and later code
   // ============================================================================
