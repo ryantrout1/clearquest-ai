@@ -1441,6 +1441,10 @@ function CandidateInterviewInner() {
     } catch (_) {}
   })();
 
+  // REACT #310 CENSUS: Gating flag (enable via window.CQ_DEBUG_HOOK_CENSUS = true)
+  const __cqHookCensusEnabled =
+    typeof window !== 'undefined' && window.CQ_DEBUG_HOOK_CENSUS === true;
+
   // REACT #310 CENSUS: Global render counter + hook census utilities
   const cqRenderId = (() => {
     try {
@@ -1448,7 +1452,7 @@ function CandidateInterviewInner() {
       if (!window.CQ_RENDER_ID) window.CQ_RENDER_ID = 0;
       window.CQ_RENDER_ID++;
       const rid = window.CQ_RENDER_ID;
-      console.log('[CQ_RENDER_ID]', { rid, ts: Date.now() });
+      if (__cqHookCensusEnabled) console.log('[CQ_RENDER_ID]', { rid, ts: Date.now() });
       return () => rid;
     } catch (_) {
       return () => 0;
@@ -1459,7 +1463,7 @@ function CandidateInterviewInner() {
     try {
       if (typeof window === 'undefined') return;
       window.CQ_HOOK_INDEX = 0;
-      console.log('[CQ_HOOK_CENSUS_INIT]', { rid, ts: Date.now() });
+      if (__cqHookCensusEnabled) console.log('[CQ_HOOK_CENSUS_INIT]', { rid, ts: Date.now() });
     } catch (_) {}
   };
   
@@ -1467,7 +1471,7 @@ function CandidateInterviewInner() {
     try {
       if (typeof window === 'undefined') return;
       const idx = ++window.CQ_HOOK_INDEX;
-      console.log('[CQ_HOOK_CENSUS]', { idx, name, ts: Date.now() });
+      if (__cqHookCensusEnabled) console.log('[CQ_HOOK_CENSUS]', { idx, name, ts: Date.now() });
     } catch (_) {}
   };
   
@@ -20730,7 +20734,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   // REACT #310 CENSUS: Render end hook count
   try {
     if (typeof window !== 'undefined' && window.CQ_HOOK_INDEX !== undefined) {
-      console.log('[CQ_HOOK_CENSUS_END]', { rid: __cqRid, hookCount: window.CQ_HOOK_INDEX, ts: Date.now() });
+      if (__cqHookCensusEnabled) console.log('[CQ_HOOK_CENSUS_END]', { rid: __cqRid, hookCount: window.CQ_HOOK_INDEX, ts: Date.now() });
     }
   } catch (_) {}
   
