@@ -5352,41 +5352,55 @@ function CandidateInterviewInner() {
   // TASK A: V3 VISIBLE PROMPT CARD SIGNAL - Prevents MI_GATE from jumping ahead during transitions
   // Check if v3ProbeDisplayHistory_S has an unanswered question (Q exists but no matching A)
   const v3HasVisiblePromptCard = (() => {
-    if (!v3ProbeDisplayHistory_S || v3ProbeDisplayHistory_S.length === 0) return false;
-    
-    // Get current loopKey from active context
-    const activeLoopKey = v3ProbingContext_S 
-      ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`
-      : null;
-    
-    if (!activeLoopKey) return false;
-    
-    // Check if there's an unanswered question for this loopKey
-    const loopEntries = v3ProbeDisplayHistory_S.filter(e => e.loopKey === activeLoopKey);
-    if (loopEntries.length === 0) return false;
-    
-    // Group by sequence number from stableKey (v3-ui:<loopKey>:<n>:q/a)
-    const sequenceMap = new Map();
-    for (const entry of loopEntries) {
-      const match = entry.stableKey?.match(/:(\d+):(q|a)$/);
-      if (match) {
-        const seqNum = match[1];
-        const qOrA = match[2];
-        if (!sequenceMap.has(seqNum)) {
-          sequenceMap.set(seqNum, { q: null, a: null });
+    try {
+      if (!v3ProbeDisplayHistory_S || v3ProbeDisplayHistory_S.length === 0) return false;
+      
+      // Get current loopKey from active context
+      const activeLoopKey = v3ProbingContext_S 
+        ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`
+        : null;
+      
+      if (!activeLoopKey) return false;
+      
+      // Check if there's an unanswered question for this loopKey
+      const loopEntries = v3ProbeDisplayHistory_S.filter(e => e.loopKey === activeLoopKey);
+      if (loopEntries.length === 0) return false;
+      
+      // Group by sequence number from stableKey (v3-ui:<loopKey>:<n>:q/a)
+      const sequenceMap = new Map();
+      for (const entry of loopEntries) {
+        const match = entry.stableKey?.match(/:(\d+):(q|a)$/);
+        if (match) {
+          const seqNum = match[1];
+          const qOrA = match[2];
+          if (!sequenceMap.has(seqNum)) {
+            sequenceMap.set(seqNum, { q: null, a: null });
+          }
+          sequenceMap.get(seqNum)[qOrA] = entry;
         }
-        sequenceMap.get(seqNum)[qOrA] = entry;
       }
-    }
-    
-    // Find any Q without matching A
-    for (const [seqNum, pair] of sequenceMap.entries()) {
-      if (pair.q && !pair.a) {
-        return true; // Found unanswered question
+      
+      // Find any Q without matching A
+      for (const [seqNum, pair] of sequenceMap.entries()) {
+        if (pair.q && !pair.a) {
+          return true; // Found unanswered question
+        }
       }
+      
+      return false;
+    } catch (e) {
+      console.error('[CQ_TRY1_STEP2_GUARD][V3_VISIBLE_PROMPT_CARD_ERROR]', {
+        message: e?.message,
+        name: e?.name,
+        stack: e?.stack?.substring(0, 200),
+        lastRenderStep: (typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null),
+        sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
+        hasV3ProbeHistory: !!(v3ProbeDisplayHistory_S),
+        v3ProbeHistoryLen: v3ProbeDisplayHistory_S?.length || 0,
+        hasV3Context: !!(v3ProbingContext_S)
+      });
+      return false; // Fail-safe: assume no visible prompt card on error
     }
-    
-    return false;
   })();
   
   cqLog('DEBUG', "[ORDER][V3_VISIBLE_PROMPT_CARD]", {
@@ -5404,6 +5418,7 @@ function CandidateInterviewInner() {
     });
   } catch (_) {}
   
+  console.log('[CQ_TRY1_STEP2_GUARD][ENTERED]', { sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), ts: Date.now() });
   window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_2:BEFORE_ACTIVE_UI_PICK';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '2:BEFORE_ACTIVE_UI_PICK' });
   cqMark('BEFORE_ACTIVE_UI_PICK');
