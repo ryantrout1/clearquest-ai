@@ -915,13 +915,6 @@ const ensureWelcomeInTranscript = async (sessionId, currentTranscript) => {
 
 const useProbeEngineV2 = usePerFieldProbing;
 
-// REACT #310 FIX: Hoist pack probing check to top-level (prevent hook call in handleAnswer callback)
-const __cqPackIdForProbing = currentItem_S?.packId ?? null;
-const __cqUsesPerFieldProbing = useMemo(() => {
-  if (!__cqPackIdForProbing) return false;
-  return useProbeEngineV2(__cqPackIdForProbing);
-}, [__cqPackIdForProbing]);
-
 const getFieldProbeKey = (packId, instanceNumber, fieldKey) => `${packId}_${instanceNumber || 1}_${fieldKey}`;
 
 // STEP 1: Helper to store backend question text
@@ -2531,6 +2524,13 @@ function CandidateInterviewInner() {
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
+  
+  // REACT #310 FIX: Hoist pack probing check to top-level (prevent hook call in handleAnswer callback)
+  const __cqPackIdForProbing = currentItem_S?.packId ?? null;
+  const __cqUsesPerFieldProbing = useMemo(() => {
+    if (!__cqPackIdForProbing) return false;
+    return useProbeEngineV2(__cqPackIdForProbing);
+  }, [__cqPackIdForProbing]);
   
   // Footer overlap guardrail: Track max overlap seen for regression detection
   const maxOverlapSeenRef = React.useRef({ maxOverlapPx: 0, lastModeSeen: null });
