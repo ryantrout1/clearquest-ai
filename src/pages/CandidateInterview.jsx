@@ -11121,6 +11121,7 @@ function CandidateInterviewInner() {
     });
     
     // DO NOT append to transcript - return early
+    console.log('[V3_UI_CONTRACT][INVARIANT]', { promptId, loopKey, action: 'TRANSCRIPT_WRITE_BLOCKED' });
     return promptId;
 
     // REGRESSION GUARD: Capture transcript length before V3 prompt commit

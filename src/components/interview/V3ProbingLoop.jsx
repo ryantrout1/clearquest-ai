@@ -691,6 +691,7 @@ export default function V3ProbingLoop({
       });
       
       // TASK 1B: Include isEditorPreview in payload (frontend SOT)
+      console.log('[V3_PROBING_LOOP][INVARIANT]', { loopKey, isInitialCall: Boolean(isInitialCall), hasIncidentId: !!incidentId });
       const enginePromise = base44.functions.invoke('decisionEngineV3', {
         sessionId,
         categoryId,

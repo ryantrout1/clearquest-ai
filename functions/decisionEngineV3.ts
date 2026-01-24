@@ -1516,6 +1516,7 @@ async function decisionEngineV3Probe(base44, {
   // Detect opener narrative: use isInitialCall flag from caller (reliable on first call)
   const isOpenerNarrative = Boolean(isInitialCall) && latestAnswerText && latestAnswerText.length >= 20;
   
+  console.log('[DECISION_ENGINE_V3][INVARIANT]', { traceId: effectiveTraceId, isInitialCall: Boolean(isInitialCall), isOpenerNarrative: Boolean(isOpenerNarrative) });
   console.log('[V3_EXTRACT][PRE_CALL]', {
     traceId: effectiveTraceId,
     isInitialCall,
