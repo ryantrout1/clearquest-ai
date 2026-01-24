@@ -5523,6 +5523,7 @@ function CandidateInterviewInner() {
       __cqPriority = 'P1';
       window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3C:BEFORE_PRIORITY1';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3C:BEFORE_PRIORITY1' });
+    console.log('[CQ_RESOLVER_BC][BEFORE_P1]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null) });
     if (hasActiveV3Prompt_SAFE) {
       return {
         kind: "V3_PROMPT",
@@ -5741,6 +5742,7 @@ function CandidateInterviewInner() {
     
       // Priority 4: Default (regular questions, v2 pack fields, etc.)
       __cqPriority = 'P4';
+      console.log('[CQ_RESOLVER_BC][BEFORE_P4_RETURN]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), priority: __cqPriority });
       return {
         kind: "DEFAULT",
         currentItem_SType: currentItem_S?.type,
