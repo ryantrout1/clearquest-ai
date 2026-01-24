@@ -11674,6 +11674,7 @@ function CandidateInterviewInner() {
             
             working = [...working, qEntry];
             qAdded = true;
+            console.log('[V3_REPAIR][Q_PAIRED_WITH_A]', { qStableKey, willAppendA: true, source: 'handleV3AnswerSubmit' });
             
             console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_COMMIT]', {
               stableKey: qStableKey,
@@ -12129,6 +12130,7 @@ function CandidateInterviewInner() {
         
         working = [...working, qEntry];
         console.log('[V3_PROBE][ACK_REPAIR_Q]', { stableKey: ack.expectedQKey });
+        console.log('[V3_REPAIR][Q_PAIRED_WITH_A]', { qStableKey: ack.expectedQKey, willAppendA: true, source: 'ack_repair' });
       }
       
       // Insert missing answer
