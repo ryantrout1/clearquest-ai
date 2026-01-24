@@ -3563,6 +3563,7 @@ function CandidateInterviewInner() {
   
   // REACT #310 CENSUS: Mark BATCH 1 entry
   cqHookMark('BEFORE_BATCH1_HOISTED_HOOKS');
+  cqHookMark('B1_EFF_01');
   
   // HOOK 1/7: V3 prompt phase change tracker
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 prompt phase tracker', ts: Date.now() }); } catch(_){} })();
@@ -3592,6 +3593,8 @@ function CandidateInterviewInner() {
       }
     }
   }, [__cqBootNotReady, v3PromptPhase, v3ActivePromptText, hasV3PromptText_SAFE, hasActiveV3Prompt_SAFE, activeUiItem_S_SAFE, v3ProbingActive, v3ProbingContext_S, sessionId]);
+  
+  cqHookMark('B1_EFF_02');
   
   // HOOK 2/7: V3 waiting watchdog
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 waiting watchdog', ts: Date.now() }); } catch(_){} })();
@@ -3680,6 +3683,8 @@ function CandidateInterviewInner() {
     };
   }, [__cqBootNotReady, v3ProbingActive, bottomBarModeSOT_SAFE, hasActiveV3Prompt_SAFE, screenMode, v3ProbingContext_S, sessionId]);
   
+  cqHookMark('B1_EFF_03');
+  
   // HOOK 3/7: V3 gate prompt handler
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 gate prompt handler', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
@@ -3695,6 +3700,8 @@ function CandidateInterviewInner() {
       setV3Gate(prev => ({ ...prev, active: true }));
     }
   }, [__cqBootNotReady, v3Gate]);
+  
+  cqHookMark('B1_EFF_04');
   
   // HOOK 4/7: V3 gate decision handler
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 gate decision handler', ts: Date.now() }); } catch(_){} })();
@@ -3717,6 +3724,8 @@ function CandidateInterviewInner() {
     // Clear decision
     setV3GateDecision(null);
   }, [__cqBootNotReady, v3GateDecision, v3MultiInstanceHandler]);
+  
+  cqHookMark('B1_EFF_05');
   
   // HOOK 5/7: Deferred gate prompt handler
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'deferred gate prompt', ts: Date.now() }); } catch(_){} })();
@@ -3761,6 +3770,8 @@ function CandidateInterviewInner() {
     
     setPendingGatePrompt(null);
   }, [__cqBootNotReady, pendingGatePrompt]);
+  
+  cqHookMark('B1_EFF_06');
   
   // HOOK 6/7: Repair orphaned required anchor answers
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'repair orphaned anchors', ts: Date.now() }); } catch(_){} })();
@@ -3834,6 +3845,8 @@ function CandidateInterviewInner() {
       }
     }
   }, [__cqBootNotReady, canonicalTranscriptRef.current.length, sessionId, ensureRequiredAnchorQuestionInTranscript]);
+  
+  cqHookMark('B1_MEMO_12');
   
   // ============================================================================
   // HOOK 12/12: renderedTranscript (MOVED from line ~3764 to prevent TDZ in Hook 7/7)
@@ -4083,6 +4096,8 @@ function CandidateInterviewInner() {
     return finalFiltered;
   }, [__cqBootNotReady, transcriptSOT_S, currentItem_S, multiInstanceGate]);
   
+  cqHookMark('B1_EFF_07');
+  
   // HOOK 7/7: Verification instrumentation
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'verification instrumentation', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
@@ -4113,6 +4128,8 @@ function CandidateInterviewInner() {
   // ============================================================================
   // BATCH 2: ADDITIONAL HOISTED HOOKS - Moved from inside TRY1 (Phase 2)
   // ============================================================================
+  
+  cqHookMark('B2_EFF_08');
   
   // HOOK 8/11: MI_GATE reconciliation (was line ~6310)
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'mi gate reconciliation', ts: Date.now() }); } catch(_){} })();
@@ -4290,6 +4307,8 @@ function CandidateInterviewInner() {
     }
   }, [__cqBootNotReady, multiInstanceGate, activeUiItem_S_SAFE, sessionId, dbTranscript, setDbTranscriptSafe]);
   
+  cqHookMark('B2_EFF_09');
+  
   // HOOK 9/11: YES/NO mode alignment (was line ~15438)
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'yesno mode alignment', ts: Date.now() }); } catch(_){} })();
   useLayoutEffect(() => {
@@ -4305,6 +4324,8 @@ function CandidateInterviewInner() {
       ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', (activeUiItem_S_SAFE?.kind || currentItem_S?.type || 'UNKNOWN'), isYesNoModeFresh, isMiGateFresh);
     });
   }, [__cqBootNotReady, bottomBarModeSOT_SAFE, ensureActiveVisibleAfterRender, activeUiItem_S_SAFE, currentItem_S]);
+  
+  cqHookMark('B2_EFF_10');
   
   // HOOK ORDER FIX: Ref-based memo cache for finalTranscriptList_S (React #310 fix)
   // Replaces conditional useMemo with ref-based caching (stable hook count)
@@ -4322,6 +4343,8 @@ function CandidateInterviewInner() {
       renderedTranscriptSnapshotRef.current = null;
     }
   }, [__cqBootNotReady, isUserTyping, renderedTranscript]);
+  
+  cqHookMark('B2_EFF_11');
   
   // HOOK 11/11: Key-based monotonic assertion (was line ~15586)
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'key monotonic assertion', ts: Date.now() }); } catch(_){} })();
@@ -4350,6 +4373,8 @@ function CandidateInterviewInner() {
     
     prevKeysSetRef.current = nextKeys;
   }, [__cqBootNotReady, transcriptSOT_S]);
+  
+  cqHookMark('B2_EFF_12');
   
   // ============================================================================
   // HOOK 12/56: V2 pack field tracker (HOISTED from TRY1 - React #310 fix)
@@ -6241,6 +6266,7 @@ function CandidateInterviewInner() {
 
   // REACT #310 CENSUS: Mark before "full session reset"
   cqHookMark('BEFORE_FULL_SESSION_RESET');
+  cqHookMark('PRE_RESET_BLOCK_A');
   
   // FULL SESSION RESET: Cleanup all interview-local state when sessionId changes (prevent cross-session leakage)
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'full session reset', ts: Date.now() }); } catch(_){} })();
@@ -6364,6 +6390,7 @@ function CandidateInterviewInner() {
 
   // REACT #310 CENSUS: Mark after "full session reset"
   cqHookMark('AFTER_FULL_SESSION_RESET');
+  cqHookMark('POST_RESET_BLOCK_A');
 
   function getCurrentPrompt() {
     // PRIORITY 1: V3 prompt active - use hasActiveV3Prompt (TDZ-safe minimal check)
@@ -6814,6 +6841,8 @@ function CandidateInterviewInner() {
   // This avoids TDZ error while keeping hook order consistent
 
   // STABLE: Single mount per session - track by sessionId (survives remounts)
+  cqHookMark('POST_RESET_BLOCK_B');
+  
   const initMapRef = useRef({});
   
   // SESSION RECOVERY: Attempt to find session by dept+file if sessionId missing
@@ -6884,6 +6913,8 @@ function CandidateInterviewInner() {
   
 // DUPLICATE useEffect block removed
 
+  cqHookMark('POST_RESET_BLOCK_C');
+  
   // STABLE: Component instance tracking - MUST NOT change during session
   const componentInstanceId = useRef(`CandidateInterview-${sessionId}`);
   
@@ -7056,6 +7087,8 @@ function CandidateInterviewInner() {
       window.removeEventListener('unhandledrejection', handleRejection);
     };
   }, [sessionId]);
+
+  cqHookMark('POST_RESET_BLOCK_D');
 
   // Global TDZ Trap
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'global tdz trap', ts: Date.now() }); } catch(_){} })();
