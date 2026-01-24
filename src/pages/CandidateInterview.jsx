@@ -5437,7 +5437,7 @@ function CandidateInterviewInner() {
   } else {
     // Boot complete - call resolver with failopen wrapper
     try {
-      console.log('[CQ_TDZ_CONFIRM][BEFORE_RESOLVE_ACTIVE_UI]', {
+      cqLog('DEBUG', '[CQ_TDZ_CONFIRM][BEFORE_RESOLVE_ACTIVE_UI]', {
         ts: Date.now(),
         sessionId,
         hasActiveV3Prompt_SAFE,
@@ -5467,7 +5467,7 @@ function CandidateInterviewInner() {
       // PHASE ALIGNMENT: Compute phase for consistency checks
       __cqPriority = 'P0';
       const resolverPhaseSOT = computeInterviewPhaseSOT();
-      console.log('[CQ_TDZ_CONFIRM][PHASE_OK]', {
+      cqLog('DEBUG', '[CQ_TDZ_CONFIRM][PHASE_OK]', {
         ts: Date.now(),
         phase: resolverPhaseSOT?.phase,
         step: 'PHASE_COMPUTED'
@@ -5732,7 +5732,7 @@ function CandidateInterviewInner() {
     }
   }
   
-  console.log('[CQ_TDZ_CONFIRM][RESOLVE_ACTIVE_UI_OK]', {
+  cqLog('DEBUG', '[CQ_TDZ_CONFIRM][RESOLVE_ACTIVE_UI_OK]', {
     ts: Date.now(),
     sessionId,
     kind: activeUiItem_S?.kind,
@@ -20413,7 +20413,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     };
   };
 
-    console.log('[CQ_TDZ_CONFIRM][TRY1_COMPLETED]', {
+    cqLog('DEBUG', '[CQ_TDZ_CONFIRM][TRY1_COMPLETED]', {
       ts: Date.now(),
       sessionId,
       activeUiKind: activeUiItem_S?.kind,
