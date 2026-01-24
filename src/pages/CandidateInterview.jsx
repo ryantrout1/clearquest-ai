@@ -915,6 +915,13 @@ const ensureWelcomeInTranscript = async (sessionId, currentTranscript) => {
 
 const useProbeEngineV2 = usePerFieldProbing;
 
+// REACT #310 FIX: Hoist pack probing check to top-level (prevent hook call in handleAnswer callback)
+const __cqPackIdForProbing = currentItem_S?.packId ?? null;
+const __cqUsesPerFieldProbing = useMemo(() => {
+  if (!__cqPackIdForProbing) return false;
+  return useProbeEngineV2(__cqPackIdForProbing);
+}, [__cqPackIdForProbing]);
+
 const getFieldProbeKey = (packId, instanceNumber, fieldKey) => `${packId}_${instanceNumber || 1}_${fieldKey}`;
 
 // STEP 1: Helper to store backend question text
@@ -7785,9 +7792,6 @@ function CandidateInterviewInner() {
 
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'handleAnswer', ts: Date.now() }); } catch(_){} })();
   const handleAnswer = useCallback(async (value) => {
-    // PART A: Local alias to avoid "use*" naming at call sites (React #310 disambiguation)
-    const probeEngineV2 = useProbeEngineV2;
-    
     // GUARD: Block YES/NO during V3 prompt answering (prevents stray "Yes" bubble)
     if (activeUiItem_S_SAFE?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
       // Allow V3 probe answer submission (text input), block YES/NO only
@@ -9232,7 +9236,7 @@ function CandidateInterviewInner() {
           const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
           const isV3PackExplicit = packConfig?.isV3Pack === true;
           const isV2PackExplicit = packConfig?.isV2Pack === true;
-          const usesPerFieldProbing = probeEngineV2(packId);
+          const usesPerFieldProbing = __cqUsesPerFieldProbing;
 
             // V3 takes precedence over V2 - explicit V3 flag wins
             let isV3PackFinal = isV3PackExplicit || (isV3Pack && !isV2PackExplicit);
@@ -10106,7 +10110,7 @@ function CandidateInterviewInner() {
         const normalizedAnswer = validation.normalized || value;
 
         // Check if this is a V2 pack
-        const isV2Pack = probeEngineV2(packId);
+        const isV2Pack = __cqUsesPerFieldProbing;
 
         console.log('[FOLLOWUP ANSWER] V2 pack check', {
           packId,
