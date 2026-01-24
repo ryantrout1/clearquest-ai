@@ -11121,6 +11121,7 @@ function CandidateInterviewInner() {
     });
     
     // DO NOT append to transcript - return early
+    return promptId;
 
     // REGRESSION GUARD: Capture transcript length before V3 prompt commit
     const transcriptLenBeforePromptCommit = dbTranscript.length;
@@ -22461,6 +22462,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 instanceNumber={v3ProbingContext_S.instanceNumber}
                 packData={v3ProbingContext_S.packData}
                 openerAnswer={v3ProbingContext_S.openerAnswer}
+                isInitialCall={v3ProbingContext_S.incidentId === null}
                 traceId={v3ProbingContext_S.traceId}
                 onComplete={handleV3ProbingComplete}
                 onTranscriptUpdate={handleV3TranscriptUpdate}
