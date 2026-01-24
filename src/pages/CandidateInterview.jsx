@@ -17494,9 +17494,10 @@ function CandidateInterviewInner() {
       };
     }
   }
+  console.log('[CQ_DERIVED][MID]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), activeCard_SKind: (typeof activeCard_S !== 'undefined' && activeCard_S?.kind) || null });
   activePromptText = computeActivePromptText({
-      requiredAnchorFallbackActive,
-      requiredAnchorCurrent,
+    requiredAnchorFallbackActive,
+    requiredAnchorCurrent,
       v3ProbingContext_S,
       v3ProbingActive,
       v3ActivePromptText,
