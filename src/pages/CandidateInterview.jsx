@@ -20495,8 +20495,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     
     if (_cqIsTdzRefErr && !cqFailopenOnceRef.current.try1Tdz) {
       cqFailopenOnceRef.current.try1Tdz = true;
-      try { if (typeof setError === 'function') setError(String(e?.message || 'Render TDZ')); } catch (_) {}
-      try { if (typeof setIsLoading === 'function') setIsLoading(false); } catch (_) {}
+      // REACT #310 FIX: Never setState during render; rely on existing error boundary / post-render recovery.
       return null;
     }
     
