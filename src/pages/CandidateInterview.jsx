@@ -3154,6 +3154,15 @@ function CandidateInterviewInner() {
   footerHeightPxRef.current = footerHeightPx;
   transcriptSOTRef.current = transcriptSOT_S;
 
+  // REACT #310 INSTRUMENTATION: Global sequence counter (re-initialized every render)
+  (function(){
+    try {
+      const w = (typeof window !== 'undefined') ? window : null;
+      if (!w) return;
+      w.CQ_USECALLBACK_SEQ = 0; // Reset counter every render
+    } catch (_) {}
+  })();
+
   // REACT #310 CANARY: Detect multi-React instance (one-render diagnostic)
   (function(){
     try {
