@@ -1431,6 +1431,11 @@ function CandidateInterviewInner() {
   } catch (_) {}
   
   const __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ = 'CQ_CI_BUILDSTAMP_2026-01-23T01:00Z_v3';
+  
+  // REACT #310 CENSUS: Initialize per-render hook tracking
+  const __cqRid = cqRenderId();
+  cqHookCensusInit(__cqRid);
+  
   console.log("[TDZ_TRACE][FN_ENTER]");
   try {
     const scripts = (typeof document !== 'undefined')
@@ -1825,6 +1830,9 @@ function CandidateInterviewInner() {
   // CRITICAL: This hook MUST be declared before the no-session guard (line ~1463)
   // Moving it below the early return will cause: "Cannot access 'showRedirectFallback' before initialization"
   // 
+  // REACT #310 CENSUS: Mark first hook cluster
+  cqHookMark('BEFORE_FIRST_HOOKS');
+  
   // FORENSIC: TDZ FIX - showRedirectFallback state MUST be before early return
   const [showRedirectFallback, setShowRedirectFallback] = useState(false);
 
@@ -3163,6 +3171,36 @@ function CandidateInterviewInner() {
     } catch (_) {}
   })();
 
+  // REACT #310 CENSUS: Global render counter + hook census utilities
+  const cqRenderId = (() => {
+    try {
+      if (typeof window === 'undefined') return () => 0;
+      if (!window.CQ_RENDER_ID) window.CQ_RENDER_ID = 0;
+      window.CQ_RENDER_ID++;
+      const rid = window.CQ_RENDER_ID;
+      console.log('[CQ_RENDER_ID]', { rid, ts: Date.now() });
+      return () => rid;
+    } catch (_) {
+      return () => 0;
+    }
+  })();
+  
+  const cqHookCensusInit = (rid) => {
+    try {
+      if (typeof window === 'undefined') return;
+      window.CQ_HOOK_INDEX = 0;
+      console.log('[CQ_HOOK_CENSUS_INIT]', { rid, ts: Date.now() });
+    } catch (_) {}
+  };
+  
+  const cqHookMark = (name) => {
+    try {
+      if (typeof window === 'undefined') return;
+      const idx = ++window.CQ_HOOK_INDEX;
+      console.log('[CQ_HOOK_CENSUS]', { idx, name, ts: Date.now() });
+    } catch (_) {}
+  };
+
   // REACT #310 FIX: Sync refs for scrollToBottomSafely (plain function version)
   footerHeightPxRef.current = footerHeightPx;
   transcriptSOTRef.current = transcriptSOT_S;
@@ -3522,6 +3560,9 @@ function CandidateInterviewInner() {
   // ============================================================================
   // These hooks were inside TRY1 conditional gate, causing hook count mismatch
   // Now unconditional with boot guards to preserve original behavior
+  
+  // REACT #310 CENSUS: Mark BATCH 1 entry
+  cqHookMark('BEFORE_BATCH1_HOISTED_HOOKS');
   
   // HOOK 1/7: V3 prompt phase change tracker
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 prompt phase tracker', ts: Date.now() }); } catch(_){} })();
@@ -6198,9 +6239,15 @@ function CandidateInterviewInner() {
 
   // REACT #310 FIX: v2 pack field tracker MOVED to BATCH 2 (hoisted from TRY1)
 
+  // REACT #310 CENSUS: Mark before "full session reset"
+  cqHookMark('BEFORE_FULL_SESSION_RESET');
+  
   // FULL SESSION RESET: Cleanup all interview-local state when sessionId changes (prevent cross-session leakage)
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'full session reset', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
+    // REACT #310 CENSUS: Invariant - effect body executed
+    console.log('[REACT_310_PROBE][FULL_SESSION_RESET_EFFECT_RAN]', { rid: __cqRid, ts: Date.now(), sessionId });
+    
     if (!sessionId) return;
     
     // V3 ACK METRICS: Log final stats on session change
@@ -6314,6 +6361,9 @@ function CandidateInterviewInner() {
       allStateCleared: true
     });
   }, [sessionId]);
+
+  // REACT #310 CENSUS: Mark after "full session reset"
+  cqHookMark('AFTER_FULL_SESSION_RESET');
 
   function getCurrentPrompt() {
     // PRIORITY 1: V3 prompt active - use hasActiveV3Prompt (TDZ-safe minimal check)
@@ -20662,6 +20712,13 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   const footerClearancePx_SAFE = (typeof footerClearancePx !== 'undefined') ? footerClearancePx : 0;
   
   const bottomSpacerPx_SAFE = (typeof bottomSpacerPx !== 'undefined') ? bottomSpacerPx : 80;
+  // REACT #310 CENSUS: Render end hook count
+  try {
+    if (typeof window !== 'undefined' && window.CQ_HOOK_INDEX !== undefined) {
+      console.log('[CQ_HOOK_CENSUS_END]', { rid: __cqRid, hookCount: window.CQ_HOOK_INDEX, ts: Date.now() });
+    }
+  } catch (_) {}
+  
   const effectiveItemType_SAFE = effectiveItemType;
   const renderedTranscriptSnapshotRef_SAFE = renderedTranscriptSnapshotRef;
   const finalTranscriptList_S_SAFE = (typeof finalTranscriptList_S !== 'undefined') ? finalTranscriptList_S : [];
