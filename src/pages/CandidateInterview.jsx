@@ -5608,6 +5608,20 @@ function CandidateInterviewInner() {
         console.log('[CQ_RESOLVER_BC][BEFORE_P2]', { ts: Date.now(), currentItemType: currentItem_S?.type || null, sessionId: (typeof sessionId !== 'undefined' ? sessionId : null) });
 
         if (currentItemType__SAFE === 'v3_pack_opener') {
+          console.log('[CQ_RESOLVER_BC][P2_SHAPES]', {
+            typeofCurrentItem_S: typeof currentItem_S,
+            hasCurrentItem_S: !!currentItem_S,
+            hasPackId: !!currentItem_S?.packId,
+            hasInstanceNumber: currentItem_S?.instanceNumber !== undefined && currentItem_S?.instanceNumber !== null,
+            hasOpenerText: !!currentItem_S?.openerText,
+            hasCategoryId: !!currentItem_S?.categoryId,
+            typeofSessionId: typeof sessionId,
+            hasSessionId: !!sessionId,
+            isArrayTranscriptSOT_S: Array.isArray(transcriptSOT_S),
+            transcriptLen: Array.isArray(transcriptSOT_S) ? transcriptSOT_S.length : -1,
+            typeofRequiredAnchorFallbackActive: typeof requiredAnchorFallbackActive,
+            ts: Date.now()
+          });
           try {
             const isMultiInstancePack = currentItem_S?.packId === 'PACK_PRIOR_LE_APPS_STANDARD';
             const isInstance2OrHigher = (currentItem_S?.instanceNumber || 1) > 1;
