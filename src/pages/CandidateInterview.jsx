@@ -5479,9 +5479,11 @@ function CandidateInterviewInner() {
     let __cqPriority = 'P0_START';
     
     try {
+      console.log('[CQ_RESOLVER_BC][ENTER]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null) });
       // PHASE ALIGNMENT: Compute phase for consistency checks
       __cqPriority = 'P0';
       const resolverPhaseSOT = computeInterviewPhaseSOT();
+      console.log('[CQ_RESOLVER_BC][PHASE_OK]', { ts: Date.now(), phase: resolverPhaseSOT?.phase, sessionId: (typeof sessionId !== 'undefined' ? sessionId : null) });
       cqLog('DEBUG', '[CQ_TDZ_CONFIRM][PHASE_OK]', {
         ts: Date.now(),
         phase: resolverPhaseSOT?.phase,
@@ -5603,6 +5605,7 @@ function CandidateInterviewInner() {
       try {
         // TDZ FIX: Precompute type safely before Priority 2 condition
         const currentItemType__SAFE = (typeof currentItem_S !== 'undefined' && currentItem_S) ? currentItem_S.type : null;
+        console.log('[CQ_RESOLVER_BC][BEFORE_P2]', { ts: Date.now(), currentItemType: currentItem_S?.type || null, sessionId: (typeof sessionId !== 'undefined' ? sessionId : null) });
 
         if (currentItemType__SAFE === 'v3_pack_opener') {
           try {
