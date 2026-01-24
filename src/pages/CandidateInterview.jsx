@@ -15615,20 +15615,8 @@ function CandidateInterviewInner() {
   
   cqTdzMark('AFTER_BOTTOM_BAR_DERIVED_BLOCK_NOTE');
   
-  // PART D: Align active card when bottomBarModeSOT becomes YES_NO
-  // TDZ-SAFE: Uses early bottomBarModeSOTSafe (computed before late bottomBarModeSOT declaration)
-  useLayoutEffect(() => {
-    // TDZ-SAFE: Use bottomBarModeSOTSafe (early, always available)
-    const isYesNoModeFresh = bottomBarModeSOTSafe === 'YES_NO';
-    const isMiGateFresh = currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
-    
-    if (!isYesNoModeFresh) return;
-    
-    requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender('BOTTOM_BAR_MODE_YESNO', activeKindSOT, isYesNoModeFresh, isMiGateFresh);
-    });
-  }, [bottomBarModeSOTSafe, ensureActiveVisibleAfterRender, activeKindSOT, currentItem_S, activeUiItem_S]);
-
+  // PART D: Align active card when bottomBarModeSOT becomes YES_NO (REMOVED — duplicate of Hook 9/11 at line ~4188)
+  
   // HOOK 9/11 moved to BATCH 2 (line ~3550)
   // Auto-focus control props (pure values, no hooks)
   focusEnabled = screenMode === 'QUESTION';
