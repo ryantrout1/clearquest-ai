@@ -5475,10 +5475,12 @@ function CandidateInterviewInner() {
         kind: "DEFAULT",
         reason: "ACTIVE_UI_CALL_FAILOPEN"
       };
-    }
-  }
-  
-  function resolveActiveUiItem() {
+      }
+      }
+
+      console.log('[CQ_AFTER_RESOLVER][OK]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), kind: (typeof activeUiItem_S !== 'undefined' && activeUiItem_S?.kind) || null });
+
+      function resolveActiveUiItem() {
     let __cqPriority = 'P0_START';
     
     try {
