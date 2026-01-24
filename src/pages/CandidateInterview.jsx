@@ -3560,6 +3560,11 @@ function CandidateInterviewInner() {
   // ============================================================================
   const __cqBootNotReady = Boolean(isLoading) || !session || !session.id || !engine_S;
   
+  // TDZ FIX: Declare redirect flags BEFORE TRY1 (safe defaults for boot-not-ready renders)
+  let __cqSessionLocked = false;
+  let __cqShouldShowRecoveringUI = false;
+  let __cqShouldShowRedirectUI = false;
+  
   // ============================================================================
   // BATCH 1: HOISTED HOOKS - Moved outside TRY1 gate to fix React #310
   // ============================================================================
@@ -20154,9 +20159,9 @@ function CandidateInterviewInner() {
 
 
   // REACT #310 FIX: Compute redirect UI flags WITHOUT early return (prevents hook divergence)
-  const __cqSessionLocked = !effectiveSessionId && lockedSessionIdRef.current;
-  const __cqShouldShowRecoveringUI = !effectiveSessionId && !lockedSessionIdRef.current && isRecoveringSession;
-  const __cqShouldShowRedirectUI = !effectiveSessionId && !lockedSessionIdRef.current && !isRecoveringSession;
+  __cqSessionLocked = !effectiveSessionId && lockedSessionIdRef.current;
+  __cqShouldShowRecoveringUI = !effectiveSessionId && !lockedSessionIdRef.current && isRecoveringSession;
+  __cqShouldShowRedirectUI = !effectiveSessionId && !lockedSessionIdRef.current && !isRecoveringSession;
   
   // GUARD: Session locked - suppress invalidation (prevents reset to WELCOME)
   if (__cqSessionLocked) {
