@@ -3000,8 +3000,10 @@ function CandidateInterviewInner() {
   const typingTimeoutRef = useRef(null);
   const aiResponseTimeoutRef = useRef(null);
   const [footerHeightPx, setFooterHeightPx] = useState(120); // Dynamic footer height measurement
+  const footerHeightPxRef = useRef(0); // REACT #310 FIX: Ref for scrollToBottomSafely (non-hook version)
   const [footerShellHeightPx, setFooterShellHeightPx] = useState(0); // PART B: Stable footer shell height (all modes)
   const [contentOverflows, setContentOverflows] = useState(false); // Track if scroll container overflows
+  const transcriptSOTRef = useRef([]); // REACT #310 FIX: Ref for scrollToBottomSafely (non-hook version)
   
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
   const SAFE_FOOTER_CLEARANCE_PX = 8; // Minimal safety buffer (~75% reduction vs old 24px)
@@ -3147,6 +3149,10 @@ function CandidateInterviewInner() {
   
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
+
+  // REACT #310 FIX: Sync refs for scrollToBottomSafely (plain function version)
+  footerHeightPxRef.current = footerHeightPx;
+  transcriptSOTRef.current = transcriptSOT_S;
 
   // REACT #310 CANARY: Detect multi-React instance (one-render diagnostic)
   (function(){
@@ -6000,13 +6006,17 @@ function CandidateInterviewInner() {
   // HOOK 12/12 now hoisted to BATCH 2 (lines ~3728-3974)
   // Original removed from TRY1 to prevent conditional hook count
 
-  console.log('[CQ_USECALLBACK_MARK]', { idx: 16, name: 'scrollToBottomSafely', ts: Date.now() });
-  const scrollToBottomSafely = useCallback((reason = 'default') => {
+  // REACT #310 FIX: Converted from useCallback to plain function (refs prevent hook dispatcher crash)
+  function scrollToBottomSafely(reason = 'default') {
+    // REACT #310 FIX: Read from refs instead of closure deps
+    const footerHeightPx_SAFE = (typeof footerHeightPxRef !== 'undefined' && footerHeightPxRef?.current != null) ? footerHeightPxRef.current : footerHeightPx;
+    const transcriptSOT_SAFE = (typeof transcriptSOTRef !== 'undefined' && Array.isArray(transcriptSOTRef?.current)) ? transcriptSOTRef.current : transcriptSOT_S;
+    
     if (!autoScrollEnabledRef.current) return;
     if (!bottomAnchorRef.current || !historyRef.current) return;
     
     // Gate on transcript growth: only scroll when canonical transcript grows
-    const currentLen = Array.isArray(transcriptSOT_S) ? transcriptSOT_S.length : 0;
+    const currentLen = Array.isArray(transcriptSOT_SAFE) ? transcriptSOT_SAFE.length : 0;
     if (currentLen <= lastAutoScrollLenRef.current) {
       return; // No growth, no scroll (prevents snap on rerenders)
     }
@@ -6044,7 +6054,7 @@ function CandidateInterviewInner() {
         isProgrammaticScrollRef.current = false;
       });
     });
-  }, [footerHeightPx, transcriptSOT_S]);
+  }
 
   console.log('[CQ_USECALLBACK_MARK]', { idx: 17, name: 'autoScrollToBottom', ts: Date.now() });
   const autoScrollToBottom = useCallback(() => {
