@@ -3230,6 +3230,28 @@ function CandidateInterviewInner() {
       console.error('[CQ_REACT_CANARY]', { ver: React?.version || 'unknown', same, count: w.CQ_REACT_CANARY.count });
     } catch (_) {}
   })();
+  
+  // REACT #310 FIX: Always-on React singleton enforcer (detects multi-React/HMR collision)
+  try {
+    if (typeof window !== 'undefined') {
+      const prev = window.__CQ_REACT_SINGLETON__;
+      if (!prev) window.__CQ_REACT_SINGLETON__ = React;
+      const same = window.__CQ_REACT_SINGLETON__ === React;
+      if (!same) {
+        console.error('[CQ_MULTI_REACT_OBJ_DETECTED][ALWAYS_ON]', {
+          ts: Date.now(),
+          reactVersion: React?.version || 'unknown',
+          prevVersion: prev?.version || 'unknown',
+          reason: 'React object identity differs - HMR/multi-bundle collision'
+        });
+      } else {
+        console.log('[CQ_MULTI_REACT_OBJ_OK][ALWAYS_ON]', {
+          ts: Date.now(),
+          reactVersion: React?.version || 'unknown'
+        });
+      }
+    }
+  } catch (_) {}
 
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'boot state snapshot', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
@@ -7763,6 +7785,9 @@ function CandidateInterviewInner() {
 
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'handleAnswer', ts: Date.now() }); } catch(_){} })();
   const handleAnswer = useCallback(async (value) => {
+    // PART A: Local alias to avoid "use*" naming at call sites (React #310 disambiguation)
+    const probeEngineV2 = useProbeEngineV2;
+    
     // GUARD: Block YES/NO during V3 prompt answering (prevents stray "Yes" bubble)
     if (activeUiItem_S_SAFE?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
       // Allow V3 probe answer submission (text input), block YES/NO only
@@ -9186,28 +9211,28 @@ function CandidateInterviewInner() {
           const followUpResult = checkFollowUpTrigger(engine_S, currentItem_S.id, value, interviewMode);
 
           if (followUpResult) {
-            const { packId, substanceName, isV3Pack } = followUpResult;
+          const { packId, substanceName, isV3Pack } = followUpResult;
 
-            console.log(`[FOLLOWUP-TRIGGER] Pack triggered: ${packId}, checking versions...`);
-            
-            // IDEMPOTENCY RELEASE: Base question routed to V3 pack - release lock
-            const baseQuestionKey = `q:${currentItem_S.id}`;
-            if (submittedKeysRef.current.has(baseQuestionKey)) {
-              submittedKeysRef.current.delete(baseQuestionKey);
-              const questionCode = question?.question_id || currentItem_S.id;
-              console.log('[IDEMPOTENCY][RELEASE]', { 
-                lockKey: baseQuestionKey, 
-                packId,
-                questionCode,
-                reason: `${questionCode}_ROUTED_TO_V3_PACK` 
-              });
-            }
+          console.log(`[FOLLOWUP-TRIGGER] Pack triggered: ${packId}, checking versions...`);
 
-            // Check pack config flags to determine V3 vs V2
-            const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-            const isV3PackExplicit = packConfig?.isV3Pack === true;
-            const isV2PackExplicit = packConfig?.isV2Pack === true;
-            const usesPerFieldProbing = useProbeEngineV2(packId);
+          // IDEMPOTENCY RELEASE: Base question routed to V3 pack - release lock
+          const baseQuestionKey = `q:${currentItem_S.id}`;
+          if (submittedKeysRef.current.has(baseQuestionKey)) {
+            submittedKeysRef.current.delete(baseQuestionKey);
+            const questionCode = question?.question_id || currentItem_S.id;
+            console.log('[IDEMPOTENCY][RELEASE]', { 
+              lockKey: baseQuestionKey, 
+              packId,
+              questionCode,
+              reason: `${questionCode}_ROUTED_TO_V3_PACK` 
+            });
+          }
+
+          // Check pack config flags to determine V3 vs V2
+          const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+          const isV3PackExplicit = packConfig?.isV3Pack === true;
+          const isV2PackExplicit = packConfig?.isV2Pack === true;
+          const usesPerFieldProbing = probeEngineV2(packId);
 
             // V3 takes precedence over V2 - explicit V3 flag wins
             let isV3PackFinal = isV3PackExplicit || (isV3Pack && !isV2PackExplicit);
@@ -10081,7 +10106,7 @@ function CandidateInterviewInner() {
         const normalizedAnswer = validation.normalized || value;
 
         // Check if this is a V2 pack
-        const isV2Pack = useProbeEngineV2(packId);
+        const isV2Pack = probeEngineV2(packId);
 
         console.log('[FOLLOWUP ANSWER] V2 pack check', {
           packId,
