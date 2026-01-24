@@ -2051,6 +2051,7 @@ function CandidateInterviewInner() {
   const activeBlocker = uiBlocker; // UI-only blocker, not from canonical transcript
   
   // Dev guardrail: Ensure transcript never shrinks (applied to canonical DB mirror)
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 1, name: 'setDbTranscriptSafe', ts: Date.now() });
   const setDbTranscriptSafe = useCallback((updater) => {
     setDbTranscript(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
@@ -2187,6 +2188,7 @@ function CandidateInterviewInner() {
   }
 
   // STEP 2: Monotonic refresh (upsert only, never replace)
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 2, name: 'refreshTranscriptFromDB', ts: Date.now() });
   const refreshTranscriptFromDB = useCallback(async (reason) => {
     try {
       const freshSession = await base44.entities.InterviewSession.get(sessionId);
@@ -2264,6 +2266,7 @@ function CandidateInterviewInner() {
   }, [sessionId, setDbTranscriptSafe]);
 
   // FORENSIC: Canonical transcript verification (DB = source of truth)
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 3, name: 'forensicCheck', ts: Date.now() });
   const forensicCheck = useCallback(async (label) => {
     try {
       const fresh = await base44.entities.InterviewSession.get(sessionId);
@@ -2308,6 +2311,7 @@ function CandidateInterviewInner() {
   }, []);
 
   // UNIFIED TRANSCRIPT STATE SYNC - Single source of truth updater
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 4, name: 'upsertTranscriptState', ts: Date.now() });
   const upsertTranscriptState = useCallback((nextArray, reason) => {
     if (!Array.isArray(nextArray)) {
       console.error('[TRANSCRIPT_SYNC][NOT_ARRAY]', { reason, type: typeof nextArray });
@@ -2340,6 +2344,7 @@ function CandidateInterviewInner() {
   }, [setDbTranscriptSafe]);
   
   // STEP 2: Optimistic append helper (canonical as input)
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 5, name: 'appendAndRefresh', ts: Date.now() });
   const appendAndRefresh = useCallback(async (kind, payload, reasonLabel) => {
     // STATIC IMPORT: Use top-level imports (already imported at line 57-58)
     const appendUserMessage = appendUserMessageImport;
@@ -2502,6 +2507,7 @@ function CandidateInterviewInner() {
   // TDZ FIX: Scroll helpers declared early (before any useEffects that reference them)
   
   // SCROLL LOCK HELPERS: Prevent competing scroll writers
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 6, name: 'lockScrollWrites', ts: Date.now() });
   const lockScrollWrites = useCallback((reason, ms = 250) => {
     scrollWriteLockRef.current = true;
     scrollWriteLockReasonRef.current = reason;
@@ -2514,6 +2520,7 @@ function CandidateInterviewInner() {
     });
   }, []);
   
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 7, name: 'unlockScrollWrites', ts: Date.now() });
   const unlockScrollWrites = useCallback((reason) => {
     scrollWriteLockRef.current = false;
     scrollWriteLockReasonRef.current = null;
@@ -2525,6 +2532,7 @@ function CandidateInterviewInner() {
     });
   }, []);
   
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 8, name: 'isScrollWriteLocked', ts: Date.now() });
   const isScrollWriteLocked = useCallback(() => {
     if (!scrollWriteLockRef.current) return false;
     
@@ -2573,6 +2581,7 @@ function CandidateInterviewInner() {
   }, [dynamicFooterHeightPx]);
   
   // PART A: Helper to identify true scroll owner at runtime
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 10, name: 'getScrollOwner', ts: Date.now() });
   const getScrollOwner = useCallback((startElement) => {
     if (!startElement || typeof window === 'undefined') return null;
     
@@ -2602,6 +2611,7 @@ function CandidateInterviewInner() {
   }, []);
   
   // PART D: CANONICAL SCROLL TO BOTTOM - Single source of truth for bottom scrolling
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 11, name: 'scrollToBottom', ts: Date.now() });
   const scrollToBottom = useCallback((reason) => {
     const scroller = scrollOwnerRef.current || historyRef.current;
     if (!scroller) {
@@ -2628,6 +2638,7 @@ function CandidateInterviewInner() {
   }, []);
   
   // MI_GATE SCROLL HELPER: Bottom-anchor scroll for MI gate (hoisted)
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 12, name: 'scrollToBottomForMiGate', ts: Date.now() });
   const scrollToBottomForMiGate = useCallback((reason) => {
     if (!bottomAnchorRef.current) return;
     
@@ -2649,6 +2660,7 @@ function CandidateInterviewInner() {
   // PART D: CANONICAL POST-RENDER VISIBILITY CORRECTION
   // ChatGPT-style: Ensures active item is ALWAYS fully visible above composer
   // PART A: Updated signature with YES/NO mode flags (TDZ-safe)
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 13, name: 'ensureActiveVisibleAfterRender', ts: Date.now() });
   const ensureActiveVisibleAfterRender = useCallback((reason, activeKindSOT, isYesNoModeSOT = false, isMiGateSOT = false) => {
     const scroller = scrollOwnerRef.current || historyRef.current;
     if (!scroller) return;
@@ -2918,6 +2930,7 @@ function CandidateInterviewInner() {
   }, [currentItem_S, lockScrollWrites, unlockScrollWrites, selfHealFooterOverlap]);
   
   // SCROLL HANDLER: Transcript scroll event handler (hoisted outside TRY1 for boot-phase availability)
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 14, name: 'handleTranscriptScroll', ts: Date.now() });
   const handleTranscriptScroll = useCallback(() => {
     // GUARD: Ignore programmatic scroll events to prevent flapping
     if (isProgrammaticScrollRef.current) return;
@@ -4743,6 +4756,7 @@ function CandidateInterviewInner() {
   }
   
   // PART A: Violation snapshot helper (component-scoped - needs refs/state access)
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 15, name: 'captureViolationSnapshot', ts: Date.now() });
   const captureViolationSnapshot = useCallback((context) => {
     const { reason, list, packId, instanceNumber, activeItemId } = context;
     
@@ -5011,6 +5025,7 @@ function CandidateInterviewInner() {
     });
   }, [isUserTyping, currentItem_S]);
   
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 16, name: 'scrollToBottomSafely', ts: Date.now() });
   const lastQuestionShownIdRef = useRef(null); // Track last question shown for force-scroll dedupe
   
   // DEV DEBUG: Enable evidence bundle capture (v3debug=1 or localStorage flag)
@@ -5246,6 +5261,7 @@ function CandidateInterviewInner() {
   const lastRegressionLogRef = useRef(new Set()); // Track logged regressions (prevent spam)
 
   // TRY1 EXECUTION GATE: Only run when boot is ready
+  console.log('[CQ_USECALLBACK_MARK][BEFORE_TRY1]', { ts: Date.now() });
   let __cqTry1Result = null;
   
   if (!__cqBootNotReady) {
@@ -5985,6 +6001,7 @@ function CandidateInterviewInner() {
   // HOOK 12/12 now hoisted to BATCH 2 (lines ~3728-3974)
   // Original removed from TRY1 to prevent conditional hook count
 
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 16, name: 'scrollToBottomSafely', ts: Date.now() });
   const scrollToBottomSafely = useCallback((reason = 'default') => {
     if (!autoScrollEnabledRef.current) return;
     if (!bottomAnchorRef.current || !historyRef.current) return;
@@ -6030,6 +6047,7 @@ function CandidateInterviewInner() {
     });
   }, [footerHeightPx, transcriptSOT_S]);
 
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 17, name: 'autoScrollToBottom', ts: Date.now() });
   const autoScrollToBottom = useCallback(() => {
     if (isUserTyping) return;
     scrollToBottomSafely('autoScroll');
@@ -6037,6 +6055,7 @@ function CandidateInterviewInner() {
 
   // UX: Mark user as typing and set timeout to unlock after idle period
   // CRITICAL: Does NOT trigger transcript refresh (prevents flashing)
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 18, name: 'markUserTyping', ts: Date.now() });
   const markUserTyping = useCallback(() => {
     if (!isUserTyping) {
       console.log("[UX][TYPING_LOCK]", { locked: true, note: "scroll locked, no transcript refresh" });
@@ -6055,11 +6074,13 @@ function CandidateInterviewInner() {
   }, [isUserTyping]);
 
   // UX: Build draft key for sessionStorage
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 19, name: 'buildDraftKey', ts: Date.now() });
   const buildDraftKey = useCallback((sessionId, packId, fieldKey, instanceNumber) => {
     return `cq_draft_${sessionId}_${packId || "none"}_${fieldKey || "none"}_${instanceNumber || 0}`;
   }, []);
 
   // UX: Save draft to sessionStorage
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 20, name: 'saveDraft', ts: Date.now() });
   const saveDraft = useCallback((value) => {
     if (!sessionId) return;
 
@@ -6093,6 +6114,7 @@ function CandidateInterviewInner() {
   }, [sessionId, currentItem_S, activeV2Pack, buildDraftKey]);
 
   // UX: Clear draft from sessionStorage
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 21, name: 'clearDraft', ts: Date.now() });
   const clearDraft = useCallback(() => {
     if (!sessionId) return;
 
@@ -7002,6 +7024,7 @@ function CandidateInterviewInner() {
   const PERSIST_THROTTLE_MS = 3000;
   const PERSIST_BATCH_COUNT = 3;
 
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 22, name: 'flushPersist', ts: Date.now() });
   const flushPersist = useCallback(async () => {
     if (!pendingPersistRef.current) return;
 
@@ -7030,6 +7053,7 @@ function CandidateInterviewInner() {
     }
   }, [sessionId, engine_S]);
 
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 23, name: 'persistStateToDatabase', ts: Date.now() });
   const persistStateToDatabase = useCallback(async (ignoredTranscript, newQueue, newCurrentItem) => {
     // TRANSCRIPT GUARD: Warn if transcript argument is passed (should always be null)
     if (ignoredTranscript !== null && ignoredTranscript !== undefined) {
@@ -7065,6 +7089,7 @@ function CandidateInterviewInner() {
     };
   }, [flushPersist]);
 
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 24, name: 'advanceToNextBaseQuestion', ts: Date.now() });
   const advanceToNextBaseQuestion = useCallback(async (baseQuestionId, currentTranscript = null) => {
     // V3 BLOCKING GATE: Block advancement if V3 is active
     if (isV3Blocking) {
@@ -7234,6 +7259,7 @@ function CandidateInterviewInner() {
     }
   }, [engine_S, dbTranscript, sections, currentSectionIndex, refreshTranscriptFromDB]);
 
+  console.log('[CQ_USECALLBACK_MARK]', { idx: 25, name: 'onFollowupPackComplete', ts: Date.now() });
   const onFollowupPackComplete = useCallback(async (baseQuestionId, packId) => {
     const question = engine_S.QById[baseQuestionId];
     if (!question) {
