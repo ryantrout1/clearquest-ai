@@ -1432,6 +1432,45 @@ function CandidateInterviewInner() {
   
   const __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ = 'CQ_CI_BUILDSTAMP_2026-01-23T01:00Z_v3';
   
+  // REACT #310 FIX: Initialize useEffect sequence counter (render-safe, never throws)
+  (function(){
+    try {
+      const w = (typeof window !== 'undefined') ? window : null;
+      if (!w) return;
+      if (!w.CQ_USEEFFECT_SEQ) w.CQ_USEEFFECT_SEQ = 0;
+    } catch (_) {}
+  })();
+
+  // REACT #310 CENSUS: Global render counter + hook census utilities
+  const cqRenderId = (() => {
+    try {
+      if (typeof window === 'undefined') return () => 0;
+      if (!window.CQ_RENDER_ID) window.CQ_RENDER_ID = 0;
+      window.CQ_RENDER_ID++;
+      const rid = window.CQ_RENDER_ID;
+      console.log('[CQ_RENDER_ID]', { rid, ts: Date.now() });
+      return () => rid;
+    } catch (_) {
+      return () => 0;
+    }
+  })();
+  
+  const cqHookCensusInit = (rid) => {
+    try {
+      if (typeof window === 'undefined') return;
+      window.CQ_HOOK_INDEX = 0;
+      console.log('[CQ_HOOK_CENSUS_INIT]', { rid, ts: Date.now() });
+    } catch (_) {}
+  };
+  
+  const cqHookMark = (name) => {
+    try {
+      if (typeof window === 'undefined') return;
+      const idx = ++window.CQ_HOOK_INDEX;
+      console.log('[CQ_HOOK_CENSUS]', { idx, name, ts: Date.now() });
+    } catch (_) {}
+  };
+  
   // REACT #310 CENSUS: Initialize per-render hook tracking
   const __cqRid = cqRenderId();
   cqHookCensusInit(__cqRid);
@@ -3162,45 +3201,6 @@ function CandidateInterviewInner() {
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
 
-  // REACT #310 FIX: Initialize useEffect sequence counter (render-safe, never throws)
-  (function(){
-    try {
-      const w = (typeof window !== 'undefined') ? window : null;
-      if (!w) return;
-      if (!w.CQ_USEEFFECT_SEQ) w.CQ_USEEFFECT_SEQ = 0;
-    } catch (_) {}
-  })();
-
-  // REACT #310 CENSUS: Global render counter + hook census utilities
-  const cqRenderId = (() => {
-    try {
-      if (typeof window === 'undefined') return () => 0;
-      if (!window.CQ_RENDER_ID) window.CQ_RENDER_ID = 0;
-      window.CQ_RENDER_ID++;
-      const rid = window.CQ_RENDER_ID;
-      console.log('[CQ_RENDER_ID]', { rid, ts: Date.now() });
-      return () => rid;
-    } catch (_) {
-      return () => 0;
-    }
-  })();
-  
-  const cqHookCensusInit = (rid) => {
-    try {
-      if (typeof window === 'undefined') return;
-      window.CQ_HOOK_INDEX = 0;
-      console.log('[CQ_HOOK_CENSUS_INIT]', { rid, ts: Date.now() });
-    } catch (_) {}
-  };
-  
-  const cqHookMark = (name) => {
-    try {
-      if (typeof window === 'undefined') return;
-      const idx = ++window.CQ_HOOK_INDEX;
-      console.log('[CQ_HOOK_CENSUS]', { idx, name, ts: Date.now() });
-    } catch (_) {}
-  };
-
   // REACT #310 FIX: Sync refs for scrollToBottomSafely (plain function version)
   footerHeightPxRef.current = footerHeightPx;
   transcriptSOTRef.current = transcriptSOT_S;
@@ -3210,6 +3210,7 @@ function CandidateInterviewInner() {
     try {
       const w = (typeof window !== 'undefined') ? window : null;
       if (!w) return;
+      if (!w.CQ_USEEFFECT_SEQ) w.CQ_USEEFFECT_SEQ = 0;
       w.CQ_USECALLBACK_SEQ = 0; // Reset counter every render
     } catch (_) {}
   })();
