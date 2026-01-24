@@ -4532,7 +4532,7 @@ function CandidateInterviewInner() {
     }
     
     // 8. V3_PROBING - V3 conversational probing active
-    if (v3ProbingActive && hasActiveV3Prompt && v3PromptPhase === "ANSWER_NEEDED") {
+    if (v3ProbingActive && hasActiveV3Prompt_SAFE && v3PromptPhase === "ANSWER_NEEDED") {
       return {
         phase: "V3_PROBING",
         allowedActions: new Set(["SUBMIT", "TEXT"]),
