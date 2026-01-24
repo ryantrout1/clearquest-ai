@@ -5681,7 +5681,7 @@ function CandidateInterviewInner() {
           instanceNumber: currentItem_S.instanceNumber,
           v3PromptPhase,
           v3ProbingActive,
-          hasActiveV3Prompt,
+          hasActiveV3Prompt_SAFE,
           v3HasVisiblePromptCard
         });
         // Return DEFAULT kind to prevent MI_GATE from activating
