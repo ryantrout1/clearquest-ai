@@ -20149,56 +20149,37 @@ function CandidateInterviewInner() {
   // SESSION LOCK: Suppress invalidation if session was previously locked
 
 
-  if (!effectiveSessionId) {
-    // GUARD: Session locked - suppress invalidation (prevents reset to WELCOME)
-    if (lockedSessionIdRef.current) {
-      console.warn('[SESSION_LOCK][SUPPRESSED_INVALIDATION]', {
-        rawSessionId: sessionId,
-        lockedSessionId: lockedSessionIdRef.current,
-        screenMode,
-        reason: 'Session locked - ignoring transient null sessionId'
-      });
-      // Continue rendering - use locked session (no redirect)
-    } else {
-      // No lock yet - apply original guard logic
-      // GUARD: Do not redirect while recovery is in-flight
-      if (isRecoveringSession) {
-        return (
-          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-            <div className="text-center space-y-4">
-              <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
-              <p className="text-slate-300">Recovering session...</p>
-            </div>
-          </div>
-        );
-      }
-      
-      // LOG: No session and no repair possible - unrecoverable
-      if (!noSessionEarlyReturnLoggedRef.current) {
-        noSessionEarlyReturnLoggedRef.current = true;
-        console.error('[CANDIDATE_INTERVIEW][NO_SESSION_UNRECOVERABLE]', {
-          sessionId,
-          hasSession: !!sessionId,
-          screenMode,
-          pathname: window.location.pathname,
-          search: window.location.search,
-          stack: new Error().stack?.split('\n').slice(0,6).join('\n'),
-          hadRefSession: !!resolvedSessionRef.current,
-          deptParam: urlParams.get('dept'),
-          fileParam: urlParams.get('file'),
-          action: 'redirect_to_startinterview'
-        });
-      }
-      
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-          <div className="text-center space-y-4">
-            <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
-            <p className="text-slate-300">Redirecting to start interview...</p>
-          </div>
-        </div>
-      );
-    }
+  // REACT #310 FIX: Compute redirect UI flags WITHOUT early return (prevents hook divergence)
+  const __cqSessionLocked = !effectiveSessionId && lockedSessionIdRef.current;
+  const __cqShouldShowRecoveringUI = !effectiveSessionId && !lockedSessionIdRef.current && isRecoveringSession;
+  const __cqShouldShowRedirectUI = !effectiveSessionId && !lockedSessionIdRef.current && !isRecoveringSession;
+  
+  // GUARD: Session locked - suppress invalidation (prevents reset to WELCOME)
+  if (__cqSessionLocked) {
+    console.warn('[SESSION_LOCK][SUPPRESSED_INVALIDATION]', {
+      rawSessionId: sessionId,
+      lockedSessionId: lockedSessionIdRef.current,
+      screenMode,
+      reason: 'Session locked - ignoring transient null sessionId'
+    });
+    // Continue rendering - use locked session (no redirect)
+  }
+  
+  // LOG: No session and no repair possible - unrecoverable
+  if (__cqShouldShowRedirectUI && !noSessionEarlyReturnLoggedRef.current) {
+    noSessionEarlyReturnLoggedRef.current = true;
+    console.error('[CANDIDATE_INTERVIEW][NO_SESSION_UNRECOVERABLE]', {
+      sessionId,
+      hasSession: !!sessionId,
+      screenMode,
+      pathname: window.location.pathname,
+      search: window.location.search,
+      stack: new Error().stack?.split('\n').slice(0,6).join('\n'),
+      hadRefSession: !!resolvedSessionRef.current,
+      deptParam: urlParams.get('dept'),
+      fileParam: urlParams.get('file'),
+      action: 'redirect_to_startinterview'
+    });
   }
 
   
@@ -20794,6 +20775,28 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   let __tdzTraceJsx = null;
   try {
 
+    // REACT #310 FIX: Conditional render WITHOUT early return (all hooks already declared above)
+    if (__cqShouldShowRecoveringUI) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+          <div className="text-center space-y-4">
+            <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
+            <p className="text-slate-300">Recovering session...</p>
+          </div>
+        </div>
+      );
+    }
+    
+    if (__cqShouldShowRedirectUI) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+          <div className="text-center space-y-4">
+            <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
+            <p className="text-slate-300">Redirecting to start interview...</p>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
