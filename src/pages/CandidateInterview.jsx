@@ -6066,11 +6066,11 @@ function CandidateInterviewInner() {
     });
   }
 
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'autoScrollToBottom', ts: Date.now() }); } catch(_){} })();
-  const autoScrollToBottom = useCallback(() => {
+  // REACT #310 FIX: Converted from useCallback to plain function (removes hook dispatcher slot)
+  function autoScrollToBottom() {
     if (isUserTyping) return;
     scrollToBottomSafely('autoScroll');
-  }, [isUserTyping, scrollToBottomSafely]);
+  }
 
   // UX: Mark user as typing and set timeout to unlock after idle period
   // CRITICAL: Does NOT trigger transcript refresh (prevents flashing)
