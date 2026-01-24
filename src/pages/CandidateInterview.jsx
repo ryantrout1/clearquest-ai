@@ -6133,8 +6133,8 @@ function CandidateInterviewInner() {
   }
 
   // UX: Clear draft from sessionStorage
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'clearDraft', ts: Date.now() }); } catch(_){} })();
-  const clearDraft = useCallback(() => {
+  // REACT #310 FIX: Converted from useCallback to plain function (removes hook dispatcher slot)
+  function clearDraft() {
     if (!sessionId) return;
 
     const packId = currentItem_S?.packId || activeV2Pack?.packId || null;
@@ -6152,7 +6152,7 @@ function CandidateInterviewInner() {
     } catch (e) {
       console.warn("[UX][DRAFT] Failed to clear draft", e);
     }
-  }, [sessionId, currentItem_S, activeV2Pack, buildDraftKey]);
+  }
 
   // Track last logged V2 pack field to prevent duplicates (logging happens on answer, not render)
   // This ref is used when logging answers to check for duplicates
