@@ -5437,6 +5437,12 @@ function CandidateInterviewInner() {
   } else {
     // Boot complete - call resolver with failopen wrapper
     try {
+      console.log('[CQ_TDZ_CONFIRM][BEFORE_RESOLVE_ACTIVE_UI]', {
+        ts: Date.now(),
+        sessionId,
+        hasActiveV3Prompt_SAFE,
+        step: 'CALL_IMMINENT'
+      });
       activeUiItem_S = resolveActiveUiItem();
     } catch (e) {
       console.error('[CQ_ACTIVE_UI_CALL][FAILOPEN]', {
@@ -5461,6 +5467,11 @@ function CandidateInterviewInner() {
       // PHASE ALIGNMENT: Compute phase for consistency checks
       __cqPriority = 'P0';
       const resolverPhaseSOT = computeInterviewPhaseSOT();
+      console.log('[CQ_TDZ_CONFIRM][PHASE_OK]', {
+        ts: Date.now(),
+        phase: resolverPhaseSOT?.phase,
+        step: 'PHASE_COMPUTED'
+      });
       window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3A:AFTER_PHASE_COMPUTE';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3A:AFTER_PHASE_COMPUTE' });
     
@@ -5720,6 +5731,13 @@ function CandidateInterviewInner() {
       };
     }
   }
+  
+  console.log('[CQ_TDZ_CONFIRM][RESOLVE_ACTIVE_UI_OK]', {
+    ts: Date.now(),
+    sessionId,
+    kind: activeUiItem_S?.kind,
+    step: 'RETURNED_SUCCESS'
+  });
   
   // TDZ FIX: Hoisted from component body to prevent use-before-declare
   window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_4:BEFORE_CURRENT_ITEM_TYPE';
@@ -20395,6 +20413,13 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     };
   };
 
+    console.log('[CQ_TDZ_CONFIRM][TRY1_COMPLETED]', {
+      ts: Date.now(),
+      sessionId,
+      activeUiKind: activeUiItem_S?.kind,
+      bottomBarMode: bottomBarModeSOT,
+      step: 'TRY1_SUCCESS'
+    });
     cqMark('BEFORE_RETURN');
     } catch (e) {
       try {
