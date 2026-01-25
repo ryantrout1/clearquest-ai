@@ -6181,50 +6181,53 @@ function CandidateInterviewInner() {
   
   // [CQ_301_DIAG] Derived checkpoint runner (NO HOOKS)
   try {
-    console.log('[CQ_301_DIAG][DERIVED_CHECKPOINT_ENTER]', { rid: __cqRid, renderN: __cq301RenderRef?.current });
+    const __cqRidSafe = (typeof __cqRid !== 'undefined') ? __cqRid : 'no_rid';
+
+    console.log('[CQ_301_DIAG][DERIVED_CHECKPOINT_ENTER]', { rid: __cqRidSafe, renderN: __cq301RenderRef?.current });
 
     // Each checkpoint logs before and after evaluating a single expression.
     // IMPORTANT: evaluate expressions using safe access (typeof + optional chaining) so we don't introduce new ReferenceErrors.
 
-    console.log('[CQ_301_DIAG][CP1][BEFORE]', { rid: __cqRid, name: 'activeUiItem_S_SAFE.kind' });
+    console.log('[CQ_301_DIAG][CP1][BEFORE]', { rid: __cqRidSafe, name: 'activeUiItem_S_SAFE.kind' });
     const __cq_cp1 = (typeof activeUiItem_S_SAFE !== 'undefined') ? (activeUiItem_S_SAFE?.kind || null) : 'undefined';
-    console.log('[CQ_301_DIAG][CP1][AFTER]', { rid: __cqRid, v: __cq_cp1 });
+    console.log('[CQ_301_DIAG][CP1][AFTER]', { rid: __cqRidSafe, v: __cq_cp1 });
 
-    console.log('[CQ_301_DIAG][CP2][BEFORE]', { rid: __cqRid, name: 'currentItem_S.type' });
+    console.log('[CQ_301_DIAG][CP2][BEFORE]', { rid: __cqRidSafe, name: 'currentItem_S.type' });
     const __cq_cp2 = (typeof currentItem_S !== 'undefined') ? (currentItem_S?.type || null) : 'undefined';
-    console.log('[CQ_301_DIAG][CP2][AFTER]', { rid: __cqRid, v: __cq_cp2 });
+    console.log('[CQ_301_DIAG][CP2][AFTER]', { rid: __cqRidSafe, v: __cq_cp2 });
 
-    console.log('[CQ_301_DIAG][CP3][BEFORE]', { rid: __cqRid, name: 'bottomBarModeSOT_SAFE' });
+    console.log('[CQ_301_DIAG][CP3][BEFORE]', { rid: __cqRidSafe, name: 'bottomBarModeSOT_SAFE' });
     const __cq_cp3 = (typeof bottomBarModeSOT_SAFE !== 'undefined') ? bottomBarModeSOT_SAFE : 'undefined';
-    console.log('[CQ_301_DIAG][CP3][AFTER]', { rid: __cqRid, v: __cq_cp3 });
+    console.log('[CQ_301_DIAG][CP3][AFTER]', { rid: __cqRidSafe, v: __cq_cp3 });
 
-    console.log('[CQ_301_DIAG][CP4][BEFORE]', { rid: __cqRid, name: 'v3ProbingActive + v3ProbingContext_S' });
+    console.log('[CQ_301_DIAG][CP4][BEFORE]', { rid: __cqRidSafe, name: 'v3ProbingActive + v3ProbingContext_S' });
     const __cq_cp4 = {
       v3ProbingActive: (typeof v3ProbingActive !== 'undefined') ? v3ProbingActive : 'undefined',
       hasV3Ctx: (typeof v3ProbingContext_S !== 'undefined') ? !!v3ProbingContext_S : 'undefined',
     };
-    console.log('[CQ_301_DIAG][CP4][AFTER]', { rid: __cqRid, v: __cq_cp4 });
+    console.log('[CQ_301_DIAG][CP4][AFTER]', { rid: __cqRidSafe, v: __cq_cp4 });
 
-    console.log('[CQ_301_DIAG][CP5][BEFORE]', { rid: __cqRid, name: 'hasV3PromptText' });
+    console.log('[CQ_301_DIAG][CP5][BEFORE]', { rid: __cqRidSafe, name: 'hasV3PromptText' });
     const __cq_cp5 = (typeof hasV3PromptText !== 'undefined') ? hasV3PromptText : 'NOT_DECLARED_YET';
-    console.log('[CQ_301_DIAG][CP5][AFTER]', { rid: __cqRid, v: __cq_cp5 });
+    console.log('[CQ_301_DIAG][CP5][AFTER]', { rid: __cqRidSafe, v: __cq_cp5 });
 
-    console.log('[CQ_301_DIAG][CP6][BEFORE]', { rid: __cqRid, name: 'hasV3ProbeQuestion' });
+    console.log('[CQ_301_DIAG][CP6][BEFORE]', { rid: __cqRidSafe, name: 'hasV3ProbeQuestion' });
     const __cq_cp6 = (typeof hasV3ProbeQuestion !== 'undefined') ? hasV3ProbeQuestion : 'NOT_DECLARED_YET';
-    console.log('[CQ_301_DIAG][CP6][AFTER]', { rid: __cqRid, v: __cq_cp6 });
+    console.log('[CQ_301_DIAG][CP6][AFTER]', { rid: __cqRidSafe, v: __cq_cp6 });
 
-    console.log('[CQ_301_DIAG][CP7][BEFORE]', { rid: __cqRid, name: 'hasV3LoopKey' });
+    console.log('[CQ_301_DIAG][CP7][BEFORE]', { rid: __cqRidSafe, name: 'hasV3LoopKey' });
     const __cq_cp7 = (typeof hasV3LoopKey !== 'undefined') ? hasV3LoopKey : 'NOT_DECLARED_YET';
-    console.log('[CQ_301_DIAG][CP7][AFTER]', { rid: __cqRid, v: __cq_cp7 });
+    console.log('[CQ_301_DIAG][CP7][AFTER]', { rid: __cqRidSafe, v: __cq_cp7 });
 
-    console.log('[CQ_301_DIAG][CP8][BEFORE]', { rid: __cqRid, name: 'hasActiveV3Prompt' });
+    console.log('[CQ_301_DIAG][CP8][BEFORE]', { rid: __cqRidSafe, name: 'hasActiveV3Prompt' });
     const __cq_cp8 = (typeof hasActiveV3Prompt !== 'undefined') ? hasActiveV3Prompt : 'NOT_DECLARED_YET';
-    console.log('[CQ_301_DIAG][CP8][AFTER]', { rid: __cqRid, v: __cq_cp8 });
+    console.log('[CQ_301_DIAG][CP8][AFTER]', { rid: __cqRidSafe, v: __cq_cp8 });
 
-    console.log('[CQ_301_DIAG][DERIVED_CHECKPOINT_EXIT]', { rid: __cqRid });
+    console.log('[CQ_301_DIAG][DERIVED_CHECKPOINT_EXIT]', { rid: __cqRidSafe });
   } catch (e) {
+    const __cqRidSafe = (typeof __cqRid !== 'undefined') ? __cqRid : 'no_rid';
     console.error('[CQ_301_DIAG][DERIVED_CHECKPOINT_THROW]', {
-      rid: __cqRid,
+      rid: __cqRidSafe,
       renderN: __cq301RenderRef?.current,
       name: e?.name,
       message: e?.message,
