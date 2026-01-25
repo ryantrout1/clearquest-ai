@@ -5448,10 +5448,8 @@ function CandidateInterviewInner() {
   if (!__cqBootNotReady) {
     // Boot ready - execute TRY1 normally
     try {
-      try {
         if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = 'TRY1_ENTER';
         console.log('[CQ_DIAG][EARLY_STEP]', { step: 'TRY1_ENTER' });
-        } catch (_) {}
 
         try {
         if (typeof window !== 'undefined' && typeof React !== 'undefined') {
