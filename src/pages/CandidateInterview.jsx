@@ -1494,6 +1494,28 @@ function CandidateInterviewInner() {
   }
   cqHookCensusInit(__cqRid);
   
+  // [CQ_301_DIAG] Minimal render + React identity snapshot (DO NOT REMOVE until 301 resolved)
+  const __cq301RenderRef = React.useRef(0);
+  __cq301RenderRef.current += 1;
+
+  try {
+    if (typeof window !== "undefined") {
+      const reactObj = React;
+      const reactVer = reactObj?.version;
+      const reactSym = reactObj?.createElement ? "HAS_CREATE_ELEMENT" : "NO_CREATE_ELEMENT";
+      console.log("[CQ_301_DIAG][RENDER]", {
+        rid: __cqRid,
+        renderN: __cq301RenderRef.current,
+        reactVer,
+        reactSym,
+        hasUseState: typeof reactObj?.useState === "function",
+        hasUseEffect: typeof reactObj?.useEffect === "function",
+      });
+      window.__CQ_301_REACT__ = window.__CQ_301_REACT__ || reactObj;
+      console.log("[CQ_301_DIAG][REACT_SAME_INSTANCE]", window.__CQ_301_REACT__ === reactObj);
+    }
+  } catch (_) {}
+  
   try { console.log('[CQ_RENDER_START][ALWAYS_ON]', { rid: __cqRid, ts: Date.now() }); } catch (_) {}
   
   console.log("[TDZ_TRACE][FN_ENTER]");
@@ -3554,6 +3576,18 @@ function CandidateInterviewInner() {
   // ============================================================================
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'bootstrap kickstart', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
+    try {
+      console.log("[CQ_301_DIAG][BOOT_KICKSTART]", {
+        rid: __cqRid,
+        sessionId,
+        isLoading,
+        hasSession: !!session,
+        hasEngine: !!engine_S,
+        initIsFn: typeof initializeInterview === "function",
+        initName: (initializeInterview && initializeInterview.name) || null,
+      });
+    } catch (_) {}
+    
     // KICKSTART INVARIANT: Detect duplicate runs per session.
     if (typeof window !== 'undefined' && sessionId) {
       window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__ = window.__CQ_KICKSTART_RUN_COUNT_BY_SESSION__ || {};
@@ -6333,6 +6367,10 @@ function CandidateInterviewInner() {
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'full session reset', ts: Date.now() }); } catch(_){} })();
   console.log('[CQ_310_SLOT][POST_RESET_DECL]', { rid: __cqRid, ts: Date.now() });
   useEffect(() => {
+    try {
+      console.log("[CQ_301_DIAG][FULL_RESET_EFFECT_ENTER]", { rid: __cqRid, renderN: __cq301RenderRef.current });
+    } catch (_) {}
+    
     // REACT #310 CENSUS: Invariant - effect body executed
     console.log('[REACT_310_PROBE][FULL_SESSION_RESET_EFFECT_RAN]', { rid: __cqRid, ts: Date.now(), sessionId });
     
