@@ -2538,9 +2538,13 @@ function CandidateInterviewInner() {
   const [showPauseModal, setShowPauseModal] = useState(false);
   
   // REACT #310 FIX: Hoist pack probing check to top-level (prevent hook call in handleAnswer callback)
-  const __cqPackIdForProbing = currentItem_S?.packId ?? null;
-  const __cqUsesPerFieldProbing =
-    __cqPackIdForProbing ? useProbeEngineV2(__cqPackIdForProbing) : false;
+  const __cqPackIdForProbing = currentItem_S?.packId || "";
+  let __cqUsesPerFieldProbing = false;
+  try {
+    __cqUsesPerFieldProbing = Boolean(useProbeEngineV2(__cqPackIdForProbing));
+  } catch (_) {
+    __cqUsesPerFieldProbing = false;
+  }
   
   // Footer overlap guardrail: Track max overlap seen for regression detection
   const maxOverlapSeenRef = React.useRef({ maxOverlapPx: 0, lastModeSeen: null });
