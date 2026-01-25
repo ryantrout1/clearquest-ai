@@ -20210,20 +20210,32 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     // [CQ_301_DIAG] Pre-render node-type snapshot (NO HOOKS)
     try {
       console.log('[CQ_301_DIAG][PRE_RENDER_NODE_TYPE]', {
-        rid: __cqRid,
+        rid: (typeof __cqRid !== 'undefined') ? __cqRid : 'no_rid',
         renderN: (typeof __cq301RenderRef !== 'undefined' && __cq301RenderRef?.current) ? __cq301RenderRef.current : 'no_render_ref',
+
         screenMode: (typeof screenMode !== 'undefined') ? screenMode : 'undefined',
         isLoading: (typeof isLoading !== 'undefined') ? isLoading : 'undefined',
         hasSession: (typeof session !== 'undefined') ? !!session : 'undefined',
         hasEngine: (typeof engine_S !== 'undefined') ? !!engine_S : 'undefined',
+
         activeUiKind: (typeof activeKindSOT !== 'undefined') ? activeKindSOT : (
           (typeof activeUiItem_S_SAFE !== 'undefined' && activeUiItem_S_SAFE?.kind) ? activeUiItem_S_SAFE.kind : 'undefined'
         ),
+
         activeUiItemKind: (typeof activeUiItem_S_SAFE !== 'undefined') ? (activeUiItem_S_SAFE?.kind || null) : 'undefined',
         bottomBarModeSOT_SAFE: (typeof bottomBarModeSOT_SAFE !== 'undefined') ? bottomBarModeSOT_SAFE : 'undefined',
-        cqBootBlockUI_type: (typeof cqBootBlockUI !== 'undefined') ? (cqBootBlockUI === null ? 'null' : typeof cqBootBlockUI) : 'undefined',
-        cqLoadingReturnJSX_type: (typeof cqLoadingReturnJSX !== 'undefined') ? (cqLoadingReturnJSX === null ? 'null' : typeof cqLoadingReturnJSX) : 'undefined',
-        __tdzTraceJsx_type: (typeof __tdzTraceJsx !== 'undefined') ? (__tdzTraceJsx === null ? 'null' : typeof __tdzTraceJsx) : 'undefined',
+
+        cqBootBlockUI_type: (typeof cqBootBlockUI !== 'undefined')
+          ? (cqBootBlockUI === null ? 'null' : typeof cqBootBlockUI)
+          : 'undefined',
+
+        cqLoadingReturnJSX_type: (typeof cqLoadingReturnJSX !== 'undefined')
+          ? (cqLoadingReturnJSX === null ? 'null' : typeof cqLoadingReturnJSX)
+          : 'undefined',
+
+        __tdzTraceJsx_type: (typeof __tdzTraceJsx !== 'undefined')
+          ? (__tdzTraceJsx === null ? 'null' : typeof __tdzTraceJsx)
+          : 'undefined',
       });
     } catch (_) {}
 
