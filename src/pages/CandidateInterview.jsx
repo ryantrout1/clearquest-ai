@@ -6326,6 +6326,9 @@ function CandidateInterviewInner() {
   
   console.log('[CQ_310_SLOT][PRE_RESET]', { rid: __cqRid, ts: Date.now() });
   
+  // ============================================================================
+  // HOOK 13/56: FULL SESSION RESET (UNCONDITIONAL - React #310 fix)
+  // ============================================================================
   // FULL SESSION RESET: Cleanup all interview-local state when sessionId changes (prevent cross-session leakage)
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'full session reset', ts: Date.now() }); } catch(_){} })();
   console.log('[CQ_310_SLOT][POST_RESET_DECL]', { rid: __cqRid, ts: Date.now() });
