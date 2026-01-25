@@ -6205,6 +6205,22 @@ function CandidateInterviewInner() {
     };
     console.log('[CQ_301_DIAG][CP4][AFTER]', { rid: __cqRid, v: __cq_cp4 });
 
+    console.log('[CQ_301_DIAG][CP5][BEFORE]', { rid: __cqRid, name: 'hasV3PromptText' });
+    const __cq_cp5 = (typeof hasV3PromptText !== 'undefined') ? hasV3PromptText : 'NOT_DECLARED_YET';
+    console.log('[CQ_301_DIAG][CP5][AFTER]', { rid: __cqRid, v: __cq_cp5 });
+
+    console.log('[CQ_301_DIAG][CP6][BEFORE]', { rid: __cqRid, name: 'hasV3ProbeQuestion' });
+    const __cq_cp6 = (typeof hasV3ProbeQuestion !== 'undefined') ? hasV3ProbeQuestion : 'NOT_DECLARED_YET';
+    console.log('[CQ_301_DIAG][CP6][AFTER]', { rid: __cqRid, v: __cq_cp6 });
+
+    console.log('[CQ_301_DIAG][CP7][BEFORE]', { rid: __cqRid, name: 'hasV3LoopKey' });
+    const __cq_cp7 = (typeof hasV3LoopKey !== 'undefined') ? hasV3LoopKey : 'NOT_DECLARED_YET';
+    console.log('[CQ_301_DIAG][CP7][AFTER]', { rid: __cqRid, v: __cq_cp7 });
+
+    console.log('[CQ_301_DIAG][CP8][BEFORE]', { rid: __cqRid, name: 'hasActiveV3Prompt' });
+    const __cq_cp8 = (typeof hasActiveV3Prompt !== 'undefined') ? hasActiveV3Prompt : 'NOT_DECLARED_YET';
+    console.log('[CQ_301_DIAG][CP8][AFTER]', { rid: __cqRid, v: __cq_cp8 });
+
     console.log('[CQ_301_DIAG][DERIVED_CHECKPOINT_EXIT]', { rid: __cqRid });
   } catch (e) {
     console.error('[CQ_301_DIAG][DERIVED_CHECKPOINT_THROW]', {
