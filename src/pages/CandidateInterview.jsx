@@ -1462,7 +1462,7 @@ function CandidateInterviewInner() {
       if (!window.CQ_RENDER_ID) window.CQ_RENDER_ID = 0;
       window.CQ_RENDER_ID++;
       const rid = window.CQ_RENDER_ID;
-      if (__cqHookCensusEnabled) console.log('[CQ_RENDER_ID]', { rid, ts: Date.now() });
+      if (typeof window !== 'undefined' && window.__CQ_HOOK_CENSUS_ENABLED__) console.log('[CQ_RENDER_ID]', { rid, ts: Date.now() });
       return () => rid;
     } catch (_) {
       return () => 0;
@@ -1473,7 +1473,7 @@ function CandidateInterviewInner() {
     try {
       if (typeof window === 'undefined') return;
       window.CQ_HOOK_INDEX = 0;
-      if (__cqHookCensusEnabled) console.log('[CQ_HOOK_CENSUS_INIT]', { rid, ts: Date.now() });
+      if (typeof window !== 'undefined' && window.__CQ_HOOK_CENSUS_ENABLED__) console.log('[CQ_HOOK_CENSUS_INIT]', { rid, ts: Date.now() });
     } catch (_) {}
   };
   
@@ -1481,12 +1481,17 @@ function CandidateInterviewInner() {
     try {
       if (typeof window === 'undefined') return;
       const idx = ++window.CQ_HOOK_INDEX;
-      if (__cqHookCensusEnabled) console.log('[CQ_HOOK_CENSUS]', { idx, name, ts: Date.now() });
+      if (typeof window !== 'undefined' && window.__CQ_HOOK_CENSUS_ENABLED__) console.log('[CQ_HOOK_CENSUS]', { idx, name, ts: Date.now() });
     } catch (_) {}
   };
   
   // REACT #310 CENSUS: Initialize per-render hook tracking
   const __cqRid = cqRenderId();
+  
+  // REACT #310 CENSUS: Auto-enable for rid 4 ONLY (isolate crashing render)
+  if (typeof window !== 'undefined') {
+    window.__CQ_HOOK_CENSUS_ENABLED__ = (__cqRid === 4) || (window.CQ_DEBUG_HOOK_CENSUS === true);
+  }
   cqHookCensusInit(__cqRid);
   
   try { console.log('[CQ_RENDER_START][ALWAYS_ON]', { rid: __cqRid, ts: Date.now() }); } catch (_) {}
@@ -20785,7 +20790,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   // REACT #310 CENSUS: Render end hook count
   try {
     if (typeof window !== 'undefined' && window.CQ_HOOK_INDEX !== undefined) {
-      if (__cqHookCensusEnabled) console.log('[CQ_HOOK_CENSUS_END]', { rid: __cqRid, hookCount: window.CQ_HOOK_INDEX, ts: Date.now() });
+      if (typeof window !== 'undefined' && window.__CQ_HOOK_CENSUS_ENABLED__) console.log('[CQ_HOOK_CENSUS_END]', { rid: __cqRid, hookCount: window.CQ_HOOK_INDEX, ts: Date.now() });
     }
   } catch (_) {}
   console.log('[CQ_310_SLOT][RENDER_END]', { rid: __cqRid, ts: Date.now() });
