@@ -2564,14 +2564,13 @@ function CandidateInterviewInner() {
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
   
-  // REACT #310 FIX: Hoist pack probing check to top-level (prevent hook call in handleAnswer callback)
+  // REACT #310 FIX: Static pack config check (no hook call during render)
   const __cqPackIdForProbing = currentItem_S?.packId || "";
-  let __cqUsesPerFieldProbing = false;
-  try {
-    __cqUsesPerFieldProbing = Boolean(useProbeEngineV2(__cqPackIdForProbing));
-  } catch (_) {
-    __cqUsesPerFieldProbing = false;
-  }
+  const __cqUsesPerFieldProbing = Boolean(
+    __cqPackIdForProbing &&
+    typeof FOLLOWUP_PACK_CONFIGS !== "undefined" &&
+    FOLLOWUP_PACK_CONFIGS?.[__cqPackIdForProbing]?.isV2Pack
+  );
   
   // Footer overlap guardrail: Track max overlap seen for regression detection
   const maxOverlapSeenRef = React.useRef({ maxOverlapPx: 0, lastModeSeen: null });
