@@ -22284,6 +22284,39 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
           {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarModeSOT guard above */}
+          {/* [CQ_301_DIAG] Bottom bar branch selector diagnostic (NO HOOKS) */}
+          {(() => {
+            try {
+              const bottomBarBranchSelected =
+                (bottomBarModeSOT_SAFE === "CTA" && screenMode === "WELCOME") ? "CTA_WELCOME" :
+                (bottomBarModeSOT_SAFE === "CTA" && ((activeBlocker?.type === "SECTION_MESSAGE") || pendingSectionTransition)) ? "CTA_SECTION_TRANSITION" :
+                (bottomBarModeSOT_SAFE === "YES_NO" && !isMultiInstanceGate && ((activeBlocker?.type === "V3_GATE") || isV3Gate)) ? "YES_NO_V3_GATE" :
+                (bottomBarModeSOT_SAFE === "YES_NO" && ((bottomBarRenderTypeSOT_SAFE === "multi_instance_gate") || isMultiInstanceGate)) ? "YES_NO_MI_GATE" :
+                (bottomBarModeSOT_SAFE === "YES_NO" && (bottomBarRenderTypeSOT_SAFE !== "v3_probing")) ? "YES_NO_BASE_QUESTION" :
+                (bottomBarModeSOT_SAFE === "V3_WAITING") ? "V3_WAITING" :
+                ((bottomBarModeSOT_SAFE === "DISABLED") || (v3ProbingActive && !hasActiveV3Prompt)) ? "DISABLED" :
+                (bottomBarModeSOT_SAFE === "SELECT") ? "SELECT" :
+                (bottomBarModeSOT_SAFE === "TEXT_INPUT") ? "TEXT_INPUT" :
+                "UNKNOWN_BRANCH";
+
+              console.log("[CQ_301_DIAG][BOTTOM_BAR_BRANCH]", {
+                rid: __cqRid,
+                renderN: (typeof __cq301RenderRef !== "undefined" && __cq301RenderRef?.current) ? __cq301RenderRef.current : "no_render_ref",
+                branchSelected: bottomBarBranchSelected,
+                bottomBarModeSOT_SAFE: (typeof bottomBarModeSOT_SAFE !== "undefined") ? bottomBarModeSOT_SAFE : "undefined",
+                bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== "undefined") ? bottomBarRenderTypeSOT_SAFE : "undefined",
+                activeUiKind: (typeof activeKindSOT !== "undefined") ? activeKindSOT : "undefined",
+                effectiveItemType_SAFE: (typeof effectiveItemType_SAFE !== "undefined") ? effectiveItemType_SAFE : "undefined",
+                isMultiInstanceGate: (typeof isMultiInstanceGate !== "undefined") ? isMultiInstanceGate : "undefined",
+                isV3Gate: (typeof isV3Gate !== "undefined") ? isV3Gate : "undefined",
+                screenMode: (typeof screenMode !== "undefined") ? screenMode : "undefined",
+                hasActiveV3Prompt: (typeof hasActiveV3Prompt !== "undefined") ? hasActiveV3Prompt : "undefined",
+                v3ProbingActive: (typeof v3ProbingActive !== "undefined") ? v3ProbingActive : "undefined",
+                currentItem_SType: (typeof currentItem_S !== "undefined") ? (currentItem_S?.type || null) : "undefined"
+              });
+            } catch (_) {}
+            return null;
+          })()}
           {bottomBarModeSOT_SAFE === "CTA" && screenMode === 'WELCOME' ? (
             <div className="flex flex-col items-center">
               <Button
