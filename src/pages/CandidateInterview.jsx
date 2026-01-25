@@ -1432,6 +1432,16 @@ function CandidateInterviewInner() {
   
   const __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ = 'CQ_CI_BUILDSTAMP_2026-01-23T01:00Z_v3';
   
+  try {
+    if (typeof window !== 'undefined') {
+      console.log('[CQ_BUILDSTAMP_ASSERT][ALWAYS_ON]', {
+        ts: Date.now(),
+        buildStamp: __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ || 'missing',
+        reactVersion: React?.version || 'unknown'
+      });
+    }
+  } catch (_) {}
+  
   // REACT #310 FIX: Initialize useEffect sequence counter (render-safe, never throws)
   (function(){
     try {
