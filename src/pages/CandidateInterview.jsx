@@ -20178,7 +20178,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
         isLoading: (typeof isLoading !== 'undefined') ? isLoading : 'undefined',
         hasSession: (typeof session !== 'undefined') ? !!session : 'undefined',
         hasEngine: (typeof engine_S !== 'undefined') ? !!engine_S : 'undefined',
-        activeUiKind: (typeof activeUiKind !== 'undefined') ? activeUiKind : 'undefined',
+        activeUiKind: (typeof activeKindSOT !== 'undefined') ? activeKindSOT : (
+          (typeof activeUiItem_S_SAFE !== 'undefined' && activeUiItem_S_SAFE?.kind) ? activeUiItem_S_SAFE.kind : 'undefined'
+        ),
         activeUiItemKind: (typeof activeUiItem_S_SAFE !== 'undefined') ? (activeUiItem_S_SAFE?.kind || null) : 'undefined',
         bottomBarModeSOT_SAFE: (typeof bottomBarModeSOT_SAFE !== 'undefined') ? bottomBarModeSOT_SAFE : 'undefined',
         cqBootBlockUI_type: (typeof cqBootBlockUI !== 'undefined') ? (cqBootBlockUI === null ? 'null' : typeof cqBootBlockUI) : 'undefined',
