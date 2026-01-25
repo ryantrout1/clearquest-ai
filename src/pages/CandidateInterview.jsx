@@ -13872,50 +13872,7 @@ function CandidateInterviewInner() {
     });
   }
   
-  // GUARDRAIL C: Mode switch assertion (verify bottom spacer on mode changes)
-  const prevBottomBarModeRef = React.useRef(bottomBarModeSOT);
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'mode switch assertion', ts: Date.now() }); } catch(_){} })();
-  React.useEffect(() => {
-    const prevMode = prevBottomBarModeRef.current;
-    const currentMode = bottomBarModeSOT;
-    
-    if (prevMode !== currentMode && typeof window !== 'undefined') {
-      requestAnimationFrame(() => {
-        try {
-          const scrollContainer = historyRef.current;
-          const footerEl = footerRef.current;
-          
-          if (!scrollContainer || !footerEl) return;
-          
-          // Verify bottom spacer height
-          const spacer = bottomAnchorRef.current;
-          if (!spacer) {
-            console.error('[UI_CONTRACT][BOTTOM_SPACER_MISSING_ON_MODE_SWITCH]', {
-              fromMode: prevMode,
-              toMode: currentMode,
-              expectedHeightPx: bottomSpacerPx
-            });
-            return;
-          }
-          
-          const spacerRect = spacer.getBoundingClientRect();
-          const spacerHeightPx = Math.round(spacerRect.height);
-          
-          console.log('[UI_CONTRACT][FOOTER_MODE_SWITCH_OK]', {
-            fromMode: prevMode,
-            toMode: currentMode,
-            bottomSpacerPx,
-            actualSpacerHeightPx: spacerHeightPx,
-            delta: Math.abs(spacerHeightPx - bottomSpacerPx)
-          });
-        } catch (err) {
-          // Silent - guardrail should never crash
-        }
-      });
-    }
-    
-    prevBottomBarModeRef.current = currentMode;
-  }, [bottomBarModeSOT_SAFE, bottomSpacerPx]);
+  // GUARDRAIL C: Mode switch assertion - HOISTED TO BATCH 3 (line ~4455)
   
   // FOOTER CLEARANCE ASSERTION: DISABLED in 3-row shell mode (footer in normal flow, no overlap possible)
   if (!IS_3ROW_SHELL && hasActiveCard && typeof window !== 'undefined') {
@@ -14320,35 +14277,7 @@ function CandidateInterviewInner() {
   const isMultiInstanceGate = effectiveItemType === "multi_instance_gate";
   const isQuestion = false; // Set to true during refinement if needed
 
-  // AUTO-GROWING INPUT: Re-measure footer on mode changes (prevents stale height during transitions)
-  // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'footer remeasure mode', ts: Date.now() }); } catch(_){} })();
-  React.useLayoutEffect(() => {
-    if (!footerRef.current) return;
-    
-    // Trigger measurement on next frame (after layout settles)
-    requestAnimationFrame(() => {
-      if (!footerRef.current) return;
-      const rect = footerRef.current.getBoundingClientRect();
-      const measured = Math.round(rect.height || footerRef.current.offsetHeight || 0);
-      
-      setFooterMeasuredHeightPx(prev => {
-        const delta = Math.abs(measured - prev);
-        if (delta < 2) return prev;
-        
-        console.log('[FOOTER][HEIGHT_REMEASURED_ON_MODE_CHANGE]', {
-          footerMeasuredHeightPx: measured,
-          appliedPaddingPx: measured + 8,
-          delta,
-          bottomBarModeSOT_SAFE,
-          shouldRenderFooter_SAFE,
-          effectiveItemType
-        });
-        
-        return measured;
-      });
-    });
-  }, [bottomBarModeSOT_SAFE, shouldRenderFooter_SAFE, effectiveItemType]);
+  // AUTO-GROWING INPUT: Re-measure footer on mode changes - HOISTED TO BATCH 3 (line ~4485)
 
   // Re-anchor bottom on footer height changes when auto-scroll is enabled
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
@@ -14368,165 +14297,9 @@ function CandidateInterviewInner() {
     });
   }, [bottomSpacerPx, isUserTyping, scrollToBottom]);
 
-  // SMOOTH GLIDE AUTOSCROLL: ChatGPT-style smooth scrolling on new content
-  // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
-  // TDZ-SAFE: bottomBarModeSOT declared above (line ~7876) before this effect
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'smooth glide autoscroll', ts: Date.now() }); } catch(_){} })();
-  React.useLayoutEffect(() => {
-    // SCROLL LOCK GATE: Block auto-scroll during any scroll lock
-    if (isScrollWriteLocked()) {
-      console.log('[SCROLL][GLIDE_BLOCKED_BY_LOCK]', {
-        reason: scrollWriteLockReasonRef.current,
-        untilMsRemaining: Math.max(0, scrollWriteLockUntilRef.current - Date.now())
-      });
-      return;
-    }
-    
-    const scrollContainer = historyRef.current;
-    if (!scrollContainer || !bottomAnchorRef.current) return;
-    
-    // CTA FORCE-ANCHOR: Ensure CTA always visible (one-time on entry)
-    if (bottomBarModeSOT === 'CTA' && !isUserTyping) {
-      const { scrollTop: beforeScroll, scrollHeight, clientHeight } = scrollContainer;
-      const targetScrollTop = Math.max(0, scrollHeight - clientHeight);
-      
-      if (targetScrollTop > beforeScroll + 5) { // Only scroll if meaningfully below bottom
-        scrollContainer.scrollTop = targetScrollTop;
-        console.log('[CTA][FORCE_ANCHOR]', {
-          scrollTopBefore: beforeScroll,
-          scrollTopAfter: targetScrollTop,
-          targetScrollTop,
-          clientHeight,
-          scrollHeight,
-          reason: 'CTA_ENTRY_ENSURE_VISIBLE'
-        });
-      }
-      return; // Skip standard auto-scroll logic
-    }
-    
-    // GUARD A: Never auto-scroll while user is typing (UNLESS force-once override)
-    if (isUserTyping && !forceAutoScrollOnceRef.current) return;
-    
-    // PART C: Clear force-once flag after allowing scroll
-    if (forceAutoScrollOnceRef.current) {
-      forceAutoScrollOnceRef.current = false;
-      console.log('[SCROLL][FORCE_ONCE_CLEARED]', { reason: 'glide_autoscroll' });
-    }
-    
-    // GUARD C: Skip if other scroll controller already handled this frame
-    if (scrollIntentRef.current) {
-      console.log('[SCROLL][GLIDE_SKIPPED]', {
-        reason: 'other_scroll_active',
-        scrollIntentRef: true
-      });
-      return;
-    }
-    
-    // GUARD D: Skip during V3_WAITING (engine_S deciding)
-    if (bottomBarModeSOT === 'V3_WAITING') {
-      console.log('[SCROLL][GLIDE_SKIPPED]', {
-        reason: 'v3_waiting_mode',
-        bottomBarModeSOT
-      });
-      return;
-    }
-    
-    // GUARD B: Only auto-scroll if user is near bottom (ChatGPT behavior)
-    const scrollHeight = scrollContainer.scrollHeight;
-    const clientHeight = scrollContainer.clientHeight;
-    const scrollTop = scrollContainer.scrollTop;
-    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
-    const NEAR_BOTTOM_THRESHOLD_PX = 120;
-    const isNearBottom = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD_PX;
-    
-    // Update sticky autoscroll state
-    if (isNearBottom !== shouldAutoScrollRef.current) {
-      shouldAutoScrollRef.current = isNearBottom;
-    }
-    
-    // Only scroll if user is near bottom
-    if (!shouldAutoScrollRef.current) {
-      console.log('[SCROLL][GLIDE_SKIPPED]', {
-        reason: 'user_not_near_bottom',
-        distanceFromBottom: Math.round(distanceFromBottom)
-      });
-      return;
-    }
-    
-    // GUARD D: Only glide if container actually overflows (prevent scroll when there's nothing to scroll)
-    const overflowPx = scrollHeight - clientHeight;
-    if (overflowPx <= 8) {
-      console.log('[SCROLL][GLIDE_SKIPPED]', {
-        reason: 'no_overflow',
-        scrollHeight,
-        clientHeight,
-        overflowPx
-      });
-      return;
-    }
-    
-    // RAF for layout stability + smooth scroll
-    requestAnimationFrame(() => {
-      if (!bottomAnchorRef.current || !scrollContainer) return;
-      
-      const lenBefore = lastRenderStreamLenRef.current;
-      const lenNow = transcriptSOT_S.length;
-      const lenDelta = lenNow - lenBefore;
-      
-      // GUARD E: Only scroll on small transcript appends (1-2 entries)
-      // Prevents mega-scroll bursts during bulk merges/refreshes
-      if (lenDelta <= 0) {
-        console.log('[SCROLL][GLIDE_SKIPPED]', {
-          reason: 'no_append',
-          lenDelta
-        });
-        return;
-      }
-      
-      if (lenDelta > 2) {
-        console.log('[SCROLL][GLIDE_SKIPPED]', {
-          reason: 'bulk_append',
-          lenDelta,
-          note: 'Large delta indicates merge/refresh - not a single append'
-        });
-        return;
-      }
-      
-      // All guards passed - perform glide scroll
-      bottomAnchorRef.current.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'end' 
-      });
-      
-      console.log('[SCROLL][GRAVITY_APPLIED]', {
-        bottomBarModeSOT_SAFE,
-        effectiveItemType_SAFE,
-        distanceFromBottom: Math.round(distanceFromBottom),
-        thresholdPx: NEAR_BOTTOM_THRESHOLD_PX,
-        lenDelta,
-        scrollHeight,
-        clientHeight,
-        overflowPx
-      });
-      
-      // Update length tracker
-      lastRenderStreamLenRef.current = lenNow;
-    });
-  }, [
-    transcriptSOT_S.length,
-    isUserTyping,
-    bottomBarModeSOT
-  ]);
+  // SMOOTH GLIDE AUTOSCROLL - HOISTED TO BATCH 3 (line ~4510)
 
-  // ANCHOR LAST V3 ANSWER: Keep recently submitted answer visible during transitions
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'anchor last v3 answer', ts: Date.now() }); } catch(_){} })();
-  React.useLayoutEffect(() => {
-    // SCROLL LOCK GATE: Block anchor during any scroll lock
-    if (isScrollWriteLocked()) {
-      return;
-    }
-    
-    if (recentAnchorRef.current.kind !== 'V3_PROBE_ANSWER') return;
+  // ANCHOR LAST V3 ANSWER - HOISTED TO BATCH 3 (line ~4615)
     
     const recentAge = Date.now() - recentAnchorRef.current.ts;
     if (recentAge > 2000) {
@@ -14685,106 +14458,15 @@ function CandidateInterviewInner() {
   // TDZ GUARD: Track previous render list length for append detection (using ref, not direct variable)
   const prevFinalListLenForScrollRef = useRef(0);
   
-  // GOLDEN CONTRACT CHECK: Emit deterministic verification bundle (deduped)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'emitGoldenContractCheck', ts: Date.now() }); } catch(_){} })();
-  const emitGoldenContractCheck = React.useCallback(() => {
-    const payload = {
-      sessionId,
-      activeUiItem_SKind: activeUiItem_SAFE?.kind,
-      bottomBarModeSOT_SAFE,
-      footerClearanceStatus: footerClearanceStatusRef.current,
-      openerHistoryStatus: openerMergeStatusRef.current,
-      suppressProbesInTranscript: (activeUiItem_SAFE?.kind === "V3_PROMPT" || activeUiItem_SAFE?.kind === "V3_WAITING") && v3ProbingActive,
-      lastMeasuredOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
-      hasFooterSpacer: typeof window !== 'undefined' && !!historyRef.current?.querySelector('[data-cq-footer-spacer="true"]'),
-      transcriptLen: finalTranscriptList_S_SAFE.length || 0
-    };
-    
-    // Dedupe: Only emit if payload changed
-    const payloadKey = JSON.stringify(payload);
-    if (lastGoldenCheckPayloadRef.current === payloadKey) {
-      return; // No change - skip emission
-    }
-    
-    lastGoldenCheckPayloadRef.current = payloadKey;
-    console.log('[UI_CONTRACT][GOLDEN_CHECK]', payload);
-  }, [sessionId, activeUiItem_SAFE, bottomBarModeSOT_SAFE, v3ProbingActive, finalTranscriptList_S_SAFE]);
+  // GOLDEN CONTRACT CHECK - HOISTED TO BATCH 3 (line ~4465)
   
-  // CONSOLIDATED UI CONTRACT STATUS LOG (Single Source of Truth)
-  // Emits once per mode change with all three contract aspects
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'ui contract status', ts: Date.now() }); } catch(_){} })();
-  React.useEffect(() => {
-    const footerStatus = footerClearanceStatusRef.current || 'UNKNOWN';
-    const openerStatus = openerMergeStatusRef.current || 'UNKNOWN';
-    const suppressProbes = (activeUiItem_SAFE?.kind === "V3_PROMPT" || activeUiItem_SAFE?.kind === "V3_WAITING") && v3ProbingActive;
-    
-    console.log('[UI_CONTRACT][SOT_STATUS]', {
-      footerClearance: footerStatus,
-      openerHistory: openerStatus,
-      probePolicy: suppressProbes ? 'ACTIVE_SUPPRESS' : 'HISTORY_ALLOWED',
-      activeUiItem_SKind: activeUiItem_SAFE?.kind,
-      bottomBarModeSOT_SAFE,
-      sessionId
-    });
-    
-    // Emit golden check after SOT status (only for active modes)
-    if (bottomBarModeSOT === 'TEXT_INPUT' || bottomBarModeSOT === 'YES_NO') {
-      emitGoldenContractCheck();
-    }
-  }, [bottomBarModeSOT_SAFE, activeUiItem_SAFE?.kind, v3ProbingActive, sessionId, emitGoldenContractCheck]);
+  // CONSOLIDATED UI CONTRACT STATUS LOG - HOISTED TO BATCH 3 (line ~4640)
   
-  // UI CONTRACT STATUS RESET: Clear status refs on session change
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'ui contract reset', ts: Date.now() }); } catch(_){} })();
-  React.useEffect(() => {
-    openerMergeStatusRef.current = 'UNKNOWN';
-    footerClearanceStatusRef.current = 'UNKNOWN';
-    
-    console.log('[UI_CONTRACT][SOT_STATUS_RESET]', {
-      sessionId,
-      reason: 'New session started - status refs cleared'
-    });
-  }, [sessionId]);
+  // UI CONTRACT STATUS RESET - HOISTED TO BATCH 3 (line ~4660)
   
-  // PART B: ACTIVE ITEM CHANGED - Call ensureActiveVisibleAfterRender when active item changes
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'active item changed', ts: Date.now() }); } catch(_){} })();
-  React.useLayoutEffect(() => {
-    if (!shouldRenderFooter_SAFE) return;
-    
-    // Build active key from currentItem_S or V3 context
-    const activeKey = activeCard_SKeySOT || currentItem_S?.id || `${currentItem_S?.packId}:${currentItem_S?.instanceNumber}`;
-    if (!activeKey) return;
-    
-    // REGRESSION-PROOF: Use safe wrapper (validates mode before use)
-    const isYesNoModeFresh = bottomBarModeSOTSafe === 'YES_NO';
-    const isMiGateFresh = effectiveItemType_SAFE === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
-    
-    requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender("ACTIVE_ITEM_CHANGED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
-    });
-  }, [activeCard_SKeySOT, currentItem_S?.id, currentItem_S?.type, shouldRenderFooter_SAFE, ensureActiveVisibleAfterRender, activeKindSOT, bottomBarModeSOTSafe, effectiveItemType_SAFE, activeUiItem_S]);
+  // PART B: ACTIVE ITEM CHANGED - HOISTED TO BATCH 3 (line ~4670)
   
-  // PART B: RENDER LIST APPENDED - TDZ-safe using ref (no direct finalTranscriptList_S reference)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'render list appended', ts: Date.now() }); } catch(_){} })();
-  React.useLayoutEffect(() => {
-    if (!shouldRenderFooter_SAFE) return;
-    
-    // TDZ-SAFE: Use ref that's synced AFTER finalTranscriptList_S is computed
-    const currentLen = finalListLenRef.current;
-    const prevLen = prevFinalListLenForScrollRef.current;
-    
-    if (currentLen === 0 || currentLen <= prevLen) return;
-    
-    // Length increased - trigger scroll correction
-    prevFinalListLenForScrollRef.current = currentLen;
-    
-    // REGRESSION-PROOF: Use safe wrapper (validates mode before use)
-    const isYesNoModeFresh = bottomBarModeSOTSafe === 'YES_NO';
-    const isMiGateFresh = effectiveItemType_SAFE === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
-    
-    requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender("RENDER_LIST_APPENDED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
-    });
-  }, [shouldRenderFooter_SAFE, ensureActiveVisibleAfterRender, activeCard_SKeySOT, activeKindSOT, bottomBarModeSOTSafe, effectiveItemType_SAFE, activeUiItem_S]);
+  // PART B: RENDER LIST APPENDED - HOISTED TO BATCH 3 (line ~4690)
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'force scroll question shown', ts: Date.now() }); } catch(_){} })();
@@ -14969,187 +14651,9 @@ function CandidateInterviewInner() {
   }, [dynamicBottomPaddingPx, screenMode, isUserTyping, bottomBarModeSOT]);
   
   // TDZ GUARD: Do not reference finalTranscriptList_S in hook deps before it is initialized.
-  // DETERMINISTIC BOTTOM ANCHOR ENFORCEMENT: Keep transcript pinned to bottom when expected
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'bottom anchor enforce', ts: Date.now() }); } catch(_){} })();
-  React.useLayoutEffect(() => {
-    // SCROLL LOCK GATE: Block bottom anchor during any scroll lock
-    if (isScrollWriteLocked()) {
-      return;
-    }
-    
-    const scrollContainer = historyRef.current;
-    if (!scrollContainer) return;
-    
-    // Compute overflow state
-    const hasOverflow = scrollContainer.scrollHeight > scrollContainer.clientHeight + 1;
-    const nearBottom = isNearBottomStrict(scrollContainer, 24);
-    
-    // Decision: scroll to bottom if short OR if user is near bottom
-    const shouldScrollToBottom = !hasOverflow || nearBottom;
-    
-    if (!shouldScrollToBottom) return;
-    
-    // Execute scroll using unified helper
-    const scrollTopBefore = scrollContainer.scrollTop;
-    scrollToBottom('BOTTOM_ANCHOR_ENFORCE');
-    const scrollTopAfter = scrollContainer.scrollTop;
-    const didScroll = Math.abs(scrollTopAfter - scrollTopBefore) > 1;
-    
-    if (CQ_DEBUG_FOOTER_ANCHOR && didScroll) {
-      console.log('[UI_CONTRACT][BOTTOM_ANCHOR_ENFORCE]', {
-        reason: !hasOverflow ? 'SHORT_NO_OVERFLOW' : 'NEAR_BOTTOM_OVERFLOW',
-        scrollTopBefore: Math.round(scrollTopBefore),
-        scrollTopAfter: Math.round(scrollTopAfter),
-        scrollHeight: scrollContainer.scrollHeight,
-        clientHeight: scrollContainer.clientHeight,
-        hasOverflow,
-        nearBottom
-      });
-    }
-  }, [
-    bottomAnchorLenRef.current,
-    activeUiItem_S_SAFE?.kind,
-    activeCard_S_SAFE?.stableKey,
-    scrollToBottom
-  ]);
+  // DETERMINISTIC BOTTOM ANCHOR ENFORCEMENT - HOISTED TO BATCH 3 (line ~4710)
   
-  // GRAVITY FOLLOW: Auto-scroll active card into view when it changes (ChatGPT-style)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'gravity follow', ts: Date.now() }); } catch(_){} })();
-  React.useLayoutEffect(() => {
-    // SCROLL LOCK GATE: Block gravity follow during any scroll lock
-    if (isScrollWriteLocked()) {
-      return;
-    }
-    
-    // GUARD: Skip if user scrolled up manually
-    const scrollContainer = historyRef.current;
-    if (!scrollContainer) return;
-    
-    // Check if user is near bottom (respect manual scroll up)
-    const nearBottom = computeNearBottom(scrollContainer, 80);
-    if (!nearBottom) {
-      console.log('[SCROLL][GRAVITY_FOLLOW_SKIP]', {
-        reason: 'user_scrolled_up',
-        activeCard_SKeySOT,
-        bottomBarModeSOT
-      });
-      return;
-    }
-    
-    // GUARD: Skip during typing to prevent jank
-    if (isUserTyping) return;
-    
-    // GUARD: Must have active card
-    if (!hasActiveCardSOT) return;
-    
-    // Dedupe: Only scroll when active card key actually changes
-    const gravityKey = `${activeCard_SKeySOT}:${bottomBarModeSOT}:${screenMode}`;
-    if (lastGravityFollowKeyRef.current === gravityKey) {
-      return; // Already scrolled for this card+mode combo
-    }
-    
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (!scrollContainer) return;
-        
-        // Verify still near bottom (guard against stale scroll during RAF delay)
-        const stillNearBottom = computeNearBottom(scrollContainer, 80);
-        if (!stillNearBottom) return;
-        
-        const scrollTopBefore = scrollContainer.scrollTop;
-        let didScroll = false;
-        
-        // Strategy A: Scroll active card into view (preferred)
-        const activeCard_SEl = scrollContainer.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
-        if (activeCard_SEl) {
-          activeCard_SEl.scrollIntoView({ block: "end", behavior: "auto" });
-          didScroll = true;
-          console.log('[SCROLL][GRAVITY_FOLLOW_APPLIED]', {
-            activeCard_SKeySOT,
-            mode: bottomBarModeSOT_SAFE,
-            screenMode,
-            strategy: 'ACTIVE_CARD_SCROLL_INTO_VIEW',
-            distanceFromBottom: scrollContainer.scrollHeight - (scrollTopBefore + scrollContainer.clientHeight)
-          });
-        }
-        // Strategy B: Fallback to bottom anchor
-        else if (bottomAnchorRef.current) {
-          bottomAnchorRef.current.scrollIntoView({ block: "end", behavior: "auto" });
-          didScroll = true;
-          console.log('[SCROLL][GRAVITY_FOLLOW_APPLIED]', {
-            activeCard_SKeySOT,
-            mode: bottomBarModeSOT_SAFE,
-            screenMode,
-            strategy: 'BOTTOM_ANCHOR_FALLBACK',
-            distanceFromBottom: scrollContainer.scrollHeight - (scrollTopBefore + scrollContainer.clientHeight)
-          });
-        }
-        
-        if (didScroll) {
-          // Mark this key as scrolled
-          lastGravityFollowKeyRef.current = gravityKey;
-          
-          const scrollTopAfter = scrollContainer.scrollTop;
-          console.log('[SCROLL][GRAVITY_FOLLOW_METRICS]', {
-            scrollTopBefore: Math.round(scrollTopBefore),
-            scrollTopAfter: Math.round(scrollTopAfter),
-            delta: Math.round(scrollTopAfter - scrollTopBefore)
-          });
-          
-          // GUARDRAIL: Detect if active card still below footer after scroll
-          requestAnimationFrame(() => {
-            if (!scrollContainer || !footerRef.current || !activeCard_SEl) return;
-            
-            const questionRect = activeCard_SEl.getBoundingClientRect();
-            const footerRect = footerRef.current.getBoundingClientRect();
-            const overlapPx = Math.max(0, questionRect.bottom - footerRect.top);
-            
-            if (overlapPx > 4) {
-              const overlapLogKey = `${activeCard_SKeySOT}:${Math.round(overlapPx)}`;
-              if (lastClearanceErrorKeyRef.current !== overlapLogKey) {
-                lastClearanceErrorKeyRef.current = overlapLogKey;
-                
-                // PART A: Capture violation snapshot
-                captureViolationSnapshot({
-                  reason: 'ACTIVE_BEHIND_FOOTER',
-                  list: finalListRef.current,
-                  packId: currentItem_S?.packId,
-                  instanceNumber: currentItem_S?.instanceNumber,
-                  activeItemId: currentItem_S?.id
-                });
-                
-                // PART C: Apply corrective scroll (bypass typing lock for explicit navigation)
-                if ((!isUserTyping || forceAutoScrollOnceRef.current) && scrollContainer) {
-                  const targetScrollTop = scrollContainer.scrollTop + overlapPx + 8;
-                  scrollContainer.scrollTop = targetScrollTop;
-                  
-                  console.log('[SCROLL][CORRECTIVE_NUDGE]', {
-                    overlapPx: Math.round(overlapPx),
-                    scrollTopBefore: Math.round(scrollContainer.scrollTop - overlapPx - 8),
-                    scrollTopAfter: Math.round(targetScrollTop),
-                    bypassedTypingLock: isUserTyping && forceAutoScrollOnceRef.current,
-                    reason: 'Active card behind footer - corrected'
-                  });
-                  
-                  if (forceAutoScrollOnceRef.current) {
-                    forceAutoScrollOnceRef.current = false;
-                  }
-                }
-              }
-            }
-          });
-        }
-      });
-    });
-  }, [
-    activeCard_SKeySOT,
-    transcriptSOT_S.length,
-    bottomBarModeSOT_SAFE,
-    screenMode,
-    isUserTyping,
-    hasActiveCardSOT,
-    dynamicBottomPaddingPx
-  ]);
+  // GRAVITY FOLLOW - HOISTED TO BATCH 3 (line ~4740)
   
   // FOOTER OVERLAP CLAMP: Ensure active card never behind footer (unconditional)
   React.useLayoutEffect(() => {
@@ -15181,16 +14685,7 @@ function CandidateInterviewInner() {
     });
   }, [shouldRenderFooter_SAFE, hasActiveCardSOT, activeCard_SKeySOT, dynamicFooterHeightPx]);
   
-  // ACTIVE CARD OVERLAP NUDGE: Ensure active card never hides behind footer when footer changes
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'active card overlap nudge', ts: Date.now() }); } catch(_){} })();
-  React.useLayoutEffect(() => {
-    // SCROLL LOCK GATE: Block overlap nudge during any scroll lock
-    if (isScrollWriteLocked()) {
-      return;
-    }
-    
-    if (!shouldRenderFooter_SAFE) return; // No footer, no nudge needed
-    if (!hasActiveCard) return; // No active card, nothing to nudge
+  // ACTIVE CARD OVERLAP NUDGE - HOISTED TO BATCH 3 (line ~4850)
     
     const scrollContainer = historyRef.current;
     const footerEl = footerRootRef.current; // Use stable footer root ref
@@ -17643,9 +17138,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   const dynamicBottomPaddingPx_SAFE = 80;
   
-  const finalListRef = (typeof finalListRef !== 'undefined' && finalListRef)
-    ? finalListRef
-    : React.useRef([]);
+  // finalListRef already hoisted to BATCH 3 (line ~4458)
   
   const effectiveItemType_SAFE_EARLY = null;
   const bottomBarRenderTypeSOT_SAFE_EARLY = 'default';
