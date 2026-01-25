@@ -6225,9 +6225,9 @@ function CandidateInterviewInner() {
 
     console.log('[CQ_301_DIAG][DERIVED_CHECKPOINT_EXIT]', { rid: __cqRidSafe });
   } catch (e) {
-    const __cqRidSafe = (typeof __cqRid !== 'undefined') ? __cqRid : 'no_rid';
+    const __cqRidSafeCatch = (typeof __cqRid !== 'undefined') ? __cqRid : 'no_rid';
     console.error('[CQ_301_DIAG][DERIVED_CHECKPOINT_THROW]', {
-      rid: __cqRidSafe,
+      rid: __cqRidSafeCatch,
       renderN: __cq301RenderRef?.current,
       name: e?.name,
       message: e?.message,
