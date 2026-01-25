@@ -6179,6 +6179,45 @@ function CandidateInterviewInner() {
   window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_6:AFTER_MODE_VALIDATION';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '6:AFTER_MODE_VALIDATION' });
   
+  // [CQ_301_DIAG] Derived checkpoint runner (NO HOOKS)
+  try {
+    console.log('[CQ_301_DIAG][DERIVED_CHECKPOINT_ENTER]', { rid: __cqRid, renderN: __cq301RenderRef?.current });
+
+    // Each checkpoint logs before and after evaluating a single expression.
+    // IMPORTANT: evaluate expressions using safe access (typeof + optional chaining) so we don't introduce new ReferenceErrors.
+
+    console.log('[CQ_301_DIAG][CP1][BEFORE]', { rid: __cqRid, name: 'activeUiItem_S_SAFE.kind' });
+    const __cq_cp1 = (typeof activeUiItem_S_SAFE !== 'undefined') ? (activeUiItem_S_SAFE?.kind || null) : 'undefined';
+    console.log('[CQ_301_DIAG][CP1][AFTER]', { rid: __cqRid, v: __cq_cp1 });
+
+    console.log('[CQ_301_DIAG][CP2][BEFORE]', { rid: __cqRid, name: 'currentItem_S.type' });
+    const __cq_cp2 = (typeof currentItem_S !== 'undefined') ? (currentItem_S?.type || null) : 'undefined';
+    console.log('[CQ_301_DIAG][CP2][AFTER]', { rid: __cqRid, v: __cq_cp2 });
+
+    console.log('[CQ_301_DIAG][CP3][BEFORE]', { rid: __cqRid, name: 'bottomBarModeSOT_SAFE' });
+    const __cq_cp3 = (typeof bottomBarModeSOT_SAFE !== 'undefined') ? bottomBarModeSOT_SAFE : 'undefined';
+    console.log('[CQ_301_DIAG][CP3][AFTER]', { rid: __cqRid, v: __cq_cp3 });
+
+    console.log('[CQ_301_DIAG][CP4][BEFORE]', { rid: __cqRid, name: 'v3ProbingActive + v3ProbingContext_S' });
+    const __cq_cp4 = {
+      v3ProbingActive: (typeof v3ProbingActive !== 'undefined') ? v3ProbingActive : 'undefined',
+      hasV3Ctx: (typeof v3ProbingContext_S !== 'undefined') ? !!v3ProbingContext_S : 'undefined',
+    };
+    console.log('[CQ_301_DIAG][CP4][AFTER]', { rid: __cqRid, v: __cq_cp4 });
+
+    console.log('[CQ_301_DIAG][DERIVED_CHECKPOINT_EXIT]', { rid: __cqRid });
+  } catch (e) {
+    console.error('[CQ_301_DIAG][DERIVED_CHECKPOINT_THROW]', {
+      rid: __cqRid,
+      renderN: __cq301RenderRef?.current,
+      name: e?.name,
+      message: e?.message,
+      stack: e?.stack
+    });
+    // Re-throw to preserve existing behavior / catch routing
+    throw e;
+  }
+  
   // DERIVED EARLY: Prevent TDZ in useEffect dep arrays (hoisted from derived snapshot)
   const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
   const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
