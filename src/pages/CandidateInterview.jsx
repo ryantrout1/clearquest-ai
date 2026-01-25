@@ -20169,6 +20169,24 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       );
     }
 
+    // [CQ_301_DIAG] Pre-render node-type snapshot (NO HOOKS)
+    try {
+      console.log('[CQ_301_DIAG][PRE_RENDER_NODE_TYPE]', {
+        rid: __cqRid,
+        renderN: (typeof __cq301RenderRef !== 'undefined' && __cq301RenderRef?.current) ? __cq301RenderRef.current : 'no_render_ref',
+        screenMode: (typeof screenMode !== 'undefined') ? screenMode : 'undefined',
+        isLoading: (typeof isLoading !== 'undefined') ? isLoading : 'undefined',
+        hasSession: (typeof session !== 'undefined') ? !!session : 'undefined',
+        hasEngine: (typeof engine_S !== 'undefined') ? !!engine_S : 'undefined',
+        activeUiKind: (typeof activeUiKind !== 'undefined') ? activeUiKind : 'undefined',
+        activeUiItemKind: (typeof activeUiItem_S_SAFE !== 'undefined') ? (activeUiItem_S_SAFE?.kind || null) : 'undefined',
+        bottomBarModeSOT_SAFE: (typeof bottomBarModeSOT_SAFE !== 'undefined') ? bottomBarModeSOT_SAFE : 'undefined',
+        cqBootBlockUI_type: (typeof cqBootBlockUI !== 'undefined') ? (cqBootBlockUI === null ? 'null' : typeof cqBootBlockUI) : 'undefined',
+        cqLoadingReturnJSX_type: (typeof cqLoadingReturnJSX !== 'undefined') ? (cqLoadingReturnJSX === null ? 'null' : typeof cqLoadingReturnJSX) : 'undefined',
+        __tdzTraceJsx_type: (typeof __tdzTraceJsx !== 'undefined') ? (__tdzTraceJsx === null ? 'null' : typeof __tdzTraceJsx) : 'undefined',
+      });
+    } catch (_) {}
+
     return (
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
       <header className="bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3 flex-shrink-0">
