@@ -6179,6 +6179,12 @@ function CandidateInterviewInner() {
   window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_6:AFTER_MODE_VALIDATION';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '6:AFTER_MODE_VALIDATION' });
   
+  const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
+  const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
+  const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
+  const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && 
+                            v3PromptPhase === "ANSWER_NEEDED";
+  
   // [CQ_301_DIAG] Derived checkpoint runner (NO HOOKS)
   try {
     const __cqRidSafe = (typeof __cqRid !== 'undefined') ? __cqRid : 'no_rid';
@@ -6238,11 +6244,7 @@ function CandidateInterviewInner() {
   }
   
   // DERIVED EARLY: Prevent TDZ in useEffect dep arrays (hoisted from derived snapshot)
-  const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
-  const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
-  const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
-  const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && 
-                            v3PromptPhase === "ANSWER_NEEDED";
+  // NOTE: hasV3PromptText, hasV3ProbeQuestion, hasV3LoopKey, hasActiveV3Prompt moved BEFORE checkpoint runner (TDZ fix)
   // NOTE: activeUiItem_S now computed earlier (line ~4427) with boot bypass + failopen wrapper
   bottomBarRenderTypeSOT = (() => {
     if (activeUiItem_S?.kind === "REQUIRED_ANCHOR_FALLBACK") return "required_anchor_fallback";
