@@ -1434,9 +1434,9 @@ function CandidateInterviewInner() {
   
   try {
     if (typeof window !== 'undefined') {
-      console.log('[CQ_BUILDSTAMP_ASSERT][ALWAYS_ON]', {
+      console.log('[CQ_BUILDSTAMP_BURST][ALWAYS_ON]', {
         ts: Date.now(),
-        buildStamp: __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__ || 'missing',
+        buildStamp: __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__,
         reactVersion: React?.version || 'unknown'
       });
     }
@@ -1488,6 +1488,8 @@ function CandidateInterviewInner() {
   // REACT #310 CENSUS: Initialize per-render hook tracking
   const __cqRid = cqRenderId();
   cqHookCensusInit(__cqRid);
+  
+  try { console.log('[CQ_RENDER_START][ALWAYS_ON]', { rid: __cqRid, ts: Date.now() }); } catch (_) {}
   
   console.log("[TDZ_TRACE][FN_ENTER]");
   try {
@@ -20826,6 +20828,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   console.log("[TDZ_TRACE][RENDER_ENTER]");
   let __tdzTraceJsx = null;
   try {
+    try { console.log('[CQ_RENDER_END_REACHED][ALWAYS_ON]', { rid: __cqRid, ts: Date.now() }); } catch (_) {}
 
     // REACT #310 FIX: Conditional render WITHOUT early return (all hooks already declared above)
     if (__cqShouldShowRecoveringUI) {
