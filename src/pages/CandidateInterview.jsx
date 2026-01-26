@@ -3444,7 +3444,7 @@ function CandidateInterviewInner() {
     });
   }, [sessionId, isLoading, session, engine_S]);
 
-  useEffect(() => {
+  useEffect_TR(() => {
     if (!sessionId) return;
     const t = setTimeout(() => {
       console.log('[CQ_BOOT_STATE][WATCHDOG_5S]', {
