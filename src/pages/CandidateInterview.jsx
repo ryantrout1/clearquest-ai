@@ -5361,6 +5361,51 @@ function CandidateInterviewInner() {
   
   if (!__cqBootNotReady) {
     // Boot ready - execute TRY1 normally
+    // ============================================================================
+    // RENDER-TIME GLOBAL MUTATION GUARDRAIL (Dev-only regression prevention)
+    // ============================================================================
+    // CRITICAL: Detects re-introduction of render-time window writes (React #310 risk)
+    // Target keys: __CQ_LAST_RENDER_STEP__, CQ_RENDER_ID, CQ_USEEFFECT_SEQ, CQ_USECALLBACK_SEQ, CQ_HOOK_INDEX
+    // Runs ONLY in preview/dev environments (hostname check)
+    if (typeof window !== 'undefined') {
+      const hostname = window.location.hostname;
+      const isDevEnv = hostname.includes('preview') || hostname.includes('localhost');
+
+      if (isDevEnv && !window.__CQ_RENDER_MUTATION_GUARD_INSTALLED__) {
+        window.__CQ_RENDER_MUTATION_GUARD_INSTALLED__ = true;
+
+        const FORBIDDEN_KEYS = [
+          '__CQ_LAST_RENDER_STEP__',
+          'CQ_RENDER_ID',
+          'CQ_USEEFFECT_SEQ',
+          'CQ_USECALLBACK_SEQ',
+          'CQ_HOOK_INDEX'
+        ];
+
+        const baseline = {};
+        FORBIDDEN_KEYS.forEach((key) => {
+          baseline[key] = window[key];
+        });
+
+        requestAnimationFrame(() => {
+          FORBIDDEN_KEYS.forEach((key) => {
+            const before = baseline[key];
+            const after = window[key];
+
+            if (before !== after) {
+              console.warn('[CQ_GUARDRAIL][RENDER_MUTATION_DETECTED]', {
+                key,
+                before,
+                after,
+                sessionId,
+                reason: 'Render-time window write detected - React #310 risk',
+                action: 'FIX_REQUIRED'
+              });
+            }
+          });
+        });
+      }
+    }
     try {
         if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = 'TRY1_ENTER';
         console.log('[CQ_DIAG][EARLY_STEP]', { step: 'TRY1_ENTER' });
