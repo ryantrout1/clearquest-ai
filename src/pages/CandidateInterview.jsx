@@ -1660,6 +1660,8 @@ function CandidateInterviewInner() {
     } catch (_) {}
   };
   
+  const __cqHookSite = (label) => { try { if (typeof window !== 'undefined') window.__CQ_LAST_HOOKSITE__ = label; } catch (_) {} };
+  
   // Traced hook aliases (local to this component)
   const useEffect_TR = (...args) => { __cqTrace('useEffect'); return useEffect(...args); };
   const useLayoutEffect_TR = (...args) => { __cqTrace('useLayoutEffect'); return useLayoutEffect(...args); };
@@ -4585,6 +4587,7 @@ function CandidateInterviewInner() {
   // ============================================================================
 
   // STEP 3: Key-based monotonic assertion refs (hoisted from removed effect)
+  __cqHookSite('H12P_2:useRef@L4588');
   const prevKeysSetRef = useRef(new Set());
   
   // ============================================================================
@@ -7132,6 +7135,7 @@ function CandidateInterviewInner() {
   // SESSION RECOVERY: Attempt to find session by dept+file if sessionId missing
   const sessionRecoveryAttemptedRef = useRef(false);
   
+  __cqHookSite('H12P_3:useEffect@L7131');
   useEffect_TR(() => {
     // Only run recovery if sessionId is missing AND no lock exists
     if (effectiveSessionId) return;
@@ -7199,6 +7203,7 @@ function CandidateInterviewInner() {
   // STABLE: Component instance tracking - MUST NOT change during session
   const componentInstanceId = useRef(`CandidateInterview-${sessionId}`);
   
+  __cqHookSite('H12P_3:useEffect@L7131');
   useEffect(() => {
     candidateInterviewMountCount++;
     
@@ -7369,6 +7374,7 @@ function CandidateInterviewInner() {
   }, [sessionId]);
 
   // Global TDZ Trap
+  __cqHookSite('H12P_4:useEffect@L7371');
   useEffect(() => {
     const handleGlobalTdz = (event) => {
       try {
@@ -7398,6 +7404,7 @@ function CandidateInterviewInner() {
   }, []);
 
   // UI_CONTRACT: 3-row shell audit (unconditional hook - must run on every render)
+  __cqHookSite('H12P_5:useEffect@L7401');
   useEffect(() => {
     if (typeof window === 'undefined' || !historyRef.current) return;
     
@@ -7443,6 +7450,7 @@ function CandidateInterviewInner() {
   const PERSIST_THROTTLE_MS = 3000;
   const PERSIST_BATCH_COUNT = 3;
 
+  __cqHookSite('H12P_6:useCallback@L7446');
   const flushPersist = useCallback(async () => {
     if (!pendingPersistRef.current) return;
 
@@ -7471,6 +7479,7 @@ function CandidateInterviewInner() {
     }
   }, [sessionId, engine_S]);
 
+  __cqHookSite('H12P_7:useCallback@L7474');
   const persistStateToDatabase = useCallback(async (ignoredTranscript, newQueue, newCurrentItem) => {
     // TRANSCRIPT GUARD: Warn if transcript argument is passed (should always be null)
     if (ignoredTranscript !== null && ignoredTranscript !== undefined) {
@@ -7506,6 +7515,7 @@ function CandidateInterviewInner() {
     };
   }, [flushPersist]);
 
+  __cqHookSite('H12P_9:useCallback@L7509');
   const advanceToNextBaseQuestion = useCallback(async (baseQuestionId, currentTranscript = null) => {
     // V3 BLOCKING GATE: Block advancement if V3 is active
     if (isV3Blocking) {
@@ -7675,6 +7685,7 @@ function CandidateInterviewInner() {
     }
   }, [engine_S, dbTranscript, sections, currentSectionIndex, refreshTranscriptFromDB]);
 
+  __cqHookSite('H12P_10:useCallback@L7678');
   const onFollowupPackComplete = useCallback(async (baseQuestionId, packId) => {
     const question = engine_S.QById[baseQuestionId];
     if (!question) {
@@ -10701,6 +10712,7 @@ function CandidateInterviewInner() {
 
 
   // HELPER: Append CTA acknowledgement to transcript (section transition click)
+  __cqHookSite('H12P_12:useCallback@L10704');
   const appendCtaAcknowledgeToTranscript = useCallback(async ({ sessionId, currentSectionId, nextSectionId }) => {
     try {
       // Build deterministic stableKey
