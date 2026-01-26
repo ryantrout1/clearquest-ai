@@ -1539,9 +1539,10 @@ function CandidateInterviewInner() {
       } catch (_) { return false; }
     })();
     if (!__cqCensusEnabledNow) return;
+    console.log('[CQ_HOOK_CENSUS][ENABLED_NOW]', true);
     try {
       __cqCensusIdx += 1;
-      console.error('[CQ_HOOK_CENSUS][MARK]', { idx: __cqCensusIdx, name, ts: Date.now() });
+      console.log('[CQ_HOOK_CENSUS][MARK]', { idx: __cqCensusIdx, name, ts: Date.now() });
     } catch (_) {}
   };
   
@@ -1758,6 +1759,11 @@ function CandidateInterviewInner() {
   // HOOK CENSUS: Mark before first hook
   cqHookMark('PRE_HOOKS');
   cqHookMark('HOOK_01:useNavigate');
+  try {
+    if (typeof window !== 'undefined' && window.CQ_DEBUG_HOOK_CENSUS === true) {
+      console.log('[CQ_HOOK_CENSUS][RENDER_SEEN]', { ts: Date.now() });
+    }
+  } catch (_) {}
   const navigate = useNavigate();
   
   // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
