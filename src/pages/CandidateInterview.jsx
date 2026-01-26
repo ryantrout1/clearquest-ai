@@ -3458,7 +3458,7 @@ function CandidateInterviewInner() {
   }, [sessionId, isLoading, session, engine_S]);
 
   // BOOT FIX: Assign ref in useEffect to guarantee assignment before kickstart reads it
-  useEffect(() => {
+  useEffect_TR(() => {
     try {
       resumeFromDBFnRef.current = resumeFromDB;
       if (typeof window !== 'undefined') {
