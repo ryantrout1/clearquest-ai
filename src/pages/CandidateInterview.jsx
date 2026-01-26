@@ -1650,6 +1650,13 @@ function CandidateInterviewInner() {
     try {
       __cqHookTraceIdx += 1;
       console.log('[CQ_HOOK_TRACE]', { idx: __cqHookTraceIdx, kind, ts: Date.now() });
+      if (__cqHookTraceIdx === 12 || __cqHookTraceIdx === 13 || __cqHookTraceIdx === 14) {
+        let stack = null;
+        try { stack = (new Error('CQ_HOOK_CALLSITE')).stack; } catch (_) {}
+        try {
+          console.log('[CQ_HOOK_CALLSITE]', { idx: __cqHookTraceIdx, kind, stack });
+        } catch (_) {}
+      }
     } catch (_) {}
   };
   
