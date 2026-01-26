@@ -1475,27 +1475,7 @@ function CandidateInterviewInner() {
   // REACT #310 CENSUS: Auto-enable for rid 4 ONLY (isolate crashing render)
   // [REMOVED: Render-time census auto-enable]
   
-  // [CQ_301_DIAG] Minimal render + React identity snapshot (DO NOT REMOVE until 301 resolved)
-  const __cq301RenderRef = React.useRef(0);
-  __cq301RenderRef.current += 1;
-
-  try {
-    if (typeof window !== "undefined") {
-      const reactObj = React;
-      const reactVer = reactObj?.version;
-      const reactSym = reactObj?.createElement ? "HAS_CREATE_ELEMENT" : "NO_CREATE_ELEMENT";
-      console.log("[CQ_301_DIAG][RENDER]", {
-        rid: __cqRid,
-        renderN: __cq301RenderRef.current,
-        reactVer,
-        reactSym,
-        hasUseState: typeof reactObj?.useState === "function",
-        hasUseEffect: typeof reactObj?.useEffect === "function",
-      });
-      window.__CQ_301_REACT__ = window.__CQ_301_REACT__ || reactObj;
-      console.log("[CQ_301_DIAG][REACT_SAME_INSTANCE]", window.__CQ_301_REACT__ === reactObj);
-    }
-  } catch (_) {}
+  // [CQ_301_DIAG] Minimal render + React identity snapshot (REMOVED - 301 resolved)
   
   try { console.log('[CQ_RENDER_START][ALWAYS_ON]', { rid: __cqRid, ts: Date.now() }); } catch (_) {}
   
@@ -6086,79 +6066,7 @@ function CandidateInterviewInner() {
   const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && 
                             v3PromptPhase === "ANSWER_NEEDED";
   
-  // [CQ_301_DIAG] Derived checkpoint runner (NO HOOKS)
-  try {
-    const __cqRidSafe = (typeof __cqRid !== 'undefined') ? __cqRid : 'no_rid';
-
-    console.log('[CQ_301_DIAG][DERIVED_CHECKPOINT_ENTER]', { rid: __cqRidSafe, renderN: __cq301RenderRef?.current });
-
-    // Each checkpoint logs before and after evaluating a single expression.
-    // IMPORTANT: evaluate expressions using safe access (typeof + optional chaining) so we don't introduce new ReferenceErrors.
-
-    console.log('[CQ_301_DIAG][CP1][BEFORE]', { rid: __cqRidSafe, name: 'activeUiItem_S_SAFE.kind' });
-    const __cq_cp1 = (typeof activeUiItem_S_SAFE !== 'undefined') ? (activeUiItem_S_SAFE?.kind || null) : 'undefined';
-    console.log('[CQ_301_DIAG][CP1][AFTER]', { rid: __cqRidSafe, v: __cq_cp1 });
-
-    console.log('[CQ_301_DIAG][CP2][BEFORE]', { rid: __cqRidSafe, name: 'currentItem_S.type' });
-    const __cq_cp2 = (typeof currentItem_S !== 'undefined') ? (currentItem_S?.type || null) : 'undefined';
-    console.log('[CQ_301_DIAG][CP2][AFTER]', { rid: __cqRidSafe, v: __cq_cp2 });
-
-    console.log('[CQ_301_DIAG][CP3][BEFORE]', { rid: __cqRidSafe, name: 'bottomBarModeSOT_SAFE' });
-    const __cq_cp3 = (typeof bottomBarModeSOT_SAFE !== 'undefined') ? bottomBarModeSOT_SAFE : 'undefined';
-    console.log('[CQ_301_DIAG][CP3][AFTER]', { rid: __cqRidSafe, v: __cq_cp3 });
-
-    console.log('[CQ_301_DIAG][CP4][BEFORE]', { rid: __cqRidSafe, name: 'v3ProbingActive + v3ProbingContext_S' });
-    const __cq_cp4 = {
-      v3ProbingActive: (typeof v3ProbingActive !== 'undefined') ? v3ProbingActive : 'undefined',
-      hasV3Ctx: (typeof v3ProbingContext_S !== 'undefined') ? !!v3ProbingContext_S : 'undefined',
-    };
-    console.log('[CQ_301_DIAG][CP4][AFTER]', { rid: __cqRidSafe, v: __cq_cp4 });
-
-    console.log('[CQ_301_DIAG][CP5][BEFORE]', { rid: __cqRidSafe, name: 'hasV3PromptText' });
-    const __cq_cp5 = (typeof hasV3PromptText !== 'undefined') ? hasV3PromptText : 'NOT_DECLARED_YET';
-    console.log('[CQ_301_DIAG][CP5][AFTER]', { rid: __cqRidSafe, v: __cq_cp5 });
-
-    console.log('[CQ_301_DIAG][CP6][BEFORE]', { rid: __cqRidSafe, name: 'hasV3ProbeQuestion' });
-    const __cq_cp6 = (typeof hasV3ProbeQuestion !== 'undefined') ? hasV3ProbeQuestion : 'NOT_DECLARED_YET';
-    console.log('[CQ_301_DIAG][CP6][AFTER]', { rid: __cqRidSafe, v: __cq_cp6 });
-
-    console.log('[CQ_301_DIAG][CP7][BEFORE]', { rid: __cqRidSafe, name: 'hasV3LoopKey' });
-    const __cq_cp7 = (typeof hasV3LoopKey !== 'undefined') ? hasV3LoopKey : 'NOT_DECLARED_YET';
-    console.log('[CQ_301_DIAG][CP7][AFTER]', { rid: __cqRidSafe, v: __cq_cp7 });
-
-    console.log('[CQ_301_DIAG][CP8][BEFORE]', { rid: __cqRidSafe, name: 'hasActiveV3Prompt' });
-    const __cq_cp8 = (typeof hasActiveV3Prompt !== 'undefined') ? hasActiveV3Prompt : 'NOT_DECLARED_YET';
-    console.log('[CQ_301_DIAG][CP8][AFTER]', { rid: __cqRidSafe, v: __cq_cp8 });
-
-    console.log('[CQ_301_DIAG][CP9][BEFORE]', { rid: __cqRidSafe, name: 'activeUiItem_S.kind' });
-    const __cq_cp9 = (typeof activeUiItem_S !== 'undefined') ? (activeUiItem_S?.kind || null) : 'NOT_DECLARED_YET';
-    console.log('[CQ_301_DIAG][CP9][AFTER]', { rid: __cqRidSafe, v: __cq_cp9 });
-
-    console.log('[CQ_301_DIAG][CP10][BEFORE]', { rid: __cqRidSafe, name: 'effectiveItemType' });
-    const __cq_cp10 = (typeof effectiveItemType !== 'undefined') ? effectiveItemType : 'NOT_DECLARED_YET';
-    console.log('[CQ_301_DIAG][CP10][AFTER]', { rid: __cqRidSafe, v: __cq_cp10 });
-
-    console.log('[CQ_301_DIAG][CP11][BEFORE]', { rid: __cqRidSafe, name: 'bottomBarRenderTypeSOT' });
-    const __cq_cp11 = (typeof bottomBarRenderTypeSOT !== 'undefined') ? bottomBarRenderTypeSOT : 'NOT_DECLARED_YET';
-    console.log('[CQ_301_DIAG][CP11][AFTER]', { rid: __cqRidSafe, v: __cq_cp11 });
-
-    console.log('[CQ_301_DIAG][CP12][BEFORE]', { rid: __cqRidSafe, name: 'bottomBarModeSOT' });
-    const __cq_cp12 = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : 'NOT_DECLARED_YET';
-    console.log('[CQ_301_DIAG][CP12][AFTER]', { rid: __cqRidSafe, v: __cq_cp12 });
-
-    console.log('[CQ_301_DIAG][DERIVED_CHECKPOINT_EXIT]', { rid: __cqRidSafe });
-  } catch (e) {
-    const __cqRidSafeCatch = (typeof __cqRid !== 'undefined') ? __cqRid : 'no_rid';
-    console.error('[CQ_301_DIAG][DERIVED_CHECKPOINT_THROW]', {
-      rid: __cqRidSafeCatch,
-      renderN: __cq301RenderRef?.current,
-      name: e?.name,
-      message: e?.message,
-      stack: e?.stack
-    });
-    // Re-throw to preserve existing behavior / catch routing
-    throw e;
-  }
+  // [CQ_301_DIAG] Derived checkpoint runner (REMOVED - 301 resolved)
   
   // DERIVED EARLY: Prevent TDZ in useEffect dep arrays (hoisted from derived snapshot)
   // NOTE: hasV3PromptText, hasV3ProbeQuestion, hasV3LoopKey, hasActiveV3Prompt moved BEFORE checkpoint runner (TDZ fix)
@@ -20118,37 +20026,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       );
     }
 
-    // [CQ_301_DIAG] Pre-render node-type snapshot (NO HOOKS)
-    try {
-      console.log('[CQ_301_DIAG][PRE_RENDER_NODE_TYPE]', {
-        rid: (typeof __cqRid !== 'undefined') ? __cqRid : 'no_rid',
-        renderN: (typeof __cq301RenderRef !== 'undefined' && __cq301RenderRef?.current) ? __cq301RenderRef.current : 'no_render_ref',
-
-        screenMode: (typeof screenMode !== 'undefined') ? screenMode : 'undefined',
-        isLoading: (typeof isLoading !== 'undefined') ? isLoading : 'undefined',
-        hasSession: (typeof session !== 'undefined') ? !!session : 'undefined',
-        hasEngine: (typeof engine_S !== 'undefined') ? !!engine_S : 'undefined',
-
-        activeUiKind: (typeof activeKindSOT !== 'undefined') ? activeKindSOT : (
-          (typeof activeUiItem_S_SAFE !== 'undefined' && activeUiItem_S_SAFE?.kind) ? activeUiItem_S_SAFE.kind : 'undefined'
-        ),
-
-        activeUiItemKind: (typeof activeUiItem_S_SAFE !== 'undefined') ? (activeUiItem_S_SAFE?.kind || null) : 'undefined',
-        bottomBarModeSOT_SAFE: (typeof bottomBarModeSOT_SAFE !== 'undefined') ? bottomBarModeSOT_SAFE : 'undefined',
-
-        cqBootBlockUI_type: (typeof cqBootBlockUI !== 'undefined')
-          ? (cqBootBlockUI === null ? 'null' : typeof cqBootBlockUI)
-          : 'undefined',
-
-        cqLoadingReturnJSX_type: (typeof cqLoadingReturnJSX !== 'undefined')
-          ? (cqLoadingReturnJSX === null ? 'null' : typeof cqLoadingReturnJSX)
-          : 'undefined',
-
-        __tdzTraceJsx_type: (typeof __tdzTraceJsx !== 'undefined')
-          ? (__tdzTraceJsx === null ? 'null' : typeof __tdzTraceJsx)
-          : 'undefined',
-      });
-    } catch (_) {}
+    // [CQ_301_DIAG] Pre-render node-type snapshot (REMOVED - 301 resolved)
 
     return (
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
@@ -20248,13 +20126,6 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 </ContentContainer>
               )}
 
-            {screenMode === 'WELCOME' &&
-              finalTranscriptList_S_SAFE.length > 0 &&
-              console.log('[WELCOME_RENDER][NORMAL_USED]', {
-                screenMode,
-                isLoading,
-                transcriptLen: finalTranscriptList_S_SAFE.length,
-              })}
             {/* CANONICAL RENDER STREAM: Direct map rendering (logic moved to useMemo) */}
             {/* Active opener suppression: Compute current active opener stableKey */}
             {(() => {
@@ -22239,46 +22110,14 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
            {/* All user actions (Yes/No, text input) ONLY in bottom bar */}
 
 
-              {/* V3 UI-ONLY HISTORY: Rendered via canonical stream (lines 8942-8985) */}
-            {/* Separate loop removed - renderStream includes v3UiRenderable */}
+               {/* V3 UI-ONLY HISTORY: Rendered via canonical stream (lines 8942-8985) */}
+             {/* Separate loop removed - renderStream includes v3UiRenderable */}
 
 
-          {/* Unified Bottom Bar - Stable Container (never unmounts) */}
-          {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarModeSOT guard above */}
-          {/* [CQ_301_DIAG] Bottom bar branch selector diagnostic (NO HOOKS) */}
-          {(() => {
-            try {
-              const bottomBarBranchSelected =
-                (bottomBarModeSOT_SAFE === "CTA" && screenMode === "WELCOME") ? "CTA_WELCOME" :
-                (bottomBarModeSOT_SAFE === "CTA" && ((activeBlocker?.type === "SECTION_MESSAGE") || pendingSectionTransition)) ? "CTA_SECTION_TRANSITION" :
-                (bottomBarModeSOT_SAFE === "YES_NO" && !isMultiInstanceGate && ((activeBlocker?.type === "V3_GATE") || isV3Gate)) ? "YES_NO_V3_GATE" :
-                (bottomBarModeSOT_SAFE === "YES_NO" && ((bottomBarRenderTypeSOT_SAFE === "multi_instance_gate") || isMultiInstanceGate)) ? "YES_NO_MI_GATE" :
-                (bottomBarModeSOT_SAFE === "YES_NO" && (bottomBarRenderTypeSOT_SAFE !== "v3_probing")) ? "YES_NO_BASE_QUESTION" :
-                (bottomBarModeSOT_SAFE === "V3_WAITING") ? "V3_WAITING" :
-                ((bottomBarModeSOT_SAFE === "DISABLED") || (v3ProbingActive && !hasActiveV3Prompt)) ? "DISABLED" :
-                (bottomBarModeSOT_SAFE === "SELECT") ? "SELECT" :
-                (bottomBarModeSOT_SAFE === "TEXT_INPUT") ? "TEXT_INPUT" :
-                "UNKNOWN_BRANCH";
-
-              console.log("[CQ_301_DIAG][BOTTOM_BAR_BRANCH]", {
-                rid: __cqRid,
-                renderN: (typeof __cq301RenderRef !== "undefined" && __cq301RenderRef?.current) ? __cq301RenderRef.current : "no_render_ref",
-                branchSelected: bottomBarBranchSelected,
-                bottomBarModeSOT_SAFE: (typeof bottomBarModeSOT_SAFE !== "undefined") ? bottomBarModeSOT_SAFE : "undefined",
-                bottomBarRenderTypeSOT_SAFE: (typeof bottomBarRenderTypeSOT_SAFE !== "undefined") ? bottomBarRenderTypeSOT_SAFE : "undefined",
-                activeUiKind: (typeof activeKindSOT !== "undefined") ? activeKindSOT : "undefined",
-                effectiveItemType_SAFE: (typeof effectiveItemType_SAFE !== "undefined") ? effectiveItemType_SAFE : "undefined",
-                isMultiInstanceGate: (typeof isMultiInstanceGate !== "undefined") ? isMultiInstanceGate : "undefined",
-                isV3Gate: (typeof isV3Gate !== "undefined") ? isV3Gate : "undefined",
-                screenMode: (typeof screenMode !== "undefined") ? screenMode : "undefined",
-                hasActiveV3Prompt: (typeof hasActiveV3Prompt !== "undefined") ? hasActiveV3Prompt : "undefined",
-                v3ProbingActive: (typeof v3ProbingActive !== "undefined") ? v3ProbingActive : "undefined",
-                currentItem_SType: (typeof currentItem_S !== "undefined") ? (currentItem_S?.type || null) : "undefined"
-              });
-            } catch (_) {}
-            return null;
-          })()}
-          {bottomBarModeSOT_SAFE === "CTA" && screenMode === 'WELCOME' ? (
+           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
+           {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarModeSOT guard above */}
+           {/* [CQ_301_DIAG] Bottom bar branch selector diagnostic (REMOVED - 301 resolved) */}
+           {bottomBarModeSOT_SAFE === "CTA" && screenMode === 'WELCOME' ? (
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
