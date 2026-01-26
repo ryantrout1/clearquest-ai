@@ -3568,7 +3568,7 @@ function CandidateInterviewInner() {
     }
   }, []);
   
-  const initializeInterview = useCallback(async () => {
+  const initializeInterview = useCallback_TR(async () => {
     // Guard: require sessionId
     if (!sessionId) {
       console.warn('[CQ_INIT][SKIP] initializeInterview called without sessionId');
