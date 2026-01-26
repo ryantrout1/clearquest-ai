@@ -14370,6 +14370,13 @@ function CandidateInterviewInner() {
   // ANCHOR V3 PROBE QUESTION: Keep just-appended question visible (ChatGPT-style)
   cqHookMark('HOOK_52:useLayoutEffect:anchorV3ProbeQ');
   React.useLayoutEffect(() => {
+    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars (may be undefined on some renders)
+    const _bottomBarModeSOT_SAFE = (typeof bottomBarModeSOT_SAFE !== 'undefined') ? bottomBarModeSOT_SAFE : null;
+    const _dynamicBottomPaddingPx = (typeof dynamicBottomPaddingPx !== 'undefined') ? dynamicBottomPaddingPx : 0;
+    
+    // If TRY1-derived layout vars are not ready, skip this effect safely
+    if (_bottomBarModeSOT_SAFE == null) return;
+    
     // SCROLL LOCK GATE: Block anchor during any scroll lock
     if (isScrollWriteLocked()) {
       return;
@@ -14414,7 +14421,7 @@ function CandidateInterviewInner() {
       // Compute target position (question visible above footer)
       const elTop = targetEl.offsetTop;
       const elHeight = targetEl.offsetHeight;
-      const footerSafePx = dynamicBottomPaddingPx + 16;
+      const footerSafePx = _dynamicBottomPaddingPx + 16;
       
       // Target: place question at bottom of visible area (above footer)
       const targetScrollTop = Math.max(0, (elTop + elHeight) - clientHeight + footerSafePx);
@@ -14431,7 +14438,7 @@ function CandidateInterviewInner() {
           didFind: true,
           didScroll,
           overflowPx,
-          bottomBarModeSOT_SAFE,
+          bottomBarModeSOT_SAFE: _bottomBarModeSOT_SAFE,
           scrollTopBefore: Math.round(scrollTopBefore),
           scrollTopAfter: Math.round(scrollTopAfter),
           footerSafePx
@@ -14458,13 +14465,23 @@ function CandidateInterviewInner() {
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   cqHookMark('HOOK_53:useLayoutEffect:forceScrollQuestionShown');
   React.useLayoutEffect(() => {
+    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
+    const _effectiveItemType = (typeof effectiveItemType !== 'undefined') ? effectiveItemType : null;
+    const _shouldRenderFooter_SAFE = (typeof shouldRenderFooter_SAFE !== 'undefined') ? shouldRenderFooter_SAFE : false;
+    const _footerMeasuredHeightPx = (typeof footerMeasuredHeightPx !== 'undefined') ? footerMeasuredHeightPx : 0;
+    const _dynamicBottomPaddingPx = (typeof dynamicBottomPaddingPx !== 'undefined') ? dynamicBottomPaddingPx : 0;
+    const _activeUiItem_S_SAFE = (typeof activeUiItem_S_SAFE !== 'undefined') ? activeUiItem_S_SAFE : null;
+    
+    // If TRY1-derived vars are not ready, skip safely
+    if (_effectiveItemType == null) return;
+    
     // SCROLL LOCK GATE: Block force-scroll during any scroll lock
     if (isScrollWriteLocked()) {
       return;
     }
     
     // Only run for base questions with footer visible
-    if (effectiveItemType !== 'question' || !shouldRenderFooter_SAFE) return;
+    if (_effectiveItemType !== 'question' || !_shouldRenderFooter_SAFE) return;
     if (!currentItem_S?.id || currentItem_S.type !== 'question') return;
     
     // Dedupe: Only run once per question
@@ -14492,8 +14509,8 @@ function CandidateInterviewInner() {
           questionId: currentItem_S.id,
           scrollTopBefore: Math.round(scrollTopBefore),
           scrollTopAfter: Math.round(scrollTopAfter),
-          footerHeight: footerMeasuredHeightPx,
-          paddingApplied: dynamicBottomPaddingPx,
+          footerHeight: _footerMeasuredHeightPx,
+          paddingApplied: _dynamicBottomPaddingPx,
           scrollHeight: Math.round(scrollHeight),
           clientHeight: Math.round(clientHeight)
         });
@@ -14504,7 +14521,7 @@ function CandidateInterviewInner() {
           
           // PART B: MI gate uses bottom anchor strategy (skip card measurement)
           const isMiGateActive = currentItem_S?.type === 'multi_instance_gate' || 
-                                activeUiItem_S_SAFE?.kind === 'MI_GATE';
+                                _activeUiItem_S_SAFE?.kind === 'MI_GATE';
           
           if (isMiGateActive) {
             // Bottom-anchor strategy: use shared helper
@@ -14556,25 +14573,33 @@ function CandidateInterviewInner() {
         });
       });
     });
-  }, [effectiveItemType_SAFE, shouldRenderFooter_SAFE, currentItem_S?.id, currentItem_S?.type, footerMeasuredHeightPx, dynamicBottomPaddingPx]);
+  }, [_effectiveItemType, _shouldRenderFooter_SAFE, currentItem_S?.id, currentItem_S?.type, _footerMeasuredHeightPx, _dynamicBottomPaddingPx]);
   
   // FOOTER PADDING COMPENSATION: Prevent jump when footer height changes
   cqHookMark('HOOK_54:useLayoutEffect:footerPaddingCompensate');
   React.useLayoutEffect(() => {
+    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
+    const _dynamicBottomPaddingPx = (typeof dynamicBottomPaddingPx !== 'undefined') ? dynamicBottomPaddingPx : 0;
+    const _bottomBarModeSOT = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
+    const _effectiveItemType = (typeof effectiveItemType !== 'undefined') ? effectiveItemType : null;
+    
+    // If TRY1-derived vars are not ready, skip safely
+    if (_bottomBarModeSOT == null || _effectiveItemType == null) return;
+    
     // SCROLL LOCK GATE: Block padding compensation during any scroll lock
     if (isScrollWriteLocked()) {
       return;
     }
     
     const prev = prevPaddingRef.current;
-    let next = dynamicBottomPaddingPx;
+    let next = _dynamicBottomPaddingPx;
     
     // CTA CLAMP: Never allow compensation to reduce CTA padding below minimum
-    if (bottomBarModeSOT === 'CTA' || effectiveItemType === 'section_transition') {
+    if (_bottomBarModeSOT === 'CTA' || _effectiveItemType === 'section_transition') {
       next = Math.max(next, CTA_MIN_PADDING_PX);
-      if (next !== dynamicBottomPaddingPx) {
+      if (next !== _dynamicBottomPaddingPx) {
         console.log('[CTA][PADDING_COMPENSATE_CLAMP]', {
-          raw: dynamicBottomPaddingPx,
+          raw: _dynamicBottomPaddingPx,
           clamped: next,
           CTA_MIN_PADDING_PX
         });
@@ -14605,10 +14630,10 @@ function CandidateInterviewInner() {
     if (!scrollContainer) return;
     
     // Skip during V3_WAITING (no scroll adjustments during engine_S decide)
-    if (bottomBarModeSOT === 'V3_WAITING') {
+    if (_bottomBarModeSOT === 'V3_WAITING') {
       console.log('[SCROLL][PADDING_COMPENSATE_SKIP]', {
         reason: 'v3_waiting_mode',
-        bottomBarModeSOT
+        bottomBarModeSOT: _bottomBarModeSOT
       });
       return;
     }
@@ -14645,7 +14670,16 @@ function CandidateInterviewInner() {
   // FOOTER OVERLAP CLAMP: Ensure active card never behind footer (unconditional)
   cqHookMark('HOOK_55:useLayoutEffect:footerOverlapClamp');
   React.useLayoutEffect(() => {
-    if (!shouldRenderFooter_SAFE || !hasActiveCardSOT) return;
+    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
+    const _shouldRenderFooter_SAFE = (typeof shouldRenderFooter_SAFE !== 'undefined') ? shouldRenderFooter_SAFE : false;
+    const _hasActiveCardSOT = (typeof hasActiveCardSOT !== 'undefined') ? hasActiveCardSOT : false;
+    const _activeCard_SKeySOT = (typeof activeCard_SKeySOT !== 'undefined') ? activeCard_SKeySOT : null;
+    const _dynamicFooterHeightPx = (typeof dynamicFooterHeightPx !== 'undefined') ? dynamicFooterHeightPx : 0;
+    
+    // If TRY1-derived vars are not ready, skip safely
+    if (_activeCard_SKeySOT == null) return;
+    
+    if (!_shouldRenderFooter_SAFE || !_hasActiveCardSOT) return;
     
     requestAnimationFrame(() => {
       const scroller = scrollOwnerRef.current || historyRef.current;
@@ -14671,13 +14705,20 @@ function CandidateInterviewInner() {
         });
       }
     });
-  }, [shouldRenderFooter_SAFE, hasActiveCardSOT, activeCard_SKeySOT, dynamicFooterHeightPx]);
+  }, [_shouldRenderFooter_SAFE, _hasActiveCardSOT, _activeCard_SKeySOT, _dynamicFooterHeightPx]);
   
   // ACTIVE CARD OVERLAP NUDGE - HOISTED TO BATCH 3 (line ~4850)
 
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
   cqHookMark('HOOK_56:useEffect:v3PromptVisibility');
   useEffect(() => {
+    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
+    const _bottomBarModeSOT = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
+    const _shouldRenderFooter_SAFE = (typeof shouldRenderFooter_SAFE !== 'undefined') ? shouldRenderFooter_SAFE : false;
+    
+    // If TRY1-derived vars are not ready, skip safely
+    if (_bottomBarModeSOT == null) return;
+    
     // SCROLL LOCK GATE: Block prompt visibility during any scroll lock
     if (isScrollWriteLocked()) {
       return;
@@ -14699,20 +14740,20 @@ function CandidateInterviewInner() {
     }
     
     // GUARD A: Skip during V3_WAITING (engine_S deciding)
-    if (bottomBarModeSOT === 'V3_WAITING') {
+    if (_bottomBarModeSOT === 'V3_WAITING') {
       console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
         reason: 'v3_waiting_mode',
-        bottomBarModeSOT
+        bottomBarModeSOT: _bottomBarModeSOT
       });
       return;
     }
     
     // GUARD B: Only run in TEXT_INPUT mode with footer rendered
-    if (bottomBarModeSOT !== 'TEXT_INPUT' || !shouldRenderFooter_SAFE) {
+    if (_bottomBarModeSOT !== 'TEXT_INPUT' || !_shouldRenderFooter_SAFE) {
       console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
         reason: 'wrong_mode',
-        bottomBarModeSOT_SAFE,
-        shouldRenderFooter
+        bottomBarModeSOT_SAFE: _bottomBarModeSOT,
+        shouldRenderFooter: _shouldRenderFooter_SAFE
       });
       return;
     }
@@ -14765,11 +14806,17 @@ function CandidateInterviewInner() {
     requestAnimationFrame(() => {
       scrollIntentRef.current = false;
     });
-  }, [v3ProbingActive, v3ActivePromptText, isUserTyping, bottomBarModeSOT_SAFE, shouldRenderFooter]);
+  }, [v3ProbingActive, v3ActivePromptText, isUserTyping, _bottomBarModeSOT, _shouldRenderFooter_SAFE]);
 
   // AUTO-GROWING INPUT: Auto-resize textarea based on content (ChatGPT-style)
   cqHookMark('HOOK_57:useEffect:autoGrowInput');
   useEffect(() => {
+    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
+    const _bottomBarModeSOT = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
+    
+    // If TRY1-derived var is not ready, skip safely
+    if (_bottomBarModeSOT == null) return;
+    
     const textarea = footerTextareaRef.current || inputRef.current;
     if (!textarea) return;
 
@@ -14778,8 +14825,8 @@ function CandidateInterviewInner() {
       console.log('[FOOTER][REF_CHECK]', {
         hasTextareaRef: !!footerTextareaRef.current,
         tagName: footerTextareaRef.current?.tagName,
-        bottomBarModeSOT_SAFE,
-        effectiveItemType
+        bottomBarModeSOT_SAFE: _bottomBarModeSOT,
+        effectiveItemType: (typeof effectiveItemType !== 'undefined') ? effectiveItemType : null
       });
     }
 
@@ -14820,7 +14867,7 @@ function CandidateInterviewInner() {
       });
       lastAutoGrowHeightRef.current = newHeight;
     }
-  }, [input, openerDraft, bottomBarModeSOT]);
+  }, [input, openerDraft, _bottomBarModeSOT]);
 
   // DEFENSIVE GUARD: Force exit WELCOME mode when interview has progressed
   cqHookMark('HOOK_58:useEffect:forceExitWelcome');
