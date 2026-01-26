@@ -6430,6 +6430,17 @@ function CandidateInterviewInner() {
       console.log("[CQ_301_DIAG][FULL_RESET_EFFECT_ENTER]", { rid: __cqRid, renderN: __cq301RenderRef.current });
     } catch (_) {}
     
+    try {
+      console.log('[CQ_301_DIAG][FULL_RESET][ENTER]', {
+        rid: (typeof __cqRid !== 'undefined') ? __cqRid : 'no_rid',
+        renderN: (typeof __cq301RenderRef !== 'undefined' && __cq301RenderRef?.current) ? __cq301RenderRef.current : 'no_render_ref',
+        hasSession: (typeof session !== 'undefined') ? !!session : 'undefined',
+        hasEngine: (typeof engine_S !== 'undefined') ? !!engine_S : 'undefined',
+        isLoading: (typeof isLoading !== 'undefined') ? isLoading : 'undefined',
+        currentItemType: (typeof currentItem_S !== 'undefined') ? (currentItem_S?.type || null) : 'undefined',
+      });
+    } catch (_) {}
+    
     // REACT #310 CENSUS: Invariant - effect body executed
     console.log('[REACT_310_PROBE][FULL_SESSION_RESET_EFFECT_RAN]', { rid: __cqRid, ts: Date.now(), sessionId });
     
@@ -6453,6 +6464,7 @@ function CandidateInterviewInner() {
     });
     
     // CRITICAL: Reset canonical transcript ref (prevents cross-session contamination)
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'canonicalTranscriptRef.current' }); } catch (_) {}
     canonicalTranscriptRef.current = [];
     
     // BOOT REGRESSION GUARD: Reset latch for new session
@@ -6464,15 +6476,23 @@ function CandidateInterviewInner() {
     });
     
     // Reset all V3 probing state
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setV3ProbeDisplayHistory' }); } catch (_) {}
     setV3ProbeDisplayHistory([]);
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setV3ProbingActive' }); } catch (_) {}
     setV3ProbingActive(false);
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setV3ProbingContext' }); } catch (_) {}
     setV3ProbingContext(null);
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setV3ActivePromptText' }); } catch (_) {}
     setV3ActivePromptText(null);
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setV3PendingAnswer' }); } catch (_) {}
     setV3PendingAnswer(null);
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setV3PromptPhase' }); } catch (_) {}
     setV3PromptPhase('IDLE');
     
     // Reset V3 gate state
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setV3Gate' }); } catch (_) {}
     setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setMultiInstanceGate' }); } catch (_) {}
     setMultiInstanceGate(null);
     
     // Clear V3 refs
@@ -6485,6 +6505,7 @@ function CandidateInterviewInner() {
     v3RecapReadyRef.current.clear();
     lastRenderedV3PromptKeyRef.current = null;
     v3PromptSnapshotsRef.current = [];
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setV3PromptSnapshots' }); } catch (_) {}
     setV3PromptSnapshots([]);
     
     // Clear idempotency guards (prevent cross-session false positives)
@@ -6502,12 +6523,19 @@ function CandidateInterviewInner() {
     lastV3SubmitLockKeyRef.current = null;
     
     // Clear UI state
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setV2PackMode' }); } catch (_) {}
     setV2PackMode("BASE");
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setActiveV2Pack' }); } catch (_) {}
     setActiveV2Pack(null);
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setV2ClarifierState' }); } catch (_) {}
     setV2ClarifierState(null);
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setCurrentFieldProbe' }); } catch (_) {}
     setCurrentFieldProbe(null);
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setFieldSuggestions' }); } catch (_) {}
     setFieldSuggestions({});
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setAiFollowupCounts' }); } catch (_) {}
     setAiFollowupCounts({});
+    try { console.log('[CQ_301_DIAG][FULL_RESET][SET]', { key: 'setCurrentFollowUpAnswers' }); } catch (_) {}
     setCurrentFollowUpAnswers({});
     
     // Clear scroll anchors
@@ -6545,6 +6573,8 @@ function CandidateInterviewInner() {
       transcriptLenAfter: canonicalTranscriptRef.current.length,
       allStateCleared: true
     });
+    
+    try { console.log('[CQ_301_DIAG][FULL_RESET][EXIT]'); } catch (_) {}
   }, [sessionId]);
 
   // REACT #310 CENSUS: Mark after "full session reset"
