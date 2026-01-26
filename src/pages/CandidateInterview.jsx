@@ -1565,6 +1565,24 @@ function CandidateInterviewInner() {
     } catch (_) {}
   };
   
+  // [CQ_HOOK_TRACE] Query-param flag reader (no deps, preview-safe)
+  const cqHasQueryFlag = (key) => {
+    try {
+      if (typeof window === 'undefined') return false;
+      const s = String(window.location?.search || '');
+      if (!s) return false;
+      // accept: ?key=1, ?key=true, or bare ?key
+      const params = new URLSearchParams(s);
+      if (!params.has(key)) return false;
+      const v = params.get(key);
+      if (v === null) return true;
+      const vv = String(v).toLowerCase();
+      return vv === '' || vv === '1' || vv === 'true' || vv === 'yes' || vv === 'on';
+    } catch (_) {
+      return false;
+    }
+  };
+
   // [CQ_HOOK_TRACE] dev-only hook index tracer (local to this render)
   let __cqHookTraceIdx = 0;
   const __cqHookTraceEnabled = (() => {
@@ -1577,7 +1595,7 @@ function CandidateInterviewInner() {
       const v2 = wBag ? wBag.CQ_DEBUG_HOOK_TRACE : undefined;
       const v3 = (typeof window !== 'undefined') ? window.CQ_DEBUG_HOOK_TRACE : undefined;
 
-      return v1 === true || v2 === true || v3 === true;
+      return cqHasQueryFlag('cqTrace') || v1 === true || v2 === true || v3 === true;
     } catch (_) {
       return false;
     }
@@ -1599,7 +1617,8 @@ function CandidateInterviewInner() {
     const gVal = (typeof globalThis !== 'undefined' && globalThis.__CQ_DEBUG_FLAGS__) ? globalThis.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE : '(missing)';
     const wBagVal = (typeof window !== 'undefined' && window.__CQ_DEBUG_FLAGS__) ? window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE : '(missing)';
     const wDirectVal = (typeof window !== 'undefined') ? window.CQ_DEBUG_HOOK_TRACE : '(missing)';
-    console.log('[CQ_HOOK_TRACE][FLAG_SOURCES]', `globalThis=${String(gVal)} windowBag=${String(wBagVal)} windowDirect=${String(wDirectVal)}`);
+    const cqTraceVal = cqHasQueryFlag('cqTrace');
+    console.log('[CQ_HOOK_TRACE][FLAG_SOURCES]', `cqTrace=${String(cqTraceVal)} globalThis=${String(gVal)} windowBag=${String(wBagVal)} windowDirect=${String(wDirectVal)}`);
   } catch (_) {}
   let __cqHookTraceLoggedDisabled = false;
   const __cqTrace = (kind) => {
