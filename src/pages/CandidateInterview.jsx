@@ -1568,13 +1568,29 @@ function CandidateInterviewInner() {
   // [CQ_HOOK_TRACE] dev-only hook index tracer (local to this render)
   let __cqHookTraceIdx = 0;
   const __cqHookTraceEnabled = (() => {
-    try { return cqGetDebugFlag('CQ_DEBUG_HOOK_TRACE') === true; } catch (_) { return false; }
+    try {
+      const g = (typeof globalThis !== 'undefined') ? globalThis : undefined;
+      const gBag = g && g.__CQ_DEBUG_FLAGS__ ? g.__CQ_DEBUG_FLAGS__ : undefined;
+      const wBag = (typeof window !== 'undefined' && window.__CQ_DEBUG_FLAGS__) ? window.__CQ_DEBUG_FLAGS__ : undefined;
+
+      const v1 = gBag ? gBag.CQ_DEBUG_HOOK_TRACE : undefined;
+      const v2 = wBag ? wBag.CQ_DEBUG_HOOK_TRACE : undefined;
+      const v3 = (typeof window !== 'undefined') ? window.CQ_DEBUG_HOOK_TRACE : undefined;
+
+      return v1 === true || v2 === true || v3 === true;
+    } catch (_) {
+      return false;
+    }
   })();
   try {
     if (typeof window !== 'undefined') {
       console.log('[CQ_HOOK_TRACE][INIT]', {
         enabled: __cqHookTraceEnabled,
-        hasFlag: cqGetDebugFlag('CQ_DEBUG_HOOK_TRACE'),
+        hasFlag: {
+          globalThis: (typeof globalThis !== 'undefined' && globalThis.__CQ_DEBUG_FLAGS__) ? globalThis.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE : '(missing)',
+          windowBag: (typeof window !== 'undefined' && window.__CQ_DEBUG_FLAGS__) ? window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE : '(missing)',
+          windowDirect: (typeof window !== 'undefined') ? window.CQ_DEBUG_HOOK_TRACE : '(missing)'
+        },
         ts: Date.now()
       });
     }
