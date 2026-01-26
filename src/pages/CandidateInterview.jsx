@@ -3368,7 +3368,7 @@ function CandidateInterviewInner() {
   const v3PromptSnapshotsRef = useRef([]);
   
   // PART 3: Sync snapshots state to ref (prevents stale closure in watchdog)
-  useEffect(() => {
+  useEffect_TR(() => {
     v3PromptSnapshotsRef.current = v3PromptSnapshots;
   }, [v3PromptSnapshots]);
   
