@@ -2129,7 +2129,6 @@ function CandidateInterviewInner() {
   const activeBlocker = uiBlocker; // UI-only blocker, not from canonical transcript
   
   // Dev guardrail: Ensure transcript never shrinks (applied to canonical DB mirror)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'setDbTranscriptSafe', ts: Date.now() }); } catch(_){} })();
   const setDbTranscriptSafe = useCallback((updater) => {
     setDbTranscript(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
@@ -2266,7 +2265,6 @@ function CandidateInterviewInner() {
   }
 
   // STEP 2: Monotonic refresh (upsert only, never replace)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'refreshTranscriptFromDB', ts: Date.now() }); } catch(_){} })();
   const refreshTranscriptFromDB = useCallback(async (reason) => {
     try {
       const freshSession = await base44.entities.InterviewSession.get(sessionId);
@@ -2591,7 +2589,6 @@ function CandidateInterviewInner() {
   // TDZ FIX: Scroll helpers declared early (before any useEffects that reference them)
   
   // SCROLL LOCK HELPERS: Prevent competing scroll writers
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'lockScrollWrites', ts: Date.now() }); } catch(_){} })();
   const lockScrollWrites = useCallback((reason, ms = 250) => {
     scrollWriteLockRef.current = true;
     scrollWriteLockReasonRef.current = reason;
@@ -2604,7 +2601,6 @@ function CandidateInterviewInner() {
     });
   }, []);
   
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'unlockScrollWrites', ts: Date.now() }); } catch(_){} })();
   const unlockScrollWrites = useCallback((reason) => {
     scrollWriteLockRef.current = false;
     scrollWriteLockReasonRef.current = null;
@@ -2616,7 +2612,6 @@ function CandidateInterviewInner() {
     });
   }, []);
   
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'isScrollWriteLocked', ts: Date.now() }); } catch(_){} })();
   const isScrollWriteLocked = useCallback(() => {
     if (!scrollWriteLockRef.current) return false;
     
@@ -2633,7 +2628,6 @@ function CandidateInterviewInner() {
   // FOOTER OVERLAP SELF-HEAL: Post-alignment verification for YES/NO mode
   const footerOverlapSelfHealRef = useRef(new Set());
   
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'selfHealFooterOverlap', ts: Date.now() }); } catch(_){} })();
   const selfHealFooterOverlap = useCallback((reason) => {
     const scroller = scrollOwnerRef.current || historyRef.current;
     if (!scroller) return;
@@ -2666,7 +2660,6 @@ function CandidateInterviewInner() {
   }, [dynamicFooterHeightPx]);
   
   // PART A: Helper to identify true scroll owner at runtime
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'getScrollOwner', ts: Date.now() }); } catch(_){} })();
   const getScrollOwner = useCallback((startElement) => {
     if (!startElement || typeof window === 'undefined') return null;
     
@@ -2696,7 +2689,6 @@ function CandidateInterviewInner() {
   }, []);
   
   // PART D: CANONICAL SCROLL TO BOTTOM - Single source of truth for bottom scrolling
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'scrollToBottom', ts: Date.now() }); } catch(_){} })();
   const scrollToBottom = useCallback((reason) => {
     const scroller = scrollOwnerRef.current || historyRef.current;
     if (!scroller) {
@@ -2723,7 +2715,6 @@ function CandidateInterviewInner() {
   }, []);
   
   // MI_GATE SCROLL HELPER: Bottom-anchor scroll for MI gate (hoisted)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'scrollToBottomForMiGate', ts: Date.now() }); } catch(_){} })();
   const scrollToBottomForMiGate = useCallback((reason) => {
     if (!bottomAnchorRef.current) return;
     
@@ -2745,7 +2736,6 @@ function CandidateInterviewInner() {
   // PART D: CANONICAL POST-RENDER VISIBILITY CORRECTION
   // ChatGPT-style: Ensures active item is ALWAYS fully visible above composer
   // PART A: Updated signature with YES/NO mode flags (TDZ-safe)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'ensureActiveVisibleAfterRender', ts: Date.now() }); } catch(_){} })();
   const ensureActiveVisibleAfterRender = useCallback((reason, activeKindSOT, isYesNoModeSOT = false, isMiGateSOT = false) => {
     const scroller = scrollOwnerRef.current || historyRef.current;
     if (!scroller) return;
@@ -3015,7 +3005,6 @@ function CandidateInterviewInner() {
   }, [currentItem_S, lockScrollWrites, unlockScrollWrites, selfHealFooterOverlap]);
   
   // SCROLL HANDLER: Transcript scroll event handler (hoisted outside TRY1 for boot-phase availability)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'handleTranscriptScroll', ts: Date.now() }); } catch(_){} })();
   const handleTranscriptScroll = useCallback(() => {
     // GUARD: Ignore programmatic scroll events to prevent flapping
     if (isProgrammaticScrollRef.current) return;
@@ -3096,7 +3085,6 @@ function CandidateInterviewInner() {
   
   // HOOK ORDER FIX: Overflow detection MUST be top-level (before early returns)
   // Computes if scroll container content exceeds viewport - drives dynamic footer padding
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'overflow detection', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     const el = historyRef.current;
     if (!el) return;
@@ -3268,7 +3256,6 @@ function CandidateInterviewInner() {
     }
   } catch (_) {}
 
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'boot state snapshot', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     // BOOT-STATE INVARIANT: Detect duplicate runs per session.
     if (typeof window !== 'undefined' && sessionId) {
@@ -3288,7 +3275,6 @@ function CandidateInterviewInner() {
     });
   }, [sessionId, isLoading, session, engine_S]);
 
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'boot watchdog 5s', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!sessionId) return;
     const t = setTimeout(() => {
@@ -3303,7 +3289,6 @@ function CandidateInterviewInner() {
   }, [sessionId, isLoading, session, engine_S]);
 
   // BOOT FIX: Assign ref in useEffect to guarantee assignment before kickstart reads it
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'resume ref assign', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     try {
       resumeFromDBFnRef.current = resumeFromDB;
@@ -3541,7 +3526,6 @@ function CandidateInterviewInner() {
   // ============================================================================
   // BOOTSTRAP KICKSTART - Replaces legacy render-kick
   // ============================================================================
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'bootstrap kickstart', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     try {
       console.log("[CQ_301_DIAG][BOOT_KICKSTART]", {
@@ -4899,7 +4883,6 @@ function CandidateInterviewInner() {
   }
   
   // PART A: Violation snapshot helper (component-scoped - needs refs/state access)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'captureViolationSnapshot', ts: Date.now() }); } catch(_){} })();
   const captureViolationSnapshot = useCallback((context) => {
     const { reason, list, packId, instanceNumber, activeItemId } = context;
     
@@ -6966,14 +6949,12 @@ function CandidateInterviewInner() {
   // This avoids TDZ error while keeping hook order consistent
 
   // STABLE: Single mount per session - track by sessionId (survives remounts)
-  cqHookMark('POST_RESET_BLOCK_B');
   
   const initMapRef = useRef({});
   
   // SESSION RECOVERY: Attempt to find session by dept+file if sessionId missing
   const sessionRecoveryAttemptedRef = useRef(false);
   
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'session recovery', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     // Only run recovery if sessionId is missing AND no lock exists
     if (effectiveSessionId) return;
@@ -7037,13 +7018,10 @@ function CandidateInterviewInner() {
   }, [sessionId]);
   
 // DUPLICATE useEffect block removed
-
-  cqHookMark('POST_RESET_BLOCK_C');
   
   // STABLE: Component instance tracking - MUST NOT change during session
   const componentInstanceId = useRef(`CandidateInterview-${sessionId}`);
   
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'component mount tracking', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     candidateInterviewMountCount++;
     
@@ -7213,10 +7191,7 @@ function CandidateInterviewInner() {
     };
   }, [sessionId]);
 
-  cqHookMark('POST_RESET_BLOCK_D');
-
   // Global TDZ Trap
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'global tdz trap', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     const handleGlobalTdz = (event) => {
       try {
@@ -7246,7 +7221,6 @@ function CandidateInterviewInner() {
   }, []);
 
   // UI_CONTRACT: 3-row shell audit (unconditional hook - must run on every render)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: '3-row shell audit', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (typeof window === 'undefined' || !historyRef.current) return;
     
@@ -7292,7 +7266,6 @@ function CandidateInterviewInner() {
   const PERSIST_THROTTLE_MS = 3000;
   const PERSIST_BATCH_COUNT = 3;
 
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'flushPersist', ts: Date.now() }); } catch(_){} })();
   const flushPersist = useCallback(async () => {
     if (!pendingPersistRef.current) return;
 
@@ -7321,7 +7294,6 @@ function CandidateInterviewInner() {
     }
   }, [sessionId, engine_S]);
 
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'persistStateToDatabase', ts: Date.now() }); } catch(_){} })();
   const persistStateToDatabase = useCallback(async (ignoredTranscript, newQueue, newCurrentItem) => {
     // TRANSCRIPT GUARD: Warn if transcript argument is passed (should always be null)
     if (ignoredTranscript !== null && ignoredTranscript !== undefined) {
@@ -7349,7 +7321,6 @@ function CandidateInterviewInner() {
     }
   }, [flushPersist]);
 
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'flush persist cleanup', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     return () => {
       if (pendingPersistRef.current) {
@@ -7358,7 +7329,6 @@ function CandidateInterviewInner() {
     };
   }, [flushPersist]);
 
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'advanceToNextBaseQuestion', ts: Date.now() }); } catch(_){} })();
   const advanceToNextBaseQuestion = useCallback(async (baseQuestionId, currentTranscript = null) => {
     // V3 BLOCKING GATE: Block advancement if V3 is active
     if (isV3Blocking) {
@@ -7528,7 +7498,6 @@ function CandidateInterviewInner() {
     }
   }, [engine_S, dbTranscript, sections, currentSectionIndex, refreshTranscriptFromDB]);
 
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'onFollowupPackComplete', ts: Date.now() }); } catch(_){} })();
   const onFollowupPackComplete = useCallback(async (baseQuestionId, packId) => {
     const question = engine_S.QById[baseQuestionId];
     if (!question) {
@@ -7873,7 +7842,6 @@ function CandidateInterviewInner() {
     }
   };
 
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'handleAnswer', ts: Date.now() }); } catch(_){} })();
   const handleAnswer = useCallback(async (value) => {
     // GUARD: Block YES/NO during V3 prompt answering (prevents stray "Yes" bubble)
     if (activeUiItem_S_SAFE?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
@@ -10556,7 +10524,6 @@ function CandidateInterviewInner() {
 
 
   // HELPER: Append CTA acknowledgement to transcript (section transition click)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'appendCtaAcknowledgeToTranscript', ts: Date.now() }); } catch(_){} })();
   const appendCtaAcknowledgeToTranscript = useCallback(async ({ sessionId, currentSectionId, nextSectionId }) => {
     try {
       // Build deterministic stableKey
@@ -10651,7 +10618,6 @@ function CandidateInterviewInner() {
   };
 
   // HELPER: Transition to multi-instance "another instance?" gate (reusable)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'transitionToAnotherInstanceGate', ts: Date.now() }); } catch(_){} })();
   const transitionToAnotherInstanceGate = useCallback(async (v3Context) => {
     const { packId, categoryId, categoryLabel, instanceNumber, packData } = v3Context || v3ProbingContext_S;
     const baseQuestionId = v3BaseQuestionIdRef.current;
@@ -11293,7 +11259,6 @@ function CandidateInterviewInner() {
   }, [v3ProbingContext_S, sessionId, persistStateToDatabase]);
 
   // V3 EXIT: Idempotent exit function (only runs once)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'exitV3Once', ts: Date.now() }); } catch(_){} })();
   const exitV3Once = useCallback((reason, payload) => {
     if (exitV3HandledRef.current) {
       console.log('[EXIT_V3][SKIP] Already handled');
@@ -11321,7 +11286,6 @@ function CandidateInterviewInner() {
   }, [sessionId]);
 
   // V3 OPENER PERSISTENCE: DISABLED - Append on submit only (prevents duplicate during active state)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 opener persistence', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!activeUiItem_S || activeUiItem_S_SAFE.kind !== "V3_OPENER" || !currentItem_S) return;
 
@@ -11340,7 +11304,6 @@ function CandidateInterviewInner() {
   }, [activeUiItem_S_SAFE?.kind, currentItem_S]);
 
   // V3 probing completion handler - ENFORCES required fields completion before MI_GATE
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'handleV3ProbingComplete', ts: Date.now() }); } catch(_){} })();
   const handleV3ProbingComplete = useCallback(async (result) => {
     const { packId, categoryId, instanceNumber, nextAction, stopReason, missingFields } = result || {};
     
@@ -11368,7 +11331,6 @@ function CandidateInterviewInner() {
   }, [exitV3Once]);
 
   // V3 transcript update handler - BLOCK V3 probe prompts from appending
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'handleV3TranscriptUpdate', ts: Date.now() }); } catch(_){} })();
   const handleV3TranscriptUpdate = useCallback(async (entry) => {
     // V3 UI CONTRACT: Hard-block V3 probe prompts from EVER entering transcript
     const entryType = entry?.type || entry?.messageType || '';
@@ -11406,7 +11368,6 @@ function CandidateInterviewInner() {
   }, []);
 
   // V3 ATOMIC PROMPT COMMIT: All state changes for activating V3 prompt in bottom bar
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'commitV3PromptToBottomBar', ts: Date.now() }); } catch(_){} })();
   const commitV3PromptToBottomBar = useCallback(async ({ packId, instanceNumber, loopKey, promptText, promptId: providedPromptId, categoryId }) => {
     // FIX A: Generate deterministic promptId ALWAYS (never null)
     const promptId = providedPromptId || `${loopKey}:${promptIdCounterRef.current++}`;
@@ -11652,7 +11613,6 @@ function CandidateInterviewInner() {
   }, [v3ProbingActive, screenMode, sessionId, setDbTranscriptSafe, dbTranscript]);
 
   // V3 prompt change handler - receives prompt with canonical promptId from V3ProbingLoop
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'handleV3PromptChange', ts: Date.now() }); } catch(_){} })();
   const handleV3PromptChange = useCallback(async (promptData) => {
     // Support both string (legacy) and object (new) payloads
     const promptText = typeof promptData === 'string' ? promptData : promptData?.promptText;
@@ -11803,7 +11763,6 @@ function CandidateInterviewInner() {
   const normalizeForSignature = (s) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
   
   // V3 answer submit handler - routes answer to V3ProbingLoop
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'handleV3AnswerSubmit', ts: Date.now() }); } catch(_){} })();
   const handleV3AnswerSubmit = useCallback(async (answerText) => {
     try {
     // PART 3A: Send click trace
@@ -12291,7 +12250,6 @@ function CandidateInterviewInner() {
   }, [v3ProbingContext_S, sessionId, v3ActivePromptText, currentItem_S, setDbTranscriptSafe, dbTranscript]);
   
   // V3 REFRESH RUNNER: Safe post-commit transcript refresh
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 refresh runner', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     const request = v3RefreshRequestedRef.current;
     if (!request) return;
@@ -12336,7 +12294,6 @@ function CandidateInterviewInner() {
   }, [v3RefreshTick, refreshTranscriptFromDB]);
   
   // V3 COMMIT ACK VERIFICATION: Verify answer persisted + repair if missing
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 commit ack verify', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     // KILL SWITCH: Allow instant disable if needed
     if (!ENABLE_V3_ACK_REPAIR) return;
@@ -12546,7 +12503,6 @@ function CandidateInterviewInner() {
   }, [dbTranscript, sessionId, setDbTranscriptSafe]);
   
   // V3 answer consumed handler - clears pending answer after V3ProbingLoop consumes it
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'handleV3AnswerConsumed', ts: Date.now() }); } catch(_){} })();
   const handleV3AnswerConsumed = useCallback(({ loopKey, answerToken, probeCount, submitId }) => {
     console.log('[V3_ANSWER_CONSUMED][CLEAR_PENDING]', {
       loopKey,
@@ -12561,7 +12517,6 @@ function CandidateInterviewInner() {
   }, [v3PendingAnswer]);
 
   // V3 answer needed handler - stores answer submit capability + snapshot-based watchdog
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'handleV3AnswerNeeded', ts: Date.now() }); } catch(_){} })();
   const handleV3AnswerNeeded = useCallback((answerContext) => {
     console.log('[V3_ANSWER_NEEDED]', { 
       hasPrompt: !!answerContext?.promptText,
@@ -12851,7 +12806,6 @@ function CandidateInterviewInner() {
   }, [v3ProbingActive, v3ActivePromptText, v3ProbingContext_S, sessionId, exitV3Once, transitionToAnotherInstanceGate]);
 
   // Deferred transition handler (fixes React warning)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'deferred transition', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!pendingTransition) return;
 
@@ -13053,7 +13007,6 @@ function CandidateInterviewInner() {
   // This effect removed to eliminate repeated DB fetches
   
   // FIX B4: V3 draft restore - load draft when V3 prompt becomes active (with fallback promptId)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 draft restore', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
   if (!v3ProbingActive || !v3ProbingContext_S) return;
 
@@ -13106,7 +13059,6 @@ function CandidateInterviewInner() {
   }, [v3ProbingActive, v3ProbingContext_S?.promptId, sessionId]);
   
   // FIX B4: V3 draft save - persist draft on input change during V3 probing (with fallback promptId)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 draft save', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!v3ProbingActive || !v3ProbingContext_S) return;
     
@@ -13143,7 +13095,6 @@ function CandidateInterviewInner() {
   }, [input, v3ProbingActive, v3ProbingContext_S?.promptId, sessionId]);
   
   // FIX C: V3 UI history persistence - save to localStorage
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 ui history persist', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!v3ProbingActive || !v3ProbingContext_S) return;
     if (v3ProbeDisplayHistory_S.length === 0) return;
@@ -13160,7 +13111,6 @@ function CandidateInterviewInner() {
   }, [v3ProbeDisplayHistory_S, v3ProbingActive, v3ProbingContext_S?.categoryId, sessionId]);
   
   // FIX C: V3 UI history restore - load from localStorage on mount
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 ui history restore', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!v3ProbingActive || !v3ProbingContext_S) return;
     
@@ -13184,7 +13134,6 @@ function CandidateInterviewInner() {
   }, [v3ProbingActive, v3ProbingContext_S?.categoryId, v3ProbingContext_S?.instanceNumber, sessionId]);
 
   // UX: Restore draft when currentItem_S changes
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'draft restore current item', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!currentItem_S || !sessionId) return;
     
@@ -13288,7 +13237,6 @@ function CandidateInterviewInner() {
   }, [currentItem_S, sessionId, buildDraftKey, v3ProbingActive]);
 
   // Measure question card height dynamically
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'question card height', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (questionCardRef.current) {
       const resizeObserver = new ResizeObserver((entries) => {
@@ -13302,13 +13250,11 @@ function CandidateInterviewInner() {
   }, [currentItem_S, validationHint]);
 
   // AUTO-GROWING INPUT: Sync cqDiagEnabled to ref for stable logging in long-lived callbacks
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'cqdiag sync', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     cqDiagEnabledRef.current = cqDiagEnabled;
   }, [cqDiagEnabled]);
   
   // PART A: Initialize scroll owner on mount
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'scroll owner init', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!bottomAnchorRef.current) return;
     
@@ -13338,7 +13284,6 @@ function CandidateInterviewInner() {
   const footerObservedRef = React.useRef(false);
   const footerObserverAttachLoggedRef = React.useRef(false);
   
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'footer measurement', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     let resizeObserver = null;
     let settlingTimers = [];
@@ -13434,7 +13379,6 @@ function CandidateInterviewInner() {
   }, []); // TDZ-SAFE: No deps on mode variables
 
   // PART B: Measure footer shell height from stable wrapper (all modes)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'footer shell height', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (!footerShellRef.current) return;
     
@@ -13795,7 +13739,6 @@ function CandidateInterviewInner() {
 
 
 
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'getQuestionDisplayNumber', ts: Date.now() }); } catch(_){} })();
   const getQuestionDisplayNumber = useCallback((questionId) => {
     if (!engine_S) return '';
 
@@ -14345,7 +14288,6 @@ function CandidateInterviewInner() {
 
   // Re-anchor bottom on footer height changes when auto-scroll is enabled
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'footer height reanchor', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     // SCROLL LOCK GATE: Block footer height re-anchor during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14366,7 +14308,6 @@ function CandidateInterviewInner() {
   // ANCHOR LAST V3 ANSWER - HOISTED TO BATCH 3 (line ~4615)
   
   // ANCHOR V3 PROBE QUESTION: Keep just-appended question visible (ChatGPT-style)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'anchor v3 probe question', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block anchor during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14454,7 +14395,6 @@ function CandidateInterviewInner() {
   // PART B: RENDER LIST APPENDED - HOISTED TO BATCH 3 (line ~4690)
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'force scroll question shown', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block force-scroll during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14557,7 +14497,6 @@ function CandidateInterviewInner() {
   }, [effectiveItemType_SAFE, shouldRenderFooter_SAFE, currentItem_S?.id, currentItem_S?.type, footerMeasuredHeightPx, dynamicBottomPaddingPx]);
   
   // FOOTER PADDING COMPENSATION: Prevent jump when footer height changes
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'footer padding compensate', ts: Date.now() }); } catch(_){} })();
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block padding compensation during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14673,7 +14612,6 @@ function CandidateInterviewInner() {
   // ACTIVE CARD OVERLAP NUDGE - HOISTED TO BATCH 3 (line ~4850)
 
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'v3 prompt visibility', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     // SCROLL LOCK GATE: Block prompt visibility during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14765,7 +14703,6 @@ function CandidateInterviewInner() {
   }, [v3ProbingActive, v3ActivePromptText, isUserTyping, bottomBarModeSOT_SAFE, shouldRenderFooter]);
 
   // AUTO-GROWING INPUT: Auto-resize textarea based on content (ChatGPT-style)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'auto grow textarea', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     const textarea = footerTextareaRef.current || inputRef.current;
     if (!textarea) return;
@@ -14820,7 +14757,6 @@ function CandidateInterviewInner() {
   }, [input, openerDraft, bottomBarModeSOT]);
 
   // DEFENSIVE GUARD: Force exit WELCOME mode when interview has progressed
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USEEFFECT_SEQ; console.log('[CQ_USEEFFECT_MARK]', { n, name: 'force exit welcome', ts: Date.now() }); } catch(_){} })();
   useEffect(() => {
     if (screenMode !== "WELCOME") return; // Only act if we're in WELCOME
     
