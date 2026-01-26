@@ -719,6 +719,14 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
                   totalLines: lines.length
                 });
               }
+              
+              // Hook census: Log if enabled
+              const censusEnabled = (typeof window !== 'undefined' && window.CQ_DEBUG_HOOK_CENSUS === true);
+              if (censusEnabled) {
+                console.error('[CQ_HOOK_CENSUS][ERROR_BOUNDARY]', {
+                  note: 'Hook census was enabled during crash - check [CQ_HOOK_CENSUS][MARK] logs above'
+                });
+              }
             }
             
             const argsMatch = msg.match(/args\[\]=([^&]+)/g);
@@ -1505,28 +1513,17 @@ function CandidateInterviewInner() {
   const __cqHookCensusEnabled =
     typeof window !== 'undefined' && window.CQ_DEBUG_HOOK_CENSUS === true;
 
-  // REACT #310 CENSUS: Global render counter + hook census utilities
-  // NEUTRALIZED: Pure function (no window mutation)
-  const cqRenderId = () => 0;
-  
-  const cqHookCensusInit = (rid) => {
-    try {
-      if (typeof window === 'undefined') return;
-      // window.CQ_HOOK_INDEX = 0; // NEUTRALIZED: render-time window write removed
-      if (typeof window !== 'undefined' && window.__CQ_HOOK_CENSUS_ENABLED__) console.log('[CQ_HOOK_CENSUS_INIT]', { rid, ts: Date.now() });
-    } catch (_) {}
-  };
+  // REACT #310 CENSUS: Hook counter (ref-based, no window mutations)
+  // Enable via: window.CQ_DEBUG_HOOK_CENSUS = true
+  let __cqCensusIdx = 0; // Resets each render (function-scoped)
   
   const cqHookMark = (name) => {
+    if (!__cqHookCensusEnabled) return;
     try {
-      if (typeof window === 'undefined') return;
-      const idx = 0; // NEUTRALIZED: no window mutation (was ++window.CQ_HOOK_INDEX)
-      if (typeof window !== 'undefined' && window.__CQ_HOOK_CENSUS_ENABLED__) console.log('[CQ_HOOK_CENSUS]', { idx, name, ts: Date.now() });
+      __cqCensusIdx += 1;
+      console.error('[CQ_HOOK_CENSUS][MARK]', { idx: __cqCensusIdx, name, ts: Date.now() });
     } catch (_) {}
   };
-  
-  // REACT #310 CENSUS: Initialize per-render hook tracking
-  const __cqRid = cqRenderId();
   
   // REACT #310 CENSUS: Auto-enable for rid 4 ONLY (isolate crashing render)
   // [REMOVED: Render-time census auto-enable]
@@ -1737,6 +1734,9 @@ function CandidateInterviewInner() {
   };
   const logSuspectElement = (..._args) => {};
   const isCurrentItemCommitting = false;
+  
+  // HOOK CENSUS: Mark before first hook
+  cqHookMark('PRE_HOOKS');
   
   const navigate = useNavigate();
   
@@ -4422,6 +4422,9 @@ function CandidateInterviewInner() {
     // Just track the current field - actual logging happens in handleAnswer
   }, [__cqBootNotReady, v2PackMode, activeV2Pack, currentItem_S]);
   
+  // HOOK CENSUS: Mark after final hook
+  cqHookMark('POST_HOOKS');
+  
   // ============================================================================
   // HOOK 12/12: renderedTranscript - REMOVED (duplicate, moved to before Hook 7/7)
   // ============================================================================
@@ -5415,6 +5418,10 @@ function CandidateInterviewInner() {
 
   // TRY1 EXECUTION GATE: Only run when boot is ready
   console.log('[CQ_USECALLBACK_MARK][BEFORE_TRY1]', { ts: Date.now() });
+  
+  // HOOK CENSUS: Mark before TRY1
+  cqHookMark('PRE_TRY1');
+  
   let __cqTry1Result = null;
   
   if (!__cqBootNotReady) {
