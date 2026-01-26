@@ -1456,7 +1456,7 @@ function CandidateInterviewInner() {
   const cqHookCensusInit = (rid) => {
     try {
       if (typeof window === 'undefined') return;
-      window.CQ_HOOK_INDEX = 0;
+      // window.CQ_HOOK_INDEX = 0; // NEUTRALIZED: render-time window write removed
       if (typeof window !== 'undefined' && window.__CQ_HOOK_CENSUS_ENABLED__) console.log('[CQ_HOOK_CENSUS_INIT]', { rid, ts: Date.now() });
     } catch (_) {}
   };
@@ -1464,7 +1464,7 @@ function CandidateInterviewInner() {
   const cqHookMark = (name) => {
     try {
       if (typeof window === 'undefined') return;
-      const idx = ++window.CQ_HOOK_INDEX;
+      const idx = 0; // NEUTRALIZED: no window mutation (was ++window.CQ_HOOK_INDEX)
       if (typeof window !== 'undefined' && window.__CQ_HOOK_CENSUS_ENABLED__) console.log('[CQ_HOOK_CENSUS]', { idx, name, ts: Date.now() });
     } catch (_) {}
   };
@@ -2312,8 +2312,7 @@ function CandidateInterviewInner() {
   }, [sessionId, setDbTranscriptSafe]);
 
   // FORENSIC: Canonical transcript verification (DB = source of truth)
-  (function(){ try { const w=(typeof window!=='undefined')?window:null; if(!w) return; const n=++w.CQ_USECALLBACK_SEQ; console.log('[CQ_USECALLBACK_MARK]', { n, name: 'forensicCheck', ts: Date.now() }); } catch(_){} })();
-  const forensicCheck = useCallback(async (label) => {
+    const forensicCheck = useCallback(async (label) => {
     try {
       const fresh = await base44.entities.InterviewSession.get(sessionId);
       const freshLen = (fresh.transcript_snapshot || []).length;
@@ -5315,7 +5314,7 @@ function CandidateInterviewInner() {
   } catch (_) {}
 
   try {
-    if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = 'BEFORE_TRY1';
+    // if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = 'BEFORE_TRY1';
     console.log('[CQ_DIAG][EARLY_STEP]', { step: 'BEFORE_TRY1' });
   } catch (_) {}
   
@@ -5407,7 +5406,7 @@ function CandidateInterviewInner() {
       }
     }
     try {
-        if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = 'TRY1_ENTER';
+        // if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = 'TRY1_ENTER';
         console.log('[CQ_DIAG][EARLY_STEP]', { step: 'TRY1_ENTER' });
 
         try {
@@ -5588,13 +5587,13 @@ function CandidateInterviewInner() {
   } catch (_) {}
   
   console.log('[CQ_TRY1_STEP2_GUARD][ENTERED]', { sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), ts: Date.now() });
-  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_2:BEFORE_ACTIVE_UI_PICK';
+  // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_2:BEFORE_ACTIVE_UI_PICK';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '2:BEFORE_ACTIVE_UI_PICK' });
   cqMark('BEFORE_ACTIVE_UI_PICK');
   // CANONICAL ACTIVE UI ITEM RESOLVER - Single source of truth
   // Determines what UI should be shown based on strict precedence:
   // REQUIRED_ANCHOR_FALLBACK > V3_PROMPT > V3_WAITING > V3_OPENER > MI_GATE > DEFAULT
-  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3:BEFORE_RESOLVE_ACTIVE_UI';
+  // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3:BEFORE_RESOLVE_ACTIVE_UI';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '3:BEFORE_RESOLVE_ACTIVE_UI' });
   
   // BOOT-PHASE BYPASS: Skip resolveActiveUiItem() during incomplete boot
@@ -5946,7 +5945,7 @@ function CandidateInterviewInner() {
   });
   
   // TDZ FIX: Hoisted from component body to prevent use-before-declare
-  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_4:BEFORE_CURRENT_ITEM_TYPE';
+  // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_4:BEFORE_CURRENT_ITEM_TYPE';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '4:BEFORE_CURRENT_ITEM_TYPE' });
   const currentItem_SType = v3GateActive ? 'v3_gate' :
                           v3ProbingActive ? 'v3_probing' :
@@ -5964,9 +5963,9 @@ function CandidateInterviewInner() {
   // ============================================================================
   // REGRESSION-PROOF SAFE WRAPPER - Validates mode before critical UI logic
   // ============================================================================
-  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5:BEFORE_MODE_SAFE';
+  // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5:BEFORE_MODE_SAFE';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '5:BEFORE_MODE_SAFE' });
-  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_1:ENTER_MODE_BLOCK';
+  // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_1:ENTER_MODE_BLOCK';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_1:ENTER_MODE_BLOCK' });
   
   try {
@@ -6087,7 +6086,6 @@ function CandidateInterviewInner() {
     }
     */
     
-    // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_5:AFTER_FALLBACK_WARN';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_5:AFTER_FALLBACK_WARN' });
   } catch (e) {
     if (!cqFailopenOnceRef.current.modeBlock) {
@@ -6099,10 +6097,10 @@ function CandidateInterviewInner() {
   window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5A:AFTER_MODE_WINDOW';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '5A:AFTER_MODE_WINDOW' });
   
-  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5B:RIGHT_BEFORE_STEP6';
+  // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5B:RIGHT_BEFORE_STEP6';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '5B:RIGHT_BEFORE_STEP6' });
   
-  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_6:AFTER_MODE_VALIDATION';
+  // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_6:AFTER_MODE_VALIDATION';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '6:AFTER_MODE_VALIDATION' });
   
   const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
@@ -6284,8 +6282,8 @@ function CandidateInterviewInner() {
   // REACT #310 FIX: v2 pack field tracker MOVED to BATCH 2 (hoisted from TRY1)
 
   // REACT #310 CENSUS: Mark before "full session reset"
-  cqHookMark('BEFORE_FULL_SESSION_RESET');
-  cqHookMark('PRE_RESET_BLOCK_A');
+  // cqHookMark('BEFORE_FULL_SESSION_RESET');
+  // cqHookMark('PRE_RESET_BLOCK_A');
   
   // ============================================================================
   // HOOK 13/56: FULL SESSION RESET (UNCONDITIONAL - React #310 fix)
@@ -19939,7 +19937,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     cqMark('BEFORE_RETURN');
     } catch (e) {
       try {
-        if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = `TRY1_CATCH_ENTER:${typeof window.__CQ_LAST_RENDER_STEP__ !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : 'UNKNOWN'}`;
+        // if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = `TRY1_CATCH_ENTER:${typeof window.__CQ_LAST_RENDER_STEP__ !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : 'UNKNOWN'}`;
         console.log('[CQ_DIAG][TRY1_CATCH_ENTER]', { lastStep: (typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null) });
       } catch (_) {}
     
