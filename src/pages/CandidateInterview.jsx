@@ -1450,18 +1450,8 @@ function CandidateInterviewInner() {
     typeof window !== 'undefined' && window.CQ_DEBUG_HOOK_CENSUS === true;
 
   // REACT #310 CENSUS: Global render counter + hook census utilities
-  const cqRenderId = (() => {
-    try {
-      if (typeof window === 'undefined') return () => 0;
-      if (!window.CQ_RENDER_ID) window.CQ_RENDER_ID = 0;
-      window.CQ_RENDER_ID++;
-      const rid = window.CQ_RENDER_ID;
-      if (typeof window !== 'undefined' && window.__CQ_HOOK_CENSUS_ENABLED__) console.log('[CQ_RENDER_ID]', { rid, ts: Date.now() });
-      return () => rid;
-    } catch (_) {
-      return () => 0;
-    }
-  })();
+  // NEUTRALIZED: Pure function (no window mutation)
+  const cqRenderId = () => 0;
   
   const cqHookCensusInit = (rid) => {
     try {
@@ -4411,7 +4401,7 @@ function CandidateInterviewInner() {
   // [CQ_RENDER_DIAG] render-time snapshot (effects may never run if render crashes)
   let __cqRenderStep = 'AFTER_HOOKS';
   const cqMark = (step, extra) => {
-    try { if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = step; } catch (_) {}
+    // NEUTRALIZED: No window write (prevents render-time global mutation)
     try { __cqRenderStep = step; } catch (_) {}
     try {
       console.log('[CQ_DIAG][RENDER_STEP]', {
