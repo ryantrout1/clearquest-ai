@@ -6229,6 +6229,22 @@ function CandidateInterviewInner() {
     const __cq_cp8 = (typeof hasActiveV3Prompt !== 'undefined') ? hasActiveV3Prompt : 'NOT_DECLARED_YET';
     console.log('[CQ_301_DIAG][CP8][AFTER]', { rid: __cqRidSafe, v: __cq_cp8 });
 
+    console.log('[CQ_301_DIAG][CP9][BEFORE]', { rid: __cqRidSafe, name: 'activeUiItem_S.kind' });
+    const __cq_cp9 = (typeof activeUiItem_S !== 'undefined') ? (activeUiItem_S?.kind || null) : 'NOT_DECLARED_YET';
+    console.log('[CQ_301_DIAG][CP9][AFTER]', { rid: __cqRidSafe, v: __cq_cp9 });
+
+    console.log('[CQ_301_DIAG][CP10][BEFORE]', { rid: __cqRidSafe, name: 'effectiveItemType' });
+    const __cq_cp10 = (typeof effectiveItemType !== 'undefined') ? effectiveItemType : 'NOT_DECLARED_YET';
+    console.log('[CQ_301_DIAG][CP10][AFTER]', { rid: __cqRidSafe, v: __cq_cp10 });
+
+    console.log('[CQ_301_DIAG][CP11][BEFORE]', { rid: __cqRidSafe, name: 'bottomBarRenderTypeSOT' });
+    const __cq_cp11 = (typeof bottomBarRenderTypeSOT !== 'undefined') ? bottomBarRenderTypeSOT : 'NOT_DECLARED_YET';
+    console.log('[CQ_301_DIAG][CP11][AFTER]', { rid: __cqRidSafe, v: __cq_cp11 });
+
+    console.log('[CQ_301_DIAG][CP12][BEFORE]', { rid: __cqRidSafe, name: 'bottomBarModeSOT' });
+    const __cq_cp12 = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : 'NOT_DECLARED_YET';
+    console.log('[CQ_301_DIAG][CP12][AFTER]', { rid: __cqRidSafe, v: __cq_cp12 });
+
     console.log('[CQ_301_DIAG][DERIVED_CHECKPOINT_EXIT]', { rid: __cqRidSafe });
   } catch (e) {
     const __cqRidSafeCatch = (typeof __cqRid !== 'undefined') ? __cqRid : 'no_rid';
