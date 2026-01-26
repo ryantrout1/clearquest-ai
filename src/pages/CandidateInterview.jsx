@@ -718,6 +718,10 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
                   lines: indexedLines,
                   totalLines: lines.length
                 });
+                try {
+                  const joined = indexedLines.join('\n');
+                  console.error('[CQ_REACT_DECODE][COMPONENT_STACK_JOINED]', '\n' + joined);
+                } catch (_) {}
               }
               
               // Hook census: Log if enabled
@@ -1528,7 +1532,13 @@ function CandidateInterviewInner() {
   let __cqCensusIdx = 0; // Resets each render (function-scoped)
   
   const cqHookMark = (name) => {
-    if (!__cqHookCensusEnabled) return;
+    const __cqCensusEnabledNow = (() => {
+      try {
+        if (typeof window === 'undefined') return false;
+        return window.CQ_DEBUG_HOOK_CENSUS === true;
+      } catch (_) { return false; }
+    })();
+    if (!__cqCensusEnabledNow) return;
     try {
       __cqCensusIdx += 1;
       console.error('[CQ_HOOK_CENSUS][MARK]', { idx: __cqCensusIdx, name, ts: Date.now() });
