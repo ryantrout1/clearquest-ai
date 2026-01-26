@@ -1554,7 +1554,7 @@ function CandidateInterviewInner() {
     const __cqCensusEnabledNow = (() => {
       try {
         if (typeof window === 'undefined') return false;
-        return cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true;
+        return cqHasQueryFlag('cqCensus') || cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true;
       } catch (_) { return false; }
     })();
     if (!__cqCensusEnabledNow) return;
