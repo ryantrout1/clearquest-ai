@@ -22090,6 +22090,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               return null;
             }
             
+            // HOOK CENSUS: Mark before V3ProbingLoop render
+            cqHookMark('PRE_V3_LOOP');
+            
             console.log('[V3_UI_CONTRACT]', {
               action: 'V3_LOOP_HEADLESS_MOUNT',
               reason: 'V3ProbingLoop renders NO visible cards - parent owns all UI in bottom bar',
