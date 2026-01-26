@@ -708,6 +708,19 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
               componentStack: String(info?.componentStack || '')
             });
             
+            // Dev-only: Split component stack into indexed lines for easier parsing
+            if (invariantCode === '310') {
+              const componentStackStr = String(info?.componentStack || '');
+              if (componentStackStr.trim()) {
+                const lines = componentStackStr.split('\n').filter(l => l.trim());
+                const indexedLines = lines.map((line, idx) => `[${idx}] ${line}`);
+                console.error('[CQ_REACT_DECODE][COMPONENT_STACK_LINES]', {
+                  lines: indexedLines,
+                  totalLines: lines.length
+                });
+              }
+            }
+            
             const argsMatch = msg.match(/args\[\]=([^&]+)/g);
             if (argsMatch) {
               const args = argsMatch.map(a => a.replace('args[]=', ''));
