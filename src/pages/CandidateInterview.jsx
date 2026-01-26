@@ -1969,7 +1969,8 @@ function CandidateInterviewInner() {
   // TDZ_FIX: HOISTED-SAFE PERSISTENCE - Plain function with zero closure dependencies
   // CRITICAL: Declared at top-of-component to eliminate ALL TDZ risks
   // This function uses ONLY its parameters - no component state/refs/consts
-    const inFlightEnsuresRef = useRef({});
+  cqHookMark('HOOK_10:useRef:inFlightEnsures');
+  const inFlightEnsuresRef = useRef({});
     const resumeFromDBFnRef = useRef(null);
   
   /**
@@ -4198,6 +4199,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   
   // HOOK 8/11: MI_GATE reconciliation (was line ~6310)
+  cqHookMark('HOOK_40:useEffect:v3PromptPhase');
   useEffect(() => {
     if (__cqBootNotReady) return;
     
