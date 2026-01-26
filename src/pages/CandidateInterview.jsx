@@ -1657,6 +1657,7 @@ function CandidateInterviewInner() {
   const useEffect_TR = (...args) => { __cqTrace('useEffect'); return useEffect(...args); };
   const useLayoutEffect_TR = (...args) => { __cqTrace('useLayoutEffect'); return useLayoutEffect(...args); };
   const ReactUseLayoutEffect_TR = (...args) => { __cqTrace('React.useLayoutEffect'); return React.useLayoutEffect(...args); };
+  const useCallback_TR = (...args) => { __cqTrace('useCallback'); return useCallback(...args); };
   
   // REACT #310 CENSUS: Auto-enable for rid 4 ONLY (isolate crashing render)
   // [REMOVED: Render-time census auto-enable]
@@ -3478,7 +3479,7 @@ function CandidateInterviewInner() {
     }
   }, []); // Run once on mount (before kickstart effect with sessionId dep)
 
-  const resumeFromDB = useCallback(async () => {
+  const resumeFromDB = useCallback_TR(async () => {
     try {
       console.log('[BOOT][RESUME] Light resume from DB', { sessionId });
       
