@@ -4319,7 +4319,7 @@ function CandidateInterviewInner() {
   
   // HOOK 8/11: MI_GATE reconciliation (was line ~6310)
   cqHookMark('HOOK_40:useEffect:v3PromptPhase');
-  useEffect(() => {
+  useEffect_TR(() => {
     if (__cqBootNotReady) return;
     
     // Only trigger when entering MI_GATE (not on every multiInstanceGate change)
@@ -4556,7 +4556,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // Track last logged V2 pack field to prevent duplicates (logging happens on answer, not render)
   // This ref is used when logging answers to check for duplicates
-  useEffect(() => {
+  useEffect_TR(() => {
     // REACT #310 FIX: Internal boot guard (moved from TRY1 gate)
     if (__cqBootNotReady) return;
     
@@ -6517,7 +6517,7 @@ function CandidateInterviewInner() {
   // HOOK 13/56: FULL SESSION RESET (UNCONDITIONAL - React #310 fix)
   // ============================================================================
   // FULL SESSION RESET: Cleanup all interview-local state when sessionId changes (prevent cross-session leakage)
-  useEffect(() => {
+  useEffect_TR(() => {
     try {
       console.log("[CQ_301_DIAG][FULL_RESET_EFFECT_ENTER]", { rid: __cqRid, renderN: __cq301RenderRef.current });
     } catch (_) {}
@@ -7124,7 +7124,7 @@ function CandidateInterviewInner() {
   // SESSION RECOVERY: Attempt to find session by dept+file if sessionId missing
   const sessionRecoveryAttemptedRef = useRef(false);
   
-  useEffect(() => {
+  useEffect_TR(() => {
     // Only run recovery if sessionId is missing AND no lock exists
     if (effectiveSessionId) return;
     if (resolvedSessionRef.current) return;
