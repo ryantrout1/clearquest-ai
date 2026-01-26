@@ -3775,7 +3775,7 @@ function CandidateInterviewInner() {
   // Now unconditional with boot guards to preserve original behavior
   
   // HOOK 1/7: V3 prompt phase change tracker
-  useEffect(() => {
+  useEffect_TR(() => {
     if (__cqBootNotReady) return;
     
     if (v3PromptPhase !== lastV3PromptPhaseRef.current) {
