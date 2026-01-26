@@ -20108,17 +20108,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       message: e?.message,
     });
     
-    const _cqIsTdzRefErr =
-      (e && (e.name === 'ReferenceError' || String(e.message || '').includes('before initialization')));
-    
-    if (_cqIsTdzRefErr && !cqFailopenOnceRef.current.try1Tdz) {
-      cqFailopenOnceRef.current.try1Tdz = true;
-      // REACT #310 FIX: Never setState during render; rely on existing error boundary / post-render recovery.
-      return null;
-    }
-    
-      // Keep behavior minimal: return null (no new UI)
-      return null;
+    // REACT #310 FIX: Rethrow all TRY1 errors (prevents render-path drift)
+    throw e;
     }
   } else {
     // Boot not ready - skip TRY1 execution
@@ -23065,31 +23056,34 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   }
 
   return (
-    <CQTdzLocatorBoundary
-      capture={() => ({
-        effectiveSessionId: typeof effectiveSessionId !== 'undefined' ? effectiveSessionId : 'undefined',
-        rawSessionId: typeof sessionId !== 'undefined' ? sessionId : 'undefined',
-        isLoading: typeof isLoading !== 'undefined' ? isLoading : 'undefined',
-        hasSession: typeof session !== 'undefined' ? !!session : 'undefined',
-        hasEngine: typeof engine_S !== 'undefined' ? !!engine_S : 'undefined',
-        screenMode: typeof screenMode !== 'undefined' ? screenMode : 'undefined',
-        pathname: typeof window !== 'undefined' ? window?.location?.pathname : 'undefined',
-        search: typeof window !== 'undefined' ? window?.location?.search : 'undefined',
-        showRedirectFallback: typeof showRedirectFallback !== 'undefined' ? showRedirectFallback : 'undefined',
-      })}
-    >
-      {__cqBootNotReady ? cqBootBlockUI : (__tdzTraceJsx || <div className="min-h-screen bg-slate-900" />)}
-    </CQTdzLocatorBoundary>
+  <CQTdzLocatorBoundary
+    capture={() => ({
+      effectiveSessionId: typeof effectiveSessionId !== 'undefined' ? effectiveSessionId : 'undefined',
+      rawSessionId: typeof sessionId !== 'undefined' ? sessionId : 'undefined',
+      isLoading: typeof isLoading !== 'undefined' ? isLoading : 'undefined',
+      hasSession: typeof session !== 'undefined' ? !!session : 'undefined',
+      hasEngine: typeof engine_S !== 'undefined' ? !!engine_S : 'undefined',
+      screenMode: typeof screenMode !== 'undefined' ? screenMode : 'undefined',
+      pathname: typeof window !== 'undefined' ? window?.location?.pathname : 'undefined',
+      search: typeof window !== 'undefined' ? window?.location?.search : 'undefined',
+      showRedirectFallback: typeof showRedirectFallback !== 'undefined' ? showRedirectFallback : 'undefined',
+    })}
+  >
+    {__cqBootNotReady ? cqBootBlockUI : (__tdzTraceJsx || <div className="min-h-screen bg-slate-900" />)}
+  </CQTdzLocatorBoundary>
   );
-}
+  }
+  try { CandidateInterviewInner.displayName = 'CandidateInterviewInner'; } catch (_) {}
 
-// ============================================================================
-// DEFAULT EXPORT - Wrapped with Error Boundary
-// ============================================================================
-export default function CandidateInterview() {
+  // ============================================================================
+  // DEFAULT EXPORT - Wrapped with Error Boundary
+  // ============================================================================
+  export default function CandidateInterview() {
   return (
-    <CQCandidateInterviewErrorBoundary>
-      <CandidateInterviewInner />
-    </CQCandidateInterviewErrorBoundary>
+  <CQCandidateInterviewErrorBoundary>
+    <CandidateInterviewInner />
+  </CQCandidateInterviewErrorBoundary>
   );
-}
+  }
+  try { CandidateInterview.displayName = 'CandidateInterview'; } catch (_) {}
+  try { CQCandidateInterviewErrorBoundary.displayName = 'CQCandidateInterviewErrorBoundary'; } catch (_) {}
