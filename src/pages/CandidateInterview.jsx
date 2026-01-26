@@ -20255,7 +20255,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       message: e?.message,
       name: e?.name,
       stack: e?.stack,
-      lastStep: typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null
+      lastStep: typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null,
+      lastHookSite: (typeof window !== 'undefined') ? (window.__CQ_LAST_HOOKSITE__ || null) : null
     });
 
     let __cqShouldRethrow_310 = false;
