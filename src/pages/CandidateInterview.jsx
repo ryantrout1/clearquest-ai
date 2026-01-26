@@ -1757,7 +1757,7 @@ function CandidateInterviewInner() {
   
   // HOOK CENSUS: Mark before first hook
   cqHookMark('PRE_HOOKS');
-  
+  cqHookMark('HOOK_01:useNavigate');
   const navigate = useNavigate();
   
   // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
@@ -2150,6 +2150,7 @@ function CandidateInterviewInner() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  cqHookMark('HOOK_20:useState:sections');
   const [sections, setSections] = useState([]);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [completedSectionsCount, setCompletedSectionsCount] = useState(0);
@@ -2178,6 +2179,7 @@ function CandidateInterviewInner() {
   const activeBlocker = uiBlocker; // UI-only blocker, not from canonical transcript
   
   // Dev guardrail: Ensure transcript never shrinks (applied to canonical DB mirror)
+  cqHookMark('HOOK_30:useCallback:setDbTranscriptSafe');
   const setDbTranscriptSafe = useCallback((updater) => {
     setDbTranscript(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
@@ -13301,6 +13303,7 @@ function CandidateInterviewInner() {
   }, [cqDiagEnabled]);
   
   // PART A: Initialize scroll owner on mount
+  cqHookMark('HOOK_48:useEffect:initScrollOwner');
   useEffect(() => {
     if (!bottomAnchorRef.current) return;
     
@@ -13330,6 +13333,7 @@ function CandidateInterviewInner() {
   const footerObservedRef = React.useRef(false);
   const footerObserverAttachLoggedRef = React.useRef(false);
   
+  cqHookMark('HOOK_49:useEffect:footerMeasurement');
   useEffect(() => {
     let resizeObserver = null;
     let settlingTimers = [];
@@ -13425,6 +13429,7 @@ function CandidateInterviewInner() {
   }, []); // TDZ-SAFE: No deps on mode variables
 
   // PART B: Measure footer shell height from stable wrapper (all modes)
+  cqHookMark('HOOK_50:useEffect:footerShellMeasure');
   useEffect(() => {
     if (!footerShellRef.current) return;
     
@@ -14334,6 +14339,7 @@ function CandidateInterviewInner() {
 
   // Re-anchor bottom on footer height changes when auto-scroll is enabled
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
+  cqHookMark('HOOK_51:useEffect:reAnchorOnFooterHeight');
   useEffect(() => {
     // SCROLL LOCK GATE: Block footer height re-anchor during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14354,6 +14360,7 @@ function CandidateInterviewInner() {
   // ANCHOR LAST V3 ANSWER - HOISTED TO BATCH 3 (line ~4615)
   
   // ANCHOR V3 PROBE QUESTION: Keep just-appended question visible (ChatGPT-style)
+  cqHookMark('HOOK_52:useLayoutEffect:anchorV3ProbeQ');
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block anchor during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14441,6 +14448,7 @@ function CandidateInterviewInner() {
   // PART B: RENDER LIST APPENDED - HOISTED TO BATCH 3 (line ~4690)
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
+  cqHookMark('HOOK_53:useLayoutEffect:forceScrollQuestionShown');
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block force-scroll during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14543,6 +14551,7 @@ function CandidateInterviewInner() {
   }, [effectiveItemType_SAFE, shouldRenderFooter_SAFE, currentItem_S?.id, currentItem_S?.type, footerMeasuredHeightPx, dynamicBottomPaddingPx]);
   
   // FOOTER PADDING COMPENSATION: Prevent jump when footer height changes
+  cqHookMark('HOOK_54:useLayoutEffect:footerPaddingCompensate');
   React.useLayoutEffect(() => {
     // SCROLL LOCK GATE: Block padding compensation during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14626,6 +14635,7 @@ function CandidateInterviewInner() {
   // GRAVITY FOLLOW - HOISTED TO BATCH 3 (line ~4740)
   
   // FOOTER OVERLAP CLAMP: Ensure active card never behind footer (unconditional)
+  cqHookMark('HOOK_55:useLayoutEffect:footerOverlapClamp');
   React.useLayoutEffect(() => {
     if (!shouldRenderFooter_SAFE || !hasActiveCardSOT) return;
     
@@ -14658,6 +14668,7 @@ function CandidateInterviewInner() {
   // ACTIVE CARD OVERLAP NUDGE - HOISTED TO BATCH 3 (line ~4850)
 
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
+  cqHookMark('HOOK_56:useEffect:v3PromptVisibility');
   useEffect(() => {
     // SCROLL LOCK GATE: Block prompt visibility during any scroll lock
     if (isScrollWriteLocked()) {
@@ -14749,6 +14760,7 @@ function CandidateInterviewInner() {
   }, [v3ProbingActive, v3ActivePromptText, isUserTyping, bottomBarModeSOT_SAFE, shouldRenderFooter]);
 
   // AUTO-GROWING INPUT: Auto-resize textarea based on content (ChatGPT-style)
+  cqHookMark('HOOK_57:useEffect:autoGrowInput');
   useEffect(() => {
     const textarea = footerTextareaRef.current || inputRef.current;
     if (!textarea) return;
@@ -14803,6 +14815,7 @@ function CandidateInterviewInner() {
   }, [input, openerDraft, bottomBarModeSOT]);
 
   // DEFENSIVE GUARD: Force exit WELCOME mode when interview has progressed
+  cqHookMark('HOOK_58:useEffect:forceExitWelcome');
   useEffect(() => {
     if (screenMode !== "WELCOME") return; // Only act if we're in WELCOME
     
