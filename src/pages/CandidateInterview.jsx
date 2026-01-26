@@ -3696,7 +3696,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // BOOTSTRAP KICKSTART - Replaces legacy render-kick
   // ============================================================================
-  useEffect(() => {
+  useEffect_TR(() => {
     try {
       console.log("[CQ_301_DIAG][BOOT_KICKSTART]", {
         rid: __cqRid,
