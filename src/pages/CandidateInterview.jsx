@@ -1378,7 +1378,7 @@ const runV2FieldProbeIfNeeded = async ({
 function CandidateInterviewInner() {
   try {
     if (typeof window !== 'undefined') {
-      window.__CQ_LAST_RENDER_STEP__ = 'ENTER_RENDER';
+      // window.__CQ_LAST_RENDER_STEP__ = 'ENTER_RENDER';
     }
     
     // BUILD FINGERPRINT (always-on)
@@ -5400,7 +5400,7 @@ function CandidateInterviewInner() {
         }
         } catch (_) {}
 
-        window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_1:BEFORE_FIRST_CQMARK';
+        // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_1:BEFORE_FIRST_CQMARK';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '1:BEFORE_FIRST_CQMARK' });
       try {
         console.error('[CQ_CRASH_PROBE][BEFORE_BEFORE_DERIVED]', {
@@ -5636,13 +5636,13 @@ function CandidateInterviewInner() {
         phase: resolverPhaseSOT?.phase,
         step: 'PHASE_COMPUTED'
       });
-      window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3A:AFTER_PHASE_COMPUTE';
+      // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3A:AFTER_PHASE_COMPUTE';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3A:AFTER_PHASE_COMPUTE' });
     
       // Priority 0: Required anchor fallback (deadlock breaker)
       // GUARD: Never allow fallback to override v3_pack_opener (instance start takes precedence)
       __cqPriority = 'P0';
-      window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3B:BEFORE_PRIORITY0';
+      // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3B:BEFORE_PRIORITY0';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3B:BEFORE_PRIORITY0' });
     if (requiredAnchorFallbackActive && requiredAnchorCurrent && currentItem_S?.type !== 'v3_pack_opener') {
       return {
@@ -5665,7 +5665,7 @@ function CandidateInterviewInner() {
       // Priority 1: V3 prompt active (multi-signal detection)
       // HARDENED: V3_PROMPT takes absolute precedence - even if MI_GATE exists in state
       __cqPriority = 'P1';
-      window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3C:BEFORE_PRIORITY1';
+      // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3C:BEFORE_PRIORITY1';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3C:BEFORE_PRIORITY1' });
     console.log('[CQ_RESOLVER_BC][BEFORE_P1]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null) });
     if (hasActiveV3Prompt_SAFE) {
@@ -5685,7 +5685,7 @@ function CandidateInterviewInner() {
       // CRITICAL FIX: Force V3_WAITING kind when effectiveItemType is v3_probing
       // OVERRIDE: Do NOT enter V3_WAITING if fallback is active
       __cqPriority = 'P1_5';
-      window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3D:BEFORE_PRIORITY1_5';
+      // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3D:BEFORE_PRIORITY1_5';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3D:BEFORE_PRIORITY1_5' });
     if (v3ProbingActive && !hasActiveV3Prompt_SAFE && !requiredAnchorFallbackActive) {
       const forcedKind = "V3_WAITING";
@@ -5733,7 +5733,7 @@ function CandidateInterviewInner() {
       }
       
       __cqPriority = 'P2';
-      window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3E:BEFORE_PRIORITY2';
+      // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3E:BEFORE_PRIORITY2';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3E:BEFORE_PRIORITY2' });
       
       try {
@@ -5830,7 +5830,7 @@ function CandidateInterviewInner() {
             };
           }
 
-          window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3F:AFTER_PRIORITY2_RETURN';
+          // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3F:AFTER_PRIORITY2_RETURN';
           console.log('[CQ_DIAG][TRY1_STEP]', { step: '3F:AFTER_PRIORITY2_RETURN' });
         }
       } catch (e) {
@@ -5990,14 +5990,14 @@ function CandidateInterviewInner() {
     const modeValue = modeExists ? bottomBarModeSOT__LOCAL : null;
     const bottomBarModeSOTSafe = VALID_MODES.includes(modeValue) ? (modeExists ? bottomBarModeSOT__LOCAL : 'DEFAULT') : 'DEFAULT';
     
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_2:AFTER_MODE_SAFE_COMPUTE';
+    // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_2:AFTER_MODE_SAFE_COMPUTE';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_2:AFTER_MODE_SAFE_COMPUTE' });
     
     if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
       cqLog('DEBUG', '[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT_SAFE: bottomBarRenderTypeSOT_SAFE__LOCAL, bottomBarModeSOT_SAFE: bottomBarModeSOT_SAFE__LOCAL, bottomBarModeSOTSafe });
     }
     
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_3:AFTER_CQLOG_DEBUG';
+    // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_3:AFTER_CQLOG_DEBUG';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_3:AFTER_CQLOG_DEBUG' });
     
     // TDZ FIX: Dev-only diagnostic block disabled (refs late-derived vars)
@@ -6040,7 +6040,7 @@ function CandidateInterviewInner() {
     }
     */
     
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_4:AFTER_YESNO_ROUTE_LOG';
+    // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_4:AFTER_YESNO_ROUTE_LOG';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_4:AFTER_YESNO_ROUTE_LOG' });
     
     // TDZ GUARD: Do not reference late-derived vars (effectiveItemType_SAFE, etc.) above this line.
@@ -6062,7 +6062,7 @@ function CandidateInterviewInner() {
     }
     */
     
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_5:AFTER_FALLBACK_WARN';
+    // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_5:AFTER_FALLBACK_WARN';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_5:AFTER_FALLBACK_WARN' });
   } catch (e) {
     if (!cqFailopenOnceRef.current.modeBlock) {
