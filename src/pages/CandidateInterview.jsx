@@ -1551,8 +1551,26 @@ function CandidateInterviewInner() {
   const __cqHookTraceEnabled = (() => {
     try { return typeof window !== 'undefined' && window.CQ_DEBUG_HOOK_TRACE === true; } catch (_) { return false; }
   })();
+  try {
+    if (typeof window !== 'undefined') {
+      console.log('[CQ_HOOK_TRACE][INIT]', {
+        enabled: __cqHookTraceEnabled,
+        hasFlag: (typeof window.CQ_DEBUG_HOOK_TRACE !== 'undefined') ? window.CQ_DEBUG_HOOK_TRACE : '(undefined)',
+        ts: Date.now()
+      });
+    }
+  } catch (_) {}
+  let __cqHookTraceLoggedDisabled = false;
   const __cqTrace = (kind) => {
-    if (!__cqHookTraceEnabled) return;
+    if (!__cqHookTraceEnabled) {
+      if (!__cqHookTraceLoggedDisabled) {
+        try {
+          console.log('[CQ_HOOK_TRACE][DISABLED]', { hasFlag: window.CQ_DEBUG_HOOK_TRACE, ts: Date.now() });
+          __cqHookTraceLoggedDisabled = true;
+        } catch (_) {}
+      }
+      return;
+    }
     try {
       __cqHookTraceIdx += 1;
       console.log('[CQ_HOOK_TRACE]', { idx: __cqHookTraceIdx, kind, ts: Date.now() });
