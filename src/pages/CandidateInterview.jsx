@@ -8033,6 +8033,7 @@ function CandidateInterviewInner() {
     }
   };
 
+  __cqHookSite('H12P_11:useCallback@L8022');
   const handleAnswer = useCallback(async (value) => {
     // GUARD: Block YES/NO during V3 prompt answering (prevents stray "Yes" bubble)
     if (activeUiItem_S_SAFE?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
