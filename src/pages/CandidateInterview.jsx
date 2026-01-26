@@ -3425,7 +3425,7 @@ function CandidateInterviewInner() {
     }
   } catch (_) {}
 
-  useEffect(() => {
+  useEffect_TR(() => {
     // BOOT-STATE INVARIANT: Detect duplicate runs per session.
     if (typeof window !== 'undefined' && sessionId) {
       window.__CQ_BOOTSTATE_RUN_COUNT_BY_SESSION__ = window.__CQ_BOOTSTATE_RUN_COUNT_BY_SESSION__ || {};
