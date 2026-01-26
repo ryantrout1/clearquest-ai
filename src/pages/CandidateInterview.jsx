@@ -19947,6 +19947,28 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       stack: e?.stack,
       lastStep: typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null
     });
+    
+    try {
+      if (typeof window !== 'undefined') {
+        const hn = window.location?.hostname || '';
+        const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+        if (isDevEnv) {
+          const msg = (e && e.message) ? String(e.message) : '';
+          const looks310 = msg.includes('Minified React error #310');
+          console.error('[CQ_301_DIAG][DECODE_HINT]', {
+            lastStep: (typeof window.__CQ_LAST_RENDER_STEP__ !== 'undefined') ? window.__CQ_LAST_RENDER_STEP__ : null,
+            looks310,
+            message: msg
+          });
+
+          // If it's the minified 310, force a second, descriptive error to preserve stack visibility in preview.
+          if (looks310) {
+            throw new Error('[CQ_301_DIAG] React #310 hit in preview. Likely hook-order mismatch within CandidateInterviewInner or a custom hook invoked conditionally. See stack above.');
+          }
+        }
+      }
+    } catch (_) {}
+    
     console.error('[CQ_DIAG][RENDER_TDZ_CAUGHT]', {
       step: __cqRenderStep,
       sessionId,
