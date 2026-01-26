@@ -19722,6 +19722,11 @@ function CandidateInterviewInner() {
   finalTranscriptList_S = finalTranscriptList_S_computed;
 
   // ============================================================================
+  // BOOT GUARD FLAG - Prevents early returns that cause hook divergence (React #310 fix)
+  // ============================================================================
+  let __cqBootGuardBlockRender = false;
+
+  // ============================================================================
   // SESSION URL REPAIR: Auto-fix stripped session param before redirect
   // ============================================================================
   // If session is missing from URL BUT we have it in ref, repair URL automatically
@@ -19741,17 +19746,10 @@ function CandidateInterviewInner() {
     
     // Hard replace to repaired URL (preserves all query params)
     window.location.replace(repairedUrl);
-    
-    // Render minimal placeholder during repair
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
-          <p className="text-slate-300">Restoring session...</p>
-        </div>
-      </div>
-    );
-  }
+
+    // BOOT GUARD: Set flag instead of returning early (prevents hook divergence)
+    __cqBootGuardBlockRender = true;
+    }
 
   // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
   // SESSION LOCK: Suppress invalidation if session was previously locked
@@ -19941,13 +19939,7 @@ const transcriptPlan = isV3DebugEnabled
   // GUARD: Show guard screens without early return (maintains hook order)
   if (showMissingSession) {
     cqTdzMark('INSIDE_SHOW_MISSING_SESSION_GUARD');
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <p className="text-slate-300">Redirecting to start interview...</p>
-        </div>
-      </div>
-    );
+    __cqBootGuardBlockRender = true;
   }
   
   cqTdzMark('AFTER_SHOW_MISSING_SESSION_GUARD');
@@ -19984,29 +19976,17 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   
   if (shouldShowFullScreenLoader) {
         let shouldShowFullScreenLoader_SAFE = false;
-    try { shouldShowFullScreenLoader_SAFE = shouldShowFullScreenLoader; } catch (_) { shouldShowFullScreenLoader_SAFE = false; }
-    cqTdzMark('INSIDE_LOADING_GUARD_BEFORE_RETURN', { shouldShowFullScreenLoader: shouldShowFullScreenLoader_SAFE });
-    cqTdzMark('INSIDE_FULL_SCREEN_LOADER_GUARD');
-    return cqLoadingReturnJSX;
-  }
+      try { shouldShowFullScreenLoader_SAFE = shouldShowFullScreenLoader; } catch (_) { shouldShowFullScreenLoader_SAFE = false; }
+      cqTdzMark('INSIDE_LOADING_GUARD_BEFORE_RETURN', { shouldShowFullScreenLoader: shouldShowFullScreenLoader_SAFE });
+      cqTdzMark('INSIDE_FULL_SCREEN_LOADER_GUARD');
+      __cqBootGuardBlockRender = true;
+    }
   
   cqTdzMark('AFTER_FULL_SCREEN_LOADER_GUARD');
 
   if (showError) {
     cqTdzMark('INSIDE_SHOW_ERROR_GUARD');
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="max-w-md space-y-4">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-          <Button onClick={() => navigate(createPageUrl("Home"))} className="w-full">
-            Return to Home
-          </Button>
-        </div>
-      </div>
-    );
+    __cqBootGuardBlockRender = true;
   }
   
   cqTdzMark('AFTER_SHOW_ERROR_GUARD');
@@ -20015,13 +19995,13 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   // TDZ FIX: LOADING HARD GUARD - Prevent main JSX construction during LOADING
   if (screenMode === 'LOADING') {
     console.log('[TDZ_FIX][LOADING_HARD_GUARD]', { screenMode, shouldShowFullScreenLoader });
-    return cqLoadingReturnJSX;
+    __cqBootGuardBlockRender = true;
   }
 
   // TDZ FIX: LOADING HARD GUARD 2 - Belt-and-suspenders guard before main JSX
   if (shouldShowFullScreenLoader) {
     console.log('[TDZ_FIX][LOADING_HARD_GUARD_2]', { screenMode, shouldShowFullScreenLoader });
-    return cqLoadingReturnJSX;
+    __cqBootGuardBlockRender = true;
   }
 
   // UI CONTRACT: 3-row shell enforced - do not reintroduce footer spacers/padding hacks; footer must stay in layout flow.
@@ -20407,6 +20387,11 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   let __tdzTraceJsx = null;
   try {
     try { console.log('[CQ_RENDER_END_REACHED][ALWAYS_ON]', { rid: __cqRid, ts: Date.now() }); } catch (_) {}
+
+    // BOOT GUARD FALLBACK: Unified fallback for all guard conditions (prevents hook-order divergence)
+    if (__cqBootGuardBlockRender) {
+      return cqLoadingReturnJSX;
+    }
 
     // REACT #310 FIX: Conditional render WITHOUT early return (all hooks already declared above)
     if (__cqShouldShowRecoveringUI) {
