@@ -4566,6 +4566,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // Track last logged V2 pack field to prevent duplicates (logging happens on answer, not render)
   // This ref is used when logging answers to check for duplicates
+  __cqHookSite('H12P_1:useEffect_TR@L4567');
   useEffect_TR(() => {
     // REACT #310 FIX: Internal boot guard (moved from TRY1 gate)
     if (__cqBootNotReady) return;
@@ -7507,6 +7508,7 @@ function CandidateInterviewInner() {
     }
   }, [flushPersist]);
 
+  __cqHookSite('H12P_8:useEffect@L7501');
   useEffect(() => {
     return () => {
       if (pendingPersistRef.current) {
@@ -7741,6 +7743,7 @@ function CandidateInterviewInner() {
     advanceToNextBaseQuestion(baseQuestionId);
   }, [engine_S, sessionId, dbTranscript, advanceToNextBaseQuestion]);
 
+  __cqHookSite('H12P_11:useCallback@L8022');
   // SHARED MI_GATE HANDLER: Deduplicated logic for YES/NO (inline function)
   const handleMiGateYesNo = async ({ answer, gate, sessionId, engine_S }) => {
     // PART C: Append gate Q+A to transcript after user answers
