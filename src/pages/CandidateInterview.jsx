@@ -1662,6 +1662,22 @@ function CandidateInterviewInner() {
   
   const __cqHookSite = (label) => { try { if (typeof window !== 'undefined') window.__CQ_LAST_HOOKSITE__ = label; } catch (_) {} };
   
+  const __cqRenderSig = (where) => {
+    try {
+      if (typeof window === 'undefined') return;
+      const sig = {
+        where,
+        uiKind: (typeof activeUiItem_S_SAFE !== 'undefined' ? activeUiItem_S_SAFE?.kind : null),
+        hasEngine: (typeof engine_S !== 'undefined' ? !!engine_S : null),
+        hasSession: (typeof interviewSession !== 'undefined' ? !!interviewSession : null),
+        hasCurrentItem: (typeof currentItem_S !== 'undefined' ? !!currentItem_S : null),
+        currentItemType: (typeof currentItem_S !== 'undefined' ? (currentItem_S?.type || null) : null)
+      };
+      window.__CQ_LAST_RENDER_SIG__ = sig;
+      console.log('[CQ_RENDER_SIG]', sig);
+    } catch (_) {}
+  };
+  
   // Traced hook aliases (local to this component)
   const useEffect_TR = (...args) => { __cqTrace('useEffect'); return useEffect(...args); };
   const useLayoutEffect_TR = (...args) => { __cqTrace('useLayoutEffect'); return useLayoutEffect(...args); };
@@ -4590,6 +4606,7 @@ function CandidateInterviewInner() {
   // STEP 3: Key-based monotonic assertion refs (hoisted from removed effect)
   __cqHookSite('H12P_2:useRef@L4588');
   const prevKeysSetRef = useRef(new Set());
+  __cqRenderSig('AFTER_H12P_2_BLOCK');
   
   // ============================================================================
   // CQMARK DECLARATION - MOVED BEFORE FIRST USE (TDZ FIX)
@@ -7137,6 +7154,7 @@ function CandidateInterviewInner() {
   const sessionRecoveryAttemptedRef = useRef(false);
   
   __cqHookSite('H12P_3:useEffect@L7131');
+  __cqHookSite('H12P2_N1:useEffect_TR@L7134');
   useEffect_TR(() => {
     // Only run recovery if sessionId is missing AND no lock exists
     if (effectiveSessionId) return;
@@ -7205,6 +7223,7 @@ function CandidateInterviewInner() {
   const componentInstanceId = useRef(`CandidateInterview-${sessionId}`);
   
   __cqHookSite('H12P_3:useEffect@L7131');
+  __cqHookSite('H12P2_N2:useEffect@L7208');
   useEffect(() => {
     candidateInterviewMountCount++;
     
@@ -7376,6 +7395,7 @@ function CandidateInterviewInner() {
 
   // Global TDZ Trap
   __cqHookSite('H12P_4:useEffect@L7371');
+  __cqHookSite('H12P2_N3:useEffect@L7379');
   useEffect(() => {
     const handleGlobalTdz = (event) => {
       try {
@@ -7406,6 +7426,7 @@ function CandidateInterviewInner() {
 
   // UI_CONTRACT: 3-row shell audit (unconditional hook - must run on every render)
   __cqHookSite('H12P_5:useEffect@L7401');
+  __cqHookSite('H12P2_N4:useEffect@L7409');
   useEffect(() => {
     if (typeof window === 'undefined' || !historyRef.current) return;
     
@@ -7452,6 +7473,7 @@ function CandidateInterviewInner() {
   const PERSIST_BATCH_COUNT = 3;
 
   __cqHookSite('H12P_6:useCallback@L7446');
+  __cqHookSite('H12P2_N5:useCallback@L7455');
   const flushPersist = useCallback(async () => {
     if (!pendingPersistRef.current) return;
 
@@ -7481,6 +7503,7 @@ function CandidateInterviewInner() {
   }, [sessionId, engine_S]);
 
   __cqHookSite('H12P_7:useCallback@L7474');
+  __cqHookSite('H12P2_N6:useCallback@L7484');
   const persistStateToDatabase = useCallback(async (ignoredTranscript, newQueue, newCurrentItem) => {
     // TRANSCRIPT GUARD: Warn if transcript argument is passed (should always be null)
     if (ignoredTranscript !== null && ignoredTranscript !== undefined) {
@@ -7509,6 +7532,7 @@ function CandidateInterviewInner() {
   }, [flushPersist]);
 
   __cqHookSite('H12P_8:useEffect@L7501');
+  __cqHookSite('H12P2_N7:useEffect@L7512');
   useEffect(() => {
     return () => {
       if (pendingPersistRef.current) {
@@ -7518,6 +7542,7 @@ function CandidateInterviewInner() {
   }, [flushPersist]);
 
   __cqHookSite('H12P_9:useCallback@L7509');
+  __cqHookSite('H12P2_N8:useCallback@L7521');
   const advanceToNextBaseQuestion = useCallback(async (baseQuestionId, currentTranscript = null) => {
     // V3 BLOCKING GATE: Block advancement if V3 is active
     if (isV3Blocking) {
@@ -7688,6 +7713,7 @@ function CandidateInterviewInner() {
   }, [engine_S, dbTranscript, sections, currentSectionIndex, refreshTranscriptFromDB]);
 
   __cqHookSite('H12P_10:useCallback@L7678');
+  __cqHookSite('H12P2_N9:useCallback@L7691');
   const onFollowupPackComplete = useCallback(async (baseQuestionId, packId) => {
     const question = engine_S.QById[baseQuestionId];
     if (!question) {
@@ -8034,6 +8060,7 @@ function CandidateInterviewInner() {
   };
 
   __cqHookSite('H12P_11:useCallback@L8022');
+  __cqHookSite('H12P2_N10:useCallback@L8037');
   const handleAnswer = useCallback(async (value) => {
     // GUARD: Block YES/NO during V3 prompt answering (prevents stray "Yes" bubble)
     if (activeUiItem_S_SAFE?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
