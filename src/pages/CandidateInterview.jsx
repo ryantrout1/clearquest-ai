@@ -1583,9 +1583,20 @@ function CandidateInterviewInner() {
     }
   };
 
+  // [CQ_HOOK_TRACE] Preview env detection (force-enable for diagnostics)
+  const __cqIsPreviewEnv = (() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      const hn = String(window.location?.hostname || '');
+      return hn.includes('preview');
+    } catch (_) {
+      return false;
+    }
+  })();
+
   // [CQ_HOOK_TRACE] dev-only hook index tracer (local to this render)
   let __cqHookTraceIdx = 0;
-  const __cqHookTraceEnabled = (() => {
+  const __cqHookTraceEnabled = __cqIsPreviewEnv ? true : (() => {
     try {
       const g = (typeof globalThis !== 'undefined') ? globalThis : undefined;
       const gBag = g && g.__CQ_DEBUG_FLAGS__ ? g.__CQ_DEBUG_FLAGS__ : undefined;
@@ -1620,6 +1631,11 @@ function CandidateInterviewInner() {
     const cqTraceVal = cqHasQueryFlag('cqTrace');
     console.log('[CQ_HOOK_TRACE][FLAG_SOURCES]', `cqTrace=${String(cqTraceVal)} globalThis=${String(gVal)} windowBag=${String(wBagVal)} windowDirect=${String(wDirectVal)}`);
   } catch (_) {}
+  if (__cqIsPreviewEnv && typeof window !== 'undefined') {
+    try {
+      console.log('[CQ_HOOK_TRACE][FORCED_ON_PREVIEW]', { hostname: window.location?.hostname, note: 'Temporary diagnostic override' });
+    } catch (_) {}
+  }
   let __cqHookTraceLoggedDisabled = false;
   const __cqTrace = (kind) => {
     if (!__cqHookTraceEnabled) {
