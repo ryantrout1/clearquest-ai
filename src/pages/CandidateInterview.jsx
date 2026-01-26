@@ -3539,7 +3539,7 @@ function CandidateInterviewInner() {
   // especially the render-time kickstart which is not protected by the boot guard.
 
   // ENGINE_BOOT RETRY: Helper for transient 502/503/504 errors
-  const withRetry = async (fn, retries = 3, label = 'operation') => {
+  const withRetry = useCallback_TR(async (fn, retries = 3, label = 'operation') => {
     const delays = [250, 750, 1750];
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -3566,7 +3566,7 @@ function CandidateInterviewInner() {
         await new Promise(r => setTimeout(r, delays[attempt - 1] || 0));
       }
     }
-  };
+  }, []);
   
   const initializeInterview = useCallback(async () => {
     // Guard: require sessionId
