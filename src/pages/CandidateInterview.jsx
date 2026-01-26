@@ -20026,9 +20026,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             message: msg
           });
 
-          // If it's the minified 310, force a second, descriptive error to preserve stack visibility in preview.
+          // If it's the minified 310, preserve original error for Error Boundary decoder
           if (looks310) {
-            throw new Error('[CQ_301_DIAG] React #310 hit in preview. Likely hook-order mismatch within CandidateInterviewInner or a custom hook invoked conditionally. See stack above.');
+            throw e;
           }
         }
       }
