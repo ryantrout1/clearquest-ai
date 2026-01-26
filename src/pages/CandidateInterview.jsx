@@ -1511,7 +1511,10 @@ function CandidateInterviewInner() {
 
   // REACT #310 CENSUS: Gating flag (enable via window.CQ_DEBUG_HOOK_CENSUS = true)
   const __cqHookCensusEnabled =
-    typeof window !== 'undefined' && window.CQ_DEBUG_HOOK_CENSUS === true;
+    typeof window !== 'undefined' && (
+      window.CQ_DEBUG_HOOK_CENSUS === true ||
+      (window.parent && window.parent !== window && window.parent.CQ_DEBUG_HOOK_CENSUS === true)
+    );
 
   // REACT #310 CENSUS: Hook counter (ref-based, no window mutations)
   // Enable via: window.CQ_DEBUG_HOOK_CENSUS = true
@@ -20032,7 +20035,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       stack: e?.stack,
       lastStep: typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null
     });
-    
+
+    let __cqShouldRethrow_310 = false;
+
     try {
       if (typeof window !== 'undefined') {
         const hn = window.location?.hostname || '';
@@ -20046,13 +20051,15 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             message: msg
           });
 
-          // If it's the minified 310, preserve original error for Error Boundary decoder
-          if (looks310) {
-            throw e;
-          }
+          // If it's the minified 310, mark for rethrow (instead of throwing inside try)
+          __cqShouldRethrow_310 = looks310;
         }
       }
     } catch (_) {}
+
+    if (__cqShouldRethrow_310) {
+      throw e;
+    }
     
     try {
       console.error('[CQ_TRY1_CATCH][LAST_STEP_REF]', {
