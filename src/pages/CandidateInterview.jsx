@@ -5602,6 +5602,10 @@ function CandidateInterviewInner() {
   // HOOK CENSUS: Mark before TRY1
   cqHookMark('PRE_TRY1');
   
+  // BOOT GUARD FLAG - Prevents early returns that cause hook divergence (React #310 fix)
+  // Declared early to ensure visibility in all render paths (TRY1 + JSX_TRY2)
+  let __cqBootGuardBlockRender = false;
+  
   let __cqTry1Result = null;
   
   if (!__cqBootNotReady) {
@@ -19732,7 +19736,6 @@ function CandidateInterviewInner() {
   // ============================================================================
   // BOOT GUARD FLAG - Prevents early returns that cause hook divergence (React #310 fix)
   // ============================================================================
-  let __cqBootGuardBlockRender = false;
 
   // ============================================================================
   // SESSION URL REPAIR: Auto-fix stripped session param before redirect
