@@ -675,6 +675,49 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
       ringTail: ring
     });
     
+    // [CQ_REACT_DECODE] Dev-only invariant parser (no behavior change)
+    try {
+      if (typeof window !== 'undefined') {
+        const hn = window.location?.hostname || '';
+        const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+        if (isDevEnv) {
+          const msg = String(error?.message || '');
+          const reactErrorMatch = msg.match(/Minified React error #(\d+)/);
+          
+          if (reactErrorMatch) {
+            const invariantCode = reactErrorMatch[1];
+            
+            console.error('[CQ_REACT_DECODE][RAW]', {
+              invariantCode,
+              message: msg,
+              stack: String(error?.stack || '')
+            });
+            
+            const KNOWN_INVARIANTS = {
+              '310': 'Rendered more hooks than during the previous render',
+              '321': 'Rendered fewer hooks than expected',
+              '300': 'Invalid hook call',
+              '425': 'Cannot update component while rendering different component'
+            };
+            
+            const decodedHint = KNOWN_INVARIANTS[invariantCode] || `Unknown invariant #${invariantCode}`;
+            
+            console.error('[CQ_REACT_DECODE][DECODED_HINT]', {
+              invariantCode,
+              decodedHint,
+              componentStack: String(info?.componentStack || '')
+            });
+            
+            const argsMatch = msg.match(/args\[\]=([^&]+)/g);
+            if (argsMatch) {
+              const args = argsMatch.map(a => a.replace('args[]=', ''));
+              console.error('[CQ_REACT_DECODE][ARGS]', { args });
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    
     // TDZ_PINPOINT_V2: Error boundary crash diagnostic
     console.error('[TDZ_PINPOINT_V2][BOUNDARY]', {
       identifier: String(error?.message || '').match(/Cannot access '([^']+)' before initialization/)?.[1] || 'UNKNOWN',
@@ -1875,6 +1918,9 @@ function CandidateInterviewInner() {
   // 
   // FORENSIC: TDZ FIX - showRedirectFallback state MUST be before early return
   const [showRedirectFallback, setShowRedirectFallback] = useState(false);
+
+  // REACT #310 AUDIT: Track last successful TRY1 step for crash correlation
+  const lastTry1StepRef = useRef('NOT_STARTED');
 
   const [engine_S, setEngine] = useState(null);
   
@@ -5426,6 +5472,7 @@ function CandidateInterviewInner() {
 
         // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_1:BEFORE_FIRST_CQMARK';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '1:BEFORE_FIRST_CQMARK' });
+      lastTry1StepRef.current = '1:BEFORE_FIRST_CQMARK';
       try {
         console.error('[CQ_CRASH_PROBE][BEFORE_BEFORE_DERIVED]', {
           ts: Date.now(),
@@ -5589,12 +5636,14 @@ function CandidateInterviewInner() {
   console.log('[CQ_TRY1_STEP2_GUARD][ENTERED]', { sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), ts: Date.now() });
   // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_2:BEFORE_ACTIVE_UI_PICK';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '2:BEFORE_ACTIVE_UI_PICK' });
+  lastTry1StepRef.current = '2:BEFORE_ACTIVE_UI_PICK';
   cqMark('BEFORE_ACTIVE_UI_PICK');
   // CANONICAL ACTIVE UI ITEM RESOLVER - Single source of truth
   // Determines what UI should be shown based on strict precedence:
   // REQUIRED_ANCHOR_FALLBACK > V3_PROMPT > V3_WAITING > V3_OPENER > MI_GATE > DEFAULT
   // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3:BEFORE_RESOLVE_ACTIVE_UI';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '3:BEFORE_RESOLVE_ACTIVE_UI' });
+  lastTry1StepRef.current = '3:BEFORE_RESOLVE_ACTIVE_UI';
   
   // BOOT-PHASE BYPASS: Skip resolveActiveUiItem() during incomplete boot
   const __cqBootIncomplete = Boolean(isLoading) || !session || !engine_S;
@@ -5662,12 +5711,14 @@ function CandidateInterviewInner() {
       });
       // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3A:AFTER_PHASE_COMPUTE';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3A:AFTER_PHASE_COMPUTE' });
+      lastTry1StepRef.current = '3A:AFTER_PHASE_COMPUTE';
     
       // Priority 0: Required anchor fallback (deadlock breaker)
       // GUARD: Never allow fallback to override v3_pack_opener (instance start takes precedence)
       __cqPriority = 'P0';
       // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3B:BEFORE_PRIORITY0';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3B:BEFORE_PRIORITY0' });
+      lastTry1StepRef.current = '3B:BEFORE_PRIORITY0';
     if (requiredAnchorFallbackActive && requiredAnchorCurrent && currentItem_S?.type !== 'v3_pack_opener') {
       return {
         kind: "REQUIRED_ANCHOR_FALLBACK",
@@ -5691,6 +5742,7 @@ function CandidateInterviewInner() {
       __cqPriority = 'P1';
       // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3C:BEFORE_PRIORITY1';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3C:BEFORE_PRIORITY1' });
+      lastTry1StepRef.current = '3C:BEFORE_PRIORITY1';
     console.log('[CQ_RESOLVER_BC][BEFORE_P1]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null) });
     if (hasActiveV3Prompt_SAFE) {
       return {
@@ -5711,6 +5763,7 @@ function CandidateInterviewInner() {
       __cqPriority = 'P1_5';
       // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3D:BEFORE_PRIORITY1_5';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3D:BEFORE_PRIORITY1_5' });
+      lastTry1StepRef.current = '3D:BEFORE_PRIORITY1_5';
     if (v3ProbingActive && !hasActiveV3Prompt_SAFE && !requiredAnchorFallbackActive) {
       const forcedKind = "V3_WAITING";
       console.log('[V3_CONTROLLER][FORCE_ACTIVE_KIND]', {
@@ -5759,6 +5812,7 @@ function CandidateInterviewInner() {
       __cqPriority = 'P2';
       // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3E:BEFORE_PRIORITY2';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3E:BEFORE_PRIORITY2' });
+      lastTry1StepRef.current = '3E:BEFORE_PRIORITY2';
       
       try {
         const __cqProbe = {
@@ -5856,6 +5910,7 @@ function CandidateInterviewInner() {
 
           // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3F:AFTER_PRIORITY2_RETURN';
           console.log('[CQ_DIAG][TRY1_STEP]', { step: '3F:AFTER_PRIORITY2_RETURN' });
+          lastTry1StepRef.current = '3F:AFTER_PRIORITY2_RETURN';
         }
       } catch (e) {
         // MICRO BOUNDARY FAILOPEN: Catches TDZ at Priority 2 boundary setup
@@ -5947,6 +6002,7 @@ function CandidateInterviewInner() {
   // TDZ FIX: Hoisted from component body to prevent use-before-declare
   // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_4:BEFORE_CURRENT_ITEM_TYPE';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '4:BEFORE_CURRENT_ITEM_TYPE' });
+  lastTry1StepRef.current = '4:BEFORE_CURRENT_ITEM_TYPE';
   const currentItem_SType = v3GateActive ? 'v3_gate' :
                           v3ProbingActive ? 'v3_probing' :
                           pendingSectionTransition ? 'section_transition' :
@@ -5965,8 +6021,10 @@ function CandidateInterviewInner() {
   // ============================================================================
   // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5:BEFORE_MODE_SAFE';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '5:BEFORE_MODE_SAFE' });
+  lastTry1StepRef.current = '5:BEFORE_MODE_SAFE';
   // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_1:ENTER_MODE_BLOCK';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_1:ENTER_MODE_BLOCK' });
+  lastTry1StepRef.current = '5_1:ENTER_MODE_BLOCK';
   
   try {
     // TDZ FIX: LOCAL mode computation (uses only early-available state, no late-derived refs)
@@ -6016,6 +6074,7 @@ function CandidateInterviewInner() {
     
     // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_2:AFTER_MODE_SAFE_COMPUTE';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_2:AFTER_MODE_SAFE_COMPUTE' });
+    lastTry1StepRef.current = '5_2:AFTER_MODE_SAFE_COMPUTE';
     
     if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
       cqLog('DEBUG', '[BOTTOM_BAR_MODE_SOT]', { bottomBarRenderTypeSOT_SAFE: bottomBarRenderTypeSOT_SAFE__LOCAL, bottomBarModeSOT_SAFE: bottomBarModeSOT_SAFE__LOCAL, bottomBarModeSOTSafe });
@@ -6023,6 +6082,7 @@ function CandidateInterviewInner() {
     
     // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_3:AFTER_CQLOG_DEBUG';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_3:AFTER_CQLOG_DEBUG' });
+    lastTry1StepRef.current = '5_3:AFTER_CQLOG_DEBUG';
     
     // TDZ FIX: Dev-only diagnostic block disabled (refs late-derived vars)
     /*
@@ -6066,6 +6126,7 @@ function CandidateInterviewInner() {
     
     // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_4:AFTER_YESNO_ROUTE_LOG';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_4:AFTER_YESNO_ROUTE_LOG' });
+    lastTry1StepRef.current = '5_4:AFTER_YESNO_ROUTE_LOG';
     
     // TDZ GUARD: Do not reference late-derived vars (effectiveItemType_SAFE, etc.) above this line.
     
@@ -6087,6 +6148,7 @@ function CandidateInterviewInner() {
     */
     
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_5:AFTER_FALLBACK_WARN' });
+    lastTry1StepRef.current = '5_5:AFTER_FALLBACK_WARN';
   } catch (e) {
     if (!cqFailopenOnceRef.current.modeBlock) {
       cqFailopenOnceRef.current.modeBlock = true;
@@ -6096,12 +6158,15 @@ function CandidateInterviewInner() {
   
   // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5A:AFTER_MODE_WINDOW';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '5A:AFTER_MODE_WINDOW' });
+  lastTry1StepRef.current = '5A:AFTER_MODE_WINDOW';
   
   // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5B:RIGHT_BEFORE_STEP6';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '5B:RIGHT_BEFORE_STEP6' });
+  lastTry1StepRef.current = '5B:RIGHT_BEFORE_STEP6';
   
   // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_6:AFTER_MODE_VALIDATION';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '6:AFTER_MODE_VALIDATION' });
+  lastTry1StepRef.current = '6:AFTER_MODE_VALIDATION';
   
   const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
   const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
@@ -19967,6 +20032,13 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
           }
         }
       }
+    } catch (_) {}
+    
+    try {
+      console.error('[CQ_TRY1_CATCH][LAST_STEP_REF]', {
+        lastTry1Step: lastTry1StepRef?.current,
+        lastWindowStep: typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null
+      });
     } catch (_) {}
     
     console.error('[CQ_DIAG][RENDER_TDZ_CAUGHT]', {
