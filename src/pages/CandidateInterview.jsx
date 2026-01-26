@@ -1531,11 +1531,30 @@ function CandidateInterviewInner() {
   // Enable via: window.CQ_DEBUG_HOOK_CENSUS = true
   let __cqCensusIdx = 0; // Resets each render (function-scoped)
   
+  const cqGetDebugFlag = (key) => {
+    try {
+      // Prefer a shared object that can be set from any frame via globalThis.
+      const g = (typeof globalThis !== 'undefined') ? globalThis : undefined;
+      const fromGlobal = g && g.__CQ_DEBUG_FLAGS__ ? g.__CQ_DEBUG_FLAGS__[key] : undefined;
+      if (fromGlobal !== undefined) return fromGlobal;
+
+      // Fallback: window-scoped (same frame)
+      if (typeof window !== 'undefined' && window.__CQ_DEBUG_FLAGS__ && window.__CQ_DEBUG_FLAGS__[key] !== undefined) {
+        return window.__CQ_DEBUG_FLAGS__[key];
+      }
+      if (typeof window !== 'undefined' && window[key] !== undefined) return window[key];
+
+      return undefined;
+    } catch (_) {
+      return undefined;
+    }
+  };
+
   const cqHookMark = (name) => {
     const __cqCensusEnabledNow = (() => {
       try {
         if (typeof window === 'undefined') return false;
-        return window.CQ_DEBUG_HOOK_CENSUS === true;
+        return cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true;
       } catch (_) { return false; }
     })();
     if (!__cqCensusEnabledNow) return;
@@ -1549,13 +1568,13 @@ function CandidateInterviewInner() {
   // [CQ_HOOK_TRACE] dev-only hook index tracer (local to this render)
   let __cqHookTraceIdx = 0;
   const __cqHookTraceEnabled = (() => {
-    try { return typeof window !== 'undefined' && window.CQ_DEBUG_HOOK_TRACE === true; } catch (_) { return false; }
+    try { return cqGetDebugFlag('CQ_DEBUG_HOOK_TRACE') === true; } catch (_) { return false; }
   })();
   try {
     if (typeof window !== 'undefined') {
       console.log('[CQ_HOOK_TRACE][INIT]', {
         enabled: __cqHookTraceEnabled,
-        hasFlag: (typeof window.CQ_DEBUG_HOOK_TRACE !== 'undefined') ? window.CQ_DEBUG_HOOK_TRACE : '(undefined)',
+        hasFlag: cqGetDebugFlag('CQ_DEBUG_HOOK_TRACE'),
         ts: Date.now()
       });
     }
@@ -1565,7 +1584,7 @@ function CandidateInterviewInner() {
     if (!__cqHookTraceEnabled) {
       if (!__cqHookTraceLoggedDisabled) {
         try {
-          console.log('[CQ_HOOK_TRACE][DISABLED]', { hasFlag: window.CQ_DEBUG_HOOK_TRACE, ts: Date.now() });
+          console.log('[CQ_HOOK_TRACE][DISABLED]', { hasFlag: cqGetDebugFlag('CQ_DEBUG_HOOK_TRACE'), ts: Date.now() });
           __cqHookTraceLoggedDisabled = true;
         } catch (_) {}
       }
@@ -1796,7 +1815,7 @@ function CandidateInterviewInner() {
   cqHookMark('PRE_HOOKS');
   cqHookMark('HOOK_01:useNavigate');
   try {
-    if (typeof window !== 'undefined' && window.CQ_DEBUG_HOOK_CENSUS === true) {
+    if (typeof window !== 'undefined' && cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true) {
       console.log('[CQ_HOOK_CENSUS][RENDER_SEEN]', { ts: Date.now() });
     }
   } catch (_) {}
