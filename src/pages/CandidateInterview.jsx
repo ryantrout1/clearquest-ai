@@ -2546,7 +2546,7 @@ function CandidateInterviewInner() {
   
   // TDZ HARDENING: Mount-only forensic log
   const tdzHardenLoggedRef = useRef(false);
-  useEffect(() => {
+  useEffect_TR(() => {
     if (!tdzHardenLoggedRef.current) {
       tdzHardenLoggedRef.current = true;
       console.log('[FORENSIC][TDZ_HARDEN_OK]', {
