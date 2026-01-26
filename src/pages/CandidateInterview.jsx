@@ -1510,11 +1510,18 @@ function CandidateInterviewInner() {
   // [REMOVED: Render-time global initialization]
 
   // REACT #310 CENSUS: Gating flag (enable via window.CQ_DEBUG_HOOK_CENSUS = true)
-  const __cqHookCensusEnabled =
-    typeof window !== 'undefined' && (
-      window.CQ_DEBUG_HOOK_CENSUS === true ||
-      (window.parent && window.parent !== window && window.parent.CQ_DEBUG_HOOK_CENSUS === true)
-    );
+  const __cqHookCensusEnabled = (() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      if (window.CQ_DEBUG_HOOK_CENSUS === true) return true;
+      try {
+        if (window.parent && window.parent !== window && window.parent.CQ_DEBUG_HOOK_CENSUS === true) return true;
+      } catch (_) {}
+      return false;
+    } catch (_) {
+      return false;
+    }
+  })();
 
   // REACT #310 CENSUS: Hook counter (ref-based, no window mutations)
   // Enable via: window.CQ_DEBUG_HOOK_CENSUS = true
