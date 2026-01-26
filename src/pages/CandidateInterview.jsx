@@ -1660,6 +1660,14 @@ function CandidateInterviewInner() {
     } catch (_) {}
   };
   
+  let __cqReactUseRefN = 0;
+  const ReactUseRef_TR = (...args) => {
+    __cqReactUseRefN += 1;
+    try { if (typeof window !== 'undefined') window.__CQ_REACT_USEREF_N__ = __cqReactUseRefN; } catch (_) {}
+    try { console.log('[CQ_REACT_USEREF_CALL]', { n: __cqReactUseRefN }); } catch (_) {}
+    return React.useRef(...args);
+  };
+  
   const __cqHookSite = (label) => { try { if (typeof window !== 'undefined') window.__CQ_LAST_HOOKSITE__ = label; } catch (_) {} };
   
   const __cqRenderSig = (where) => {
@@ -2752,7 +2760,7 @@ function CandidateInterviewInner() {
   );
   
   // Footer overlap guardrail: Track max overlap seen for regression detection
-  const maxOverlapSeenRef = React.useRef({ maxOverlapPx: 0, lastModeSeen: null });
+  const maxOverlapSeenRef = ReactUseRef_TR({ maxOverlapPx: 0, lastModeSeen: null });
 
   // TDZ_FIX: REMOVED - Replaced with hoisted-safe plain function at component top (line ~1220)
 
@@ -5486,8 +5494,8 @@ function CandidateInterviewInner() {
   const expandedInstancesRef = useRef(new Set()); // Track expanded instances (prevent repeat)
   
   // UI CONTRACT STATUS: Component-level refs (prevents cross-session leakage)
-  const openerMergeStatusRef = React.useRef('UNKNOWN');
-  const footerClearanceStatusRef = React.useRef('UNKNOWN');
+  const openerMergeStatusRef = ReactUseRef_TR('UNKNOWN');
+  const footerClearanceStatusRef = ReactUseRef_TR('UNKNOWN');
   
   // 3-ROW SHELL FLAG: Disable legacy footer spacer checks
   const IS_3ROW_SHELL = true;
