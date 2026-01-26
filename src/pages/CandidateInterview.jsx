@@ -1546,6 +1546,24 @@ function CandidateInterviewInner() {
     } catch (_) {}
   };
   
+  // [CQ_HOOK_TRACE] dev-only hook index tracer (local to this render)
+  let __cqHookTraceIdx = 0;
+  const __cqHookTraceEnabled = (() => {
+    try { return typeof window !== 'undefined' && window.CQ_DEBUG_HOOK_TRACE === true; } catch (_) { return false; }
+  })();
+  const __cqTrace = (kind) => {
+    if (!__cqHookTraceEnabled) return;
+    try {
+      __cqHookTraceIdx += 1;
+      console.log('[CQ_HOOK_TRACE]', { idx: __cqHookTraceIdx, kind, ts: Date.now() });
+    } catch (_) {}
+  };
+  
+  // Traced hook aliases (local to this component)
+  const useEffect_TR = (...args) => { __cqTrace('useEffect'); return useEffect(...args); };
+  const useLayoutEffect_TR = (...args) => { __cqTrace('useLayoutEffect'); return useLayoutEffect(...args); };
+  const ReactUseLayoutEffect_TR = (...args) => { __cqTrace('React.useLayoutEffect'); return React.useLayoutEffect(...args); };
+  
   // REACT #310 CENSUS: Auto-enable for rid 4 ONLY (isolate crashing render)
   // [REMOVED: Render-time census auto-enable]
   
@@ -13312,7 +13330,7 @@ function CandidateInterviewInner() {
   
   // PART A: Initialize scroll owner on mount
   cqHookMark('HOOK_48:useEffect:initScrollOwner');
-  useEffect(() => {
+  useEffect_TR(() => {
     if (!bottomAnchorRef.current) return;
     
     requestAnimationFrame(() => {
@@ -13342,7 +13360,7 @@ function CandidateInterviewInner() {
   const footerObserverAttachLoggedRef = React.useRef(false);
   
   cqHookMark('HOOK_49:useEffect:footerMeasurement');
-  useEffect(() => {
+  useEffect_TR(() => {
     let resizeObserver = null;
     let settlingTimers = [];
     let pollingTimers = [];
@@ -13438,7 +13456,7 @@ function CandidateInterviewInner() {
 
   // PART B: Measure footer shell height from stable wrapper (all modes)
   cqHookMark('HOOK_50:useEffect:footerShellMeasure');
-  useEffect(() => {
+  useEffect_TR(() => {
     if (!footerShellRef.current) return;
     
     let rafId = null;
@@ -14348,7 +14366,7 @@ function CandidateInterviewInner() {
   // Re-anchor bottom on footer height changes when auto-scroll is enabled
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
   cqHookMark('HOOK_51:useEffect:reAnchorOnFooterHeight');
-  useEffect(() => {
+  useEffect_TR(() => {
     // SCROLL LOCK GATE: Block footer height re-anchor during any scroll lock
     if (isScrollWriteLocked()) {
       return;
@@ -14369,7 +14387,7 @@ function CandidateInterviewInner() {
   
   // ANCHOR V3 PROBE QUESTION: Keep just-appended question visible (ChatGPT-style)
   cqHookMark('HOOK_52:useLayoutEffect:anchorV3ProbeQ');
-  React.useLayoutEffect(() => {
+  ReactUseLayoutEffect_TR(() => {
     // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars (may be undefined on some renders)
     const _bottomBarModeSOT_SAFE = (typeof bottomBarModeSOT_SAFE !== 'undefined') ? bottomBarModeSOT_SAFE : null;
     const _dynamicBottomPaddingPx = (typeof dynamicBottomPaddingPx !== 'undefined') ? dynamicBottomPaddingPx : 0;
@@ -14464,7 +14482,7 @@ function CandidateInterviewInner() {
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   cqHookMark('HOOK_53:useLayoutEffect:forceScrollQuestionShown');
-  React.useLayoutEffect(() => {
+  ReactUseLayoutEffect_TR(() => {
     // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
     const _effectiveItemType = (typeof effectiveItemType !== 'undefined') ? effectiveItemType : null;
     const _shouldRenderFooter_SAFE = (typeof shouldRenderFooter_SAFE !== 'undefined') ? shouldRenderFooter_SAFE : false;
@@ -14577,7 +14595,7 @@ function CandidateInterviewInner() {
   
   // FOOTER PADDING COMPENSATION: Prevent jump when footer height changes
   cqHookMark('HOOK_54:useLayoutEffect:footerPaddingCompensate');
-  React.useLayoutEffect(() => {
+  ReactUseLayoutEffect_TR(() => {
     // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
     const _dynamicBottomPaddingPx = (typeof dynamicBottomPaddingPx !== 'undefined') ? dynamicBottomPaddingPx : 0;
     const _bottomBarModeSOT = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
@@ -14669,7 +14687,7 @@ function CandidateInterviewInner() {
   
   // FOOTER OVERLAP CLAMP: Ensure active card never behind footer (unconditional)
   cqHookMark('HOOK_55:useLayoutEffect:footerOverlapClamp');
-  React.useLayoutEffect(() => {
+  ReactUseLayoutEffect_TR(() => {
     // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
     const _shouldRenderFooter_SAFE = (typeof shouldRenderFooter_SAFE !== 'undefined') ? shouldRenderFooter_SAFE : false;
     const _hasActiveCardSOT = (typeof hasActiveCardSOT !== 'undefined') ? hasActiveCardSOT : false;
@@ -14711,7 +14729,7 @@ function CandidateInterviewInner() {
 
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
   cqHookMark('HOOK_56:useEffect:v3PromptVisibility');
-  useEffect(() => {
+  useEffect_TR(() => {
     // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
     const _bottomBarModeSOT = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
     const _shouldRenderFooter_SAFE = (typeof shouldRenderFooter_SAFE !== 'undefined') ? shouldRenderFooter_SAFE : false;
@@ -14810,7 +14828,7 @@ function CandidateInterviewInner() {
 
   // AUTO-GROWING INPUT: Auto-resize textarea based on content (ChatGPT-style)
   cqHookMark('HOOK_57:useEffect:autoGrowInput');
-  useEffect(() => {
+  useEffect_TR(() => {
     // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
     const _bottomBarModeSOT = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
     
@@ -14871,7 +14889,7 @@ function CandidateInterviewInner() {
 
   // DEFENSIVE GUARD: Force exit WELCOME mode when interview has progressed
   cqHookMark('HOOK_58:useEffect:forceExitWelcome');
-  useEffect(() => {
+  useEffect_TR(() => {
     if (screenMode !== "WELCOME") return; // Only act if we're in WELCOME
     
     // Check if we should exit WELCOME based on state
