@@ -6094,7 +6094,7 @@ function CandidateInterviewInner() {
     }
   }
   
-  window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5A:AFTER_MODE_WINDOW';
+  // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5A:AFTER_MODE_WINDOW';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '5A:AFTER_MODE_WINDOW' });
   
   // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5B:RIGHT_BEFORE_STEP6';
