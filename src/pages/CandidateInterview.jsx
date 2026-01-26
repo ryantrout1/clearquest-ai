@@ -1595,6 +1595,12 @@ function CandidateInterviewInner() {
       });
     }
   } catch (_) {}
+  try {
+    const gVal = (typeof globalThis !== 'undefined' && globalThis.__CQ_DEBUG_FLAGS__) ? globalThis.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE : '(missing)';
+    const wBagVal = (typeof window !== 'undefined' && window.__CQ_DEBUG_FLAGS__) ? window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE : '(missing)';
+    const wDirectVal = (typeof window !== 'undefined') ? window.CQ_DEBUG_HOOK_TRACE : '(missing)';
+    console.log('[CQ_HOOK_TRACE][FLAG_SOURCES]', `globalThis=${String(gVal)} windowBag=${String(wBagVal)} windowDirect=${String(wDirectVal)}`);
+  } catch (_) {}
   let __cqHookTraceLoggedDisabled = false;
   const __cqTrace = (kind) => {
     if (!__cqHookTraceEnabled) {
