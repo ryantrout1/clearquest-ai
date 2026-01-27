@@ -6680,7 +6680,10 @@ function CandidateInterviewInner() {
   // FULL SESSION RESET: Cleanup all interview-local state when sessionId changes (prevent cross-session leakage)
   useEffect_TR(() => {
     try {
-      console.log("[CQ_301_DIAG][FULL_RESET_EFFECT_ENTER]", { rid: __cqRid, renderN: __cq301RenderRef.current });
+      console.log("[CQ_301_DIAG][FULL_RESET_EFFECT_ENTER]", {
+        rid: (typeof __cqRid !== 'undefined' ? __cqRid : 'no_rid'),
+        renderN: (typeof __cq301RenderRef !== 'undefined' && __cq301RenderRef?.current) ? __cq301RenderRef.current : 'no_render_ref'
+      });
     } catch (_) {}
     
     try {
@@ -6695,7 +6698,11 @@ function CandidateInterviewInner() {
     } catch (_) {}
     
     // REACT #310 CENSUS: Invariant - effect body executed
-    console.log('[REACT_310_PROBE][FULL_SESSION_RESET_EFFECT_RAN]', { rid: __cqRid, ts: Date.now(), sessionId });
+    console.log('[REACT_310_PROBE][FULL_SESSION_RESET_EFFECT_RAN]', {
+      rid: (typeof __cqRid !== 'undefined' ? __cqRid : 'no_rid'),
+      ts: Date.now(),
+      sessionId
+    });
     
     if (!sessionId) return;
     
