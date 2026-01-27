@@ -760,8 +760,10 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
         lastRenderStep: (typeof window !== 'undefined' ? (window.__CQ_LAST_RENDER_STEP__ || null) : null),
         lastHookSite: (typeof window !== 'undefined') ? (window.__CQ_LAST_HOOKSITE__ || null) : null,
         lastRenderSig: (typeof window !== 'undefined') ? (window.__CQ_LAST_RENDER_SIG__ || null) : null,
+        componentStack: info?.componentStack || null,
         buildStamp: (typeof window !== 'undefined' && window.__CQ_RUNTIME_PROBE__ ? window.__CQ_RUNTIME_PROBE__.buildStamp : null),
       });
+      console.error('[CQ_DIAG][ERROR_BOUNDARY_COMPONENT_STACK]', { componentStack: info?.componentStack || null });
     } catch (_) {}
 
     // CRASH_CONTEXT_SNAPSHOT
