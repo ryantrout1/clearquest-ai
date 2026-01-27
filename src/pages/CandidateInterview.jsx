@@ -14987,7 +14987,13 @@ function CandidateInterviewInner() {
     requestAnimationFrame(() => {
       scrollIntentRef.current = false;
     });
-  }, [v3ProbingActive, v3ActivePromptText, isUserTyping, _bottomBarModeSOT, _shouldRenderFooter_SAFE]);
+  }, [
+    v3ProbingActive,
+    v3ActivePromptText,
+    isUserTyping,
+    (typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : null),
+    (typeof shouldRenderFooter_SAFE !== 'undefined' ? shouldRenderFooter_SAFE : false),
+  ]);
 
   // AUTO-GROWING INPUT: Auto-resize textarea based on content (ChatGPT-style)
   cqHookMark('HOOK_57:useEffect:autoGrowInput');
