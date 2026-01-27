@@ -1707,7 +1707,7 @@ function CandidateInterviewInner() {
   
   // [CQ_301_DIAG] Minimal render + React identity snapshot (REMOVED - 301 resolved)
   
-  try { console.log('[CQ_RENDER_START][ALWAYS_ON]', { rid: __cqRid, ts: Date.now() }); } catch (_) {}
+  try { console.log('[CQ_RENDER_START][ALWAYS_ON]', { rid: (typeof __cqRid !== 'undefined' ? __cqRid : 'no_rid'), ts: Date.now() }); } catch (_) {}
   
   console.log("[TDZ_TRACE][FN_ENTER]");
   try {
@@ -3742,7 +3742,7 @@ function CandidateInterviewInner() {
   useEffect_TR(() => {
     try {
       console.log("[CQ_301_DIAG][BOOT_KICKSTART]", {
-        rid: __cqRid,
+        rid: (typeof __cqRid !== 'undefined' ? __cqRid : 'no_rid'),
         sessionId,
         isLoading,
         hasSession: !!session,
@@ -20383,7 +20383,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   // REACT #310 CENSUS: Render end hook count
   try {
     if (typeof window !== 'undefined' && window.CQ_HOOK_INDEX !== undefined) {
-      if (typeof window !== 'undefined' && window.__CQ_HOOK_CENSUS_ENABLED__) console.log('[CQ_HOOK_CENSUS_END]', { rid: __cqRid, hookCount: window.CQ_HOOK_INDEX, ts: Date.now() });
+      if (typeof window !== 'undefined' && window.__CQ_HOOK_CENSUS_ENABLED__) console.log('[CQ_HOOK_CENSUS_END]', { rid: (typeof __cqRid !== 'undefined' ? __cqRid : 'no_rid'), hookCount: window.CQ_HOOK_INDEX, ts: Date.now() });
     }
   } catch (_) {}
   const effectiveItemType_SAFE = effectiveItemType;
@@ -20426,7 +20426,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   console.log("[TDZ_TRACE][RENDER_ENTER]");
   let __tdzTraceJsx = null;
   try {
-    try { console.log('[CQ_RENDER_END_REACHED][ALWAYS_ON]', { rid: __cqRid, ts: Date.now() }); } catch (_) {}
+    try { console.log('[CQ_RENDER_END_REACHED][ALWAYS_ON]', { rid: (typeof __cqRid !== 'undefined' ? __cqRid : 'no_rid'), ts: Date.now() }); } catch (_) {}
 
     // BOOT GUARD FALLBACK: Unified fallback for all guard conditions (prevents hook-order divergence)
     if (__cqBootGuardBlockRender) {
