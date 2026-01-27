@@ -1642,28 +1642,43 @@ function CandidateInterviewInner() {
   }
   let __cqHookTraceLoggedDisabled = false;
   const __cqTrace = (kind) => {
-    if (!__cqHookTraceEnabled) {
-      if (!__cqHookTraceLoggedDisabled) {
-        try {
-          console.log('[CQ_HOOK_TRACE][DISABLED]', { hasFlag: cqGetDebugFlag('CQ_DEBUG_HOOK_TRACE'), ts: Date.now() });
-          __cqHookTraceLoggedDisabled = true;
-        } catch (_) {}
-      }
-      return;
-    }
     try {
-      __cqHookTraceIdx += 1;
-      console.log('[CQ_HOOK_TRACE]', { idx: __cqHookTraceIdx, kind, ts: Date.now() });
+      const traceEnabled = (typeof __cqHookTraceEnabled !== 'undefined') ? __cqHookTraceEnabled : false;
+
+      if (!traceEnabled) {
+        const loggedDisabled = (typeof __cqHookTraceLoggedDisabled !== 'undefined') ? __cqHookTraceLoggedDisabled : false;
+
+        if (!loggedDisabled) {
+          try {
+            const hasFlag = (typeof cqGetDebugFlag === 'function') ? cqGetDebugFlag('CQ_DEBUG_HOOK_TRACE') : null;
+            console.log('[CQ_HOOK_TRACE][DISABLED]', { hasFlag, ts: Date.now() });
+            if (typeof __cqHookTraceLoggedDisabled !== 'undefined') {
+              __cqHookTraceLoggedDisabled = true;
+            }
+          } catch (_) {}
+        }
+        return;
+      }
+
+      const safeIdx = (typeof __cqHookTraceIdx === 'number') ? __cqHookTraceIdx : -1;
+      __cqHookTraceIdx = safeIdx + 1;
+      const currentIdx = __cqHookTraceIdx;
+
+      try {
+        console.log('[CQ_HOOK_TRACE]', { idx: currentIdx, kind, ts: Date.now() });
+      } catch (_) {}
+
       try {
         if (typeof window !== 'undefined') {
-          window.__CQ_LAST_HOOKSITE__ = `TRACE:${kind}:${__cqHookTraceIdx}`;
+          window.__CQ_LAST_HOOKSITE__ = `TRACE:${kind}:${currentIdx}`;
         }
       } catch (_) {}
-      if (__cqHookTraceIdx === 12 || __cqHookTraceIdx === 13 || __cqHookTraceIdx === 14) {
+
+      if (currentIdx === 12 || currentIdx === 13 || currentIdx === 14) {
         let stack = null;
         try { stack = (new Error('CQ_HOOK_CALLSITE')).stack; } catch (_) {}
         try {
-          console.log('[CQ_HOOK_CALLSITE]', { idx: __cqHookTraceIdx, kind, stack });
+          console.log('[CQ_HOOK_CALLSITE]', { idx: currentIdx, kind, stack });
         } catch (_) {}
       }
     } catch (_) {}
