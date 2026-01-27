@@ -1599,7 +1599,7 @@ function CandidateInterviewInner() {
   })();
 
   // [CQ_HOOK_TRACE] dev-only hook index tracer (local to this render)
-  let __cqHookTraceIdx = 0;
+  var __cqHookTraceIdx = 0;
   const __cqHookTraceEnabled = __cqIsPreviewEnv ? true : (() => {
     try {
       const g = (typeof globalThis !== 'undefined') ? globalThis : undefined;
@@ -1640,8 +1640,8 @@ function CandidateInterviewInner() {
       console.log('[CQ_HOOK_TRACE][FORCED_ON_PREVIEW]', { hostname: window.location?.hostname, note: 'Temporary diagnostic override' });
     } catch (_) {}
   }
-  let __cqHookTraceLoggedDisabled = false;
-  const __cqTrace = (kind) => {
+  var __cqHookTraceLoggedDisabled = false;
+  function __cqTrace(kind) {
     try {
       const traceEnabled = (typeof __cqHookTraceEnabled !== 'undefined') ? __cqHookTraceEnabled : false;
 
@@ -1682,7 +1682,7 @@ function CandidateInterviewInner() {
         } catch (_) {}
       }
     } catch (_) {}
-  };
+  }
   
   let __cqReactUseRefN = 0;
   const ReactUseRef_TR = (...args) => {
