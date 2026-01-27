@@ -758,6 +758,8 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
         message: error?.message,
         name: error?.name,
         lastRenderStep: (typeof window !== 'undefined' ? (window.__CQ_LAST_RENDER_STEP__ || null) : null),
+        lastHookSite: (typeof window !== 'undefined') ? (window.__CQ_LAST_HOOKSITE__ || null) : null,
+        lastRenderSig: (typeof window !== 'undefined') ? (window.__CQ_LAST_RENDER_SIG__ || null) : null,
         buildStamp: (typeof window !== 'undefined' && window.__CQ_RUNTIME_PROBE__ ? window.__CQ_RUNTIME_PROBE__.buildStamp : null),
       });
     } catch (_) {}
@@ -20291,7 +20293,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       name: e?.name,
       stack: e?.stack,
       lastStep: typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null,
-      lastHookSite: (typeof window !== 'undefined') ? (window.__CQ_LAST_HOOKSITE__ || null) : null
+      lastHookSite: (typeof window !== 'undefined') ? (window.__CQ_LAST_HOOKSITE__ || null) : null,
+      lastRenderSig: (typeof window !== 'undefined') ? (window.__CQ_LAST_RENDER_SIG__ || null) : null
     });
 
     let __cqShouldRethrow_310 = false;
