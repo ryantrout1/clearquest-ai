@@ -4591,7 +4591,118 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, transcriptSOT_S]);
   
   // ============================================================================
-  // HOOK 12/56: V2 pack field tracker (HOISTED from TRY1 - React #310 fix)
+  // HOOK 12/56: V3 PROMPT VISIBILITY (HOISTED from TRY1 - React #310 fix)
+  // ============================================================================
+  // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
+  cqHookMark('HOOK_56:useEffect:v3PromptVisibility');
+  useEffect_TR(() => {
+    if (__cqBootNotReady) return;
+    
+    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
+    const _bottomBarModeSOT = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
+    const _shouldRenderFooter_SAFE = (typeof shouldRenderFooter_SAFE !== 'undefined') ? shouldRenderFooter_SAFE : false;
+    
+    // If TRY1-derived vars are not ready, skip safely
+    if (_bottomBarModeSOT == null) return;
+    
+    // SCROLL LOCK GATE: Block prompt visibility during any scroll lock
+    if (isScrollWriteLocked()) {
+      return;
+    }
+    
+    // Trigger: V3 probing active with prompt available
+    if (!v3ProbingActive || !v3ActivePromptText) return;
+    
+    const scrollContainer = historyRef.current;
+    if (!scrollContainer) return;
+    
+    // Respect user scroll position: only auto-scroll if user has not scrolled up
+    if (!autoScrollEnabledRef.current) return;
+    
+    // PART C: Bypass typing lock for V3 prompt visibility
+    if (isUserTyping && !forceAutoScrollOnceRef.current) {
+      console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { reason: 'typing' });
+      return;
+    }
+    
+    // GUARD A: Skip during V3_WAITING (engine_S deciding)
+    if (_bottomBarModeSOT === 'V3_WAITING') {
+      console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
+        reason: 'v3_waiting_mode',
+        bottomBarModeSOT: _bottomBarModeSOT
+      });
+      return;
+    }
+    
+    // GUARD B: Only run in TEXT_INPUT mode with footer rendered
+    if (_bottomBarModeSOT !== 'TEXT_INPUT' || !_shouldRenderFooter_SAFE) {
+      console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
+        reason: 'wrong_mode',
+        bottomBarModeSOT_SAFE: _bottomBarModeSOT,
+        shouldRenderFooter: _shouldRenderFooter_SAFE
+      });
+      return;
+    }
+    
+    // GUARD B: Only scroll if container has overflow
+    const scrollHeight = scrollContainer.scrollHeight;
+    const clientHeight = scrollContainer.clientHeight;
+    const overflowPx = scrollHeight - clientHeight;
+    
+    if (overflowPx <= 8) {
+      console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
+        reason: 'no_overflow',
+        overflowPx,
+        scrollHeight,
+        clientHeight
+      });
+      return;
+    }
+    
+    // GUARD C: Skip if scroll position delta is negligible
+    const topBefore = scrollContainer.scrollTop;
+    const targetScrollTop = scrollHeight - clientHeight;
+    const scrollDelta = Math.abs(targetScrollTop - topBefore);
+    
+    if (scrollDelta < 2) {
+      console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
+        reason: 'no_delta',
+        scrollDelta,
+        topBefore,
+        targetScrollTop
+      });
+      return;
+    }
+    
+    // All guards passed - mark intent and scroll
+    scrollIntentRef.current = true;
+    
+    // Auto-scroll to reveal prompt lane
+    scrollContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+    
+    console.log('[V3_PROMPT_VISIBILITY_SCROLL]', {
+      preview: v3ActivePromptText.slice(0, 80),
+      reason: 'AUTO_SCROLL_ENABLED',
+      topBefore,
+      targetScrollTop,
+      overflowPx
+    });
+    
+    // Clear intent flag after scroll completes
+    requestAnimationFrame(() => {
+      scrollIntentRef.current = false;
+    });
+  }, [
+    __cqBootNotReady,
+    v3ProbingActive,
+    v3ActivePromptText,
+    isUserTyping,
+    (typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : null),
+    (typeof shouldRenderFooter_SAFE !== 'undefined' ? shouldRenderFooter_SAFE : false),
+  ]);
+  
+  // ============================================================================
+  // HOOK 13/56: V2 pack field tracker (HOISTED from TRY1 - React #310 fix)
   // ============================================================================
   // Track last logged V2 pack field to prevent duplicates (logging happens on answer, not render)
   // This ref is used when logging answers to check for duplicates
@@ -14889,111 +15000,6 @@ function CandidateInterviewInner() {
   }, [_shouldRenderFooter_SAFE, _hasActiveCardSOT, _activeCard_SKeySOT, _dynamicFooterHeightPx]);
   
   // ACTIVE CARD OVERLAP NUDGE - HOISTED TO BATCH 3 (line ~4850)
-
-  // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
-  cqHookMark('HOOK_56:useEffect:v3PromptVisibility');
-  useEffect_TR(() => {
-    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
-    const _bottomBarModeSOT = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
-    const _shouldRenderFooter_SAFE = (typeof shouldRenderFooter_SAFE !== 'undefined') ? shouldRenderFooter_SAFE : false;
-    
-    // If TRY1-derived vars are not ready, skip safely
-    if (_bottomBarModeSOT == null) return;
-    
-    // SCROLL LOCK GATE: Block prompt visibility during any scroll lock
-    if (isScrollWriteLocked()) {
-      return;
-    }
-    
-    // Trigger: V3 probing active with prompt available
-    if (!v3ProbingActive || !v3ActivePromptText) return;
-    
-    const scrollContainer = historyRef.current;
-    if (!scrollContainer) return;
-    
-    // Respect user scroll position: only auto-scroll if user has not scrolled up
-    if (!autoScrollEnabledRef.current) return;
-    
-    // PART C: Bypass typing lock for V3 prompt visibility
-    if (isUserTyping && !forceAutoScrollOnceRef.current) {
-      console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { reason: 'typing' });
-      return;
-    }
-    
-    // GUARD A: Skip during V3_WAITING (engine_S deciding)
-    if (_bottomBarModeSOT === 'V3_WAITING') {
-      console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
-        reason: 'v3_waiting_mode',
-        bottomBarModeSOT: _bottomBarModeSOT
-      });
-      return;
-    }
-    
-    // GUARD B: Only run in TEXT_INPUT mode with footer rendered
-    if (_bottomBarModeSOT !== 'TEXT_INPUT' || !_shouldRenderFooter_SAFE) {
-      console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
-        reason: 'wrong_mode',
-        bottomBarModeSOT_SAFE: _bottomBarModeSOT,
-        shouldRenderFooter: _shouldRenderFooter_SAFE
-      });
-      return;
-    }
-    
-    // GUARD B: Only scroll if container has overflow
-    const scrollHeight = scrollContainer.scrollHeight;
-    const clientHeight = scrollContainer.clientHeight;
-    const overflowPx = scrollHeight - clientHeight;
-    
-    if (overflowPx <= 8) {
-      console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
-        reason: 'no_overflow',
-        overflowPx,
-        scrollHeight,
-        clientHeight
-      });
-      return;
-    }
-    
-    // GUARD C: Skip if scroll position delta is negligible
-    const topBefore = scrollContainer.scrollTop;
-    const targetScrollTop = scrollHeight - clientHeight;
-    const scrollDelta = Math.abs(targetScrollTop - topBefore);
-    
-    if (scrollDelta < 2) {
-      console.log('[V3_PROMPT_VISIBILITY_SCROLL][SKIP]', { 
-        reason: 'no_delta',
-        scrollDelta,
-        topBefore,
-        targetScrollTop
-      });
-      return;
-    }
-    
-    // All guards passed - mark intent and scroll
-    scrollIntentRef.current = true;
-    
-    // Auto-scroll to reveal prompt lane
-    scrollContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
-    
-    console.log('[V3_PROMPT_VISIBILITY_SCROLL]', {
-      preview: v3ActivePromptText.slice(0, 80),
-      reason: 'AUTO_SCROLL_ENABLED',
-      topBefore,
-      targetScrollTop,
-      overflowPx
-    });
-    
-    // Clear intent flag after scroll completes
-    requestAnimationFrame(() => {
-      scrollIntentRef.current = false;
-    });
-  }, [
-    v3ProbingActive,
-    v3ActivePromptText,
-    isUserTyping,
-    (typeof bottomBarModeSOT !== 'undefined' ? bottomBarModeSOT : null),
-    (typeof shouldRenderFooter_SAFE !== 'undefined' ? shouldRenderFooter_SAFE : false),
-  ]);
 
   // AUTO-GROWING INPUT: Auto-resize textarea based on content (ChatGPT-style)
   cqHookMark('HOOK_57:useEffect:autoGrowInput');
