@@ -19904,7 +19904,7 @@ const transcriptPlan = isV3DebugEnabled
     activeCard_SScrollMarginBottomPx
   }))
     : computeTranscriptRenderPlan({
-    finalTranscriptList_S: finalTranscriptList_S_SAFE,
+    finalTranscriptList_S,
     isV3DebugEnabled,
     cqRead,
     shouldRenderInTranscript,
