@@ -16961,6 +16961,7 @@ function CandidateInterviewInner() {
     
     // CQ_GUARD: submitIntent must be declared exactly once (do not duplicate)
     // V3 SUBMIT INTENT: Capture routing decision BEFORE state updates (prevents mis-route)
+    const v3PromptIdSOT = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef?.current?.promptId || null;
     const submitIntent = {
       isV3Submit: v3PromptPhase === 'ANSWER_NEEDED' || 
                   activeUiItem_S_SAFE.kind === 'V3_PROMPT' ||
