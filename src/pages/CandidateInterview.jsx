@@ -1908,6 +1908,15 @@ function CandidateInterviewInner() {
   // TDZ FIX: Missing planner utility (used at lines ~19899, ~20171, ~20251, ~20286, ~20604, ~20673)
   const cqRead = (_label, fn) => (typeof fn === 'function' ? fn() : fn);
   
+  // RENDER-STEP BREADCRUMBS: TDZ-safe diagnostic helper (hoisted function)
+  function cqSetRenderStep(step) {
+    try {
+      if (typeof window !== 'undefined') {
+        window.CQ_LAST_RENDER_STEP = step;
+      }
+    } catch (_) {}
+  }
+  
   // TRY2 FALLBACK: handleCompletionConfirm no-op (prevents modal crash during boot-not-ready)
   let handleCompletionConfirm = () => {
     console.log('[COMPLETION][BLOCKED_BOOT_NOT_READY]', { 
@@ -17272,6 +17281,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
   // ============================================================================
+  cqSetRenderStep('TRY1:DERIVED_START');
   // [TDZ_GUARD][DERIVED_SNAPSHOT]
   // Centralized render-time derived computations (NO hooks in this block).
   // Ordered to prevent TDZ and used as the single source of truth for planner inputs.
@@ -17509,6 +17519,7 @@ function CandidateInterviewInner() {
   // TDZ FIX: shouldRenderInTranscript MOVED TO TOP OF COMPONENT (hoisted out of TRY1)
   // Hoisted to prevent crash-before-declare ReferenceError in transcript planners.
   
+  cqSetRenderStep('TRY1:FINAL_LIST_COMPUTE_START');
   // HOOK ORDER FIX: Ref-cached computation (memoization restored)
     finalTranscriptList_S_computed = (() => {
     const hasVisibleActivePromptForSuppression = (activePromptText || '').trim().length > 0;
@@ -19732,6 +19743,7 @@ function CandidateInterviewInner() {
       }
     }
     
+    cqSetRenderStep('TRY1:FINAL_LIST_REFS_WRITE');
     // TDZ GUARD: Update length counter + sync finalList refs (use frozen renderedItems)
     bottomAnchorLenRef.current = renderedItems.length;
     finalListRef.current = Array.isArray(renderedItems) ? renderedItems : [];
@@ -19870,6 +19882,7 @@ function CandidateInterviewInner() {
   const currentItem_SAFE = currentItem_S ?? null;
   const v3ProbingContext_SAFE = v3ProbingContext_S ?? null;
 
+  cqSetRenderStep('TRY1:PLANNER_CALLS_START');
   // TDZ FIX: Missing scroll margin computation (used in planner args and JSX)
   const activeCard_SScrollMarginBottomPx = ((typeof dynamicFooterHeightPx !== 'undefined' ? dynamicFooterHeightPx : 80) + 16);
 
@@ -20307,6 +20320,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     };
   };
 
+    cqSetRenderStep('TRY1:END');
     cqLog('DEBUG', '[CQ_TDZ_CONFIRM][TRY1_COMPLETED]', {
       ts: Date.now(),
       sessionId,
@@ -20399,6 +20413,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     });
   }
   
+  cqSetRenderStep('POST_TRY1:SAFE_SURFACE');
   // [TDZ_SHIELD_ALL] Safe aliases for JSX render (declared outside the main try/catch)
   const shouldApplyFooterClearance_SAFE = (typeof shouldApplyFooterClearance !== 'undefined') ? shouldApplyFooterClearance : false;
   const footerClearancePx_SAFE = (typeof footerClearancePx !== 'undefined') ? footerClearancePx : 0;
@@ -20445,6 +20460,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     ? getQuestionDisplayNumber
     : (() => '');
   
+  cqSetRenderStep('RENDER:BEFORE_RETURN');
   console.log("[TDZ_TRACE][RENDER_ENTER]");
   let __tdzTraceJsx = null;
   try {
