@@ -1711,11 +1711,11 @@ function CandidateInterviewInner() {
   };
   
   // Traced hook aliases (local to this component)
-  const useEffect_TR = (...args) => { __cqTrace('useEffect'); return useEffect(...args); };
-  const useLayoutEffect_TR = (...args) => { __cqTrace('useLayoutEffect'); return useLayoutEffect(...args); };
-  const ReactUseLayoutEffect_TR = (...args) => { __cqTrace('React.useLayoutEffect'); return React.useLayoutEffect(...args); };
-  const useCallback_TR = (...args) => { __cqTrace('useCallback'); return useCallback(...args); };
-  const useRef_TR_L = (label, ...args) => { __cqTrace(`useRef:${label}`); return useRef(...args); };
+  function useEffect_TR(...args) { __cqTrace('useEffect'); return useEffect(...args); }
+  function useLayoutEffect_TR(...args) { __cqTrace('useLayoutEffect'); return useLayoutEffect(...args); }
+  function ReactUseLayoutEffect_TR(...args) { __cqTrace('React.useLayoutEffect'); return React.useLayoutEffect(...args); }
+  function useCallback_TR(...args) { __cqTrace('useCallback'); return useCallback(...args); }
+  function useRef_TR_L(label, ...args) { __cqTrace(`useRef:${label}`); return useRef(...args); }
   
   // REACT #310 CENSUS: Auto-enable for rid 4 ONLY (isolate crashing render)
   // [REMOVED: Render-time census auto-enable]
