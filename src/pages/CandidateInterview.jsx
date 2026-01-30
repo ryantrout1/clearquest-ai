@@ -1786,6 +1786,11 @@ function CandidateInterviewInner() {
   // TDZ FIX: Missing function declaration (used at lines ~13435, ~17381, ~20422)
   const sanitizeCandidateFacingText = (text, _label) => (text == null ? '' : String(text));
   
+  // TDZ FIX: Message type resolver (used at lines ~17574, ~20433, ~21026, ~21049, etc.)
+  function getMessageTypeSOT(e) {
+    return e?.messageType || e?.type || '';
+  }
+  
   // TDZ FIX: cqTdzMark diagnostic helper (used throughout component, must be top-level)
   function cqTdzMark(step, extra = {}) {
     if (typeof window === 'undefined') return;
@@ -20430,9 +20435,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     ? sanitizeCandidateFacingText
     : ((text) => text);
   
-  const getMessageTypeSOT_SAFE = (typeof getMessageTypeSOT !== 'undefined')
-    ? getMessageTypeSOT
-    : ((e) => e?.messageType || e?.type || '');
+  const getMessageTypeSOT_SAFE = getMessageTypeSOT;
   
   const getQuestionDisplayNumber_SAFE = (typeof getQuestionDisplayNumber !== 'undefined')
     ? getQuestionDisplayNumber
