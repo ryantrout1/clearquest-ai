@@ -1946,6 +1946,7 @@ function CandidateInterviewInner() {
   
   // HOOK CENSUS: Mark before first hook
   cqHookMark('PRE_HOOKS');
+  cqSetRenderStep('PRE_HOOKS:FIRST_HOOK');
   cqHookMark('HOOK_01:useNavigate');
   try {
     if (typeof window !== 'undefined' && cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true) {
@@ -4757,6 +4758,7 @@ function CandidateInterviewInner() {
   
   // HOOK CENSUS: Mark after final hook
   cqHookMark('POST_HOOKS');
+  cqSetRenderStep('HOOK_TRACE:WRAPPERS_READY');
   
   // ============================================================================
   // HOOK 12/12: renderedTranscript - REMOVED (duplicate, moved to before Hook 7/7)
@@ -4800,6 +4802,7 @@ function CandidateInterviewInner() {
   
 
   
+  cqSetRenderStep('TRY1:ENTER_GUARD_CHECK');
   cqMark('BEFORE_BOOT_GUARD_EVAL');
   // ============================================================================
   // BOOT GUARD - Ultra-minimal early return during unstable boot/LOADING
@@ -5764,6 +5767,7 @@ function CandidateInterviewInner() {
   let __cqTry1Result = null;
   
   if (!__cqBootNotReady) {
+    cqSetRenderStep('TRY1:ENTER_BLOCK_TOP');
     // Boot ready - execute TRY1 normally
     // ============================================================================
     // RENDER-TIME GLOBAL MUTATION GUARDRAIL (Dev-only regression prevention)
