@@ -1448,6 +1448,8 @@ const runV2FieldProbeIfNeeded = async ({
 // - Welcome / start screens must NEVER reappear mid-session
 
 function CandidateInterviewInner() {
+  try { if (typeof window !== 'undefined') window.CQ_LAST_RENDER_STEP = 'ENTER_COMPONENT_TOP'; } catch (_) {}
+  
   try {
     if (typeof window !== 'undefined') {
       // window.__CQ_LAST_RENDER_STEP__ = 'ENTER_RENDER';
