@@ -20067,7 +20067,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
   // UI CONTRACT: 3-row shell enforced - do not reintroduce footer spacers/padding hacks; footer must stay in layout flow.
   
-  const effectiveItemType_SAFE = (typeof effectiveItemType !== 'undefined') ? effectiveItemType : null;
+  const effectiveItemType_SAFE = effectiveItemType ?? null;
   cqTdzMark('BEFORE_MAIN_RETURN_EXPR', { screenModeNow: screenMode, shouldShowFullScreenLoader, currentItem_SType: currentItem_S?.type, effectiveItemType: effectiveItemType_SAFE });
   
   // LIKELY_OFFENDER_SNAPSHOT: Safe typeof checks for identifiers declared ABOVE this point
@@ -20410,18 +20410,18 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   } catch (_) {}
   const effectiveItemType_SAFE = effectiveItemType;
   const renderedTranscriptSnapshotRef_SAFE = renderedTranscriptSnapshotRef;
-  const finalTranscriptList_S_SAFE = (typeof finalTranscriptList_S !== 'undefined') ? finalTranscriptList_S : [];
+  const finalTranscriptList_S_SAFE = finalTranscriptList_S ?? [];
   const questionCompletionPct = 0;
   // activeUiItem_S_SAFE declared earlier (line 3193)
   // bottomBarModeSOT_SAFE declared earlier (line 3196)
-  const activeCard_S_SAFE = (typeof activeCard_S !== 'undefined') ? activeCard_S : null;
+  const activeCard_S_SAFE = activeCard_S ?? null;
   
-  const shouldRenderFooter_SAFE = (typeof shouldRenderFooter !== 'undefined') ? shouldRenderFooter : false;
-  const hasPrompt_SAFE = (typeof hasPrompt !== 'undefined') ? hasPrompt : false;
-  const activePromptText_SAFE = (typeof activePromptText !== 'undefined') ? activePromptText : '';
-  const safeActivePromptText_SAFE = (typeof safeActivePromptText !== 'undefined') ? safeActivePromptText : '';
-  const isBottomBarSubmitDisabled_SAFE = (typeof isBottomBarSubmitDisabled !== 'undefined') ? isBottomBarSubmitDisabled : true;
-  const bottomBarRenderTypeSOT_SAFE = (typeof bottomBarRenderTypeSOT !== 'undefined') ? bottomBarRenderTypeSOT : 'default';
+  const shouldRenderFooter_SAFE = shouldRenderFooter ?? false;
+  const hasPrompt_SAFE = hasPrompt ?? false;
+  const activePromptText_SAFE = activePromptText ?? '';
+  const safeActivePromptText_SAFE = safeActivePromptText ?? '';
+  const isBottomBarSubmitDisabled_SAFE = isBottomBarSubmitDisabled ?? true;
+  const bottomBarRenderTypeSOT_SAFE = bottomBarRenderTypeSOT ?? 'default';
   
   const showMissingSession_SAFE = (typeof showMissingSession !== 'undefined') ? showMissingSession : false;
   const showError_SAFE = (typeof showError !== 'undefined') ? showError : false;
