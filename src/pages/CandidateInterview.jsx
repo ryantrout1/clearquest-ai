@@ -19863,10 +19863,6 @@ function CandidateInterviewInner() {
 
 
   // [TDZ_FIX] Declarations moved before their first use in computeTranscriptRenderPlan.
-  const activeUiItem_SAFE = activeUiItem_S ?? null;
-  const finalTranscriptList_S_SAFE = finalTranscriptList_S ?? [];
-  const currentItem_SAFE = currentItem_S ?? null;
-  const v3ProbingContext_SAFE = v3ProbingContext_S ?? null;
 
   // TDZ FIX: Missing scroll margin computation (used in planner args and JSX)
   const activeCard_SScrollMarginBottomPx = ((typeof dynamicFooterHeightPx !== 'undefined' ? dynamicFooterHeightPx : 80) + 16);
