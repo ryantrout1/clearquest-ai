@@ -2813,6 +2813,9 @@ function CandidateInterviewInner() {
   const [dynamicFooterHeightPx, setDynamicFooterHeightPx] = useState(80); // Dynamic footer height measurement
   const promptLaneRef = useRef(null);
   const autoScrollEnabledRef = useRef(true);
+  const bottomAnchorLenRef = useRef(0);
+  const finalListRef = useRef([]);
+  const finalListLenRef = useRef(0);
   
   // SCROLL LOCK: Prevent competing scroll writers during v3_pack_opener settle
   const scrollWriteLockRef = useRef(false);
