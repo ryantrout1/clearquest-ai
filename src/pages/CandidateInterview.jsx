@@ -15160,6 +15160,7 @@ function CandidateInterviewInner() {
   const v3UiRenderable = [];
   
   // PART B: Suppress MI_GATE from render if V3 UI blocking (treat as null for rendering)
+  const shouldSuppressMiGateSOT = false;
   const currentItem_SForRender = shouldSuppressMiGateSOT ? null : currentItem_S;
   
   // TDZ FIX: activeCard_S, transcriptRenderable, currentPromptId already declared earlier (line ~2020)
@@ -21202,6 +21203,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 currentItem_S?.instanceNumber === entryInstanceNumber;
 
               // PART B: Suppress current gate during V3 blocking (renders as activeCard_S instead)
+              const isV3UiBlockingSOT = false;
               const isCurrentGateButSuppressed = isV3UiBlockingSOT && 
                                    currentItem_S?.type === 'multi_instance_gate' &&
                                    entryPackId === currentItem_S.packId &&
