@@ -2229,11 +2229,9 @@ function CandidateInterviewInner() {
   
   // RENDER-STEP BREADCRUMBS: TDZ-safe diagnostic helper (hoisted function)
   function cqSetRenderStep(step) {
-    try {
-      if (typeof window !== 'undefined') {
-        window.CQ_LAST_RENDER_STEP = step;
-        window.__CQ_LAST_RENDER_STEP__ = step;
-      }
+    // NEUTRALIZED: No window write (prevents render-time global mutation)
+    try { 
+      // Render-step tracking disabled (React #310 compliance)
     } catch (_) {}
   }
   
@@ -3909,7 +3907,7 @@ function CandidateInterviewInner() {
       hasSession: !!session,
       hasEngine: !!engine_S
     });
-  }, [sessionId, isLoading, session, engine_S]);
+  }, [sessionId]);
 
   useEffect_TR("T04_BOOT_WATCHDOG", () => {
     if (!sessionId) return;
@@ -4212,7 +4210,7 @@ function CandidateInterviewInner() {
       console.log('[CQ_BOOT_RENDERKICK][USE_EFFECT_KICKSTART]', { sessionId });
       initializeInterview();
     }
-  }, [sessionId, initializeInterview, isLoading, session, engine_S]);
+  }, [sessionId]);
   
   // ============================================================================
   // TDZ FIX: SAFE VARIABLE DECLARATIONS - Must be before hoisted hooks
