@@ -1617,6 +1617,19 @@ function CandidateInterviewInner() {
     }
   } catch (_) {}
   
+  // DEV-ONLY: Reset per-render hook call counter
+  try {
+    if (typeof window !== 'undefined') {
+      const hn = window.location?.hostname || '';
+      const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+      if (isDevEnv) {
+        if (!window.CQ_HOOK_CALLS) window.CQ_HOOK_CALLS = { renderId: 0, effectTR: 0 };
+        window.CQ_HOOK_CALLS.renderId += 1;
+        window.CQ_HOOK_CALLS.effectTR = 0;
+      }
+    }
+  } catch (_) {}
+  
   try { if (typeof window !== 'undefined') { window.CQ_LAST_RENDER_STEP = 'ENTER_COMPONENT_TOP'; window.__CQ_LAST_RENDER_STEP__ = 'ENTER_COMPONENT_TOP'; } } catch (_) {}
   
   // PROOF-OF-LIFE: Component entry marker (proves execution reached this point)
@@ -1917,6 +1930,18 @@ function CandidateInterviewInner() {
   
   // Traced hook aliases (local to this component)
   function useEffect_TR(labelOrFn, ...rest) {
+    // DEV-ONLY: Count useEffect_TR invocations per render
+    try {
+      if (typeof window !== 'undefined') {
+        const hn = window.location?.hostname || '';
+        const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+        if (isDevEnv) {
+          if (!window.CQ_HOOK_CALLS) window.CQ_HOOK_CALLS = { renderId: 0, effectTR: 0 };
+          window.CQ_HOOK_CALLS.effectTR += 1;
+        }
+      }
+    } catch (_) {}
+    
     const isLabel = typeof labelOrFn === 'string';
     const label = isLabel ? labelOrFn : undefined;
     const hookArgs = isLabel ? rest : [labelOrFn, ...rest];
@@ -5125,7 +5150,9 @@ function CandidateInterviewInner() {
           isLoading: (typeof isLoading !== 'undefined' ? isLoading : null),
           hasSession: (typeof session !== 'undefined' ? !!session : null),
           hasEngine: (typeof engine_S !== 'undefined' ? !!engine_S : null),
-          traceIdx: null
+          traceIdx: null,
+          renderId: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.renderId : null),
+          effectTR: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectTR : null)
         });
       }
     }
