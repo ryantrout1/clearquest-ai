@@ -2030,6 +2030,17 @@ function CandidateInterviewInner() {
   cqHookMark('PRE_HOOKS');
   cqLogHookCensus('PRE_HOOKS');
   cqSetRenderStep('PRE_HOOKS:FIRST_HOOK');
+  // HOOK COUNT ASSERTION (gated): baseline count at PRE_HOOKS
+  try {
+    if (typeof window !== 'undefined' && (cqHasQueryFlag('cqCensus') || cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true)) {
+      console.log('[CQ_HOOK_COUNT_PRE]', {
+        ts: Date.now(),
+        count: __cqCensusIdx,
+        sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
+        marker: 'PRE_HOOKS'
+      });
+    }
+  } catch (_) {}
   cqHookMark('HOOK_01:useNavigate');
   try {
     if (typeof window !== 'undefined' && cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true) {
@@ -4872,6 +4883,17 @@ function CandidateInterviewInner() {
   // HOOK CENSUS: Mark after final hook
   cqHookMark('POST_HOOKS');
   cqSetRenderStep('HOOK_TRACE:WRAPPERS_READY');
+  // HOOK COUNT ASSERTION (gated): final count at POST_HOOKS
+  try {
+    if (typeof window !== 'undefined' && (cqHasQueryFlag('cqCensus') || cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true)) {
+      console.log('[CQ_HOOK_COUNT_POST]', {
+        ts: Date.now(),
+        count: __cqCensusIdx,
+        sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
+        marker: 'POST_HOOKS'
+      });
+    }
+  } catch (_) {}
   
   // ============================================================================
   // HOOK 12/12: renderedTranscript - REMOVED (duplicate, moved to before Hook 7/7)
