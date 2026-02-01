@@ -1653,11 +1653,7 @@ function CandidateInterviewInner() {
       const hn = window.location?.hostname || '';
       const isDevEnv = hn.includes('preview') || hn.includes('localhost');
       if (isDevEnv) {
-        if (!window.CQ_HOOK_CALLS) window.CQ_HOOK_CALLS = { renderId: 0, effectTR: 0, effectRAW: 0, tags: [] };
-        window.CQ_HOOK_CALLS.renderId += 1;
-        window.CQ_HOOK_CALLS.effectTR = 0;
-        window.CQ_HOOK_CALLS.effectRAW = 0;
-        window.CQ_HOOK_CALLS.tags = [];
+        // Hook count tracking disabled (React #310 compliance)
       }
     }
   } catch (_) {}
@@ -1684,7 +1680,7 @@ function CandidateInterviewInner() {
     // BUILD FINGERPRINT (always-on)
     try {
       if (typeof document !== 'undefined' && document.documentElement) {
-        document.documentElement.setAttribute('data-cq-build-ci', 'CI_2026-01-23T00:00:00Z');
+        // Build fingerprint disabled (React #310 compliance)
       }
     } catch (_) {}
     
@@ -1701,7 +1697,7 @@ function CandidateInterviewInner() {
           window.__CQ_CANARY_HIT__ = Array.isArray(window.__CQ_CANARY_HIT__) ? window.__CQ_CANARY_HIT__ : [];
           window.__CQ_CANARY_HIT__.push({ file: 'CandidateInterview.jsx', ts: Date.now(), buildStamp: 'CI_2026-01-23T00:00:00Z' });
           if (typeof document !== 'undefined' && document.documentElement) {
-            document.documentElement.setAttribute('data-cq-canary-ci', 'CI_2026-01-23T00:00:00Z');
+            // Canary fingerprint disabled (React #310 compliance)
           }
         } catch (_) {}
         
@@ -1903,11 +1899,7 @@ function CandidateInterviewInner() {
       } catch (_) {}
 
       try {
-        if (typeof window !== 'undefined') {
-          window.__CQ_LAST_HOOKSITE__ = labelOpt 
-            ? `TRACE:${kind}:${currentIdx}:${labelOpt}`
-            : `TRACE:${kind}:${currentIdx}`;
-        }
+        // Hook site tracking disabled (React #310 compliance)
       } catch (_) {}
 
       // IDX 14 STACK CAPTURE: Always-on for pinpoint diagnostics
@@ -1939,12 +1931,12 @@ function CandidateInterviewInner() {
   let __cqReactUseRefN = 0;
   const ReactUseRef_TR = (...args) => {
     __cqReactUseRefN += 1;
-    try { if (typeof window !== 'undefined') window.__CQ_REACT_USEREF_N__ = __cqReactUseRefN; } catch (_) {}
+    try { /* useRef tracking disabled (React #310 compliance) */ } catch (_) {}
     try { console.log('[CQ_REACT_USEREF_CALL]', { n: __cqReactUseRefN }); } catch (_) {}
     return React.useRef(...args);
   };
   
-  const __cqHookSite = (label) => { try { if (typeof window !== 'undefined') window.__CQ_LAST_HOOKSITE__ = label; } catch (_) {} };
+  const __cqHookSite = (label) => { try { /* Hook site tracking disabled (React #310 compliance) */ } catch (_) {} };
   
   const __cqRenderSig = (where) => {
     try {
@@ -1957,7 +1949,7 @@ function CandidateInterviewInner() {
         hasCurrentItem: (typeof currentItem_S !== 'undefined' ? !!currentItem_S : null),
         currentItemType: (typeof currentItem_S !== 'undefined' ? (currentItem_S?.type || null) : null)
       };
-      window.__CQ_LAST_RENDER_SIG__ = sig;
+      // window.__CQ_LAST_RENDER_SIG__ = sig; // Render signature tracking disabled (React #310 compliance)
       console.log('[CQ_RENDER_SIG]', sig);
     } catch (_) {}
   };
@@ -1965,14 +1957,7 @@ function CandidateInterviewInner() {
   // DEV-ONLY: Raw useEffect counter wrapper (non-hook utility)
   function cqUseEffect_RAW(fn, deps) {
     try {
-      if (typeof window !== 'undefined') {
-        const hn = window.location?.hostname || '';
-        const isDevEnv = hn.includes('preview') || hn.includes('localhost');
-        if (isDevEnv) {
-          if (!window.CQ_HOOK_CALLS) window.CQ_HOOK_CALLS = { renderId: 0, effectTR: 0, effectRAW: 0 };
-          window.CQ_HOOK_CALLS.effectRAW += 1;
-        }
-      }
+      // Hook count tracking disabled (React #310 compliance)
     } catch (_) {}
     return useEffect(fn, deps);
   }
@@ -1981,19 +1966,7 @@ function CandidateInterviewInner() {
   function useEffect_TR(labelOrFn, ...rest) {
     // DEV-ONLY: Count useEffect_TR invocations per render + capture tag
     try {
-      if (typeof window !== 'undefined') {
-        const hn = window.location?.hostname || '';
-        const isDevEnv = hn.includes('preview') || hn.includes('localhost');
-        if (isDevEnv) {
-          if (!window.CQ_HOOK_CALLS) window.CQ_HOOK_CALLS = { renderId: 0, effectTR: 0, effectRAW: 0, tags: [] };
-          if (!window.CQ_HOOK_CALLS.tags) window.CQ_HOOK_CALLS.tags = [];
-          window.CQ_HOOK_CALLS.effectTR += 1;
-          // Capture tag if labelOrFn is a string
-          if (typeof labelOrFn === 'string') {
-            window.CQ_HOOK_CALLS.tags.push(labelOrFn);
-          }
-        }
-      }
+      // Hook count tracking disabled (React #310 compliance)
     } catch (_) {}
     
     const isLabel = typeof labelOrFn === 'string';
@@ -2084,12 +2057,7 @@ function CandidateInterviewInner() {
       });
     } catch (_) {}
     if (typeof window !== 'undefined') {
-      window.__CQ_RUNTIME_PROBE__ = window.__CQ_RUNTIME_PROBE__ || {};
-      window.CQ_RUNTIME_PROBE = window.CQ_RUNTIME_PROBE || {};
-      window.__CQ_RUNTIME_PROBE__.buildStamp = __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__;
-      window.__CQ_RUNTIME_PROBE__.indexAssets = indexAssets;
-      window.CQ_RUNTIME_PROBE.buildStamp = __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__;
-      window.CQ_RUNTIME_PROBE.indexAssets = indexAssets;
+      // Runtime probe tracking disabled (React #310 compliance)
     }
   } catch (_) {}
   cqLog('DEBUG', '[BUILD_OK][CandidateInterview]');
@@ -3874,8 +3842,8 @@ function CandidateInterviewInner() {
   try {
     if (typeof window !== 'undefined') {
       const prev = window.__CQ_REACT_SINGLETON__;
-      if (!prev) window.__CQ_REACT_SINGLETON__ = React;
-      const same = window.__CQ_REACT_SINGLETON__ === React;
+      // React singleton tracking disabled (React #310 compliance)
+      const same = prev ? (prev === React) : true;
       if (!same) {
         console.error('[CQ_MULTI_REACT_OBJ_DETECTED][ALWAYS_ON]', {
           ts: Date.now(),
