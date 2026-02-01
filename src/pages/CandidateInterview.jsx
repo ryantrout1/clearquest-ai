@@ -1907,6 +1907,7 @@ function CandidateInterviewInner() {
     __cqTrace('useEffect', label);
     return useEffect(...hookArgs);
   }
+  const useEffect_TR2 = useEffect_TR; // Minifier compatibility alias
   function useLayoutEffect_TR(labelOrFn, ...rest) {
     const isLabel = typeof labelOrFn === 'string';
     const label = isLabel ? labelOrFn : undefined;
@@ -2169,6 +2170,22 @@ function CandidateInterviewInner() {
   
   // HOOK CENSUS: Mark before first hook
   cqHookMark('PRE_HOOKS');
+  // DEV-ONLY CENSUS SIGNATURE (post PRE_HOOKS marker)
+  try {
+    if (typeof window !== 'undefined') {
+      const hn = window.location?.hostname || '';
+      const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+      if (isDevEnv) {
+        console.log('[CQ_HOOK_SIG][PRE]', {
+          sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
+          isLoading: (typeof isLoading !== 'undefined' ? isLoading : null),
+          hasSession: (typeof session !== 'undefined' ? !!session : null),
+          hasEngine: (typeof engine_S !== 'undefined' ? !!engine_S : null),
+          traceIdx: null
+        });
+      }
+    }
+  } catch (_) {}
   cqLogHookCensus('PRE_HOOKS');
   cqSetRenderStep('PRE_HOOKS:FIRST_HOOK');
   // HOOK COUNT ASSERTION (gated): baseline count at PRE_HOOKS
@@ -5029,6 +5046,22 @@ function CandidateInterviewInner() {
   
   // HOOK CENSUS: Mark after final hook
   cqHookMark('POST_HOOKS');
+  // DEV-ONLY CENSUS SIGNATURE (post POST_HOOKS marker)
+  try {
+    if (typeof window !== 'undefined') {
+      const hn = window.location?.hostname || '';
+      const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+      if (isDevEnv) {
+        console.log('[CQ_HOOK_SIG][POST]', {
+          sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
+          isLoading: (typeof isLoading !== 'undefined' ? isLoading : null),
+          hasSession: (typeof session !== 'undefined' ? !!session : null),
+          hasEngine: (typeof engine_S !== 'undefined' ? !!engine_S : null),
+          traceIdx: null
+        });
+      }
+    }
+  } catch (_) {}
   cqSetRenderStep('HOOK_TRACE:WRAPPERS_READY');
   // HOOK COUNT ASSERTION (gated): final count at POST_HOOKS
   try {
