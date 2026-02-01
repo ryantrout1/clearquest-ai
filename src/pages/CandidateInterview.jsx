@@ -1623,10 +1623,11 @@ function CandidateInterviewInner() {
       const hn = window.location?.hostname || '';
       const isDevEnv = hn.includes('preview') || hn.includes('localhost');
       if (isDevEnv) {
-        if (!window.CQ_HOOK_CALLS) window.CQ_HOOK_CALLS = { renderId: 0, effectTR: 0, effectRAW: 0 };
+        if (!window.CQ_HOOK_CALLS) window.CQ_HOOK_CALLS = { renderId: 0, effectTR: 0, effectRAW: 0, tags: [] };
         window.CQ_HOOK_CALLS.renderId += 1;
         window.CQ_HOOK_CALLS.effectTR = 0;
         window.CQ_HOOK_CALLS.effectRAW = 0;
+        window.CQ_HOOK_CALLS.tags = [];
       }
     }
   } catch (_) {}
@@ -1946,14 +1947,19 @@ function CandidateInterviewInner() {
   
   // Traced hook aliases (local to this component)
   function useEffect_TR(labelOrFn, ...rest) {
-    // DEV-ONLY: Count useEffect_TR invocations per render
+    // DEV-ONLY: Count useEffect_TR invocations per render + capture tag
     try {
       if (typeof window !== 'undefined') {
         const hn = window.location?.hostname || '';
         const isDevEnv = hn.includes('preview') || hn.includes('localhost');
         if (isDevEnv) {
-          if (!window.CQ_HOOK_CALLS) window.CQ_HOOK_CALLS = { renderId: 0, effectTR: 0, effectRAW: 0 };
+          if (!window.CQ_HOOK_CALLS) window.CQ_HOOK_CALLS = { renderId: 0, effectTR: 0, effectRAW: 0, tags: [] };
+          if (!window.CQ_HOOK_CALLS.tags) window.CQ_HOOK_CALLS.tags = [];
           window.CQ_HOOK_CALLS.effectTR += 1;
+          // Capture tag if labelOrFn is a string
+          if (typeof labelOrFn === 'string') {
+            window.CQ_HOOK_CALLS.tags.push(labelOrFn);
+          }
         }
       }
     } catch (_) {}
@@ -5180,6 +5186,21 @@ function CandidateInterviewInner() {
           effectRAW: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectRAW : null),
           reactUseEffectIsSameAsImported: (typeof React !== 'undefined' && React && React.useEffect ? (React.useEffect === useEffect) : null)
         });
+        
+        // DEV-ONLY: Log tag sequence when effectTR diverges
+        try {
+          if (typeof window !== 'undefined') {
+            const hn = window.location?.hostname || '';
+            const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+            if (isDevEnv && window.CQ_HOOK_CALLS && window.CQ_HOOK_CALLS.effectTR >= 15) {
+              console.log('[CQ_HOOK_SIG][TAGS]', {
+                renderId: window.CQ_HOOK_CALLS.renderId,
+                effectTR: window.CQ_HOOK_CALLS.effectTR,
+                tags: window.CQ_HOOK_CALLS.tags
+              });
+            }
+          }
+        } catch (_) {}
       }
     }
   } catch (_) {}
