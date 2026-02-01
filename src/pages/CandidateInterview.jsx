@@ -1692,13 +1692,9 @@ function CandidateInterviewInner() {
       if (canaryEnabled) {
         console.error('[CQ_BUNDLE_CANARY][ARMED]', { file: 'CandidateInterview.jsx', enabled: true });
         
-        // Canary breadcrumb (non-console)
+        // Bundle canary writes disabled (React #310 compliance)
         try {
-          window.__CQ_CANARY_HIT__ = Array.isArray(window.__CQ_CANARY_HIT__) ? window.__CQ_CANARY_HIT__ : [];
-          window.__CQ_CANARY_HIT__.push({ file: 'CandidateInterview.jsx', ts: Date.now(), buildStamp: 'CI_2026-01-23T00:00:00Z' });
-          if (typeof document !== 'undefined' && document.documentElement) {
-            // Canary fingerprint disabled (React #310 compliance)
-          }
+          // Canary breadcrumb disabled
         } catch (_) {}
         
         const reactVer = React?.version || 'unknown';
@@ -1710,7 +1706,7 @@ function CandidateInterviewInner() {
           componentEntered: true
         });
         
-        // Multi-React detector
+        // Bundle canary writes disabled (React #310 compliance)
         if (typeof window.CQ_REACT_VER !== 'undefined' && window.CQ_REACT_VER !== reactVer) {
           console.error('[CQ_MULTI_REACT_DETECTED]', {
             existing: window.CQ_REACT_VER,
@@ -1718,7 +1714,7 @@ function CandidateInterviewInner() {
             file: 'CandidateInterview.jsx'
           });
         } else {
-          window.CQ_REACT_VER = reactVer;
+          // CQ_REACT_VER write disabled
         }
       }
     }
@@ -2259,14 +2255,9 @@ function CandidateInterviewInner() {
           sessionId: (typeof sessionId !== 'undefined' ? sessionId : null)
         });
         
-        // Initialize per-session counter if needed
+        // Marker count tracking disabled (React #310 compliance)
         if (typeof sessionId !== 'undefined' && sessionId) {
-          if (!window.CQ_MARKER_COUNTS) window.CQ_MARKER_COUNTS = {};
-          if (!window.CQ_MARKER_COUNTS[sessionId]) {
-            window.CQ_MARKER_COUNTS[sessionId] = { pre: 0, post: 0 };
-          }
-          window.CQ_MARKER_COUNTS[sessionId].pre += 1;
-          console.log('[CQ_HOOK_SIG][PRE_COUNT]', { sessionId, pre: window.CQ_MARKER_COUNTS[sessionId].pre });
+          // PRE marker count disabled
         }
       }
     }
@@ -5317,12 +5308,7 @@ function CandidateInterviewInner() {
       const hn = window.location?.hostname || '';
       const isDevEnv = hn.includes('preview') || hn.includes('localhost');
       if (isDevEnv && typeof sessionId !== 'undefined' && sessionId) {
-        if (!window.CQ_MARKER_COUNTS) window.CQ_MARKER_COUNTS = {};
-        if (!window.CQ_MARKER_COUNTS[sessionId]) {
-          window.CQ_MARKER_COUNTS[sessionId] = { pre: 0, post: 0 };
-        }
-        window.CQ_MARKER_COUNTS[sessionId].post += 1;
-        console.log('[CQ_HOOK_SIG][POST_COUNT]', { sessionId, post: window.CQ_MARKER_COUNTS[sessionId].post });
+        // Marker count tracking disabled (React #310 compliance)
       }
     }
   } catch (_) {}
@@ -6475,7 +6461,7 @@ function CandidateInterviewInner() {
         try {
         if (typeof window !== 'undefined' && typeof React !== 'undefined') {
           const same = window.CQ_REACT_OBJ ? (window.CQ_REACT_OBJ === React) : true;
-          if (!window.CQ_REACT_OBJ) window.CQ_REACT_OBJ = React;
+          // React object tracking disabled (React #310 compliance)
 
           if (!same) {
             console.error('[CQ_MULTI_REACT_OBJ_DETECTED]', {
