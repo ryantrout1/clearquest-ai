@@ -5458,8 +5458,8 @@ function CandidateInterviewInner() {
       const bootKey = `cqBootStart_${sessionId}`;
       if (typeof window !== 'undefined' && sessionId) {
           if (!window[bootKey]) {
-              window[bootKey] = Date.now();
-              console.log('[CQ_BOOT_GUARD][ARMED]', { sessionId, bootStart: window[bootKey] });
+            // bootKey render write disabled (React #310 compliance)
+            console.log('[CQ_BOOT_GUARD][ARMED]', { sessionId, bootStart: window[bootKey] });
           }
 
           const bootAgeMs = Date.now() - window[bootKey];
