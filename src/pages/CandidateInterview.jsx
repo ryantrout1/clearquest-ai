@@ -1708,6 +1708,22 @@ function CandidateInterviewInner() {
         }
       } catch (_) {}
 
+      // IDX 14 STACK CAPTURE: Always-on for pinpoint diagnostics
+      if (currentIdx === 14) {
+        try {
+          if (typeof window !== 'undefined') {
+            const stack = (new Error('CQ_TRACE_IDX14')).stack;
+            window.__CQ_TRACE_IDX14_STACK__ = {
+              kind,
+              label: labelOpt || null,
+              stack,
+              ts: Date.now()
+            };
+            console.log('[CQ_HOOK_TRACE][IDX14_STACK]', window.__CQ_TRACE_IDX14_STACK__);
+          }
+        } catch (_) {}
+      }
+
       if (currentIdx === 12 || currentIdx === 13 || currentIdx === 14) {
         let stack = null;
         try { stack = (new Error('CQ_HOOK_CALLSITE')).stack; } catch (_) {}
