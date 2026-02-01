@@ -131,44 +131,52 @@ try {
   if (typeof window !== 'undefined') {
     const traceEnabled = (typeof localStorage !== 'undefined') && localStorage.getItem('CQ_TRACE') === '1';
     const censusEnabled = (typeof localStorage !== 'undefined') && localStorage.getItem('CQ_CENSUS') === '1';
+    
+    // window.name fallback: read flags from window.name if localStorage blocked
+    const nameStr = (typeof window !== 'undefined' && typeof window.name === 'string') ? window.name : '';
+    const nameTrace = nameStr.includes('CQ_TRACE=1');
+    const nameCensus = nameStr.includes('CQ_CENSUS=1');
+    
+    const traceEnabledFinal = traceEnabled || nameTrace;
+    const censusEnabledFinal = censusEnabled || nameCensus;
 
-    if (traceEnabled) window.CQ_DEBUG_HOOK_TRACE = true;
-    if (censusEnabled) window.CQ_DEBUG_HOOK_CENSUS = true;
+    if (traceEnabledFinal) window.CQ_DEBUG_HOOK_TRACE = true;
+    if (censusEnabledFinal) window.CQ_DEBUG_HOOK_CENSUS = true;
 
     // Ensure cqGetDebugFlag() sees the flags (it often reads __CQ_DEBUG_FLAGS__)
     try {
       const g = (typeof globalThis !== 'undefined') ? globalThis : null;
-      if (traceEnabled || censusEnabled) {
+      if (traceEnabledFinal || censusEnabledFinal) {
         if (g) {
           if (!g.__CQ_DEBUG_FLAGS__) g.__CQ_DEBUG_FLAGS__ = {};
-          if (traceEnabled) g.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE = true;
-          if (censusEnabled) g.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_CENSUS = true;
+          if (traceEnabledFinal) g.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE = true;
+          if (censusEnabledFinal) g.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_CENSUS = true;
         }
         if (typeof window !== 'undefined') {
           if (!window.__CQ_DEBUG_FLAGS__) window.__CQ_DEBUG_FLAGS__ = {};
-          if (traceEnabled) window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE = true;
-          if (censusEnabled) window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_CENSUS = true;
+          if (traceEnabledFinal) window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE = true;
+          if (censusEnabledFinal) window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_CENSUS = true;
         }
       }
     } catch (_) {}
 
     // Mirror to parent frame when possible (Base44 preview uses iframes)
-    if (traceEnabled || censusEnabled) {
+    if (traceEnabledFinal || censusEnabledFinal) {
       try {
         if (window.top && window.top !== window) {
-          if (traceEnabled) window.top.CQ_DEBUG_HOOK_TRACE = true;
-          if (censusEnabled) window.top.CQ_DEBUG_HOOK_CENSUS = true;
+          if (traceEnabledFinal) window.top.CQ_DEBUG_HOOK_TRACE = true;
+          if (censusEnabledFinal) window.top.CQ_DEBUG_HOOK_CENSUS = true;
           if (!window.top.__CQ_DEBUG_FLAGS__) window.top.__CQ_DEBUG_FLAGS__ = {};
-          if (traceEnabled) window.top.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE = true;
-          if (censusEnabled) window.top.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_CENSUS = true;
+          if (traceEnabledFinal) window.top.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE = true;
+          if (censusEnabledFinal) window.top.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_CENSUS = true;
         }
       } catch (_) {}
     }
 
     // Log only when at least one key is enabled (keeps Mode A quiet by default)
-    if (traceEnabled || censusEnabled) {
+    if (traceEnabledFinal || censusEnabledFinal) {
       try {
-        console.log('[CQ_DIAG_ACTIVATOR][ENABLED]', { traceEnabled, censusEnabled });
+        console.log('[CQ_DIAG_ACTIVATOR][ENABLED]', { traceEnabled: traceEnabledFinal, censusEnabled: censusEnabledFinal });
       } catch (_) {}
     }
     
@@ -179,10 +187,17 @@ try {
           window.__CQ_DIAG_ACTIVATOR_STATUS_LOGGED__ = true;
           const lsTrace = (typeof localStorage !== 'undefined') ? localStorage.getItem('CQ_TRACE') : '(no-localStorage)';
           const lsCensus = (typeof localStorage !== 'undefined') ? localStorage.getItem('CQ_CENSUS') : '(no-localStorage)';
+          const nameStr = (typeof window.name === 'string') ? window.name : '';
+          const nameTrace = nameStr.includes('CQ_TRACE=1');
+          const nameCensus = nameStr.includes('CQ_CENSUS=1');
+          
           console.log('[CQ_DIAG_ACTIVATOR][STATUS]', {
             href: window.location?.href || null,
             lsTrace,
             lsCensus,
+            name: nameStr,
+            nameTrace,
+            nameCensus,
             winTrace: window.CQ_DEBUG_HOOK_TRACE === true,
             winCensus: window.CQ_DEBUG_HOOK_CENSUS === true,
             bagTrace: !!(window.__CQ_DEBUG_FLAGS__ && window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE === true),
