@@ -5306,8 +5306,8 @@ function CandidateInterviewInner() {
     try { console.log('[CQ_301_DIAG][FULL_RESET][EXIT]'); } catch (_) {}
   }, [sessionId]);
   
-  // HOOK CENSUS: Mark after final hook
-  cqHookMark('POST_HOOKS');
+  // HOOK CENSUS: Mark after final MAIN hook (T01-T15 interview logic)
+  cqHookMark('POST_MAIN_HOOKS');
   
   // DEV-ONLY: POST_HOOKS marker counter increment
   try {
@@ -5330,7 +5330,7 @@ function CandidateInterviewInner() {
       const hn = window.location?.hostname || '';
       const isDevEnv = hn.includes('preview') || hn.includes('localhost');
       if (isDevEnv) {
-        console.log('[CQ_HOOK_SIG][AFTER_POST_MARKER]', {
+        console.log('[CQ_HOOK_SIG][AFTER_POST_MAIN_HOOKS]', {
           sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
           isLoading: (typeof isLoading !== 'undefined' ? isLoading : null),
           hasSession: (typeof session !== 'undefined' ? !!session : null),
@@ -15612,6 +15612,9 @@ function CandidateInterviewInner() {
       setScreenMode("QUESTION");
     }
   }, [screenMode, currentItem_S, v3ProbingActive, transcriptSOT_S]);
+  
+  // HOOK CENSUS: Mark after TRUE final hook (end of ALL hooks including layout/scroll)
+  cqHookMark('TRUE_POST_HOOKS');
 
   // Transcript logging is now handled in answer saving functions where we have Response IDs
   // This prevents logging questions with null responseId
