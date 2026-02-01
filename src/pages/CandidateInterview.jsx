@@ -5351,8 +5351,8 @@ function CandidateInterviewInner() {
             const isDevEnv = hn.includes('preview') || hn.includes('localhost');
             if (isDevEnv && window.CQ_HOOK_CALLS) {
               const v = window.CQ_HOOK_CALLS.effectTR;
-              if (v !== 15) {
-                console.error('[CQ_HOOK_INVARIANT][POST_MAIN_FAIL]', { renderId: window.CQ_HOOK_CALLS.renderId, effectTR: v, expected: 15 });
+              if (v !== 12) {
+                console.error('[CQ_HOOK_INVARIANT][POST_MAIN_FAIL]', { renderId: window.CQ_HOOK_CALLS.renderId, effectTR: v, expected: 12 });
               }
             }
           }
@@ -15648,8 +15648,8 @@ function CandidateInterviewInner() {
         if (window.CQ_HOOK_CALLS) {
           const v = window.CQ_HOOK_CALLS.effectTR;
           const same = (typeof React !== 'undefined' && React && React.useEffect ? (React.useEffect === useEffect) : null);
-          if (v !== 20 || same !== true) {
-            console.error('[CQ_HOOK_INVARIANT][TRUE_POST_FAIL]', { renderId: window.CQ_HOOK_CALLS.renderId, effectTR: v, expected: 20, reactUseEffectIsSameAsImported: same });
+          if (v !== 19 || same !== true) {
+            console.error('[CQ_HOOK_INVARIANT][TRUE_POST_FAIL]', { renderId: window.CQ_HOOK_CALLS.renderId, effectTR: v, expected: 19, reactUseEffectIsSameAsImported: same });
           }
         }
       }
