@@ -6,6 +6,36 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 
 // ============================================================================
+// STABILITY SUMMARY - Hook Invariants & Debug Flags (Current State)
+// ============================================================================
+// HOOK INVARIANTS (enforced by dev-only tripwires):
+//   POST_MAIN expected effectTR = 12  (after main interview logic hooks T01-T15)
+//   TRUE_POST expected effectTR = 19  (after ALL hooks including layout/scroll)
+//
+// WHAT effectTR COUNTS:
+//   - useEffect_TR() calls ONLY (increments window.CQ_HOOK_CALLS.effectTR)
+//   - useCallback_TR() → increments useCallbackN (NOT effectTR)
+//   - Raw useEffect/useLayoutEffect → NOT tracked by effectTR
+//
+// VERBOSE FLAG (enable per-render signature logs):
+//   window.CQ_VERBOSE_HOOK_SIG = true  // Shows AFTER_POST_MAIN, COMPACT, AFTER_TRUE_POST
+//
+// REGRESSION SIGNALS (always-on, never gated):
+//   [CQ_HOOK_INVARIANT][POST_MAIN_FAIL]  → effectTR ≠ 12
+//   [CQ_HOOK_INVARIANT][TRUE_POST_FAIL]  → effectTR ≠ 19 OR dual React detected
+//
+// CRITICAL ORDERING REQUIREMENTS:
+//   - T15 (FULL_SESSION_RESET) must remain BEFORE POST_MAIN_HOOKS marker
+//   - reactUseEffectIsSameAsImported must remain true (single React instance)
+//   - Hook count must be stable across all render paths (no conditional hooks)
+//
+// DEBUGGING:
+//   - Enable verbose: window.CQ_VERBOSE_HOOK_SIG = true; (reload)
+//   - Enable census: localStorage.setItem('CQ_CENSUS', '1'); (reload)
+//   - Enable trace: localStorage.setItem('CQ_TRACE', '1'); (reload)
+// ============================================================================
+
+// ============================================================================
 // LOGGING CONTROL - Minimal runtime gate for console spam reduction
 // ============================================================================
 const CQ_LOG_LEVEL = (() => {
