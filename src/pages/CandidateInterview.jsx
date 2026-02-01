@@ -96,10 +96,7 @@ try {
     try { if (window.top && window.top !== window) { window.top.__CQ_MODULE_LOAD_PROOF__ = payload; } } catch (_) {}
   }
 } catch (_) {}
-console.log('[CQ_PROOF][MODULE]', {
-  w: (typeof window !== 'undefined') ? window.__CQ_MODULE_LOAD_PROOF__ : 'no-window',
-  top: (typeof window !== 'undefined') ? (function(){ try { return (window.top && window.top.__CQ_MODULE_LOAD_PROOF__) ? window.top.__CQ_MODULE_LOAD_PROOF__ : null; } catch(e){ return 'top-blocked'; } })() : 'no-window'
-});
+// console.log('[CQ_PROOF][MODULE]', { ... }); // Disabled - Mode A cleanup
 
 // ============================================================================
 // FETCH INTERCEPTOR - Block /entities/User/me on public routes
@@ -1473,10 +1470,7 @@ function CandidateInterviewInner() {
       try { if (window.top && window.top !== window) { window.top.__CQ_COMPONENT_ENTRY_PROOF__ = payload; } } catch (_) {}
     }
   } catch (_) {}
-  console.log('[CQ_PROOF][ENTRY]', {
-    w: (typeof window !== 'undefined') ? window.__CQ_COMPONENT_ENTRY_PROOF__ : 'no-window',
-    top: (typeof window !== 'undefined') ? (function(){ try { return (window.top && window.top.__CQ_COMPONENT_ENTRY_PROOF__) ? window.top.__CQ_COMPONENT_ENTRY_PROOF__ : null; } catch(e){ return 'top-blocked'; } })() : 'no-window'
-  });
+  // console.log('[CQ_PROOF][ENTRY]', { ... }); // Disabled - Mode A cleanup
   
   try {
     if (typeof window !== 'undefined') {
@@ -1630,7 +1624,7 @@ function CandidateInterviewInner() {
 
   // [CQ_HOOK_TRACE] dev-only hook index tracer (local to this render)
   var __cqHookTraceIdx = 0;
-  const __cqHookTraceEnabled = __cqIsPreviewEnv ? true : (() => {
+  const __cqHookTraceEnabled = (() => {
     try {
       const g = (typeof globalThis !== 'undefined') ? globalThis : undefined;
       const gBag = g && g.__CQ_DEBUG_FLAGS__ ? g.__CQ_DEBUG_FLAGS__ : undefined;
@@ -1645,27 +1639,31 @@ function CandidateInterviewInner() {
       return false;
     }
   })();
-  try {
-    if (typeof window !== 'undefined') {
-      console.log('[CQ_HOOK_TRACE][INIT]', {
-        enabled: __cqHookTraceEnabled,
-        hasFlag: {
-          globalThis: (typeof globalThis !== 'undefined' && globalThis.__CQ_DEBUG_FLAGS__) ? globalThis.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE : '(missing)',
-          windowBag: (typeof window !== 'undefined' && window.__CQ_DEBUG_FLAGS__) ? window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE : '(missing)',
-          windowDirect: (typeof window !== 'undefined') ? window.CQ_DEBUG_HOOK_TRACE : '(missing)'
-        },
-        ts: Date.now()
-      });
-    }
-  } catch (_) {}
-  try {
-    const gVal = (typeof globalThis !== 'undefined' && globalThis.__CQ_DEBUG_FLAGS__) ? globalThis.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE : '(missing)';
-    const wBagVal = (typeof window !== 'undefined' && window.__CQ_DEBUG_FLAGS__) ? window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE : '(missing)';
-    const wDirectVal = (typeof window !== 'undefined') ? window.CQ_DEBUG_HOOK_TRACE : '(missing)';
-    const cqTraceVal = cqHasQueryFlag('cqTrace');
-    console.log('[CQ_HOOK_TRACE][FLAG_SOURCES]', `cqTrace=${String(cqTraceVal)} globalThis=${String(gVal)} windowBag=${String(wBagVal)} windowDirect=${String(wDirectVal)}`);
-  } catch (_) {}
-  if (__cqIsPreviewEnv && typeof window !== 'undefined') {
+  if (__cqHookTraceEnabled) {
+    try {
+      if (typeof window !== 'undefined') {
+        console.log('[CQ_HOOK_TRACE][INIT]', {
+          enabled: __cqHookTraceEnabled,
+          hasFlag: {
+            globalThis: (typeof globalThis !== 'undefined' && globalThis.__CQ_DEBUG_FLAGS__) ? globalThis.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE : '(missing)',
+            windowBag: (typeof window !== 'undefined' && window.__CQ_DEBUG_FLAGS__) ? window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE : '(missing)',
+            windowDirect: (typeof window !== 'undefined') ? window.CQ_DEBUG_HOOK_TRACE : '(missing)'
+          },
+          ts: Date.now()
+        });
+      }
+    } catch (_) {}
+  }
+  if (__cqHookTraceEnabled) {
+    try {
+      const gVal = (typeof globalThis !== 'undefined' && globalThis.__CQ_DEBUG_FLAGS__) ? globalThis.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE : '(missing)';
+      const wBagVal = (typeof window !== 'undefined' && window.__CQ_DEBUG_FLAGS__) ? window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE : '(missing)';
+      const wDirectVal = (typeof window !== 'undefined') ? window.CQ_DEBUG_HOOK_TRACE : '(missing)';
+      const cqTraceVal = cqHasQueryFlag('cqTrace');
+      console.log('[CQ_HOOK_TRACE][FLAG_SOURCES]', `cqTrace=${String(cqTraceVal)} globalThis=${String(gVal)} windowBag=${String(wBagVal)} windowDirect=${String(wDirectVal)}`);
+    } catch (_) {}
+  }
+  if (__cqIsPreviewEnv && __cqHookTraceEnabled && typeof window !== 'undefined') {
     try {
       console.log('[CQ_HOOK_TRACE][FORCED_ON_PREVIEW]', { hostname: window.location?.hostname, note: 'Temporary diagnostic override' });
     } catch (_) {}
