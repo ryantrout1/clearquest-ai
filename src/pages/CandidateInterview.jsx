@@ -1671,7 +1671,7 @@ function CandidateInterviewInner() {
     } catch (_) {}
   }
   var __cqHookTraceLoggedDisabled = false;
-  function __cqTrace(kind) {
+  function __cqTrace(kind, labelOpt) {
     try {
       const traceEnabled = (typeof __cqHookTraceEnabled !== 'undefined') ? __cqHookTraceEnabled : false;
 
@@ -1695,12 +1695,16 @@ function CandidateInterviewInner() {
       const currentIdx = __cqHookTraceIdx;
 
       try {
-        console.log('[CQ_HOOK_TRACE]', { idx: currentIdx, kind, ts: Date.now() });
+        const logPayload = { idx: currentIdx, kind, ts: Date.now() };
+        if (labelOpt) logPayload.label = labelOpt;
+        console.log('[CQ_HOOK_TRACE]', logPayload);
       } catch (_) {}
 
       try {
         if (typeof window !== 'undefined') {
-          window.__CQ_LAST_HOOKSITE__ = `TRACE:${kind}:${currentIdx}`;
+          window.__CQ_LAST_HOOKSITE__ = labelOpt 
+            ? `TRACE:${kind}:${currentIdx}:${labelOpt}`
+            : `TRACE:${kind}:${currentIdx}`;
         }
       } catch (_) {}
 
@@ -1741,9 +1745,27 @@ function CandidateInterviewInner() {
   };
   
   // Traced hook aliases (local to this component)
-  function useEffect_TR(...args) { __cqTrace('useEffect'); return useEffect(...args); }
-  function useLayoutEffect_TR(...args) { __cqTrace('useLayoutEffect'); return useLayoutEffect(...args); }
-  function ReactUseLayoutEffect_TR(...args) { __cqTrace('React.useLayoutEffect'); return React.useLayoutEffect(...args); }
+  function useEffect_TR(labelOrFn, ...rest) {
+    const isLabel = typeof labelOrFn === 'string';
+    const label = isLabel ? labelOrFn : undefined;
+    const hookArgs = isLabel ? rest : [labelOrFn, ...rest];
+    __cqTrace('useEffect', label);
+    return useEffect(...hookArgs);
+  }
+  function useLayoutEffect_TR(labelOrFn, ...rest) {
+    const isLabel = typeof labelOrFn === 'string';
+    const label = isLabel ? labelOrFn : undefined;
+    const hookArgs = isLabel ? rest : [labelOrFn, ...rest];
+    __cqTrace('useLayoutEffect', label);
+    return useLayoutEffect(...hookArgs);
+  }
+  function ReactUseLayoutEffect_TR(labelOrFn, ...rest) {
+    const isLabel = typeof labelOrFn === 'string';
+    const label = isLabel ? labelOrFn : undefined;
+    const hookArgs = isLabel ? rest : [labelOrFn, ...rest];
+    __cqTrace('React.useLayoutEffect', label);
+    return React.useLayoutEffect(...hookArgs);
+  }
   function useCallback_TR(...args) { __cqTrace('useCallback'); return useCallback(...args); }
   function useRef_TR_L(label, ...args) { __cqTrace(`useRef:${label}`); return useRef(...args); }
   
@@ -14732,7 +14754,7 @@ function CandidateInterviewInner() {
   // Re-anchor bottom on footer height changes when auto-scroll is enabled
   // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
   cqHookMark('HOOK_51:useEffect:reAnchorOnFooterHeight');
-  useEffect_TR(() => {
+  useEffect_TR("H51_REANCHOR_FOOTER", () => {
     // SCROLL LOCK GATE: Block footer height re-anchor during any scroll lock
     if (isScrollWriteLocked()) {
       return;
@@ -14753,7 +14775,7 @@ function CandidateInterviewInner() {
   
   // ANCHOR V3 PROBE QUESTION: Keep just-appended question visible (ChatGPT-style)
   cqHookMark('HOOK_52:useLayoutEffect:anchorV3ProbeQ');
-  ReactUseLayoutEffect_TR(() => {
+  ReactUseLayoutEffect_TR("H52_ANCHOR_V3_PROBE", () => {
     // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars (may be undefined on some renders)
     const _bottomBarModeSOT_SAFE = (typeof bottomBarModeSOT_SAFE !== 'undefined') ? bottomBarModeSOT_SAFE : null;
     const _dynamicBottomPaddingPx = (typeof dynamicBottomPaddingPx !== 'undefined') ? dynamicBottomPaddingPx : 0;
@@ -14848,7 +14870,7 @@ function CandidateInterviewInner() {
   
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   cqHookMark('HOOK_53:useLayoutEffect:forceScrollQuestionShown');
-  ReactUseLayoutEffect_TR(() => {
+  ReactUseLayoutEffect_TR("H53_FORCE_SCROLL_Q_SHOWN", () => {
     // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
     const _effectiveItemType = (typeof effectiveItemType !== 'undefined') ? effectiveItemType : null;
     const _shouldRenderFooter_SAFE = (typeof shouldRenderFooter_SAFE !== 'undefined') ? shouldRenderFooter_SAFE : false;
@@ -14961,7 +14983,7 @@ function CandidateInterviewInner() {
   
   // FOOTER PADDING COMPENSATION: Prevent jump when footer height changes
   cqHookMark('HOOK_54:useLayoutEffect:footerPaddingCompensate');
-  ReactUseLayoutEffect_TR(() => {
+  ReactUseLayoutEffect_TR("H54_FOOTER_PADDING_COMP", () => {
     // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
     const _dynamicBottomPaddingPx = (typeof dynamicBottomPaddingPx !== 'undefined') ? dynamicBottomPaddingPx : 0;
     const _bottomBarModeSOT = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
@@ -15053,7 +15075,7 @@ function CandidateInterviewInner() {
   
   // FOOTER OVERLAP CLAMP: Ensure active card never behind footer (unconditional)
   cqHookMark('HOOK_55:useLayoutEffect:footerOverlapClamp');
-  ReactUseLayoutEffect_TR(() => {
+  ReactUseLayoutEffect_TR("H55_OVERLAP_CLAMP", () => {
     // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
     const _shouldRenderFooter_SAFE = (typeof shouldRenderFooter_SAFE !== 'undefined') ? shouldRenderFooter_SAFE : false;
     const _hasActiveCardSOT = (typeof hasActiveCardSOT !== 'undefined') ? hasActiveCardSOT : false;
