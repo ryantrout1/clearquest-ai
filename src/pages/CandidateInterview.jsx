@@ -15615,6 +15615,22 @@ function CandidateInterviewInner() {
   
   // HOOK CENSUS: Mark after TRUE final hook (end of ALL hooks including layout/scroll)
   cqHookMark('TRUE_POST_HOOKS');
+  
+  // DEV-ONLY CENSUS SIGNATURE (after TRUE_POST_HOOKS marker)
+  try {
+    if (typeof window !== 'undefined') {
+      const hn = window.location?.hostname || '';
+      const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+      if (isDevEnv) {
+        console.log('[CQ_HOOK_SIG][AFTER_TRUE_POST_HOOKS]', {
+          renderId: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.renderId : null),
+          effectTR: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectTR : null),
+          effectRAW: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectRAW : null),
+          reactUseEffectIsSameAsImported: (typeof React !== 'undefined' && React && React.useEffect ? (React.useEffect === useEffect) : null)
+        });
+      }
+    }
+  } catch (_) {}
 
   // Transcript logging is now handled in answer saving functions where we have Response IDs
   // This prevents logging questions with null responseId
