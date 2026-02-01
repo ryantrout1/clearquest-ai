@@ -96,6 +96,10 @@ try {
     try { if (window.top && window.top !== window) { window.top.__CQ_MODULE_LOAD_PROOF__ = payload; } } catch (_) {}
   }
 } catch (_) {}
+console.log('[CQ_PROOF][MODULE]', {
+  w: (typeof window !== 'undefined') ? window.__CQ_MODULE_LOAD_PROOF__ : 'no-window',
+  top: (typeof window !== 'undefined') ? (function(){ try { return (window.top && window.top.__CQ_MODULE_LOAD_PROOF__) ? window.top.__CQ_MODULE_LOAD_PROOF__ : null; } catch(e){ return 'top-blocked'; } })() : 'no-window'
+});
 
 // ============================================================================
 // FETCH INTERCEPTOR - Block /entities/User/me on public routes
@@ -1469,6 +1473,10 @@ function CandidateInterviewInner() {
       try { if (window.top && window.top !== window) { window.top.__CQ_COMPONENT_ENTRY_PROOF__ = payload; } } catch (_) {}
     }
   } catch (_) {}
+  console.log('[CQ_PROOF][ENTRY]', {
+    w: (typeof window !== 'undefined') ? window.__CQ_COMPONENT_ENTRY_PROOF__ : 'no-window',
+    top: (typeof window !== 'undefined') ? (function(){ try { return (window.top && window.top.__CQ_COMPONENT_ENTRY_PROOF__) ? window.top.__CQ_COMPONENT_ENTRY_PROOF__ : null; } catch(e){ return 'top-blocked'; } })() : 'no-window'
+  });
   
   try {
     if (typeof window !== 'undefined') {
@@ -1739,6 +1747,18 @@ function CandidateInterviewInner() {
   function useCallback_TR(...args) { __cqTrace('useCallback'); return useCallback(...args); }
   function useRef_TR_L(label, ...args) { __cqTrace(`useRef:${label}`); return useRef(...args); }
   
+  // HOOK CENSUS HELPER: Log trace counter state (dev-only, no hook)
+  const cqLogHookCensus = (label) => {
+    try {
+      if (typeof window === 'undefined') return;
+      console.log('[CQ_HOOK_CENSUS]', {
+        label,
+        traceIdx: (typeof __cqHookTraceIdx !== 'undefined') ? __cqHookTraceIdx : 'unbound',
+        ts: Date.now()
+      });
+    } catch (_) {}
+  };
+  
   // REACT #310 CENSUS: Auto-enable for rid 4 ONLY (isolate crashing render)
   // [REMOVED: Render-time census auto-enable]
   
@@ -1966,6 +1986,7 @@ function CandidateInterviewInner() {
   
   // HOOK CENSUS: Mark before first hook
   cqHookMark('PRE_HOOKS');
+  cqLogHookCensus('PRE_HOOKS');
   cqSetRenderStep('PRE_HOOKS:FIRST_HOOK');
   cqHookMark('HOOK_01:useNavigate');
   try {
