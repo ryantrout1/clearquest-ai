@@ -1662,7 +1662,9 @@ function CandidateInterviewInner() {
     }
   } catch (_) {}
   
-  try { if (typeof window !== 'undefined') { window.CQ_LAST_RENDER_STEP = 'ENTER_COMPONENT_TOP'; window.__CQ_LAST_RENDER_STEP__ = 'ENTER_COMPONENT_TOP'; } } catch (_) {}
+  try { 
+    // Render-step tracking disabled (React #310 compliance)
+  } catch (_) {}
   
   // PROOF-OF-LIFE: Component entry marker (proves execution reached this point)
   try {
