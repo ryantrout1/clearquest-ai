@@ -5343,6 +5343,21 @@ function CandidateInterviewInner() {
           reactUseEffectIsSameAsImported: (typeof React !== 'undefined' && React && React.useEffect ? (React.useEffect === useEffect) : null),
           reactObjType: (typeof React !== 'undefined' && React ? Object.prototype.toString.call(React) : null)
         });
+        
+        // DEV-ONLY INVARIANT TRIPWIRE (POST_MAIN_HOOKS checkpoint)
+        try {
+          if (typeof window !== 'undefined') {
+            const hn = window.location?.hostname || '';
+            const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+            if (isDevEnv && window.CQ_HOOK_CALLS) {
+              const v = window.CQ_HOOK_CALLS.effectTR;
+              if (v !== 15) {
+                console.error('[CQ_HOOK_INVARIANT][POST_MAIN_FAIL]', { renderId: window.CQ_HOOK_CALLS.renderId, effectTR: v, expected: 15 });
+              }
+            }
+          }
+        } catch (_) {}
+        
         console.log('[CQ_HOOK_SIG][COMPACT]', {
           renderId: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.renderId : null),
           effectTR: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectTR : null),
@@ -15628,6 +15643,15 @@ function CandidateInterviewInner() {
           effectRAW: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectRAW : null),
           reactUseEffectIsSameAsImported: (typeof React !== 'undefined' && React && React.useEffect ? (React.useEffect === useEffect) : null)
         });
+        
+        // DEV-ONLY INVARIANT TRIPWIRE (TRUE_POST_HOOKS checkpoint)
+        if (window.CQ_HOOK_CALLS) {
+          const v = window.CQ_HOOK_CALLS.effectTR;
+          const same = (typeof React !== 'undefined' && React && React.useEffect ? (React.useEffect === useEffect) : null);
+          if (v !== 20 || same !== true) {
+            console.error('[CQ_HOOK_INVARIANT][TRUE_POST_FAIL]', { renderId: window.CQ_HOOK_CALLS.renderId, effectTR: v, expected: 20, reactUseEffectIsSameAsImported: same });
+          }
+        }
       }
     }
   } catch (_) {}
