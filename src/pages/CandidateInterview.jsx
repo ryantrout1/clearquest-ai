@@ -91,11 +91,9 @@ import { getV3DeterministicOpener } from "../components/utils/v3ProbingPrompts";
 // ============================================================================
 try {
   if (typeof window !== 'undefined') {
-    window.__CQ_MODULE_LOAD_PROOF__ = {
-      ts: Date.now(),
-      file: 'CandidateInterview.jsx',
-      marker: 'MODULE_EVALUATED'
-    };
+    const payload = { ts: Date.now(), file: 'CandidateInterview.jsx', marker: 'MODULE_EVALUATED' };
+    window.__CQ_MODULE_LOAD_PROOF__ = payload;
+    try { if (window.top && window.top !== window) { window.top.__CQ_MODULE_LOAD_PROOF__ = payload; } } catch (_) {}
   }
 } catch (_) {}
 
@@ -1466,11 +1464,9 @@ function CandidateInterviewInner() {
   // PROOF-OF-LIFE: Component entry marker (proves execution reached this point)
   try {
     if (typeof window !== 'undefined') {
-      window.__CQ_COMPONENT_ENTRY_PROOF__ = { 
-        ts: Date.now(), 
-        file: 'CandidateInterview.jsx', 
-        marker: 'ENTER_COMPONENT_TOP' 
-      };
+      const payload = { ts: Date.now(), file: 'CandidateInterview.jsx', marker: 'ENTER_COMPONENT_TOP' };
+      window.__CQ_COMPONENT_ENTRY_PROOF__ = payload;
+      try { if (window.top && window.top !== window) { window.top.__CQ_COMPONENT_ENTRY_PROOF__ = payload; } } catch (_) {}
     }
   } catch (_) {}
   
