@@ -87,6 +87,19 @@ import {
 import { getV3DeterministicOpener } from "../components/utils/v3ProbingPrompts";
 
 // ============================================================================
+// MODULE LOAD PROOF - Diagnostic marker for module evaluation
+// ============================================================================
+try {
+  if (typeof window !== 'undefined') {
+    window.__CQ_MODULE_LOAD_PROOF__ = {
+      ts: Date.now(),
+      file: 'CandidateInterview.jsx',
+      marker: 'MODULE_EVALUATED'
+    };
+  }
+} catch (_) {}
+
+// ============================================================================
 // FETCH INTERCEPTOR - Block /entities/User/me on public routes
 // ============================================================================
 if (typeof window !== "undefined" && !window.__CQAI_FETCH_WRAPPED__) {
