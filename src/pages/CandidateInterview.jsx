@@ -4842,6 +4842,24 @@ function CandidateInterviewInner() {
     // Just track the current field - actual logging happens in handleAnswer
   }, [__cqBootNotReady, v2PackMode, activeV2Pack, currentItem_S]);
   
+  // ============================================================================
+  // HOOK 14/56: BOOT LATCH SET (React #310 fix)
+  // ============================================================================
+  useEffect_TR("T14_BOOT_LATCH_SET", () => {
+    if (__cqBootNotReady) return;
+    if (cqBootReadyLatchedRef.current) return;
+    
+    cqBootReadyLatchedRef.current = true;
+    
+    try {
+      console.log('[CQ_BOOT][LATCH_SET_TRUE]', {
+        sessionId,
+        ts: Date.now(),
+        reason: 'Boot complete - latch set in effect (post-render)'
+      });
+    } catch (_) {}
+  }, [__cqBootNotReady, sessionId]);
+  
   // HOOK CENSUS: Mark after final hook
   cqHookMark('POST_HOOKS');
   cqSetRenderStep('HOOK_TRACE:WRAPPERS_READY');
@@ -4991,10 +5009,7 @@ function CandidateInterviewInner() {
   // BOOT GATE: Skip TRY1/derived logic when boot incomplete (preserves hook order)
   // NOTE: __cqBootNotReady now declared above BATCH 1 hooks (line ~3220) to prevent TDZ in dep arrays
   
-  // BOOT READY LATCH: One-time activation when boot completes
-  if (!__cqBootNotReady && !cqBootReadyLatchedRef.current) {
-    cqBootReadyLatchedRef.current = true;
-  }
+  // BOOT READY LATCH: Moved to T14 effect (React #310 fix)
   
   // BOOT READY LOG: One-time confirmation when guard passes (DEPRECATED - uses latch instead)
   if (typeof window !== 'undefined' && sessionId) {
@@ -6800,10 +6815,10 @@ function CandidateInterviewInner() {
   // cqHookMark('PRE_RESET_BLOCK_A');
   
   // ============================================================================
-  // HOOK 13/56: FULL SESSION RESET (UNCONDITIONAL - React #310 fix)
+  // HOOK 15/56: FULL SESSION RESET (UNCONDITIONAL - React #310 fix)
   // ============================================================================
   // FULL SESSION RESET: Cleanup all interview-local state when sessionId changes (prevent cross-session leakage)
-  useEffect_TR("T14_FULL_SESSION_RESET", () => {
+  useEffect_TR("T15_FULL_SESSION_RESET", () => {
     try {
       console.log("[CQ_301_DIAG][FULL_RESET_EFFECT_ENTER]", {
         rid: (typeof __cqRid !== 'undefined' ? __cqRid : 'no_rid'),
