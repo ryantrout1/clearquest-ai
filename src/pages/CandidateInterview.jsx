@@ -1450,6 +1450,17 @@ const runV2FieldProbeIfNeeded = async ({
 function CandidateInterviewInner() {
   try { if (typeof window !== 'undefined') { window.CQ_LAST_RENDER_STEP = 'ENTER_COMPONENT_TOP'; window.__CQ_LAST_RENDER_STEP__ = 'ENTER_COMPONENT_TOP'; } } catch (_) {}
   
+  // PROOF-OF-LIFE: Component entry marker (proves execution reached this point)
+  try {
+    if (typeof window !== 'undefined') {
+      window.__CQ_COMPONENT_ENTRY_PROOF__ = { 
+        ts: Date.now(), 
+        file: 'CandidateInterview.jsx', 
+        marker: 'ENTER_COMPONENT_TOP' 
+      };
+    }
+  } catch (_) {}
+  
   try {
     if (typeof window !== 'undefined') {
       // window.__CQ_LAST_RENDER_STEP__ = 'ENTER_RENDER';
@@ -17288,6 +17299,14 @@ function CandidateInterviewInner() {
   // ============================================================================
   // PRE-RENDER TRANSCRIPT PROCESSING - Moved from IIFE to component scope
   // ============================================================================
+  // ============================================================================
+  // ⚠️ CRITICAL: TDZ MINEFIELD — DO NOT EDIT WITHOUT FULL RE-AUDIT
+  // ============================================================================
+  // This 250-line derived snapshot block is EXTREMELY fragile.
+  // ANY edit to declaration order can create cascading "Cannot access before initialization" crashes.
+  // All dependencies MUST be declared BEFORE this block (currently verified safe).
+  // If you must edit: extract to pure function with explicit parameters instead.
+  // ============================================================================
   cqSetRenderStep('TRY1:DERIVED_START');
   // [TDZ_GUARD][DERIVED_SNAPSHOT]
   // Centralized render-time derived computations (NO hooks in this block).
@@ -19889,6 +19908,14 @@ function CandidateInterviewInner() {
   const currentItem_SAFE = currentItem_S ?? null;
   const v3ProbingContext_SAFE = v3ProbingContext_S ?? null;
 
+  // ============================================================================
+  // ⚠️ CRITICAL: PARAMETER ORDER SENSITIVE — DO NOT REORDER
+  // ============================================================================
+  // Planner function calls with 20+ parameters in strict order.
+  // ALL parameters MUST exist before planner calls (verified via SAFE wrappers).
+  // Passing undefined breaks planners (defensive fallbacks in place but prefer correctness).
+  // If you must edit: verify ALL params declared BEFORE line 18892.
+  // ============================================================================
   cqSetRenderStep('TRY1:PLANNER_CALLS_START');
   // TDZ FIX: Missing scroll margin computation (used in planner args and JSX)
   const activeCard_SScrollMarginBottomPx = ((typeof dynamicFooterHeightPx !== 'undefined' ? dynamicFooterHeightPx : 80) + 16);
