@@ -119,6 +119,41 @@ if (typeof window !== "undefined" && !window.__CQAI_FETCH_WRAPPED__) {
   window.__CQAI_FETCH_WRAPPED__ = true;
 }
 
+// ============================================================================
+// DIAGNOSTIC ACTIVATOR - localStorage-based (bypasses unreliable query params)
+// ============================================================================
+// Enable before reload:
+//   localStorage.setItem('CQ_TRACE', '1')  -> enables hook tracing
+//   localStorage.setItem('CQ_CENSUS', '1') -> enables hook census
+// Disable:
+//   localStorage.removeItem('CQ_TRACE'); localStorage.removeItem('CQ_CENSUS');
+try {
+  if (typeof window !== 'undefined') {
+    const traceEnabled = (typeof localStorage !== 'undefined') && localStorage.getItem('CQ_TRACE') === '1';
+    const censusEnabled = (typeof localStorage !== 'undefined') && localStorage.getItem('CQ_CENSUS') === '1';
+
+    if (traceEnabled) window.CQ_DEBUG_HOOK_TRACE = true;
+    if (censusEnabled) window.CQ_DEBUG_HOOK_CENSUS = true;
+
+    // Mirror to parent frame when possible (Base44 preview uses iframes)
+    if (traceEnabled || censusEnabled) {
+      try {
+        if (window.top && window.top !== window) {
+          if (traceEnabled) window.top.CQ_DEBUG_HOOK_TRACE = true;
+          if (censusEnabled) window.top.CQ_DEBUG_HOOK_CENSUS = true;
+        }
+      } catch (_) {}
+    }
+
+    // Log only when at least one key is enabled (keeps Mode A quiet by default)
+    if (traceEnabled || censusEnabled) {
+      try {
+        console.log('[CQ_DIAG_ACTIVATOR][ENABLED]', { traceEnabled, censusEnabled });
+      } catch (_) {}
+    }
+  }
+} catch (_) {}
+
 // Global logging flag for CandidateInterview
 const DEBUG_MODE = false;
 
