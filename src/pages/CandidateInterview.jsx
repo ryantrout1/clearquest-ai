@@ -132,10 +132,19 @@ try {
     const traceEnabled = (typeof localStorage !== 'undefined') && localStorage.getItem('CQ_TRACE') === '1';
     const censusEnabled = (typeof localStorage !== 'undefined') && localStorage.getItem('CQ_CENSUS') === '1';
     
-    // window.name fallback: read flags from window.name if localStorage blocked
+    // Multi-source fallback: window.name + top.name + location.hash
     const nameStr = (typeof window !== 'undefined' && typeof window.name === 'string') ? window.name : '';
-    const nameTrace = nameStr.includes('CQ_TRACE=1');
-    const nameCensus = nameStr.includes('CQ_CENSUS=1');
+    const topNameStr = (() => { 
+      try { 
+        return (typeof window !== 'undefined' && window.top && window.top !== window && typeof window.top.name === 'string') ? window.top.name : ''; 
+      } catch (_) { 
+        return ''; 
+      } 
+    })();
+    const hashStr = (typeof window !== 'undefined' && typeof window.location?.hash === 'string') ? window.location.hash : '';
+    
+    const nameTrace = nameStr.includes('CQ_TRACE=1') || topNameStr.includes('CQ_TRACE=1') || hashStr.includes('CQ_TRACE=1');
+    const nameCensus = nameStr.includes('CQ_CENSUS=1') || topNameStr.includes('CQ_CENSUS=1') || hashStr.includes('CQ_CENSUS=1');
     
     const traceEnabledFinal = traceEnabled || nameTrace;
     const censusEnabledFinal = censusEnabled || nameCensus;
@@ -143,6 +152,23 @@ try {
     if (traceEnabledFinal) window.CQ_DEBUG_HOOK_TRACE = true;
     if (censusEnabledFinal) window.CQ_DEBUG_HOOK_CENSUS = true;
 
+    // Mirror top.name flags into window.name (best-effort propagation)
+    try {
+      if (typeof window !== 'undefined' && (topNameStr.includes('CQ_TRACE=1') || topNameStr.includes('CQ_CENSUS=1'))) {
+        const currentName = window.name || '';
+        const needsTrace = topNameStr.includes('CQ_TRACE=1') && !currentName.includes('CQ_TRACE=1');
+        const needsCensus = topNameStr.includes('CQ_CENSUS=1') && !currentName.includes('CQ_CENSUS=1');
+        
+        if (needsTrace || needsCensus) {
+          const parts = [];
+          if (currentName) parts.push(currentName);
+          if (needsTrace) parts.push('CQ_TRACE=1');
+          if (needsCensus) parts.push('CQ_CENSUS=1');
+          window.name = parts.join(' ');
+        }
+      }
+    } catch (_) {}
+    
     // Ensure cqGetDebugFlag() sees the flags (it often reads __CQ_DEBUG_FLAGS__)
     try {
       const g = (typeof globalThis !== 'undefined') ? globalThis : null;
@@ -196,6 +222,8 @@ try {
             lsTrace,
             lsCensus,
             name: nameStr,
+            topName: topNameStr,
+            hash: hashStr,
             nameTrace,
             nameCensus,
             winTrace: window.CQ_DEBUG_HOOK_TRACE === true,
