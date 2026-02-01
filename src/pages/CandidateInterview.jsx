@@ -146,8 +146,29 @@ try {
     const nameTrace = nameStr.includes('CQ_TRACE=1') || topNameStr.includes('CQ_TRACE=1') || hashStr.includes('CQ_TRACE=1');
     const nameCensus = nameStr.includes('CQ_CENSUS=1') || topNameStr.includes('CQ_CENSUS=1') || hashStr.includes('CQ_CENSUS=1');
     
-    const traceEnabledFinal = traceEnabled || nameTrace;
-    const censusEnabledFinal = censusEnabled || nameCensus;
+    const forceCensus = (() => {
+      try {
+        if (typeof window === 'undefined') return false;
+        if (window.__CQ_FORCE_CENSUS__ === true) return true;
+        try { if (window.top && window.top !== window && window.top.__CQ_FORCE_CENSUS__ === true) return true; } catch (_) {}
+        return false;
+      } catch (_) { return false; }
+    })();
+    
+    const forceTrace = (() => {
+      try {
+        if (typeof window === 'undefined') return false;
+        if (window.__CQ_FORCE_TRACE__ === true) return true;
+        try { if (window.top && window.top !== window && window.top.__CQ_FORCE_TRACE__ === true) return true; } catch (_) {}
+        return false;
+      } catch (_) { return false; }
+    })();
+    
+    let traceEnabledFinal = traceEnabled || nameTrace;
+    let censusEnabledFinal = censusEnabled || nameCensus;
+    
+    traceEnabledFinal = traceEnabledFinal || forceTrace;
+    censusEnabledFinal = censusEnabledFinal || forceCensus;
 
     if (traceEnabledFinal) window.CQ_DEBUG_HOOK_TRACE = true;
     if (censusEnabledFinal) window.CQ_DEBUG_HOOK_CENSUS = true;
@@ -226,6 +247,8 @@ try {
             hash: hashStr,
             nameTrace,
             nameCensus,
+            forceCensus,
+            forceTrace,
             winTrace: window.CQ_DEBUG_HOOK_TRACE === true,
             winCensus: window.CQ_DEBUG_HOOK_CENSUS === true,
             bagTrace: !!(window.__CQ_DEBUG_FLAGS__ && window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE === true),
@@ -2151,9 +2174,11 @@ function CandidateInterviewInner() {
   // HOOK COUNT ASSERTION (gated): baseline count at PRE_HOOKS
   try {
     if (typeof window !== 'undefined' && (
-      ((typeof localStorage !== 'undefined') && localStorage.getItem('CQ_CENSUS') === '1') ||
+      (window.__CQ_FORCE_CENSUS__ === true) ||
+      (window.top && window.top !== window && window.top.__CQ_FORCE_CENSUS__ === true) ||
       (window.CQ_DEBUG_HOOK_CENSUS === true) ||
-      (cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true)
+      (cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true) ||
+      ((typeof window.location?.hash === 'string') && window.location.hash.includes('CQ_CENSUS=1'))
     )) {
       console.log('[CQ_HOOK_COUNT_PRE]', {
         ts: Date.now(),
@@ -5008,9 +5033,11 @@ function CandidateInterviewInner() {
   // HOOK COUNT ASSERTION (gated): final count at POST_HOOKS
   try {
     if (typeof window !== 'undefined' && (
-      ((typeof localStorage !== 'undefined') && localStorage.getItem('CQ_CENSUS') === '1') ||
+      (window.__CQ_FORCE_CENSUS__ === true) ||
+      (window.top && window.top !== window && window.top.__CQ_FORCE_CENSUS__ === true) ||
       (window.CQ_DEBUG_HOOK_CENSUS === true) ||
-      (cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true)
+      (cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true) ||
+      ((typeof window.location?.hash === 'string') && window.location.hash.includes('CQ_CENSUS=1'))
     )) {
       console.log('[CQ_HOOK_COUNT_POST]', {
         ts: Date.now(),
