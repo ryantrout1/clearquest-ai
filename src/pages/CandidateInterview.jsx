@@ -5329,7 +5329,7 @@ function CandidateInterviewInner() {
     if (typeof window !== 'undefined') {
       const hn = window.location?.hostname || '';
       const isDevEnv = hn.includes('preview') || hn.includes('localhost');
-      if (isDevEnv) {
+      if (isDevEnv && window.CQ_VERBOSE_HOOK_SIG === true) {
         console.log('[CQ_HOOK_SIG][AFTER_POST_MAIN_HOOKS]', {
           sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
           isLoading: (typeof isLoading !== 'undefined' ? isLoading : null),
@@ -5358,12 +5358,14 @@ function CandidateInterviewInner() {
           }
         } catch (_) {}
         
-        console.log('[CQ_HOOK_SIG][COMPACT]', {
-          renderId: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.renderId : null),
-          effectTR: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectTR : null),
-          effectRAW: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectRAW : null),
-          reactUseEffectIsSameAsImported: (typeof React !== 'undefined' && React && React.useEffect ? (React.useEffect === useEffect) : null)
-        });
+        if (window.CQ_VERBOSE_HOOK_SIG === true) {
+          console.log('[CQ_HOOK_SIG][COMPACT]', {
+            renderId: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.renderId : null),
+            effectTR: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectTR : null),
+            effectRAW: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectRAW : null),
+            reactUseEffectIsSameAsImported: (typeof React !== 'undefined' && React && React.useEffect ? (React.useEffect === useEffect) : null)
+          });
+        }
         
         // DEV-ONLY: Log tag sequence when effectTR diverges
         try {
@@ -15636,7 +15638,7 @@ function CandidateInterviewInner() {
     if (typeof window !== 'undefined') {
       const hn = window.location?.hostname || '';
       const isDevEnv = hn.includes('preview') || hn.includes('localhost');
-      if (isDevEnv) {
+      if (isDevEnv && window.CQ_VERBOSE_HOOK_SIG === true) {
         console.log('[CQ_HOOK_SIG][AFTER_TRUE_POST_HOOKS]', {
           renderId: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.renderId : null),
           effectTR: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectTR : null),
