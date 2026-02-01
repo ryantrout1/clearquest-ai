@@ -3860,6 +3860,7 @@ function CandidateInterviewInner() {
   const hasActiveV3Prompt_SAFE = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
   const hasV3PromptText_SAFE = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
   const bottomBarModeSOT_SAFE = null; // Computed in TRY1 - null during boot is safe
+  let shouldRenderFooter_SAFE = false; // TDZ FIX: placeholder for hook deps (boot-safe)
   
   // ============================================================================
   // BOOT GUARD FLAG - Hoisted above hooks to prevent TDZ in dep arrays
@@ -20480,7 +20481,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   // bottomBarModeSOT_SAFE declared earlier (line 3196)
   const activeCard_S_SAFE = activeCard_S ?? null;
   
-  const shouldRenderFooter_SAFE = shouldRenderFooter ?? false;
+  // TDZ FIX: shouldRenderFooter_SAFE declared early (before hooks); assign computed value here
+  shouldRenderFooter_SAFE = shouldRenderFooter ?? false;
   const hasPrompt_SAFE = hasPrompt ?? false;
   const activePromptText_SAFE = activePromptText ?? '';
   const safeActivePromptText_SAFE = safeActivePromptText ?? '';
