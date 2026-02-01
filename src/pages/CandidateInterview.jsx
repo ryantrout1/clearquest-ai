@@ -4715,7 +4715,14 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, transcriptSOT_S]);
   
   // ============================================================================
-  // HOOK 12/56: V3 PROMPT VISIBILITY (HOISTED from TRY1 - React #310 fix)
+  // HOOK 12/12: prevKeysSetRef (MOVED before POST_HOOKS - React #310 fix)
+  // ============================================================================
+  __cqHookSite('H12P_2:useRef@L4588');
+  const prevKeysSetRef = useRef(new Set());
+  __cqRenderSig('AFTER_H12P_2_BLOCK');
+  
+  // ============================================================================
+  // HOOK 13/56: V3 PROMPT VISIBILITY (HOISTED from TRY1 - React #310 fix)
   // ============================================================================
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
   cqHookMark('HOOK_56:useEffect:v3PromptVisibility');
