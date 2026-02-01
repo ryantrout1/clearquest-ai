@@ -5174,6 +5174,12 @@ function CandidateInterviewInner() {
           reactUseEffectIsSameAsImported: (typeof React !== 'undefined' && React && React.useEffect ? (React.useEffect === useEffect) : null),
           reactObjType: (typeof React !== 'undefined' && React ? Object.prototype.toString.call(React) : null)
         });
+        console.log('[CQ_HOOK_SIG][COMPACT]', {
+          renderId: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.renderId : null),
+          effectTR: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectTR : null),
+          effectRAW: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectRAW : null),
+          reactUseEffectIsSameAsImported: (typeof React !== 'undefined' && React && React.useEffect ? (React.useEffect === useEffect) : null)
+        });
       }
     }
   } catch (_) {}
