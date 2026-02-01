@@ -135,12 +135,32 @@ try {
     if (traceEnabled) window.CQ_DEBUG_HOOK_TRACE = true;
     if (censusEnabled) window.CQ_DEBUG_HOOK_CENSUS = true;
 
+    // Ensure cqGetDebugFlag() sees the flags (it often reads __CQ_DEBUG_FLAGS__)
+    try {
+      const g = (typeof globalThis !== 'undefined') ? globalThis : null;
+      if (traceEnabled || censusEnabled) {
+        if (g) {
+          if (!g.__CQ_DEBUG_FLAGS__) g.__CQ_DEBUG_FLAGS__ = {};
+          if (traceEnabled) g.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE = true;
+          if (censusEnabled) g.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_CENSUS = true;
+        }
+        if (typeof window !== 'undefined') {
+          if (!window.__CQ_DEBUG_FLAGS__) window.__CQ_DEBUG_FLAGS__ = {};
+          if (traceEnabled) window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE = true;
+          if (censusEnabled) window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_CENSUS = true;
+        }
+      }
+    } catch (_) {}
+
     // Mirror to parent frame when possible (Base44 preview uses iframes)
     if (traceEnabled || censusEnabled) {
       try {
         if (window.top && window.top !== window) {
           if (traceEnabled) window.top.CQ_DEBUG_HOOK_TRACE = true;
           if (censusEnabled) window.top.CQ_DEBUG_HOOK_CENSUS = true;
+          if (!window.top.__CQ_DEBUG_FLAGS__) window.top.__CQ_DEBUG_FLAGS__ = {};
+          if (traceEnabled) window.top.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE = true;
+          if (censusEnabled) window.top.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_CENSUS = true;
         }
       } catch (_) {}
     }
@@ -2067,7 +2087,7 @@ function CandidateInterviewInner() {
   cqSetRenderStep('PRE_HOOKS:FIRST_HOOK');
   // HOOK COUNT ASSERTION (gated): baseline count at PRE_HOOKS
   try {
-    if (typeof window !== 'undefined' && (cqHasQueryFlag('cqCensus') || cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true)) {
+    if ((typeof window !== 'undefined' && window.CQ_DEBUG_HOOK_CENSUS === true) || cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true) {
       console.log('[CQ_HOOK_COUNT_PRE]', {
         ts: Date.now(),
         count: __cqCensusIdx,
@@ -4920,7 +4940,7 @@ function CandidateInterviewInner() {
   cqSetRenderStep('HOOK_TRACE:WRAPPERS_READY');
   // HOOK COUNT ASSERTION (gated): final count at POST_HOOKS
   try {
-    if (typeof window !== 'undefined' && (cqHasQueryFlag('cqCensus') || cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true)) {
+    if ((typeof window !== 'undefined' && window.CQ_DEBUG_HOOK_CENSUS === true) || cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true) {
       console.log('[CQ_HOOK_COUNT_POST]', {
         ts: Date.now(),
         count: __cqCensusIdx,
