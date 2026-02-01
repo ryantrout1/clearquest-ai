@@ -1601,6 +1601,22 @@ const runV2FieldProbeIfNeeded = async ({
 // - Welcome / start screens must NEVER reappear mid-session
 
 function CandidateInterviewInner() {
+  // DEV-ONLY EARLY RENDER SIGNATURE (top of CandidateInterviewInner)
+  try {
+    if (typeof window !== 'undefined') {
+      const hn = window.location?.hostname || '';
+      const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+      if (isDevEnv) {
+        console.log('[CQ_HOOK_SIG][EARLY_PRE]', {
+          sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
+          isLoading: (typeof isLoading !== 'undefined' ? isLoading : null),
+          hasSession: (typeof session !== 'undefined' ? !!session : null),
+          hasEngine: (typeof engine_S !== 'undefined' ? !!engine_S : null)
+        });
+      }
+    }
+  } catch (_) {}
+  
   try { if (typeof window !== 'undefined') { window.CQ_LAST_RENDER_STEP = 'ENTER_COMPONENT_TOP'; window.__CQ_LAST_RENDER_STEP__ = 'ENTER_COMPONENT_TOP'; } } catch (_) {}
   
   // PROOF-OF-LIFE: Component entry marker (proves execution reached this point)
@@ -5052,7 +5068,7 @@ function CandidateInterviewInner() {
       const hn = window.location?.hostname || '';
       const isDevEnv = hn.includes('preview') || hn.includes('localhost');
       if (isDevEnv) {
-        console.log('[CQ_HOOK_SIG][POST]', {
+        console.log('[CQ_HOOK_SIG][AFTER_POST_MARKER]', {
           sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
           isLoading: (typeof isLoading !== 'undefined' ? isLoading : null),
           hasSession: (typeof session !== 'undefined' ? !!session : null),
@@ -5160,6 +5176,23 @@ function CandidateInterviewInner() {
           if (!window[readyKey]) {
               window[readyKey] = false;
           }
+
+          // DEV-ONLY EARLY RETURN SIGNATURE (boot guard return)
+          try {
+            if (typeof window !== 'undefined') {
+              const hn = window.location?.hostname || '';
+              const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+              if (isDevEnv) {
+                console.log('[CQ_HOOK_SIG][EARLY_RETURN]', {
+                  sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
+                  isLoading: (typeof isLoading !== 'undefined' ? isLoading : null),
+                  hasSession: (typeof session !== 'undefined' ? !!session : null),
+                  hasEngine: (typeof engine_S !== 'undefined' ? !!engine_S : null),
+                  reason: 'boot_guard_return'
+                });
+              }
+            }
+          } catch (_) {}
 
           return (
               <div style={{
