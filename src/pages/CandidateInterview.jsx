@@ -5169,7 +5169,10 @@ function CandidateInterviewInner() {
           traceIdx: null,
           renderId: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.renderId : null),
           effectTR: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectTR : null),
-          effectRAW: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectRAW : null)
+          effectRAW: (window.CQ_HOOK_CALLS ? window.CQ_HOOK_CALLS.effectRAW : null),
+          reactUseEffectFn: (typeof React !== 'undefined' && React && React.useEffect ? String(React.useEffect) : null),
+          reactUseEffectIsSameAsImported: (typeof React !== 'undefined' && React && React.useEffect ? (React.useEffect === useEffect) : null),
+          reactObjType: (typeof React !== 'undefined' && React ? Object.prototype.toString.call(React) : null)
         });
       }
     }
