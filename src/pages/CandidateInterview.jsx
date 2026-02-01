@@ -2185,7 +2185,43 @@ function CandidateInterviewInner() {
   const isCurrentItemCommitting = false;
   
   // HOOK CENSUS: Mark before first hook
+  // DEV-ONLY: PRE_HOOKS marker echo (before cqHookMark)
+  try {
+    if (typeof window !== 'undefined') {
+      const hn = window.location?.hostname || '';
+      const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+      if (isDevEnv) {
+        console.log('[CQ_HOOK_SIG][PRE_ECHO_BEFORE_MARK]', {
+          sessionId: (typeof sessionId !== 'undefined' ? sessionId : null)
+        });
+      }
+    }
+  } catch (_) {}
+  
   cqHookMark('PRE_HOOKS');
+  
+  // DEV-ONLY: PRE_HOOKS marker echo (after cqHookMark)
+  try {
+    if (typeof window !== 'undefined') {
+      const hn = window.location?.hostname || '';
+      const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+      if (isDevEnv) {
+        console.log('[CQ_HOOK_SIG][PRE_ECHO_AFTER_MARK]', {
+          sessionId: (typeof sessionId !== 'undefined' ? sessionId : null)
+        });
+        
+        // Initialize per-session counter if needed
+        if (typeof sessionId !== 'undefined' && sessionId) {
+          if (!window.CQ_MARKER_COUNTS) window.CQ_MARKER_COUNTS = {};
+          if (!window.CQ_MARKER_COUNTS[sessionId]) {
+            window.CQ_MARKER_COUNTS[sessionId] = { pre: 0, post: 0 };
+          }
+          window.CQ_MARKER_COUNTS[sessionId].pre += 1;
+          console.log('[CQ_HOOK_SIG][PRE_COUNT]', { sessionId, pre: window.CQ_MARKER_COUNTS[sessionId].pre });
+        }
+      }
+    }
+  } catch (_) {}
   // DEV-ONLY CENSUS SIGNATURE (post PRE_HOOKS marker)
   try {
     if (typeof window !== 'undefined') {
@@ -5062,6 +5098,22 @@ function CandidateInterviewInner() {
   
   // HOOK CENSUS: Mark after final hook
   cqHookMark('POST_HOOKS');
+  
+  // DEV-ONLY: POST_HOOKS marker counter increment
+  try {
+    if (typeof window !== 'undefined') {
+      const hn = window.location?.hostname || '';
+      const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+      if (isDevEnv && typeof sessionId !== 'undefined' && sessionId) {
+        if (!window.CQ_MARKER_COUNTS) window.CQ_MARKER_COUNTS = {};
+        if (!window.CQ_MARKER_COUNTS[sessionId]) {
+          window.CQ_MARKER_COUNTS[sessionId] = { pre: 0, post: 0 };
+        }
+        window.CQ_MARKER_COUNTS[sessionId].post += 1;
+        console.log('[CQ_HOOK_SIG][POST_COUNT]', { sessionId, post: window.CQ_MARKER_COUNTS[sessionId].post });
+      }
+    }
+  } catch (_) {}
   // DEV-ONLY CENSUS SIGNATURE (post POST_HOOKS marker)
   try {
     if (typeof window !== 'undefined') {
