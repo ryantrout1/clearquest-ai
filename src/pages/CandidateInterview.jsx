@@ -4871,13 +4871,8 @@ function CandidateInterviewInner() {
   // ============================================================================
   
   // ============================================================================
-  // HOISTED DECLARATIONS - Variables needed by hoisted hooks and later code
+  // POST-HOOK DECLARATIONS - Non-hook variables (no React hooks after POST_HOOKS)
   // ============================================================================
-
-  // STEP 3: Key-based monotonic assertion refs (hoisted from removed effect)
-  __cqHookSite('H12P_2:useRef@L4588');
-  const prevKeysSetRef = useRef(new Set());
-  __cqRenderSig('AFTER_H12P_2_BLOCK');
   
   // ============================================================================
   // CQMARK DECLARATION - MOVED BEFORE FIRST USE (TDZ FIX)
