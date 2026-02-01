@@ -4841,6 +4841,10 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, v2PackMode, activeV2Pack, currentItem_S]);
   
   // ============================================================================
+  // STABILITY BASELINE: Boot latch MUST be set in useEffect (post-render only)
+  // CRITICAL: Do NOT set cqBootReadyLatchedRef.current during render (causes React #310)
+  // This effect is the ONLY safe place to latch boot ready state
+  // ============================================================================
   // HOOK 14/56: BOOT LATCH SET (React #310 fix)
   // ============================================================================
   useEffect_TR("T14_BOOT_LATCH_SET", () => {
