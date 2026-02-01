@@ -171,6 +171,26 @@ try {
         console.log('[CQ_DIAG_ACTIVATOR][ENABLED]', { traceEnabled, censusEnabled });
       } catch (_) {}
     }
+    
+    // ONE-TIME activator status log (diagnostic proof)
+    try {
+      if (typeof window !== 'undefined') {
+        if (!window.__CQ_DIAG_ACTIVATOR_STATUS_LOGGED__) {
+          window.__CQ_DIAG_ACTIVATOR_STATUS_LOGGED__ = true;
+          const lsTrace = (typeof localStorage !== 'undefined') ? localStorage.getItem('CQ_TRACE') : '(no-localStorage)';
+          const lsCensus = (typeof localStorage !== 'undefined') ? localStorage.getItem('CQ_CENSUS') : '(no-localStorage)';
+          console.log('[CQ_DIAG_ACTIVATOR][STATUS]', {
+            href: window.location?.href || null,
+            lsTrace,
+            lsCensus,
+            winTrace: window.CQ_DEBUG_HOOK_TRACE === true,
+            winCensus: window.CQ_DEBUG_HOOK_CENSUS === true,
+            bagTrace: !!(window.__CQ_DEBUG_FLAGS__ && window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_TRACE === true),
+            bagCensus: !!(window.__CQ_DEBUG_FLAGS__ && window.__CQ_DEBUG_FLAGS__.CQ_DEBUG_HOOK_CENSUS === true)
+          });
+        }
+      }
+    } catch (_) {}
   }
 } catch (_) {}
 
@@ -2087,7 +2107,11 @@ function CandidateInterviewInner() {
   cqSetRenderStep('PRE_HOOKS:FIRST_HOOK');
   // HOOK COUNT ASSERTION (gated): baseline count at PRE_HOOKS
   try {
-    if ((typeof window !== 'undefined' && window.CQ_DEBUG_HOOK_CENSUS === true) || cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true) {
+    if (typeof window !== 'undefined' && (
+      ((typeof localStorage !== 'undefined') && localStorage.getItem('CQ_CENSUS') === '1') ||
+      (window.CQ_DEBUG_HOOK_CENSUS === true) ||
+      (cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true)
+    )) {
       console.log('[CQ_HOOK_COUNT_PRE]', {
         ts: Date.now(),
         count: __cqCensusIdx,
@@ -4940,7 +4964,11 @@ function CandidateInterviewInner() {
   cqSetRenderStep('HOOK_TRACE:WRAPPERS_READY');
   // HOOK COUNT ASSERTION (gated): final count at POST_HOOKS
   try {
-    if ((typeof window !== 'undefined' && window.CQ_DEBUG_HOOK_CENSUS === true) || cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true) {
+    if (typeof window !== 'undefined' && (
+      ((typeof localStorage !== 'undefined') && localStorage.getItem('CQ_CENSUS') === '1') ||
+      (window.CQ_DEBUG_HOOK_CENSUS === true) ||
+      (cqGetDebugFlag('CQ_DEBUG_HOOK_CENSUS') === true)
+    )) {
       console.log('[CQ_HOOK_COUNT_POST]', {
         ts: Date.now(),
         count: __cqCensusIdx,
