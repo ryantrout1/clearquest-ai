@@ -1735,6 +1735,10 @@ function CandidateInterviewInner() {
         buildStamp: __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__,
         reactVersion: React?.version || 'unknown'
       });
+      console.log('[CQ_BUILD_CANARY][CANDIDATE_INTERVIEW]', {
+        nonce: 'CQ_CANARY_2026-02-01_R7',
+        buildStamp: __CQ_BUILD_STAMP_CANDIDATE_INTERVIEW__
+      });
     }
   } catch (_) {}
   
