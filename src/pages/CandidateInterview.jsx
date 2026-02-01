@@ -1666,8 +1666,8 @@ function CandidateInterviewInner() {
   try {
     if (typeof window !== 'undefined') {
       const payload = { ts: Date.now(), file: 'CandidateInterview.jsx', marker: 'ENTER_COMPONENT_TOP' };
-      window.__CQ_COMPONENT_ENTRY_PROOF__ = payload;
-      try { if (window.top && window.top !== window) { window.top.__CQ_COMPONENT_ENTRY_PROOF__ = payload; } } catch (_) {}
+      // Component entry proof disabled (React #310 compliance)
+      try { /* window.top entry proof disabled */ } catch (_) {}
     }
   } catch (_) {}
   // console.log('[CQ_PROOF][ENTRY]', { ... }); // Disabled - Mode A cleanup
@@ -5468,7 +5468,7 @@ function CandidateInterviewInner() {
           // READY LOG: One-time log when boot completes (window-scoped flag)
           const readyKey = `cqBootReady_${sessionId}`;
           if (!window[readyKey]) {
-              window[readyKey] = false;
+              // Boot guard readyKey write disabled (React #310 compliance)
           }
 
           // DEV-ONLY EARLY RETURN SIGNATURE (boot guard return)
@@ -5554,7 +5554,7 @@ function CandidateInterviewInner() {
   if (typeof window !== 'undefined' && sessionId) {
     const readyKey = `cqBootReady_${sessionId}`;
     if (window[readyKey] === false && cqBootReadyLatchedRef.current) {
-      window[readyKey] = true;
+      // Boot guard readyKey write disabled (React #310 compliance)
       console.log('[CQ_BOOT_GUARD][READY]', { 
         sessionId, 
         isLoading, 
