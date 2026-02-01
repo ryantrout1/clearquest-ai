@@ -1782,7 +1782,13 @@ function CandidateInterviewInner() {
     __cqTrace('React.useLayoutEffect', label);
     return React.useLayoutEffect(...hookArgs);
   }
-  function useCallback_TR(...args) { __cqTrace('useCallback'); return useCallback(...args); }
+  function useCallback_TR(labelOrFn, ...rest) {
+    const isLabel = typeof labelOrFn === 'string';
+    const label = isLabel ? labelOrFn : undefined;
+    const hookArgs = isLabel ? rest : [labelOrFn, ...rest];
+    __cqTrace('useCallback', label);
+    return useCallback(...hookArgs);
+  }
   function useRef_TR_L(label, ...args) { __cqTrace(`useRef:${label}`); return useRef(...args); }
   
   // HOOK CENSUS HELPER: Log trace counter state (dev-only, no hook)
@@ -2702,7 +2708,7 @@ function CandidateInterviewInner() {
   
   // TDZ HARDENING: Mount-only forensic log
   const tdzHardenLoggedRef = useRef(false);
-  useEffect_TR(() => {
+  useEffect_TR("T01_TDZ_HARDEN", () => {
     if (!tdzHardenLoggedRef.current) {
       tdzHardenLoggedRef.current = true;
       console.log('[FORENSIC][TDZ_HARDEN_OK]', {
@@ -3527,7 +3533,7 @@ function CandidateInterviewInner() {
   const v3PromptSnapshotsRef = useRef([]);
   
   // PART 3: Sync snapshots state to ref (prevents stale closure in watchdog)
-  useEffect_TR(() => {
+  useEffect_TR("T02_SYNC_SNAPSHOTS", () => {
     v3PromptSnapshotsRef.current = v3PromptSnapshots;
   }, [v3PromptSnapshots]);
   
@@ -3584,7 +3590,7 @@ function CandidateInterviewInner() {
     }
   } catch (_) {}
 
-  useEffect_TR(() => {
+  useEffect_TR("T03_BOOT_STATE", () => {
     // BOOT-STATE INVARIANT: Detect duplicate runs per session.
     if (typeof window !== 'undefined' && sessionId) {
       window.__CQ_BOOTSTATE_RUN_COUNT_BY_SESSION__ = window.__CQ_BOOTSTATE_RUN_COUNT_BY_SESSION__ || {};
@@ -3603,7 +3609,7 @@ function CandidateInterviewInner() {
     });
   }, [sessionId, isLoading, session, engine_S]);
 
-  useEffect_TR(() => {
+  useEffect_TR("T04_BOOT_WATCHDOG", () => {
     if (!sessionId) return;
     const t = setTimeout(() => {
       console.log('[CQ_BOOT_STATE][WATCHDOG_5S]', {
@@ -3617,7 +3623,7 @@ function CandidateInterviewInner() {
   }, [sessionId, isLoading, session, engine_S]);
 
   // BOOT FIX: Assign ref in useEffect to guarantee assignment before kickstart reads it
-  useEffect_TR(() => {
+  useEffect_TR("T05_RESUME_REF_ASSIGN", () => {
     try {
       resumeFromDBFnRef.current = resumeFromDB;
       if (typeof window !== 'undefined') {
@@ -3637,7 +3643,7 @@ function CandidateInterviewInner() {
     }
   }, []); // Run once on mount (before kickstart effect with sessionId dep)
 
-  const resumeFromDB = useCallback_TR(async () => {
+  const resumeFromDB = useCallback_TR("T06_RESUME_FROM_DB", async () => {
     try {
       console.log('[BOOT][RESUME] Light resume from DB', { sessionId });
       
@@ -3697,7 +3703,7 @@ function CandidateInterviewInner() {
   // especially the render-time kickstart which is not protected by the boot guard.
 
   // ENGINE_BOOT RETRY: Helper for transient 502/503/504 errors
-  const withRetry = useCallback_TR(async (fn, retries = 3, label = 'operation') => {
+  const withRetry = useCallback_TR("T07_WITH_RETRY", async (fn, retries = 3, label = 'operation') => {
     const delays = [250, 750, 1750];
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -3726,7 +3732,7 @@ function CandidateInterviewInner() {
     }
   }, []);
   
-  const initializeInterview = useCallback_TR(async () => {
+  const initializeInterview = useCallback_TR("T08_INIT_INTERVIEW", async () => {
     // Guard: require sessionId
     if (!sessionId) {
       console.warn('[CQ_INIT][SKIP] initializeInterview called without sessionId');
@@ -3854,7 +3860,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // BOOTSTRAP KICKSTART - Replaces legacy render-kick
   // ============================================================================
-  useEffect_TR(() => {
+  useEffect_TR("T09_BOOT_KICKSTART", () => {
     try {
       console.log("[CQ_301_DIAG][BOOT_KICKSTART]", {
         rid: (typeof __cqRid !== 'undefined' ? __cqRid : 'no_rid'),
@@ -3934,7 +3940,7 @@ function CandidateInterviewInner() {
   // Now unconditional with boot guards to preserve original behavior
   
   // HOOK 1/7: V3 prompt phase change tracker
-  useEffect_TR(() => {
+  useEffect_TR("T10_V3_PROMPT_PHASE", () => {
     if (__cqBootNotReady) return;
     
     if (v3PromptPhase !== lastV3PromptPhaseRef.current) {
@@ -4478,7 +4484,7 @@ function CandidateInterviewInner() {
   
   // HOOK 8/11: MI_GATE reconciliation (was line ~6310)
   cqHookMark('HOOK_40:useEffect:v3PromptPhase');
-  useEffect_TR(() => {
+  useEffect_TR("T11_MI_GATE_RECONCILE", () => {
     if (__cqBootNotReady) return;
     
     // Only trigger when entering MI_GATE (not on every multiInstanceGate change)
@@ -4715,7 +4721,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // V3 PROMPT VISIBILITY: Auto-scroll to reveal prompt lane when V3 probe appears
   cqHookMark('HOOK_56:useEffect:v3PromptVisibility');
-  useEffect_TR(() => {
+  useEffect_TR("T12_V3_PROMPT_VISIBILITY", () => {
     if (__cqBootNotReady) return;
     
     // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
@@ -4827,7 +4833,7 @@ function CandidateInterviewInner() {
   // Track last logged V2 pack field to prevent duplicates (logging happens on answer, not render)
   // This ref is used when logging answers to check for duplicates
   __cqHookSite('H12P_1:useEffect_TR@L4567');
-  useEffect_TR(() => {
+  useEffect_TR("T13_V2_PACK_FIELD_TRACK", () => {
     // REACT #310 FIX: Internal boot guard (moved from TRY1 gate)
     if (__cqBootNotReady) return;
     
@@ -6797,7 +6803,7 @@ function CandidateInterviewInner() {
   // HOOK 13/56: FULL SESSION RESET (UNCONDITIONAL - React #310 fix)
   // ============================================================================
   // FULL SESSION RESET: Cleanup all interview-local state when sessionId changes (prevent cross-session leakage)
-  useEffect_TR(() => {
+  useEffect_TR("T14_FULL_SESSION_RESET", () => {
     try {
       console.log("[CQ_301_DIAG][FULL_RESET_EFFECT_ENTER]", {
         rid: (typeof __cqRid !== 'undefined' ? __cqRid : 'no_rid'),
