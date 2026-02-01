@@ -5878,7 +5878,7 @@ function CandidateInterviewInner() {
   
   // HOOK ORDER FIX: One-time proof that onPromptSet is plain function (no React hook)
   if (typeof window !== 'undefined' && !window.__CQ_ONPROMPTSET_NOHOOK_LOGGED__) {
-    window.__CQ_ONPROMPTSET_NOHOOK_LOGGED__ = true;
+    // one-time render debug write disabled (React #310 compliance)
     console.log('[HOOK_ORDER][ONPROMPTSET_NOHOOK_OK]', { sessionId: effectiveSessionId || sessionId });
   }
   
@@ -6180,7 +6180,7 @@ function CandidateInterviewInner() {
   })();
 
   if (typeof window !== 'undefined' && !window.__CQ_DEBUG_FLAG_LOGGED__) {
-    window.__CQ_DEBUG_FLAG_LOGGED__ = true;
+    // one-time render debug write disabled (React #310 compliance)
     window.console.error('[TDZ_TRACE][DEBUG_ENABLED]', isV3DebugEnabled);
   }
 
@@ -6420,7 +6420,7 @@ function CandidateInterviewInner() {
       const isDevEnv = hostname.includes('preview') || hostname.includes('localhost');
 
       if (isDevEnv && !window.__CQ_RENDER_MUTATION_GUARD_INSTALLED__) {
-        window.__CQ_RENDER_MUTATION_GUARD_INSTALLED__ = true;
+        // render mutation guard install flag disabled (React #310 compliance)
 
         const FORBIDDEN_KEYS = [
           '__CQ_LAST_RENDER_STEP__',
