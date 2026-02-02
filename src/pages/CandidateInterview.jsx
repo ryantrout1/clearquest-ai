@@ -7413,10 +7413,23 @@ function CandidateInterviewInner() {
   // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_4:BEFORE_CURRENT_ITEM_TYPE';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '4:BEFORE_CURRENT_ITEM_TYPE' });
   lastTry1StepRef.current = '4:BEFORE_CURRENT_ITEM_TYPE';
+  
+  // EDIT E0: Segment E0 - First executable post-05Z block
+  try {
+    cqSetRenderStep('TRY1:TOP:06A_ENTER_POST05Z_EXEC');
+    if (typeof window !== 'undefined') {
+      window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06A_ENTER_POST05Z_EXEC';
+    }
+  
   const currentItem_SType = v3GateActive ? 'v3_gate' :
                           v3ProbingActive ? 'v3_probing' :
                           pendingSectionTransition ? 'section_transition' :
                           currentItem_S?.type || null;
+  
+  cqSetRenderStep('TRY1:TOP:06B_AFTER_CURRENT_ITEM_STYPE');
+  if (typeof window !== 'undefined') {
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06B_AFTER_CURRENT_ITEM_STYPE';
+  }
 
 
 
@@ -7537,9 +7550,14 @@ function CandidateInterviewInner() {
     // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5_4:AFTER_YESNO_ROUTE_LOG';
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_4:AFTER_YESNO_ROUTE_LOG' });
     lastTry1StepRef.current = '5_4:AFTER_YESNO_ROUTE_LOG';
-    
+
+    cqSetRenderStep('TRY1:TOP:06C_AFTER_MODE_SAFE_BLOCK');
+    if (typeof window !== 'undefined') {
+      window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06C_AFTER_MODE_SAFE_BLOCK';
+    }
+
     // TDZ GUARD: Do not reference late-derived vars (effectiveItemType_SAFE, etc.) above this line.
-    
+
     // One-time warning if fallback triggered (dev-only, once per mount)
     // DISABLED: Hook inside try/catch causes minifier TDZ (js)
     /*
@@ -7556,15 +7574,15 @@ function CandidateInterviewInner() {
       }
     }
     */
-    
+
     console.log('[CQ_DIAG][TRY1_STEP]', { step: '5_5:AFTER_FALLBACK_WARN' });
     lastTry1StepRef.current = '5_5:AFTER_FALLBACK_WARN';
-  } catch (e) {
+    } catch (e) {
     if (!cqFailopenOnceRef.current.modeBlock) {
       cqFailopenOnceRef.current.modeBlock = true;
       console.error('[CQ_MODE_BLOCK][FAILOPEN]', { message: e?.message, name: e?.name, stack: e?.stack });
     }
-  }
+    }
   
   // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_5A:AFTER_MODE_WINDOW';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '5A:AFTER_MODE_WINDOW' });
@@ -7578,11 +7596,21 @@ function CandidateInterviewInner() {
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '6:AFTER_MODE_VALIDATION' });
   lastTry1StepRef.current = '6:AFTER_MODE_VALIDATION';
   
+  cqSetRenderStep('TRY1:TOP:06D_AFTER_MODE_VALIDATION');
+  if (typeof window !== 'undefined') {
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06D_AFTER_MODE_VALIDATION';
+  }
+  
   const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
   const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
   const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
   const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && 
                             v3PromptPhase === "ANSWER_NEEDED";
+  
+  cqSetRenderStep('TRY1:TOP:06E_AFTER_V3_PROMPT_FLAGS');
+  if (typeof window !== 'undefined') {
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06E_AFTER_V3_PROMPT_FLAGS';
+  }
   
   // [CQ_301_DIAG] Derived checkpoint runner (REMOVED - 301 resolved)
   
@@ -7612,6 +7640,26 @@ function CandidateInterviewInner() {
     if (screenMode === 'WELCOME') return "CTA";
     return "DEFAULT";
   })();
+  
+  cqSetRenderStep('TRY1:TOP:06F_AFTER_BOTTOM_BAR_MODE');
+  if (typeof window !== 'undefined') {
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06F_AFTER_BOTTOM_BAR_MODE';
+  }
+  
+  cqSetRenderStep('TRY1:TOP:06H_EXIT_POST05Z_EXEC');
+  if (typeof window !== 'undefined') {
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06H_EXIT_POST05Z_EXEC';
+  }
+  } catch (e) {
+    console.error('[CQ_TRY1_SEGMENT_FAIL]', {
+      seg: 'E0',
+      step: (typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null),
+      message: e?.message,
+      name: e?.name,
+      stack: e?.stack
+    });
+    throw e;
+  }
 
   // HOOK 12/12 now hoisted to BATCH 2 (lines ~3728-3974)
   // Original removed from TRY1 to prevent conditional hook count
