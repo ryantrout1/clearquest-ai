@@ -1136,6 +1136,9 @@ const syncFactsToInterviewSession = async (sessionId, questionId, packId, follow
 // STABLE EVENT ID: Module-scope counter (never triggers remounts)
 let eventIdCounter = 0;
 
+// EDIT 4: Session epoch token (detect stale callbacks)
+let __cqSessionEpoch_MEM = 0;
+
 const createChatEvent = (type, data = {}) => {
   eventIdCounter++;
   const baseEvent = {
@@ -2371,6 +2374,31 @@ function CandidateInterviewInner() {
     // Detector must never throw
   }
   
+  // EDIT 1: RENDER INSTANCE PROOF (log-only, dev-gated)
+  try {
+    if (typeof window !== 'undefined') {
+      const hn = window.location?.hostname || '';
+      const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+      if (isDevEnv) {
+        // Module-scope render counter (survives HMR)
+        if (typeof __cqRenderSeq_MEM === 'undefined') {
+          let __cqRenderSeq_MEM = 0;
+        }
+        __cqRenderSeq_MEM = (__cqRenderSeq_MEM || 0) + 1;
+        
+        const singletonMatch = window.__CQ_REACT_SINGLETON__ ? (window.__CQ_REACT_SINGLETON__ === React) : null;
+        
+        console.log('[CQ_RENDER_INSTANCE_PROOF]', {
+          renderSeq: __cqRenderSeq_MEM,
+          reactVersion: React?.version || 'unknown',
+          singletonMatch,
+          sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
+          ts: Date.now()
+        });
+      }
+    }
+  } catch (_) {}
+  
   const navigate = useNavigate();
   
   // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
@@ -2578,6 +2606,9 @@ function CandidateInterviewInner() {
   
   // SESSION RECOVERY STATE: Track recovery in-flight to prevent redirect during lookup
   const [isRecoveringSession, setIsRecoveringSession] = React.useState(false);
+  
+  // EDIT 3: Timer ref for refresh timeout (prevent post-unmount firing)
+  const refreshTimerRef = React.useRef(null);
   
   // TDZ_FIX: HOISTED-SAFE PERSISTENCE - Plain function with zero closure dependencies
   // CRITICAL: Declared at top-of-component to eliminate ALL TDZ risks
@@ -3112,11 +3143,29 @@ function CandidateInterviewInner() {
       lastKey: updatedTranscript[updatedTranscript.length - 1]?.stableKey || updatedTranscript[updatedTranscript.length - 1]?.id
     });
     
-    // Background refresh (upsert only, never replace) - BEST EFFORT
-    setTimeout(async () => {
+    // EDIT 3: Background refresh with timer cancellation
+    // Clear existing timer
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+    }
+    
+    refreshTimerRef.current = setTimeout(async () => {
       try {
+        // EDIT 4: Capture session epoch (detect stale callback)
+        const epoch = __cqSessionEpoch_MEM;
+        
         const freshAfterAppend = await base44.entities.InterviewSession.get(sessionId);
         const freshTranscript = freshAfterAppend.transcript_snapshot || [];
+        
+        // EDIT 4: Guard against stale callback
+        if (epoch !== __cqSessionEpoch_MEM) {
+          console.log('[CQ_STALE_CALLBACK_DROPPED][REFRESH]', { 
+            capturedEpoch: epoch, 
+            currentEpoch: __cqSessionEpoch_MEM,
+            sessionId 
+          });
+          return; // Skip state update
+        }
         
         // PART 2: Only refresh if fresh is longer (never shrink)
         if (freshTranscript.length >= canonicalTranscriptRef.current.length) {
@@ -4065,12 +4114,16 @@ function CandidateInterviewInner() {
     }
   }, []);
   
-  const initializeInterview = useCallback_TR("T08_INIT_INTERVIEW", async () => {
+  const initializeInterview = useCallback_TR("T08_INIT_INTERVIEW", async (didCancelRef) => {
+    // EDIT 2: Accept abort ref from parent effect
     // Guard: require sessionId
     if (!sessionId) {
       console.warn('[CQ_INIT][SKIP] initializeInterview called without sessionId');
       return;
     }
+    
+    // EDIT 4: Capture session epoch at start
+    const epoch = __cqSessionEpoch_MEM;
     
     // BOOTSTRAP INVARIANT: Prevent duplicate engine bootstrap per session.
     if (typeof window !== 'undefined') {
@@ -4090,6 +4143,12 @@ function CandidateInterviewInner() {
       if (typeof window !== 'undefined') {
         window[cqStartedKey] = true;
         console.log('[CQ_INIT][STARTED_FLAG_SET]', { key: cqStartedKey });
+      }
+
+      // EDIT 2: Guard state update (check abort flag)
+      if (didCancelRef && didCancelRef.current) {
+        console.log('[CQ_ASYNC_ABORT][INIT_SKIPPED]', { sessionId, reason: 'didCancel=true' });
+        return;
       }
 
       // Ensure loading is on during initialization (gated - prevent regression after ready)
@@ -4163,11 +4222,23 @@ function CandidateInterviewInner() {
         return;
       }
 
+      // EDIT 2: Guard state update (check abort)
+      if (didCancelRef && didCancelRef.current) {
+        console.log('[CQ_ASYNC_ABORT][INIT_BEFORE_ENGINE]', { sessionId });
+        return;
+      }
+
       // 2) Hydrate engine into state
       if (boot?.engine) {
         setEngine(boot.engine);
       } else {
         setEngine(boot);
+      }
+
+      // EDIT 2: Guard state update (check abort)
+      if (didCancelRef && didCancelRef.current) {
+        console.log('[CQ_ASYNC_ABORT][INIT_BEFORE_RESUME]', { sessionId });
+        return;
       }
 
       // 3) Resume/hydrate session data using existing function
@@ -4183,6 +4254,21 @@ function CandidateInterviewInner() {
       console.log('[CQ_INIT][RESUME_FROM_DB_OK]', { sessionId });
 
     } catch (err) {
+      // EDIT 2: Guard state updates (check abort + epoch)
+      if (didCancelRef && didCancelRef.current) {
+        console.log('[CQ_ASYNC_ABORT][INIT_ERROR_SKIPPED]', { sessionId });
+        return;
+      }
+      
+      // EDIT 4: Guard against stale callback
+      if (epoch !== __cqSessionEpoch_MEM) {
+        console.log('[CQ_STALE_CALLBACK_DROPPED][INIT_ERROR]', { 
+          capturedEpoch: epoch, 
+          currentEpoch: __cqSessionEpoch_MEM 
+        });
+        return;
+      }
+      
       // Set error using existing error setter
       setError(err);
       setIsLoading(false);
@@ -4194,6 +4280,9 @@ function CandidateInterviewInner() {
   // BOOTSTRAP KICKSTART - Replaces legacy render-kick
   // ============================================================================
   useEffect_TR("T09_BOOT_KICKSTART", () => {
+    // EDIT 2: Async abort guard
+    let didCancel = false;
+    
     try {
       console.log("[CQ_301_DIAG][BOOT_KICKSTART]", {
         rid: (typeof __cqRid !== 'undefined' ? __cqRid : 'no_rid'),
@@ -4241,8 +4330,27 @@ function CandidateInterviewInner() {
         return;
       }
       console.log('[CQ_BOOT_RENDERKICK][USE_EFFECT_KICKSTART]', { sessionId });
-      initializeInterview();
+      
+      // EDIT 2: Pass abort ref to async function
+      const didCancelRef = { current: didCancel };
+      initializeInterview(didCancelRef);
     }
+    
+    // EDIT 2: Cleanup function - abort async work
+    return () => {
+      didCancel = true;
+      
+      // Dev-only abort marker
+      try {
+        if (typeof window !== 'undefined') {
+          const hn = window.location?.hostname || '';
+          const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+          if (isDevEnv) {
+            console.log('[CQ_ASYNC_ABORT][KICKSTART_CLEANUP]', { sessionId });
+          }
+        }
+      } catch (_) {}
+    };
   }, [sessionId]);
   
   // ============================================================================
@@ -5236,6 +5344,13 @@ function CandidateInterviewInner() {
     
     if (!sessionId) return;
     
+    // EDIT 4: Increment session epoch (invalidate old callbacks)
+    __cqSessionEpoch_MEM++;
+    console.log('[CQ_SESSION_EPOCH][INCREMENT]', { 
+      newEpoch: __cqSessionEpoch_MEM, 
+      sessionId 
+    });
+    
     // V3 ACK METRICS: Log final stats on session change
     if (v3AckSetCountRef.current > 0) {
       console.log('[V3_PROBE][ACK_METRICS]', {
@@ -5365,6 +5480,24 @@ function CandidateInterviewInner() {
     });
     
     try { console.log('[CQ_301_DIAG][FULL_RESET][EXIT]'); } catch (_) {}
+    
+    // EDIT 3: Cleanup function - cancel refresh timer
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+        
+        try {
+          if (typeof window !== 'undefined') {
+            const hn = window.location?.hostname || '';
+            const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+            if (isDevEnv) {
+              console.log('[CQ_ASYNC_ABORT][REFRESH_TIMER_CLEANUP]', { sessionId });
+            }
+          }
+        } catch (_) {}
+      }
+    };
   }, [sessionId]);
   
   // HOOK CENSUS: Mark after final MAIN hook (T01-T15 interview logic)
