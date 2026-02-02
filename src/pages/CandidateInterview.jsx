@@ -3937,6 +3937,9 @@ function CandidateInterviewInner() {
   // FAILOPEN ONCE-LATCH: Prevent repeated failopen side-effects from causing render loops
   const cqFailopenOnceRef = React.useRef({ modeBlock: false, try1Tdz: false, priority2Failopen: false, resolveActiveUiFailopen: false });
   
+  // EDIT 4: Duplicate [CQ_TRY1_CATCH][ERROR] log guard
+  const try1CatchLoggedRef = React.useRef(false);
+  
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
 
@@ -18290,6 +18293,14 @@ function CandidateInterviewInner() {
   // If you must edit: extract to pure function with explicit parameters instead.
   // ============================================================================
   cqSetRenderStep('TRY1:DERIVED_START');
+  
+  // EDIT E: Segment E - Derived snapshot wrap
+  try {
+    cqSetRenderStep('TRY1:TOP:06A_ENTER_DERIVED_SNAPSHOT');
+    if (typeof window !== 'undefined') {
+      window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06A_ENTER_DERIVED_SNAPSHOT';
+    }
+    
   // [TDZ_GUARD][DERIVED_SNAPSHOT]
   // Centralized render-time derived computations (NO hooks in this block).
   // Ordered to prevent TDZ and used as the single source of truth for planner inputs.
@@ -18297,12 +18308,23 @@ function CandidateInterviewInner() {
   // TDZ FIX: effectiveItemType declared earlier (see near computeActivePromptText)
   console.log('[CQ_DERIVED][ENTER]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), activeKind: (typeof activeUiItem_S !== 'undefined' && activeUiItem_S?.kind) || null });
   const activeKindSOT = activeUiItem_S_SAFE?.kind || currentItem_S?.type || 'UNKNOWN';
+  
+  cqSetRenderStep('TRY1:TOP:06B_AFTER_ACTIVE_KIND');
+  if (typeof window !== 'undefined') {
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06B_AFTER_ACTIVE_KIND';
+  }
+  
   effectiveItemType = activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
                            activeUiItem_S_SAFE.kind === "V3_PROMPT" ? 'v3_probing' : 
                            activeUiItem_S_SAFE.kind === "V3_OPENER" ? 'v3_pack_opener' :
                            activeUiItem_S_SAFE.kind === "MI_GATE" ? 'multi_instance_gate' :
                            v3ProbingActive ? 'v3_probing' : 
                            currentItem_SType;
+  
+  cqSetRenderStep('TRY1:TOP:06C_AFTER_EFFECTIVE_ITEM_TYPE');
+  if (typeof window !== 'undefined') {
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06C_AFTER_EFFECTIVE_ITEM_TYPE';
+  }
   const activeCard_SKeySOT = (() => {
     if (activeUiItem_S_SAFE.kind === "V3_PROMPT") {
       const promptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
@@ -18323,6 +18345,12 @@ function CandidateInterviewInner() {
     }
     return null;
   })();
+  
+  cqSetRenderStep('TRY1:TOP:06D_AFTER_ACTIVE_CARD_KEY');
+  if (typeof window !== 'undefined') {
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06D_AFTER_ACTIVE_CARD_KEY';
+  }
+  
   const hasActiveCardSOT = Boolean(activeCard_SKeySOT);
   activeCard_S = null;
   const transcriptRenderable = renderedTranscriptSnapshotRef_SAFE.current || dbTranscript || [];
@@ -18472,6 +18500,12 @@ function CandidateInterviewInner() {
       currentPrompt
     });
   safeActivePromptText = sanitizeCandidateFacingText(activePromptText, 'ACTIVE_PROMPT_TEXT');
+  
+  cqSetRenderStep('TRY1:TOP:06F_AFTER_ACTIVE_PROMPT_TEXT');
+  if (typeof window !== 'undefined') {
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06F_AFTER_ACTIVE_PROMPT_TEXT';
+  }
+  
   const needsPrompt = bottomBarModeSOT === 'TEXT_INPUT' || 
                       ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
   hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
@@ -18502,6 +18536,11 @@ function CandidateInterviewInner() {
   isBottomBarSubmitDisabled = requiredAnchorFallbackActive 
     ? (!(input ?? "").trim())
     : (!currentItem_S || isCommitting || !(input ?? "").trim());
+  
+  cqSetRenderStep('TRY1:TOP:06G_AFTER_FINAL_FLAGS');
+  if (typeof window !== 'undefined') {
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06G_AFTER_FINAL_FLAGS';
+  }
 
   const derived = {
     hasActiveV3Prompt,
@@ -18523,18 +18562,34 @@ function CandidateInterviewInner() {
     activeCard_S,
     isBottomBarSubmitDisabled,
   };
+  
+  cqSetRenderStep('TRY1:TOP:06H_EXIT_DERIVED_SNAPSHOT');
+  if (typeof window !== 'undefined') {
+    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06H_EXIT_DERIVED_SNAPSHOT';
+  }
+  } catch (segmentError) {
+    console.error('[CQ_TRY1_SEGMENT_FAIL]', {
+      seg: 'E',
+      step: (typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null),
+      message: segmentError?.message,
+      name: segmentError?.name,
+      stack: segmentError?.stack
+    });
+    throw segmentError;
+  }
 
   // TDZ FIX: shouldRenderInTranscript MOVED TO TOP OF COMPONENT (hoisted out of TRY1)
   // Hoisted to prevent crash-before-declare ReferenceError in transcript planners.
   
-  // EDIT 1: Micro-step marker 06
+  // EDIT 3: Marker 06 - Post-derived-snapshot marker (legacy name retained for compatibility)
     try {
-      __cqLastRenderStep_MEM = 'TRY1:TOP:06_AFTER_TRANSCRIPT_PLAN';
+      __cqLastRenderStep_MEM = 'TRY1:TOP:06_AFTER_DERIVED_SNAPSHOT';
       if (typeof window !== 'undefined') {
+        window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06_AFTER_DERIVED_SNAPSHOT';
         const hn = window.location?.hostname || '';
         const isDevEnv = hn.includes('preview') || hn.includes('localhost');
         if (isDevEnv) {
-          console.log('[CQ_TRY1_STEP]', { step: '06_AFTER_TRANSCRIPT_PLAN', ts: Date.now() });
+          console.log('[CQ_TRY1_STEP]', { step: '06_AFTER_DERIVED_SNAPSHOT', ts: Date.now() });
         }
       }
     } catch (_) {}
@@ -21412,20 +21467,25 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
         console.log('[CQ_DIAG][TRY1_CATCH_ENTER]', { lastStep: (__cqLastRenderStep_MEM || null) });
       } catch (_) {}
     
-    console.error('[CQ_TRY1_CATCH][ERROR]', {
-      message: e?.message,
-      name: e?.name,
-      stack: e?.stack,
-      lastStep: (__cqLastRenderStep_MEM || null),
-      lastHookSite: (__cqLastHookSite_MEM || null),
-      lastRenderSig: (typeof window !== 'undefined') ? (window.__CQ_LAST_RENDER_SIG__ || null) : null,
-      hookSigPrev: (__cqHookSigPrev_MEM || null),
-      hookSigCurr: (__cqHookSigCurr_MEM || null),
-      hookPrevN: (__cqHookSigPrev_MEM ? __cqHookSigPrev_MEM.n : null),
-      hookPrevLast: (__cqHookSigPrev_MEM ? __cqHookSigPrev_MEM.last : null),
-      hookCurrN: (__cqHookSigCurr_MEM ? __cqHookSigCurr_MEM.n : null),
-      hookCurrLast: (__cqHookSigCurr_MEM ? __cqHookSigCurr_MEM.last : null)
-    });
+    // EDIT 4: Duplicate log guard (prevent double [CQ_TRY1_CATCH][ERROR] emission)
+    if (!try1CatchLoggedRef.current) {
+      try1CatchLoggedRef.current = true;
+      
+      console.error('[CQ_TRY1_CATCH][ERROR]', {
+        message: e?.message,
+        name: e?.name,
+        stack: e?.stack,
+        lastStep: (__cqLastRenderStep_MEM || null),
+        lastHookSite: (__cqLastHookSite_MEM || null),
+        lastRenderSig: (typeof window !== 'undefined') ? (window.__CQ_LAST_RENDER_SIG__ || null) : null,
+        hookSigPrev: (__cqHookSigPrev_MEM || null),
+        hookSigCurr: (__cqHookSigCurr_MEM || null),
+        hookPrevN: (__cqHookSigPrev_MEM ? __cqHookSigPrev_MEM.n : null),
+        hookPrevLast: (__cqHookSigPrev_MEM ? __cqHookSigPrev_MEM.last : null),
+        hookCurrN: (__cqHookSigCurr_MEM ? __cqHookSigCurr_MEM.n : null),
+        hookCurrLast: (__cqHookSigCurr_MEM ? __cqHookSigCurr_MEM.last : null)
+      });
+    }
     
     // ERROR FINGERPRINT CAPTURE (preview/flag-gated, fail-safe)
     try {
