@@ -277,25 +277,20 @@ export default function StartInterview() {
         
         if (activeSession) {
           // GUARD: Do NOT auto-resume after #310 crash recovery
-          let crash310 = false;
-          try {
-            crash310 = (typeof window !== 'undefined' && window.sessionStorage)
-              ? (window.sessionStorage.getItem('CQ_LAST_CRASH') === '310')
-              : false;
-          } catch (_) {}
+          const qs = (typeof window !== 'undefined' ? (window.location?.search || '') : '');
+          const crash310FromUrl = qs.includes('cq_crash=310');
           
-          if (crash310) {
+          if (crash310FromUrl) {
             console.log('[START_INTERVIEW][SKIP_AUTO_RESUME_AFTER_CRASH]', {
               sessionId: activeSession.id,
-              reason: 'CQ_LAST_CRASH=310 marker present (crash recovery)',
+              reason: 'cq_crash=310 present in URL (crash recovery)',
               action: 'Rendering Welcome form instead of auto-resume'
             });
             
-            // Clear marker so next manual attempt is allowed
+            // Clear URL param so refresh doesn't keep blocking
             try {
-              if (typeof window !== 'undefined' && window.sessionStorage) {
-                window.sessionStorage.removeItem('CQ_LAST_CRASH');
-                window.sessionStorage.removeItem('CQ_LAST_CRASH_TS');
+              if (typeof window !== 'undefined' && window.history && typeof window.history.replaceState === 'function') {
+                window.history.replaceState({}, '', window.location.pathname);
               }
             } catch (_) {}
             
