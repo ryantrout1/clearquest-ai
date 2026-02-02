@@ -1509,6 +1509,9 @@ let __cqRemountNonce_MEM = 0;
 let __cqLastRemountTs_MEM = 0;
 let __cqLastRemountSession_MEM = null;
 
+// Kill-switch latch: One-way flag to stop rendering after #310 redirect
+let __cq310KillLatched_MEM = false;
+
 // Centralized V2 probe runner for both base questions and follow-ups
 // CRITICAL: For V2 packs, we ALWAYS call the backend - it controls progression
 /**
@@ -21130,6 +21133,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               
               // KILL-SWITCH: Force clean recovery on #310 (Welcome/Home)
               try {
+                // LATCH: One-way flag to stop further renders
+                __cq310KillLatched_MEM = true;
+                
                 console.error('[CQ_310_KILLSWITCH][REDIRECT]', {
                   from: (typeof window !== 'undefined' ? window.location.pathname : null),
                   to: '/Home',
@@ -24159,6 +24165,25 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   // DEFAULT EXPORT - Wrapped with Error Boundary
   // ============================================================================
   export default function CandidateInterview() {
+    // KILL-SWITCH LATCH: Stop rendering if #310 redirect active
+    if (__cq310KillLatched_MEM) {
+      return (
+        <div style={{ 
+          minHeight: '100vh', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          background: 'linear-gradient(to bottom right, #0f172a, #1e3a8a, #0f172a)',
+          color: '#cbd5e1',
+          fontFamily: 'system-ui, sans-serif'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '14px' }}>Restarting interview...</div>
+          </div>
+        </div>
+      );
+    }
+    
     const sessionId = (typeof window !== 'undefined' && window.__CQ_SESSION__) || null;
     const remountKey = `${sessionId || 'no-session'}:${__cqRemountNonce_MEM}`;
 
