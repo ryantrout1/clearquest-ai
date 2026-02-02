@@ -21136,6 +21136,13 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 // LATCH: One-way flag to stop further renders
                 __cq310KillLatched_MEM = true;
                 
+                // SESSION CLEAR: Prevent auto-resume to broken interview
+                try {
+                  if (typeof window !== 'undefined') {
+                    window.__CQ_SESSION__ = null;
+                  }
+                } catch (_) {}
+                
                 console.error('[CQ_310_KILLSWITCH][REDIRECT]', {
                   from: (typeof window !== 'undefined' ? window.location.pathname : null),
                   to: '/Home',
