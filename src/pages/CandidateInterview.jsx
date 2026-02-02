@@ -6635,6 +6635,7 @@ function CandidateInterviewInner() {
     try {
       __cqLastRenderStep_MEM = 'TRY1:TOP:01_AFTER_ENTER';
       if (typeof window !== 'undefined') {
+        window.CQ_LAST_RENDER_STEP = 'TRY1:TOP:01_AFTER_ENTER';  // Secondary: Mirror to window
         const hn = window.location?.hostname || '';
         const isDevEnv = hn.includes('preview') || hn.includes('localhost');
         if (isDevEnv) {
@@ -6971,24 +6972,25 @@ function CandidateInterviewInner() {
       }
     } catch (_) {}
 
+    // FIX: Hoist activeUiItem_S declaration outside Segment C (block scope fix)
+    let activeUiItem_S = null;
+
     // EDIT 2: Segment C - try/catch wrap
     try {
 
     // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_2:BEFORE_ACTIVE_UI_PICK';
-  console.log('[CQ_DIAG][TRY1_STEP]', { step: '2:BEFORE_ACTIVE_UI_PICK' });
-  lastTry1StepRef.current = '2:BEFORE_ACTIVE_UI_PICK';
-  cqMark('BEFORE_ACTIVE_UI_PICK');
-  // CANONICAL ACTIVE UI ITEM RESOLVER - Single source of truth
-  // Determines what UI should be shown based on strict precedence:
-  // REQUIRED_ANCHOR_FALLBACK > V3_PROMPT > V3_WAITING > V3_OPENER > MI_GATE > DEFAULT
-  // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3:BEFORE_RESOLVE_ACTIVE_UI';
-  console.log('[CQ_DIAG][TRY1_STEP]', { step: '3:BEFORE_RESOLVE_ACTIVE_UI' });
-  lastTry1StepRef.current = '3:BEFORE_RESOLVE_ACTIVE_UI';
-  
-  // BOOT-PHASE BYPASS: Skip resolveActiveUiItem() during incomplete boot
-  const __cqBootIncomplete = Boolean(isLoading) || !session || !engine_S;
-  
-  let activeUiItem_S = null;
+    console.log('[CQ_DIAG][TRY1_STEP]', { step: '2:BEFORE_ACTIVE_UI_PICK' });
+    lastTry1StepRef.current = '2:BEFORE_ACTIVE_UI_PICK';
+    cqMark('BEFORE_ACTIVE_UI_PICK');
+    // CANONICAL ACTIVE UI ITEM RESOLVER - Single source of truth
+    // Determines what UI should be shown based on strict precedence:
+    // REQUIRED_ANCHOR_FALLBACK > V3_PROMPT > V3_WAITING > V3_OPENER > MI_GATE > DEFAULT
+    // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3:BEFORE_RESOLVE_ACTIVE_UI';
+    console.log('[CQ_DIAG][TRY1_STEP]', { step: '3:BEFORE_RESOLVE_ACTIVE_UI' });
+    lastTry1StepRef.current = '3:BEFORE_RESOLVE_ACTIVE_UI';
+
+    // BOOT-PHASE BYPASS: Skip resolveActiveUiItem() during incomplete boot
+    const __cqBootIncomplete = Boolean(isLoading) || !session || !engine_S;
   
   if (__cqBootIncomplete) {
     console.log('[CQ_ACTIVE_UI_CALL][SKIP_BOOT_INCOMPLETE]', {
@@ -7029,8 +7031,8 @@ function CandidateInterviewInner() {
         kind: "DEFAULT",
         reason: "ACTIVE_UI_CALL_FAILOPEN"
       };
-      }
-      }
+    }
+  }
 
       } catch (segmentError) {
           // EDIT 2: Segment C catch
