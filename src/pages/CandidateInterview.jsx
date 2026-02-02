@@ -2304,6 +2304,41 @@ function CandidateInterviewInner() {
       console.log('[CQ_HOOK_CENSUS][RENDER_SEEN]', { ts: Date.now() });
     }
   } catch (_) {}
+  
+  // MULTI-REACT DETECTOR: Detect duplicate React instances/objects (React #310 root cause)
+  try {
+    const isDevEnv = (typeof window !== 'undefined' && window.location?.hostname) 
+      ? (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))
+      : false;
+    const detectorEnabled = isDevEnv || (typeof window !== 'undefined' && window.CQ_ERROR_FINGERPRINT === true);
+    
+    if (detectorEnabled && typeof React !== 'undefined') {
+      if (!window.__CQ_REACT_SINGLETON__) {
+        // First render - store React object reference
+        window.__CQ_REACT_SINGLETON__ = React;
+        console.log('[CQ_MULTI_REACT_DETECTOR][SINGLETON_SET]', { 
+          reactVersion: React?.version || 'unknown',
+          ts: Date.now()
+        });
+      } else {
+        // Subsequent render - compare React objects
+        const singletonMatch = window.__CQ_REACT_SINGLETON__ === React;
+        if (!singletonMatch) {
+          console.error('[CQ_MULTI_REACT_DETECTOR][MISMATCH]', {
+            firstReactVersion: window.__CQ_REACT_SINGLETON__?.version || 'unknown',
+            currentReactVersion: React?.version || 'unknown',
+            singletonMatch: false,
+            reason: 'Multiple React instances detected - different object references',
+            sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
+            ts: Date.now()
+          });
+        }
+      }
+    }
+  } catch (_) {
+    // Detector must never throw
+  }
+  
   const navigate = useNavigate();
   
   // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
@@ -20993,6 +21028,14 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
           v3ProbingActive: (typeof v3ProbingActive !== 'undefined' ? v3ProbingActive : null),
           v3PromptPhase: (typeof v3PromptPhase !== 'undefined' ? v3PromptPhase : null),
           lastTry1Step: lastTry1StepRef?.current || null,
+          // ENRICHMENT: Hook trace + React singleton detection
+          lastStep: (typeof window !== 'undefined' ? (window.__CQ_LAST_RENDER_STEP__ || null) : null),
+          lastHookSite: (typeof window !== 'undefined' ? (window.__CQ_LAST_HOOKSITE__ || null) : null),
+          lastRenderSig: (typeof window !== 'undefined' ? (window.__CQ_LAST_RENDER_SIG__ || null) : null),
+          reactVersion: (typeof React !== 'undefined' ? (React?.version || 'unknown') : null),
+          reactSingletonMatch: (typeof window !== 'undefined' && window.__CQ_REACT_SINGLETON__ && typeof React !== 'undefined') 
+            ? (window.__CQ_REACT_SINGLETON__ === React) 
+            : null,
           ts: Date.now()
         };
         console.error('[CQ_ERROR_FINGERPRINT]', snapshot);
