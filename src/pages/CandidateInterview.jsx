@@ -1500,6 +1500,10 @@ const buildV3OpenerStableKey = (packId, instanceNumber) => {
 let __cqLastRenderStep_MEM = null;
 let __cqLastHookSite_MEM = null;
 
+// Hook signature tracking (module-scope, diagnostic only)
+let __cqHookSigPrev_MEM = null;
+let __cqHookSigCurr_MEM = null;
+
 // Centralized V2 probe runner for both base questions and follow-ups
 // CRITICAL: For V2 packs, we ALWAYS call the backend - it controls progression
 /**
@@ -1638,6 +1642,10 @@ const runV2FieldProbeIfNeeded = async ({
 // - Welcome / start screens must NEVER reappear mid-session
 
 function CandidateInterviewInner() {
+  // HOOK SIGNATURE RESET: Capture previous signature and start fresh for this render
+  __cqHookSigPrev_MEM = __cqHookSigCurr_MEM;
+  __cqHookSigCurr_MEM = { n: 0, last: null, ts: Date.now() };
+  
   // DEV-ONLY EARLY RENDER SIGNATURE (top of CandidateInterviewInner)
   try {
     if (typeof window !== 'undefined') {
@@ -1789,6 +1797,8 @@ function CandidateInterviewInner() {
     // DETERMINISTIC BREADCRUMB: Always set hooksite (module-scope memory, render-safe)
     try {
       __cqLastHookSite_MEM = name;
+      if (!__cqHookSigCurr_MEM) __cqHookSigCurr_MEM = { n: 0, last: null, ts: 0 };
+      __cqHookSigCurr_MEM = { n: (__cqHookSigCurr_MEM.n + 1), last: name, ts: Date.now() };
     } catch (_) {}
     
     const __cqCensusEnabledNow = (() => {
@@ -21021,7 +21031,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       stack: e?.stack,
       lastStep: (__cqLastRenderStep_MEM || null),
       lastHookSite: (__cqLastHookSite_MEM || null),
-      lastRenderSig: (typeof window !== 'undefined') ? (window.__CQ_LAST_RENDER_SIG__ || null) : null
+      lastRenderSig: (typeof window !== 'undefined') ? (window.__CQ_LAST_RENDER_SIG__ || null) : null,
+      hookSigPrev: (__cqHookSigPrev_MEM || null),
+      hookSigCurr: (__cqHookSigCurr_MEM || null)
     });
     
     // ERROR FINGERPRINT CAPTURE (preview/flag-gated, fail-safe)
@@ -21046,6 +21058,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
           lastStep: (__cqLastRenderStep_MEM || null),
           lastHookSite: (__cqLastHookSite_MEM || null),
           lastRenderSig: (typeof window !== 'undefined' ? (window.__CQ_LAST_RENDER_SIG__ || null) : null),
+          hookSigPrev: (__cqHookSigPrev_MEM || null),
+          hookSigCurr: (__cqHookSigCurr_MEM || null),
           reactVersion: (typeof React !== 'undefined' ? (React?.version || 'unknown') : null),
           reactSingletonMatch: (typeof window !== 'undefined' && window.__CQ_REACT_SINGLETON__ && typeof React !== 'undefined') 
             ? (window.__CQ_REACT_SINGLETON__ === React) 
