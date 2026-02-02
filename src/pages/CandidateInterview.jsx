@@ -6635,7 +6635,7 @@ function CandidateInterviewInner() {
     try {
       __cqLastRenderStep_MEM = 'TRY1:TOP:01_AFTER_ENTER';
       if (typeof window !== 'undefined') {
-        window.CQ_LAST_RENDER_STEP = 'TRY1:TOP:01_AFTER_ENTER';  // Secondary: Mirror to window
+        window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:01_AFTER_ENTER';  // Secondary: Mirror to window
         const hn = window.location?.hostname || '';
         const isDevEnv = hn.includes('preview') || hn.includes('localhost');
         if (isDevEnv) {
