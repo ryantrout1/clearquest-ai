@@ -276,6 +276,22 @@ export default function StartInterview() {
         );
         
         if (activeSession) {
+          // GUARD: Do NOT auto-resume if session was intentionally cleared (crash recovery)
+          const sessionWasCleared = typeof window !== 'undefined' && window.__CQ_SESSION__ === null;
+          
+          if (sessionWasCleared) {
+            console.log('[START_INTERVIEW][SKIP_AUTO_RESUME_AFTER_CRASH]', {
+              sessionId: activeSession.id,
+              reason: 'window.__CQ_SESSION__ was cleared (likely #310 crash recovery)',
+              action: 'Rendering Welcome form instead of auto-resume'
+            });
+            
+            // DO NOT navigate - let Welcome form render
+            setCheckingExisting(false);
+            setIsSubmitting(false);
+            return; // Exit early - no auto-resume
+          }
+          
           if (didNavigateToInterviewRef.current) return;
           didNavigateToInterviewRef.current = true;
 
