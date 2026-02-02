@@ -21127,6 +21127,20 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 sessionId: sid,
                 reason: 'React #310 detected - forcing remount on next render'
               });
+              
+              // KILL-SWITCH: Force clean recovery on #310 (Welcome/Home)
+              try {
+                console.error('[CQ_310_KILLSWITCH][REDIRECT]', {
+                  from: (typeof window !== 'undefined' ? window.location.pathname : null),
+                  to: '/Home',
+                  sessionId: sid,
+                  reason: 'React #310 dispatcher corruption — forcing clean app reload'
+                });
+                
+                if (typeof window !== 'undefined' && window.location && typeof window.location.assign === 'function') {
+                  window.location.assign('/Home');
+                }
+              } catch (_) {}
             }
           }
         }
