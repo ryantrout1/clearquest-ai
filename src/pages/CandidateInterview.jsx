@@ -21033,7 +21033,11 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       lastHookSite: (__cqLastHookSite_MEM || null),
       lastRenderSig: (typeof window !== 'undefined') ? (window.__CQ_LAST_RENDER_SIG__ || null) : null,
       hookSigPrev: (__cqHookSigPrev_MEM || null),
-      hookSigCurr: (__cqHookSigCurr_MEM || null)
+      hookSigCurr: (__cqHookSigCurr_MEM || null),
+      hookPrevN: (__cqHookSigPrev_MEM ? __cqHookSigPrev_MEM.n : null),
+      hookPrevLast: (__cqHookSigPrev_MEM ? __cqHookSigPrev_MEM.last : null),
+      hookCurrN: (__cqHookSigCurr_MEM ? __cqHookSigCurr_MEM.n : null),
+      hookCurrLast: (__cqHookSigCurr_MEM ? __cqHookSigCurr_MEM.last : null)
     });
     
     // ERROR FINGERPRINT CAPTURE (preview/flag-gated, fail-safe)
@@ -21060,6 +21064,10 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
           lastRenderSig: (typeof window !== 'undefined' ? (window.__CQ_LAST_RENDER_SIG__ || null) : null),
           hookSigPrev: (__cqHookSigPrev_MEM || null),
           hookSigCurr: (__cqHookSigCurr_MEM || null),
+          hookPrevN: (__cqHookSigPrev_MEM ? __cqHookSigPrev_MEM.n : null),
+          hookPrevLast: (__cqHookSigPrev_MEM ? __cqHookSigPrev_MEM.last : null),
+          hookCurrN: (__cqHookSigCurr_MEM ? __cqHookSigCurr_MEM.n : null),
+          hookCurrLast: (__cqHookSigCurr_MEM ? __cqHookSigCurr_MEM.last : null),
           reactVersion: (typeof React !== 'undefined' ? (React?.version || 'unknown') : null),
           reactSingletonMatch: (typeof window !== 'undefined' && window.__CQ_REACT_SINGLETON__ && typeof React !== 'undefined') 
             ? (window.__CQ_REACT_SINGLETON__ === React) 
