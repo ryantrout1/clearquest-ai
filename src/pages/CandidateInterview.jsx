@@ -11625,7 +11625,25 @@ function CandidateInterviewInner() {
 
         if (isV3Headless && missingRequired.length > 0) {
           // PHASE GATE: Only activate fallback when phase allows it
-          const fallbackPhaseSOT = computeInterviewPhaseSOT();
+          let fallbackPhaseSOT;
+          try {
+            fallbackPhaseSOT = computeInterviewPhaseSOT();
+          } catch (e) {
+            console.error('[PHASE_SOT][FAILOPEN]', { error: e?.message, callSite: 'transitionToAnotherInstanceGate_fallback' });
+            fallbackPhaseSOT = {
+              phase: "BOOTSTRAP",
+              allowedActions: new Set([]),
+              blockedReasons: ["Phase computation error"],
+              derivedFlags: {
+                canSubmitText: false,
+                canClickYesNo: false,
+                shouldShowPrompt: false,
+                shouldBlockInput: true,
+                shouldSuppressMiGate: true,
+                shouldSuppressFallback: true
+              }
+            };
+          }
           
           // Require phase to be V3_PROCESSING or V3_PROBING
           if (fallbackPhaseSOT.phase !== "V3_PROCESSING" && fallbackPhaseSOT.phase !== "V3_PROBING") {
@@ -16818,7 +16836,25 @@ function CandidateInterviewInner() {
     // ============================================================================
     // PHASE GATE - Block illegal submits
     // ============================================================================
-    const phaseSOT = computeInterviewPhaseSOT();
+    let phaseSOT;
+    try {
+      phaseSOT = computeInterviewPhaseSOT();
+    } catch (e) {
+      console.error('[PHASE_SOT][FAILOPEN]', { error: e?.message, callSite: 'handleBottomBarSubmit' });
+      phaseSOT = {
+        phase: "BOOTSTRAP",
+        allowedActions: new Set([]),
+        blockedReasons: ["Phase computation error"],
+        derivedFlags: {
+          canSubmitText: false,
+          canClickYesNo: false,
+          shouldShowPrompt: false,
+          shouldBlockInput: true,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
     if (!phaseSOT.allowedActions.has("SUBMIT")) {
       console.warn('[PHASE_BLOCK][SUBMIT]', { 
         phase: phaseSOT.phase, 
