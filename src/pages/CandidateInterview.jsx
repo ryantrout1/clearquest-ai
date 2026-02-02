@@ -1,6 +1,6 @@
 // @refresh reset
 // [TOOLRUN_PROVIDER_OK] openai
-import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import { unstable_batchedUpdates } from "react-dom";
 import { createPageUrl } from "@/utils";
@@ -1934,7 +1934,7 @@ function CandidateInterviewInner() {
     __cqReactUseRefN += 1;
     try { /* useRef tracking disabled (React #310 compliance) */ } catch (_) {}
     try { console.log('[CQ_REACT_USEREF_CALL]', { n: __cqReactUseRefN }); } catch (_) {}
-    return React.useRef(...args);
+    return React.React.useRef(...args);
   };
   
   const __cqHookSite = (label) => { try { /* Hook site tracking disabled (React #310 compliance) */ } catch (_) {} };
@@ -1960,7 +1960,7 @@ function CandidateInterviewInner() {
     try {
       // Hook count tracking disabled (React #310 compliance)
     } catch (_) {}
-    return useEffect(fn, deps);
+    return React.useEffect(fn, deps);
   }
   
   // Traced hook aliases (local to this component)
@@ -1974,7 +1974,7 @@ function CandidateInterviewInner() {
     const label = isLabel ? labelOrFn : undefined;
     const hookArgs = isLabel ? rest : [labelOrFn, ...rest];
     __cqTrace('useEffect', label);
-    return useEffect(...hookArgs);
+    return React.React.useEffect(...hookArgs);
   }
   const useEffect_TR2 = useEffect_TR; // Minifier compatibility alias
   function useLayoutEffect_TR(labelOrFn, ...rest) {
@@ -1982,23 +1982,23 @@ function CandidateInterviewInner() {
     const label = isLabel ? labelOrFn : undefined;
     const hookArgs = isLabel ? rest : [labelOrFn, ...rest];
     __cqTrace('useLayoutEffect', label);
-    return useLayoutEffect(...hookArgs);
+    return React.React.useLayoutEffect(...hookArgs);
   }
   function ReactUseLayoutEffect_TR(labelOrFn, ...rest) {
     const isLabel = typeof labelOrFn === 'string';
     const label = isLabel ? labelOrFn : undefined;
     const hookArgs = isLabel ? rest : [labelOrFn, ...rest];
     __cqTrace('React.useLayoutEffect', label);
-    return React.useLayoutEffect(...hookArgs);
+    return React.React.useLayoutEffect(...hookArgs);
   }
   function useCallback_TR(labelOrFn, ...rest) {
     const isLabel = typeof labelOrFn === 'string';
     const label = isLabel ? labelOrFn : undefined;
     const hookArgs = isLabel ? rest : [labelOrFn, ...rest];
     __cqTrace('useCallback', label);
-    return useCallback(...hookArgs);
+    return React.React.useCallback(...hookArgs);
   }
-  function useRef_TR_L(label, ...args) { __cqTrace(`useRef:${label}`); return useRef(...args); }
+  function useRef_TR_L(label, ...args) { __cqTrace(`useRef:${label}`); return React.React.useRef(...args); }
   
   // HOOK CENSUS HELPER: Log trace counter state (dev-only, no hook)
   const cqLogHookCensus = (label) => {
@@ -2314,13 +2314,13 @@ function CandidateInterviewInner() {
   const sessionId = sessionFromSession || sessionFromSessionId || sessionFromGlobal || null;
   
   // SESSION STICKY REF: Persist sessionId across mounts (memory-safe)
-  const resolvedSessionRef = useRef(null);
+  const resolvedSessionRef = React.useRef(null);
   
   // SESSION LOCK REF: Once locked, interview cannot invalidate (prevents reset to WELCOME)
-  const lockedSessionIdRef = useRef(null);
+  const lockedSessionIdRef = React.useRef(null);
   
   // FORENSIC: Mount-only log showing what session params we received
-  const sessionParamLoggedRef = useRef(false);
+  const sessionParamLoggedRef = React.useRef(false);
   if (!sessionParamLoggedRef.current) {
     sessionParamLoggedRef.current = true;
     console.log('[CANDIDATE_INTERVIEW][SESSION_PARAM_SOT]', {
@@ -2496,28 +2496,28 @@ function CandidateInterviewInner() {
   // Moving it below the early return will cause: "Cannot access 'showRedirectFallback' before initialization"
   // 
   // FORENSIC: TDZ FIX - showRedirectFallback state MUST be before early return
-  const [showRedirectFallback, setShowRedirectFallback] = useState(false);
+  const [showRedirectFallback, setShowRedirectFallback] = React.useState(false);
 
   // REACT #310 AUDIT: Track last successful TRY1 step for crash correlation
-  const lastTry1StepRef = useRef('NOT_STARTED');
+  const lastTry1StepRef = React.useRef('NOT_STARTED');
 
-  const [engine_S, setEngine] = useState(null);
+  const [engine_S, setEngine] = React.useState(null);
   
   // BOOT READY LATCH: One-way flag to prevent boot state regression (once ready, always ready)
-  const cqBootReadyLatchedRef = useRef(false);
+  const cqBootReadyLatchedRef = React.useRef(false);
   
   // BOOT WARN ONCE: Prevent spam when blocking regression setters
-  const cqBootWarnOnceRef = useRef({ loadingTrue: false, sessionNull: false, engineNull: false });
+  const cqBootWarnOnceRef = React.useRef({ loadingTrue: false, sessionNull: false, engineNull: false });
   
   // SESSION RECOVERY STATE: Track recovery in-flight to prevent redirect during lookup
-  const [isRecoveringSession, setIsRecoveringSession] = useState(false);
+  const [isRecoveringSession, setIsRecoveringSession] = React.useState(false);
   
   // TDZ_FIX: HOISTED-SAFE PERSISTENCE - Plain function with zero closure dependencies
   // CRITICAL: Declared at top-of-component to eliminate ALL TDZ risks
   // This function uses ONLY its parameters - no component state/refs/consts
   cqHookMark('HOOK_10:useRef:inFlightEnsures');
-  const inFlightEnsuresRef = useRef({});
-    const resumeFromDBFnRef = useRef(null);
+  const inFlightEnsuresRef = React.useRef({});
+    const resumeFromDBFnRef = React.useRef(null);
   
   /**
    * Required anchor question persistence (TDZ-proof, crash-proof)
@@ -2656,10 +2656,10 @@ function CandidateInterviewInner() {
   });
   
   // FORENSIC: No-session early return guard (prints once per mount)
-  const noSessionEarlyReturnLoggedRef = useRef(false);
-  const didSessionRepairRef = useRef(false);
+  const noSessionEarlyReturnLoggedRef = React.useRef(false);
+  const didSessionRepairRef = React.useRef(false);
   console.log("[PRE_HOOK_SAFETY][REACHED_SCREENMODE_DECL]");
-  const [screenMode, setScreenMode] = useState("LOADING");
+  const [screenMode, setScreenMode] = React.useState("LOADING");
   
   console.log("[TDZ_TRACE][BEFORE_EARLY_RETURN_CHECK]");
 
@@ -2670,7 +2670,7 @@ function CandidateInterviewInner() {
   const cqDiagEnabled = urlParams.get('cqdiag') === '1';
   
   // FORENSIC: Mount-only bootstrap confirmation (proves session param routing worked)
-  const bootstrapOkLoggedRef = useRef(false);
+  const bootstrapOkLoggedRef = React.useRef(false);
   if (!bootstrapOkLoggedRef.current && effectiveSessionId) {
     bootstrapOkLoggedRef.current = true;
     console.log('[CANDIDATE_INTERVIEW][BOOTSTRAP_OK]', {
@@ -2692,28 +2692,28 @@ function CandidateInterviewInner() {
   const TYPING_IDLE_MS = 1500; // 1.5s idle timeout
 
 
-  const [session, setSession] = useState(null);
-  const [department, setDepartment] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [session, setSession] = React.useState(null);
+  const [department, setDepartment] = React.useState(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
 
   cqHookMark('HOOK_20:useState:sections');
-  const [sections, setSections] = useState([]);
-  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
-  const [completedSectionsCount, setCompletedSectionsCount] = useState(0);
+  const [sections, setSections] = React.useState([]);
+  const [currentSectionIndex, setCurrentSectionIndex] = React.useState(0);
+  const [completedSectionsCount, setCompletedSectionsCount] = React.useState(0);
   const activeSection = sections[currentSectionIndex] || null;
 
   // STEP 1: CANONICAL TRANSCRIPT SOURCE - Single source of truth (ref-based, never resets)
-  const canonicalTranscriptRef = useRef([]);
+  const canonicalTranscriptRef = React.useRef([]);
   
   // CANONICAL TRANSCRIPT: Read-only mirror of session.transcript_snapshot (DB)
   // CRITICAL: Initialize with empty array ONCE - never reset during session
-  const [dbTranscript, setDbTranscript] = useState([]);
-  const [queue, setQueue] = useState([]);
-  const [currentItem_S, setCurrentItem] = useState(null);
+  const [dbTranscript, setDbTranscript] = React.useState([]);
+  const [queue, setQueue] = React.useState([]);
+  const [currentItem_S, setCurrentItem] = React.useState(null);
   
   // STABLE: Track if transcript has been initialized to prevent resets
-  const transcriptInitializedRef = useRef(false);
+  const transcriptInitializedRef = React.useRef(false);
   
   // TRANSCRIPT SOT: Single source of truth for all rendering and metrics
   const transcriptSOT_S = (() => {
@@ -2722,12 +2722,12 @@ function CandidateInterviewInner() {
   })();
 
   // STATE HOISTED: Must be declared before forensicCheck (prevents TDZ crash)
-  const [uiBlocker, setUiBlocker] = useState(null);
+  const [uiBlocker, setUiBlocker] = React.useState(null);
   const activeBlocker = uiBlocker; // UI-only blocker, not from canonical transcript
   
   // Dev guardrail: Ensure transcript never shrinks (applied to canonical DB mirror)
   cqHookMark('HOOK_30:useCallback:setDbTranscriptSafe');
-  const setDbTranscriptSafe = useCallback((updater) => {
+  const setDbTranscriptSafe = React.useCallback((updater) => {
     setDbTranscript(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       
@@ -2863,7 +2863,7 @@ function CandidateInterviewInner() {
   }
 
   // STEP 2: Monotonic refresh (upsert only, never replace)
-  const refreshTranscriptFromDB = useCallback(async (reason) => {
+  const refreshTranscriptFromDB = React.useCallback(async (reason) => {
     try {
       const freshSession = await base44.entities.InterviewSession.get(sessionId);
       const freshTranscript = freshSession.transcript_snapshot || [];
@@ -2940,7 +2940,7 @@ function CandidateInterviewInner() {
   }, [sessionId, setDbTranscriptSafe]);
 
   // FORENSIC: Canonical transcript verification (DB = source of truth)
-    const forensicCheck = useCallback(async (label) => {
+    const forensicCheck = React.useCallback(async (label) => {
     try {
       const fresh = await base44.entities.InterviewSession.get(sessionId);
       const freshLen = (fresh.transcript_snapshot || []).length;
@@ -2973,7 +2973,7 @@ function CandidateInterviewInner() {
   }, [sessionId, dbTranscript]);
   
   // TDZ HARDENING: Mount-only forensic log
-  const tdzHardenLoggedRef = useRef(false);
+  const tdzHardenLoggedRef = React.useRef(false);
   useEffect_TR("T01_TDZ_HARDEN", () => {
     if (!tdzHardenLoggedRef.current) {
       tdzHardenLoggedRef.current = true;
@@ -2984,7 +2984,7 @@ function CandidateInterviewInner() {
   }, []);
 
   // UNIFIED TRANSCRIPT STATE SYNC - Single source of truth updater
-  const upsertTranscriptState = useCallback((nextArray, reason) => {
+  const upsertTranscriptState = React.useCallback((nextArray, reason) => {
     if (!Array.isArray(nextArray)) {
       console.error('[TRANSCRIPT_SYNC][NOT_ARRAY]', { reason, type: typeof nextArray });
       return;
@@ -3016,7 +3016,7 @@ function CandidateInterviewInner() {
   }, [setDbTranscriptSafe]);
   
   // STEP 2: Optimistic append helper (canonical as input)
-  const appendAndRefresh = useCallback(async (kind, payload, reasonLabel) => {
+  const appendAndRefresh = React.useCallback(async (kind, payload, reasonLabel) => {
     // STATIC IMPORT: Use top-level imports (already imported at line 57-58)
     const appendUserMessage = appendUserMessageImport;
     const appendAssistantMessage = appendAssistantMessageImport;
@@ -3078,71 +3078,71 @@ function CandidateInterviewInner() {
     return updatedTranscript;
   }, [sessionId, upsertTranscriptState, setDbTranscriptSafe]);
 
-  const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
+  const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = React.useState({});
   
   // V3 UI-ONLY HISTORY: Moved here to prevent TDZ error (used in refreshTranscriptFromDB below)
-  const [v3ProbeDisplayHistory_S, setV3ProbeDisplayHistory] = useState([]);
-  const lastPersistedV3OpenerKeyRef = useRef(null);
+  const [v3ProbeDisplayHistory_S, setV3ProbeDisplayHistory] = React.useState([]);
+  const lastPersistedV3OpenerKeyRef = React.useRef(null);
 
   // Render-time freeze: Snapshot transcript while typing to prevent flicker
-  const renderedTranscriptSnapshotRef = useRef(null);
+  const renderedTranscriptSnapshotRef = React.useRef(null);
 
-  const [aiSessionId, setAiSessionId] = useState(null);
-  const [aiProbingPackInstanceKey, setAiProbingPackInstanceKey] = useState(null);
-  const [agentMessages, setAgentMessages] = useState([]);
-  const [isWaitingForAgent, setIsWaitingForAgent] = useState(false);
-  const [currentFollowUpPack, setCurrentFollowUpPack] = useState(null);
-  const [probingTurnCount, setProbingTurnCount] = useState(0);
-  const [aiProbingDisabledForSession, setAiProbingDisabledForSession] = useState(false);
+  const [aiSessionId, setAiSessionId] = React.useState(null);
+  const [aiProbingPackInstanceKey, setAiProbingPackInstanceKey] = React.useState(null);
+  const [agentMessages, setAgentMessages] = React.useState([]);
+  const [isWaitingForAgent, setIsWaitingForAgent] = React.useState(false);
+  const [currentFollowUpPack, setCurrentFollowUpPack] = React.useState(null);
+  const [probingTurnCount, setProbingTurnCount] = React.useState(0);
+  const [aiProbingDisabledForSession, setAiProbingDisabledForSession] = React.useState(false);
 
-  const [aiFollowupCounts, setAiFollowupCounts] = useState({});
-  const [isInvokeLLMMode, setIsInvokeLLMMode] = useState(false);
-  const [invokeLLMProbingExchanges, setInvokeLLMProbingExchanges] = useState([]);
-  const [fieldSuggestions, setFieldSuggestions] = useState({});
+  const [aiFollowupCounts, setAiFollowupCounts] = React.useState({});
+  const [isInvokeLLMMode, setIsInvokeLLMMode] = React.useState(false);
+  const [invokeLLMProbingExchanges, setInvokeLLMProbingExchanges] = React.useState([]);
+  const [fieldSuggestions, setFieldSuggestions] = React.useState({});
 
-  const [fieldProbingState, setFieldProbingState] = useState({});
-  const [completedFields, setCompletedFields] = useState({});
-  const [currentFieldProbe, setCurrentFieldProbe] = useState(null);
-  const [pendingProbe, setPendingProbe] = useState(null);
-  const v2ProbingInProgressRef = useRef(new Set());
-  const [v2ClarifierState, setV2ClarifierState] = useState(null);
+  const [fieldProbingState, setFieldProbingState] = React.useState({});
+  const [completedFields, setCompletedFields] = React.useState({});
+  const [currentFieldProbe, setCurrentFieldProbe] = React.useState(null);
+  const [pendingProbe, setPendingProbe] = React.useState(null);
+  const v2ProbingInProgressRef = React.useRef(new Set());
+  const [v2ClarifierState, setV2ClarifierState] = React.useState(null);
 
   // Store backend question text per V2 pack field and instance
-  const [backendQuestionTextMap, setBackendQuestionTextMap] = useState({});
+  const [backendQuestionTextMap, setBackendQuestionTextMap] = React.useState({});
 
   // Track the last AI follow-up question text per field so we can show it on history cards
-  const [lastAiFollowupQuestionByField, setLastAiFollowupQuestionByField] = useState({});
+  const [lastAiFollowupQuestionByField, setLastAiFollowupQuestionByField] = React.useState({});
 
-  const [aiProbingEnabled, setAiProbingEnabled] = useState(true);
-  const [aiFailureReason, setAiFailureReason] = useState(null);
-  const [handoffProcessed, setHandoffProcessed] = useState(false);
+  const [aiProbingEnabled, setAiProbingEnabled] = React.useState(true);
+  const [aiFailureReason, setAiFailureReason] = React.useState(null);
+  const [handoffProcessed, setHandoffProcessed] = React.useState(false);
 
-  const [input, setInput] = useState("");
-  const [validationHint, setValidationHint] = useState(null);
-  const [isCommitting, setIsCommitting] = useState(false);
+  const [input, setInput] = React.useState("");
+  const [validationHint, setValidationHint] = React.useState(null);
+  const [isCommitting, setIsCommitting] = React.useState(false);
   
   // V3 OPENER: Dedicated draft state (isolated from shared input state)
-  const [openerDraft, setOpenerDraft] = useState("");
-  const openerDraftChangeCountRef = useRef(0); // Throttle logging
+  const [openerDraft, setOpenerDraft] = React.useState("");
+  const openerDraftChangeCountRef = React.useRef(0); // Throttle logging
 
   // UX: Typing lock to prevent preview refreshes while user is typing
-  const [isUserTyping, setIsUserTyping] = useState(false);
-  const typingLockTimeoutRef = useRef(null);
-  const currentItem_SRef = useRef(null);
-  const frozenPreviewRef = useRef(null);
+  const [isUserTyping, setIsUserTyping] = React.useState(false);
+  const typingLockTimeoutRef = React.useRef(null);
+  const currentItem_SRef = React.useRef(null);
+  const frozenPreviewRef = React.useRef(null);
 
-  const triggeredPacksRef = useRef(new Set());
-  const lastLoggedV2PackFieldRef = useRef(null);
-  const lastLoggedFollowupCardIdRef = useRef(null);
+  const triggeredPacksRef = React.useRef(new Set());
+  const lastLoggedV2PackFieldRef = React.useRef(null);
+  const lastLoggedFollowupCardIdRef = React.useRef(null);
   
   // Idempotency guards
-  const submittedKeysRef = useRef(new Set());
-  const completedSectionKeysRef = useRef(new Set());
-  const appendedTranscriptKeysRef = useRef(new Set());
+  const submittedKeysRef = React.useRef(new Set());
+  const completedSectionKeysRef = React.useRef(new Set());
+  const appendedTranscriptKeysRef = React.useRef(new Set());
 
-  const [showCompletionModal, setShowCompletionModal] = useState(false);
-  const [isCompletingInterview, setIsCompletingInterview] = useState(false);
-  const [showPauseModal, setShowPauseModal] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = React.useState(false);
+  const [isCompletingInterview, setIsCompletingInterview] = React.useState(false);
+  const [showPauseModal, setShowPauseModal] = React.useState(false);
   
   // REACT #310 FIX: Static pack config check (no hook call during render)
   const __cqPackIdForProbing = currentItem_S?.packId || "";
@@ -3158,38 +3158,38 @@ function CandidateInterviewInner() {
   // TDZ_FIX: REMOVED - Replaced with hoisted-safe plain function at component top (line ~1220)
 
   // MOVED UP: screenMode and uiBlocker now declared before forensicCheck (prevents TDZ)
-  const introLoggedRef = useRef(false);
-  const [isDismissingWelcome, setIsDismissingWelcome] = useState(false);
-  const welcomeLoggedRef = useRef(false);
+  const introLoggedRef = React.useRef(false);
+  const [isDismissingWelcome, setIsDismissingWelcome] = React.useState(false);
+  const welcomeLoggedRef = React.useRef(false);
 
-  const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
-  const [sectionTransitionInfo, setSectionTransitionInfo] = useState(null);
-  const [pendingSectionTransition, setPendingSectionTransition] = useState(null);
-  const [pendingTransition, setPendingTransition] = useState(null);
+  const [sectionCompletionMessage, setSectionCompletionMessage] = React.useState(null);
+  const [sectionTransitionInfo, setSectionTransitionInfo] = React.useState(null);
+  const [pendingSectionTransition, setPendingSectionTransition] = React.useState(null);
+  const [pendingTransition, setPendingTransition] = React.useState(null);
 
-  const historyRef = useRef(null);
-  const bottomAnchorRef = useRef(null);
-  const footerRef = useRef(null);
-  const footerRootRef = useRef(null); // Footer container root (for DOM height sampling)
-  const footerShellRef = useRef(null); // PART A: Stable footer wrapper (measured in all modes)
-  const activeLaneCardRef = useRef(null); // PART A: Active lane card ref (single ref for whichever active card is shown)
-  const scrollOwnerRef = useRef(null); // PART A: Runtime-identified scroll owner (true scroll container)
-  const [dynamicFooterHeightPx, setDynamicFooterHeightPx] = useState(80); // Dynamic footer height measurement
-  const promptLaneRef = useRef(null);
-  const autoScrollEnabledRef = useRef(true);
-  const bottomAnchorLenRef = useRef(0);
-  const finalListRef = useRef([]);
-  const finalListLenRef = useRef(0);
+  const historyRef = React.useRef(null);
+  const bottomAnchorRef = React.useRef(null);
+  const footerRef = React.useRef(null);
+  const footerRootRef = React.useRef(null); // Footer container root (for DOM height sampling)
+  const footerShellRef = React.useRef(null); // PART A: Stable footer wrapper (measured in all modes)
+  const activeLaneCardRef = React.useRef(null); // PART A: Active lane card ref (single ref for whichever active card is shown)
+  const scrollOwnerRef = React.useRef(null); // PART A: Runtime-identified scroll owner (true scroll container)
+  const [dynamicFooterHeightPx, setDynamicFooterHeightPx] = React.useState(80); // Dynamic footer height measurement
+  const promptLaneRef = React.useRef(null);
+  const autoScrollEnabledRef = React.useRef(true);
+  const bottomAnchorLenRef = React.useRef(0);
+  const finalListRef = React.useRef([]);
+  const finalListLenRef = React.useRef(0);
   
   // SCROLL LOCK: Prevent competing scroll writers during v3_pack_opener settle
-  const scrollWriteLockRef = useRef(false);
-  const scrollWriteLockReasonRef = useRef(null);
-  const scrollWriteLockUntilRef = useRef(0);
+  const scrollWriteLockRef = React.useRef(false);
+  const scrollWriteLockReasonRef = React.useRef(null);
+  const scrollWriteLockUntilRef = React.useRef(0);
   
   // TDZ FIX: Scroll helpers declared early (before any useEffects that reference them)
   
   // SCROLL LOCK HELPERS: Prevent competing scroll writers
-  const lockScrollWrites = useCallback((reason, ms = 250) => {
+  const lockScrollWrites = React.useCallback((reason, ms = 250) => {
     scrollWriteLockRef.current = true;
     scrollWriteLockReasonRef.current = reason;
     scrollWriteLockUntilRef.current = Date.now() + ms;
@@ -3201,7 +3201,7 @@ function CandidateInterviewInner() {
     });
   }, []);
   
-  const unlockScrollWrites = useCallback((reason) => {
+  const unlockScrollWrites = React.useCallback((reason) => {
     scrollWriteLockRef.current = false;
     scrollWriteLockReasonRef.current = null;
     scrollWriteLockUntilRef.current = 0;
@@ -3212,7 +3212,7 @@ function CandidateInterviewInner() {
     });
   }, []);
   
-  const isScrollWriteLocked = useCallback(() => {
+  const isScrollWriteLocked = React.useCallback(() => {
     if (!scrollWriteLockRef.current) return false;
     
     const now = Date.now();
@@ -3226,9 +3226,9 @@ function CandidateInterviewInner() {
   }, [unlockScrollWrites]);
   
   // FOOTER OVERLAP SELF-HEAL: Post-alignment verification for YES/NO mode
-  const footerOverlapSelfHealRef = useRef(new Set());
+  const footerOverlapSelfHealRef = React.useRef(new Set());
   
-  const selfHealFooterOverlap = useCallback((reason) => {
+  const selfHealFooterOverlap = React.useCallback((reason) => {
     const scroller = scrollOwnerRef.current || historyRef.current;
     if (!scroller) return;
     
@@ -3260,7 +3260,7 @@ function CandidateInterviewInner() {
   }, [dynamicFooterHeightPx]);
   
   // PART A: Helper to identify true scroll owner at runtime
-  const getScrollOwner = useCallback((startElement) => {
+  const getScrollOwner = React.useCallback((startElement) => {
     if (!startElement || typeof window === 'undefined') return null;
     
     let el = startElement;
@@ -3289,7 +3289,7 @@ function CandidateInterviewInner() {
   }, []);
   
   // PART D: CANONICAL SCROLL TO BOTTOM - Single source of truth for bottom scrolling
-  const scrollToBottom = useCallback((reason) => {
+  const scrollToBottom = React.useCallback((reason) => {
     const scroller = scrollOwnerRef.current || historyRef.current;
     if (!scroller) {
       console.warn('[SCROLL][NO_SCROLLER]', { reason });
@@ -3315,7 +3315,7 @@ function CandidateInterviewInner() {
   }, []);
   
   // MI_GATE SCROLL HELPER: Bottom-anchor scroll for MI gate (hoisted)
-  const scrollToBottomForMiGate = useCallback((reason) => {
+  const scrollToBottomForMiGate = React.useCallback((reason) => {
     if (!bottomAnchorRef.current) return;
     
     const scrollContainer = scrollOwnerRef.current || historyRef.current;
@@ -3336,7 +3336,7 @@ function CandidateInterviewInner() {
   // PART D: CANONICAL POST-RENDER VISIBILITY CORRECTION
   // ChatGPT-style: Ensures active item is ALWAYS fully visible above composer
   // PART A: Updated signature with YES/NO mode flags (TDZ-safe)
-  const ensureActiveVisibleAfterRender = useCallback((reason, activeKindSOT, isYesNoModeSOT = false, isMiGateSOT = false) => {
+  const ensureActiveVisibleAfterRender = React.useCallback((reason, activeKindSOT, isYesNoModeSOT = false, isMiGateSOT = false) => {
     const scroller = scrollOwnerRef.current || historyRef.current;
     if (!scroller) return;
     
@@ -3605,7 +3605,7 @@ function CandidateInterviewInner() {
   }, [currentItem_S, lockScrollWrites, unlockScrollWrites, selfHealFooterOverlap]);
   
   // SCROLL HANDLER: Transcript scroll event handler (hoisted outside TRY1 for boot-phase availability)
-  const handleTranscriptScroll = useCallback(() => {
+  const handleTranscriptScroll = React.useCallback(() => {
     // GUARD: Ignore programmatic scroll events to prevent flapping
     if (isProgrammaticScrollRef.current) return;
     
@@ -3650,34 +3650,34 @@ function CandidateInterviewInner() {
     }
   }, [cqDiagEnabled]);
   
-  const didInitialSnapRef = useRef(false);
-  const isProgrammaticScrollRef = useRef(false);
-  const pendingScrollRafRef = useRef(null);
-  const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
-  const lastAutoScrollLenRef = useRef(0);
-  const lastAutoScrollAtRef = useRef(0);
-  const displayOrderRef = useRef(0);
-  const displayNumberMapRef = useRef({});
-  const scrollIntentRef = useRef(false); // Coordination flag for scroll controllers
-  const prevPaddingRef = useRef(0); // Track previous padding for compensation
-  const stableBottomPaddingRef = useRef(0); // Stable padding floor (never decreases while footer visible)
-  const frozenRenderStreamRef = useRef(null); // Frozen transcript during typing (prevents flash)
-  const lastTextareaScrollHeightRef = useRef(0); // Track textarea row changes
-  const wasTypingRef = useRef(false); // Track typing state transitions (for freeze/unfreeze)
-  const inputRef = useRef(null);
-  const yesButtonRef = useRef(null);
-  const noButtonRef = useRef(null);
-  const questionCardRef = useRef(null);
-  const [questionCardHeight, setQuestionCardHeight] = useState(0);
-  const [textareaRows, setTextareaRows] = useState(1);
-  const unsubscribeRef = useRef(null);
-  const typingTimeoutRef = useRef(null);
-  const aiResponseTimeoutRef = useRef(null);
-  const [footerHeightPx, setFooterHeightPx] = useState(120); // Dynamic footer height measurement
-  const footerHeightPxRef = useRef(0); // REACT #310 FIX: Ref for scrollToBottomSafely (non-hook version)
-  const [footerShellHeightPx, setFooterShellHeightPx] = useState(0); // PART B: Stable footer shell height (all modes)
-  const [contentOverflows, setContentOverflows] = useState(false); // Track if scroll container overflows
-  const transcriptSOTRef = useRef([]); // REACT #310 FIX: Ref for scrollToBottomSafely (non-hook version)
+  const didInitialSnapRef = React.useRef(false);
+  const isProgrammaticScrollRef = React.useRef(false);
+  const pendingScrollRafRef = React.useRef(null);
+  const [autoScrollEnabled, setAutoScrollEnabled] = React.useState(true);
+  const lastAutoScrollLenRef = React.useRef(0);
+  const lastAutoScrollAtRef = React.useRef(0);
+  const displayOrderRef = React.useRef(0);
+  const displayNumberMapRef = React.useRef({});
+  const scrollIntentRef = React.useRef(false); // Coordination flag for scroll controllers
+  const prevPaddingRef = React.useRef(0); // Track previous padding for compensation
+  const stableBottomPaddingRef = React.useRef(0); // Stable padding floor (never decreases while footer visible)
+  const frozenRenderStreamRef = React.useRef(null); // Frozen transcript during typing (prevents flash)
+  const lastTextareaScrollHeightRef = React.useRef(0); // Track textarea row changes
+  const wasTypingRef = React.useRef(false); // Track typing state transitions (for freeze/unfreeze)
+  const inputRef = React.useRef(null);
+  const yesButtonRef = React.useRef(null);
+  const noButtonRef = React.useRef(null);
+  const questionCardRef = React.useRef(null);
+  const [questionCardHeight, setQuestionCardHeight] = React.useState(0);
+  const [textareaRows, setTextareaRows] = React.useState(1);
+  const unsubscribeRef = React.useRef(null);
+  const typingTimeoutRef = React.useRef(null);
+  const aiResponseTimeoutRef = React.useRef(null);
+  const [footerHeightPx, setFooterHeightPx] = React.useState(120); // Dynamic footer height measurement
+  const footerHeightPxRef = React.useRef(0); // REACT #310 FIX: Ref for scrollToBottomSafely (non-hook version)
+  const [footerShellHeightPx, setFooterShellHeightPx] = React.useState(0); // PART B: Stable footer shell height (all modes)
+  const [contentOverflows, setContentOverflows] = React.useState(false); // Track if scroll container overflows
+  const transcriptSOTRef = React.useRef([]); // REACT #310 FIX: Ref for scrollToBottomSafely (non-hook version)
   
   const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
   const SAFE_FOOTER_CLEARANCE_PX = 8; // Minimal safety buffer (~75% reduction vs old 24px)
@@ -3685,7 +3685,7 @@ function CandidateInterviewInner() {
   
   // HOOK ORDER FIX: Overflow detection MUST be top-level (before early returns)
   // Computes if scroll container content exceeds viewport - drives dynamic footer padding
-  React.useLayoutEffect(() => {
+  React.React.useLayoutEffect(() => {
     const el = historyRef.current;
     if (!el) return;
     
@@ -3737,66 +3737,66 @@ function CandidateInterviewInner() {
     footerHeightPx
   ]);
 
-  const [interviewMode, setInterviewMode] = useState("DETERMINISTIC");
-  const [ideEnabled, setIdeEnabled] = useState(false);
-  const [currentIncidentId, setCurrentIncidentId] = useState(null);
-  const [inIdeProbingLoop, setInIdeProbingLoop] = useState(false);
-  const [currentIdeQuestion, setCurrentIdeQuestion] = useState(null);
-  const [currentIdeCategoryId, setCurrentIdeCategoryId] = useState(null);
+  const [interviewMode, setInterviewMode] = React.useState("DETERMINISTIC");
+  const [ideEnabled, setIdeEnabled] = React.useState(false);
+  const [currentIncidentId, setCurrentIncidentId] = React.useState(null);
+  const [inIdeProbingLoop, setInIdeProbingLoop] = React.useState(false);
+  const [currentIdeQuestion, setCurrentIdeQuestion] = React.useState(null);
+  const [currentIdeCategoryId, setCurrentIdeCategoryId] = React.useState(null);
 
   // V2_PACK mode state: 'BASE' = normal flow, 'V2_PACK' = running a V2 follow-up pack
-  const [v2PackMode, setV2PackMode] = useState("BASE");
+  const [v2PackMode, setV2PackMode] = React.useState("BASE");
   // activeV2Pack: { packId, fields, currentIndex, baseQuestionId, instanceNumber, substanceName } | null
-  const [activeV2Pack, setActiveV2Pack] = useState(null);
+  const [activeV2Pack, setActiveV2Pack] = React.useState(null);
   // Track the base question ID that triggered the V2 pack so we can resume after
-  const [v2PackTriggerQuestionId, setV2PackTriggerQuestionId] = useState(null);
+  const [v2PackTriggerQuestionId, setV2PackTriggerQuestionId] = React.useState(null);
 
   // V3 Probing state
-  const [v3ProbingActive, setV3ProbingActive] = useState(false);
-  const [v3ProbingContext_S, setV3ProbingContext] = useState(null);
-  const [v3ActivePromptText, setV3ActivePromptText] = useState(null); // NEW: Active probe question for input placeholder
-  const v3AnswerHandlerRef = useRef(null); // NEW: Ref to V3ProbingLoop's answer handler
-  const [v3PendingAnswer, setV3PendingAnswer] = useState(null); // NEW: Answer to route to V3ProbingLoop
+  const [v3ProbingActive, setV3ProbingActive] = React.useState(false);
+  const [v3ProbingContext_S, setV3ProbingContext] = React.useState(null);
+  const [v3ActivePromptText, setV3ActivePromptText] = React.useState(null); // NEW: Active probe question for input placeholder
+  const v3AnswerHandlerRef = React.useRef(null); // NEW: Ref to V3ProbingLoop's answer handler
+  const [v3PendingAnswer, setV3PendingAnswer] = React.useState(null); // NEW: Answer to route to V3ProbingLoop
   // Track V3-enabled packs: Map<packId, { isV3: boolean, factModelReady: boolean }>
-  const [v3EnabledPacks, setV3EnabledPacks] = useState({});
+  const [v3EnabledPacks, setV3EnabledPacks] = React.useState({});
   
   // REQUIRED ANCHOR FALLBACK: Deterministic prompt when V3_WAITING with missing required fields
-  const [requiredAnchorFallbackActive, setRequiredAnchorFallbackActive] = useState(false);
-  const [requiredAnchorQueue, setRequiredAnchorQueue] = useState([]);
-  const [requiredAnchorCurrent, setRequiredAnchorCurrent] = useState(null);
+  const [requiredAnchorFallbackActive, setRequiredAnchorFallbackActive] = React.useState(false);
+  const [requiredAnchorQueue, setRequiredAnchorQueue] = React.useState([]);
+  const [requiredAnchorCurrent, setRequiredAnchorCurrent] = React.useState(null);
   
   // REQUIRED ANCHOR FALLBACK CONTEXT: Persist routing context for submit
-  const requiredAnchorFallbackContextRef = useRef({ packId: null, categoryId: null, instanceNumber: null, incidentId: null });
+  const requiredAnchorFallbackContextRef = React.useRef({ packId: null, categoryId: null, instanceNumber: null, incidentId: null });
   
   // REQUIRED ANCHOR FALLBACK ANSWERED: Track anchors answered via fallback (in-memory fast check)
-  const fallbackAnsweredRef = useRef({});
+  const fallbackAnsweredRef = React.useRef({});
   
   // V3 PROMPT LIFECYCLE: Track prompt phase to prevent stale prompt rendering
   // "IDLE" = no prompt, "ANSWER_NEEDED" = prompt active waiting for answer, "PROCESSING" = answer submitted
-  const [v3PromptPhase, setV3PromptPhase] = useState("IDLE");
-  const lastV3PromptPhaseRef = useRef("IDLE");
+  const [v3PromptPhase, setV3PromptPhase] = React.useState("IDLE");
+  const lastV3PromptPhaseRef = React.useRef("IDLE");
   
   // V3 WAITING WATCHDOG: Track failopen state and timer (MUST be before hoisted hooks)
-  const v3WaitingFailopenFiredRef = useRef(new Set()); // Track failopen fired per loopKey
-  const v3WaitingWatchdogRef = useRef(null); // Timer for V3_WAITING watchdog
-  const v3WaitingLastArmKeyRef = useRef(null); // Last arm key for watchdog dedupe
+  const v3WaitingFailopenFiredRef = React.useRef(new Set()); // Track failopen fired per loopKey
+  const v3WaitingWatchdogRef = React.useRef(null); // Timer for V3_WAITING watchdog
+  const v3WaitingLastArmKeyRef = React.useRef(null); // Last arm key for watchdog dedupe
   
   // V3 GATE STATE: Authoritative multi-instance gate state (BEFORE hoisted hooks)
-  const [v3Gate, setV3Gate] = useState({
+  const [v3Gate, setV3Gate] = React.useState({
     active: false,
     packId: null,
     categoryId: null,
     promptText: null,
     instanceNumber: null
   });
-  const [v3MultiInstanceHandler, setV3MultiInstanceHandler] = useState(null);
-  const [v3GateDecision, setV3GateDecision] = useState(null);
-  const [pendingGatePrompt, setPendingGatePrompt] = useState(null);
-  const [multiInstanceGate, setMultiInstanceGate] = useState(null);
+  const [v3MultiInstanceHandler, setV3MultiInstanceHandler] = React.useState(null);
+  const [v3GateDecision, setV3GateDecision] = React.useState(null);
+  const [pendingGatePrompt, setPendingGatePrompt] = React.useState(null);
+  const [multiInstanceGate, setMultiInstanceGate] = React.useState(null);
   
   // V3 PROMPT SNAPSHOTS: In-memory store to track committed prompts (PART B)
-  const [v3PromptSnapshots, setV3PromptSnapshots] = useState([]);
-  const v3PromptSnapshotsRef = useRef([]);
+  const [v3PromptSnapshots, setV3PromptSnapshots] = React.useState([]);
+  const v3PromptSnapshotsRef = React.useRef([]);
   
   // PART 3: Sync snapshots state to ref (prevents stale closure in watchdog)
   useEffect_TR("T02_SYNC_SNAPSHOTS", () => {
@@ -3804,22 +3804,22 @@ function CandidateInterviewInner() {
   }, [v3PromptSnapshots]);
   
   // FOOTER CONTROLLER TRACE: Track last seen values for change detection
-  const lastFooterControllerRef = useRef(null);
-  const lastBottomBarModeRef = useRef(null);
-  const lastEffectiveItemTypeRef = useRef(null);
+  const lastFooterControllerRef = React.useRef(null);
+  const lastBottomBarModeRef = React.useRef(null);
+  const lastEffectiveItemTypeRef = React.useRef(null);
   // ACTIVE UI ITEM TRACE: Track kind changes (must be top-level hook)
-  const lastActiveUiItemKindRef = useRef(null);
+  const lastActiveUiItemKindRef = React.useRef(null);
   // V3 Debug mode
-  const [v3DebugEnabled, setV3DebugEnabled] = useState(false);
-  const [isAdminUser, setIsAdminUser] = useState(false);
-  const [isNewSession, setIsNewSession] = useState(true);
+  const [v3DebugEnabled, setV3DebugEnabled] = React.useState(false);
+  const [isAdminUser, setIsAdminUser] = React.useState(false);
+  const [isNewSession, setIsNewSession] = React.useState(true);
   
   // TERMINAL REDIRECT: One-shot guard for no-session redirect
-  const didTerminalRedirectRef = useRef(false);
+  const didTerminalRedirectRef = React.useRef(false);
   // showRedirectFallback moved to top (line ~1338) - prevents TDZ crash
   
   // FAILOPEN ONCE-LATCH: Prevent repeated failopen side-effects from causing render loops
-  const cqFailopenOnceRef = useRef({ modeBlock: false, try1Tdz: false, priority2Failopen: false, resolveActiveUiFailopen: false });
+  const cqFailopenOnceRef = React.useRef({ modeBlock: false, try1Tdz: false, priority2Failopen: false, resolveActiveUiFailopen: false });
   
   // HOOK ORDER VERIFICATION: All hooks declared - confirm component renders
   console.log('[CQ_HOOKS_OK]', { sessionId });
@@ -4234,7 +4234,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, v3PromptPhase, v3ActivePromptText, hasV3PromptText_SAFE, hasActiveV3Prompt_SAFE, activeUiItem_S_SAFE, v3ProbingActive, v3ProbingContext_S, sessionId]);
   
   // HOOK 2/7: V3 waiting watchdog
-  useEffect(() => {
+  React.useEffect(() => {
     if (__cqBootNotReady) return;
     
     const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
@@ -4320,7 +4320,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, v3ProbingActive, bottomBarModeSOT_SAFE, hasActiveV3Prompt_SAFE, screenMode, v3ProbingContext_S, sessionId]);
   
   // HOOK 3/7: V3 gate prompt handler
-  useEffect(() => {
+  React.useEffect(() => {
     if (__cqBootNotReady) return;
     
     if (!v3Gate.active && v3Gate.promptText) {
@@ -4335,7 +4335,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, v3Gate]);
   
   // HOOK 4/7: V3 gate decision handler
-  useEffect(() => {
+  React.useEffect(() => {
     if (__cqBootNotReady) return;
     
     if (!v3GateDecision) return;
@@ -4356,7 +4356,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, v3GateDecision, v3MultiInstanceHandler]);
   
   // HOOK 5/7: Deferred gate prompt handler
-  useEffect(() => {
+  React.useEffect(() => {
     if (__cqBootNotReady) return;
     
     if (!pendingGatePrompt) return;
@@ -4399,7 +4399,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, pendingGatePrompt]);
   
   // HOOK 6/7: Repair orphaned required anchor answers
-  useEffect(() => {
+  React.useEffect(() => {
     if (__cqBootNotReady) return;
     
     if (!Array.isArray(canonicalTranscriptRef.current)) return;
@@ -4473,7 +4473,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // HOOK 12/12: renderedTranscript (MOVED from line ~3764 to prevent TDZ in Hook 7/7)
   // ============================================================================
-  const renderedTranscript = useMemo(() => {
+  const renderedTranscript = React.useMemo(() => {
     if (__cqBootNotReady) return [];
     
     const base = Array.isArray(transcriptSOT_S) ? transcriptSOT_S : [];
@@ -4719,7 +4719,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, transcriptSOT_S, currentItem_S, multiInstanceGate]);
   
   // HOOK 7/7: Verification instrumentation
-  useEffect(() => {
+  React.useEffect(() => {
     if (__cqBootNotReady) return;
     
     if (!Array.isArray(renderedTranscript) || renderedTranscript.length === 0) return;
@@ -4925,7 +4925,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, multiInstanceGate, activeUiItem_S_SAFE, sessionId, dbTranscript, setDbTranscriptSafe]);
   
   // HOOK 9/11: YES/NO mode alignment (was line ~15438)
-  useLayoutEffect(() => {
+  React.useLayoutEffect(() => {
     if (__cqBootNotReady) return;
     
     // TDZ-SAFE: Use bottomBarModeSOT_SAFE (early SAFE alias, declared at line ~3224)
@@ -4941,10 +4941,10 @@ function CandidateInterviewInner() {
   
   // HOOK ORDER FIX: Ref-based memo cache for finalTranscriptList_S (React #310 fix)
   // Replaces conditional useMemo with ref-based caching (stable hook count)
-  const finalTranscriptMemoCacheRef = useRef({ key: null, value: [] });
+  const finalTranscriptMemoCacheRef = React.useRef({ key: null, value: [] });
   
   // HOOK 10/11: Render-time freeze snapshot (was line ~15571)
-  useEffect(() => {
+  React.useEffect(() => {
     if (__cqBootNotReady) return;
     
     if (isUserTyping && !renderedTranscriptSnapshotRef.current) {
@@ -4956,7 +4956,7 @@ function CandidateInterviewInner() {
   }, [__cqBootNotReady, isUserTyping, renderedTranscript]);
   
   // HOOK 11/11: Key-based monotonic assertion (was line ~15586)
-  useEffect(() => {
+  React.useEffect(() => {
     if (__cqBootNotReady) return;
     
     const getKey = (e) => e.__canonicalKey || e.stableKey || e.id;
@@ -4986,7 +4986,7 @@ function CandidateInterviewInner() {
   // HOOK 12/12: prevKeysSetRef (MOVED before POST_HOOKS - React #310 fix)
   // ============================================================================
   __cqHookSite('H12P_2:useRef@L4588');
-  const prevKeysSetRef = useRef(new Set());
+  const prevKeysSetRef = React.useRef(new Set());
   __cqRenderSig('AFTER_H12P_2_BLOCK');
   
   // ============================================================================
@@ -5884,7 +5884,7 @@ function CandidateInterviewInner() {
   }
   
   // FORENSIC: Mount-only log confirming TDZ fix for showRedirectFallback
-  const tdzFixLoggedRef = useRef(false);
+  const tdzFixLoggedRef = React.useRef(false);
   if (!tdzFixLoggedRef.current) {
     tdzFixLoggedRef.current = true;
     console.log('[FORENSIC][NO_SESSION_REDIRECT_STATE_ORDER_OK]', {
@@ -5893,7 +5893,7 @@ function CandidateInterviewInner() {
   }
   
   // PART A: Violation snapshot helper (component-scoped - needs refs/state access)
-  const captureViolationSnapshot = useCallback((context) => {
+  const captureViolationSnapshot = React.useCallback((context) => {
     const { reason, list, packId, instanceNumber, activeItemId } = context;
     
     // Dedupe key: only log once per unique violation context
@@ -6161,7 +6161,7 @@ function CandidateInterviewInner() {
     });
   }, [isUserTyping, currentItem_S]);
   
-  const lastQuestionShownIdRef = useRef(null); // Track last question shown for force-scroll dedupe
+  const lastQuestionShownIdRef = React.useRef(null); // Track last question shown for force-scroll dedupe
   
   // DEV DEBUG: Enable evidence bundle capture (v3debug=1 or localStorage flag)
 
@@ -6213,84 +6213,84 @@ function CandidateInterviewInner() {
   const v3GateActive = v3Gate.active === true;
 
   // V3 EXIT: Idempotency guard + baseQuestionId retention
-  const v3BaseQuestionIdRef = useRef(null);
-  const exitV3HandledRef = useRef(false);
-  const exitV3InProgressRef = useRef(false);
+  const v3BaseQuestionIdRef = React.useRef(null);
+  const exitV3HandledRef = React.useRef(false);
+  const exitV3InProgressRef = React.useRef(false);
   
   // V3 ENGINE DECISION CACHE: Store last engine_S result per loopKey (for MI_GATE payload)
-  const lastV3DecisionByLoopKeyRef = useRef({}); // Map<loopKey, { missingFields, miGateBlocked, stopReason, packId, instanceNumber, ts }>
+  const lastV3DecisionByLoopKeyRef = React.useRef({}); // Map<loopKey, { missingFields, miGateBlocked, stopReason, packId, instanceNumber, ts }>
   
   // PROMPT MISSING DIAGNOSTIC: Ref for de-duped logging (MUST be top-level hook)
-  const promptMissingKeyRef = useRef(null);
+  const promptMissingKeyRef = React.useRef(null);
   
   // PROMPT NULL GUARD: Track seen keys to prevent spam (log-once per unique state)
-  const promptNullGuardSeenRef = useRef(new Set());
+  const promptNullGuardSeenRef = React.useRef(new Set());
   
   // V3 PROMPT WATCHDOG: Snapshot-based state verification
-  const lastV3PromptSnapshotRef = useRef(null);
-  const handledPromptIdsRef = useRef(new Set());
-  const promptIdCounterRef = useRef(0);
+  const lastV3PromptSnapshotRef = React.useRef(null);
+  const handledPromptIdsRef = React.useRef(new Set());
+  const promptIdCounterRef = React.useRef(0);
   
   // V3 IDEMPOTENCY: Store actual lock key used for submit (for correct release)
-  const lastV3SubmitLockKeyRef = useRef(null);
+  const lastV3SubmitLockKeyRef = React.useRef(null);
   
   // TDZ SAFETY: Refs for state used in watchdog (avoids stale closures and TDZ)
-  const bottomBarModeSOTRef = useRef(null);
-  const v3ActivePromptTextRef = useRef(null);
-  const v3ProbingActiveRef = useRef(null);
-  const v3ProbingContext_SRef = useRef(null);
+  const bottomBarModeSOTRef = React.useRef(null);
+  const v3ActivePromptTextRef = React.useRef(null);
+  const v3ProbingActiveRef = React.useRef(null);
+  const v3ProbingContext_SRef = React.useRef(null);
   
   // DEV DEBUG: Capture last-seen events for one-click evidence bundle
-  const lastIdempotencyLockedRef = useRef(null);
-  const lastIdempotencyReleasedRef = useRef(null);
-  const lastPromptCommitRef = useRef(null);
-  const lastWatchdogSnapshotRef = useRef(null);
-  const lastWatchdogDecisionRef = useRef(null);
-  const lastWatchdogOutcomeRef = useRef(null);
-  const lastMultiIncidentSourceRef = useRef(null);
-  const lastRecoveryAnotherInstanceRef = useRef(null);
+  const lastIdempotencyLockedRef = React.useRef(null);
+  const lastIdempotencyReleasedRef = React.useRef(null);
+  const lastPromptCommitRef = React.useRef(null);
+  const lastWatchdogSnapshotRef = React.useRef(null);
+  const lastWatchdogDecisionRef = React.useRef(null);
+  const lastWatchdogOutcomeRef = React.useRef(null);
+  const lastMultiIncidentSourceRef = React.useRef(null);
+  const lastRecoveryAnotherInstanceRef = React.useRef(null);
   
   // PHASE HISTORY TRACKER: In-memory phase transition history (debug-only observability)
-  const phaseHistoryRef = useRef([]);
-  const lastRecordedPhaseRef = useRef(null);
-  const lastRecordedCurrentItemTypeRef = useRef(null);
+  const phaseHistoryRef = React.useRef([]);
+  const lastRecordedPhaseRef = React.useRef(null);
+  const lastRecordedCurrentItemTypeRef = React.useRef(null);
   
   // FALLBACK OSCILLATION GUARD: Prevent infinite REQUIRED_ANCHOR_FALLBACK ↔ V3_PROBING loops
   // In-memory counter per instance (sessionId:packId:instanceNumber)
-  const fallbackReactivationCountRef = useRef(new Map());
+  const fallbackReactivationCountRef = React.useRef(new Map());
   
   // V3 FAILSAFE: Opener submit tracking for safe timeout recovery
-  const v3OpenerSubmitTokenRef = useRef(null);
-  const v3OpenerSubmitLoopKeyRef = useRef(null);
-  const v3OpenerFailsafeTimerRef = useRef(null);
+  const v3OpenerSubmitTokenRef = React.useRef(null);
+  const v3OpenerSubmitLoopKeyRef = React.useRef(null);
+  const v3OpenerFailsafeTimerRef = React.useRef(null);
   
   // V3 PACK ENTRY FAILSAFE: Separate timer/token for pack entry detection
-  const v3PackEntryFailsafeTokenRef = useRef(null);
-  const v3PackEntryFailsafeTimerRef = useRef(null);
-  const v3PackEntryContextRef = useRef(null);
+  const v3PackEntryFailsafeTokenRef = React.useRef(null);
+  const v3PackEntryFailsafeTimerRef = React.useRef(null);
+  const v3PackEntryContextRef = React.useRef(null);
   
   // V3 OPENER/PROBING TRACKING: Track if opener submitted or probing started (per loopKey)
-  const v3OpenerSubmittedRef = useRef(new Map()); // Map<loopKey, boolean>
-  const v3ProbingStartedRef = useRef(new Map()); // Map<loopKey, boolean>
+  const v3OpenerSubmittedRef = React.useRef(new Map()); // Map<loopKey, boolean>
+  const v3ProbingStartedRef = React.useRef(new Map()); // Map<loopKey, boolean>
   
   // V3 RECAP TRACKING: Track recap ready state (prevents prompt missing logs)
-  const v3RecapReadyRef = useRef(new Map()); // Map<loopKey, { recapText, nextAction }>
+  const v3RecapReadyRef = React.useRef(new Map()); // Map<loopKey, { recapText, nextAction }>
   
   // V3 RECAP APPEND GUARD: Prevent duplicate refresh calls (per stableKey)
-  const v3RecapAppendedKeysRef = useRef(new Set()); // Set<stableKey>
+  const v3RecapAppendedKeysRef = React.useRef(new Set()); // Set<stableKey>
   
   // V3 SUBMIT COUNTER: Monotonic counter for tokenized pendingAnswer payloads
-  const v3SubmitCounterRef = useRef(0);
+  const v3SubmitCounterRef = React.useRef(0);
   
   // V3 COMMIT ACK: Lightweight acknowledgement for post-submit verification
-  const lastV3AnswerCommitAckRef = useRef(null);
+  const lastV3AnswerCommitAckRef = React.useRef(null);
   
   // PART A: Optimistic persist markers (prevent UI stall on slow DB writes)
-  const v3OptimisticPersistRef = useRef({}); // Map<promptId, {stableKeyA, answerText, ts}>
+  const v3OptimisticPersistRef = React.useRef({}); // Map<promptId, {stableKeyA, answerText, ts}>
   
   // PART A: Extra bottom spacer for V3 opener overlap correction
-  const [extraBottomSpacerPx, setExtraBottomSpacerPx] = useState(0);
-  const expandedInstancesRef = useRef(new Set()); // Track expanded instances (prevent repeat)
+  const [extraBottomSpacerPx, setExtraBottomSpacerPx] = React.useState(0);
+  const expandedInstancesRef = React.useRef(new Set()); // Track expanded instances (prevent repeat)
   
   // UI CONTRACT STATUS: Component-level refs (prevents cross-session leakage)
   const openerMergeStatusRef = ReactUseRef_TR('UNKNOWN');
@@ -6298,52 +6298,52 @@ function CandidateInterviewInner() {
   
   // 3-ROW SHELL FLAG: Disable legacy footer spacer checks
   const IS_3ROW_SHELL = true;
-  const footerSpacerDisabledLoggedRef = React.useRef(false);
+  const footerSpacerDisabledLoggedRef = React.React.useRef(false);
   
   // GUARDRAIL DEDUPE: Track logged errors to prevent spam
-  const lastClearanceErrorKeyRef = React.useRef(null);
+  const lastClearanceErrorKeyRef = React.React.useRef(null);
   
   // GRAVITY FOLLOW: Track last scroll for dedupe
-  const lastGravityFollowKeyRef = React.useRef(null);
+  const lastGravityFollowKeyRef = React.React.useRef(null);
   
   // GOLDEN CONTRACT CHECK: Dedupe tracking for golden check emissions
-  const lastGoldenCheckPayloadRef = React.useRef(null);
+  const lastGoldenCheckPayloadRef = React.React.useRef(null);
   
   // CANONICAL DETECTOR: Log once per session (reduce noise)
-  const canonicalDetectorLoggedRef = useRef(false);
+  const canonicalDetectorLoggedRef = React.useRef(false);
   
   // V3 ACK METRICS: Track reliability counters (observability only)
-  const v3AckSetCountRef = useRef(0);
-  const v3AckClearCountRef = useRef(0);
-  const v3AckRepairCountRef = useRef(0);
+  const v3AckSetCountRef = React.useRef(0);
+  const v3AckClearCountRef = React.useRef(0);
+  const v3AckRepairCountRef = React.useRef(0);
   
   // V3 SUBMIT PAYLOAD: Store last submitted answer for reconciliation
-  const lastV3SubmittedAnswerRef = useRef(null);
+  const lastV3SubmittedAnswerRef = React.useRef(null);
   
   // V3 REFRESH REQUEST: Safe post-commit refresh mechanism
-  const v3RefreshRequestedRef = useRef(null); // { reason, promptId, stableKeyA, requestedAt }
-  const v3RefreshInFlightRef = useRef(false);
-  const [v3RefreshTick, setV3RefreshTick] = useState(0);
+  const v3RefreshRequestedRef = React.useRef(null); // { reason, promptId, stableKeyA, requestedAt }
+  const v3RefreshInFlightRef = React.useRef(false);
+  const [v3RefreshTick, setV3RefreshTick] = React.useState(0);
   
   // HOOK ORDER FIX: Refs used inside TRY1 - must be declared unconditionally
   // MI_GATE UI CONTRACT SELF-TEST: Track main pane render + footer buttons per itemId
-  const miGateTestTrackerRef = useRef(new Map()); // Map<itemId, { mainPaneRendered: bool, footerButtonsOnly: bool, testStarted: bool }>
-  const miGateTestTimeoutRef = useRef(null);
+  const miGateTestTrackerRef = React.useRef(new Map()); // Map<itemId, { mainPaneRendered: bool, footerButtonsOnly: bool, testStarted: bool }>
+  const miGateTestTimeoutRef = React.useRef(null);
   
   // MI_GATE SENTINEL: Track active state log key (prevents duplicate logs)
-  const miGateActiveLogKeyRef = useRef(null);
+  const miGateActiveLogKeyRef = React.useRef(null);
   
   // V3 PROMPT DEDUPE: Track last rendered active prompt to prevent duplicate cards
-  const lastRenderedV3PromptKeyRef = useRef(null);
+  const lastRenderedV3PromptKeyRef = React.useRef(null);
   
   // STICKY AUTOSCROLL: Single source of truth for auto-scroll behavior
-  const shouldAutoScrollRef = useRef(true);
+  const shouldAutoScrollRef = React.useRef(true);
   
   // TYPING LOCK BYPASS: Force one-time scroll on explicit user navigation (Yes/No, Submit)
-  const forceAutoScrollOnceRef = useRef(false);
+  const forceAutoScrollOnceRef = React.useRef(false);
   
   // Verification instrumentation
-  const uiContractViolationKeyRef = useRef(null);
+  const uiContractViolationKeyRef = React.useRef(null);
 
   try {
     console.log('[CQ_DIAG][INIT_CHAIN_SNAPSHOT_RENDER]', {
@@ -6360,40 +6360,40 @@ function CandidateInterviewInner() {
   } catch (_) {}
   
   // ACTIVE KIND CHANGE DETECTION: Track last logged kind to prevent spam
-  const lastLoggedActiveKindRef = useRef(null);
+  const lastLoggedActiveKindRef = React.useRef(null);
   
   // RENDER STREAM SNAPSHOT: Track last stream length for change detection (PART E)
-  const lastRenderStreamLenRef = useRef(null);
+  const lastRenderStreamLenRef = React.useRef(null);
   
   // RECENT ANSWER ANCHOR: Track last submitted answer for viewport anchoring
-  const recentAnchorRef = useRef({ kind: null, stableKey: null, ts: 0 });
+  const recentAnchorRef = React.useRef({ kind: null, stableKey: null, ts: 0 });
   
   // V3 SCROLL ANCHOR: Track last appended V3 probe question for viewport anchoring
-  const v3ScrollAnchorRef = useRef({ kind: null, stableKey: null, ts: 0 });
+  const v3ScrollAnchorRef = React.useRef({ kind: null, stableKey: null, ts: 0 });
   
   // AUTO-GROWING INPUT: Refs for textarea auto-resize
-  const footerTextareaRef = useRef(null);
-  const [footerMeasuredHeightPx, setFooterMeasuredHeightPx] = useState(0); // Start at 0 (prevents initial jump)
-  const lastAutoGrowHeightRef = useRef(0); // Stable throttle (no dataset mutation)
-  const cqDiagEnabledRef = useRef(false); // Stable diagnostic flag for long-lived callbacks
+  const footerTextareaRef = React.useRef(null);
+  const [footerMeasuredHeightPx, setFooterMeasuredHeightPx] = React.useState(0); // Start at 0 (prevents initial jump)
+  const lastAutoGrowHeightRef = React.useRef(0); // Stable throttle (no dataset mutation)
+  const cqDiagEnabledRef = React.useRef(false); // Stable diagnostic flag for long-lived callbacks
   
   // V3 UI-ONLY HISTORY: Display V3 probe Q/A without polluting transcript
   // MOVED UP: Must be declared before refreshTranscriptFromDB (TDZ fix)
-  const v3ActiveProbeQuestionRef = useRef(null);
-  const v3ActiveProbeQuestionLoopKeyRef = useRef(null);
+  const v3ActiveProbeQuestionRef = React.useRef(null);
+  const v3ActiveProbeQuestionLoopKeyRef = React.useRef(null);
   
   // Transcript monotonicity audit (log-only regression detection)
-  const prevRenderedLenRef = useRef(null);
+  const prevRenderedLenRef = React.useRef(null);
   
   // HOOK ORDER FIX: Safety net reinjection tracker (MUST be top-level)
   // Moved from line 8752 to prevent "change in order of Hooks" error
-  const reinjectedOpenerAnswersRef = useRef(new Set());
-  const reinjectedV3ProbeQARef = useRef(new Set());
+  const reinjectedOpenerAnswersRef = React.useRef(new Set());
+  const reinjectedV3ProbeQARef = React.useRef(new Set());
   
   // B) Recent submit protection: Track recently submitted user answer stableKeys with lifecycle
-  const recentlySubmittedUserAnswersRef = useRef(new Set());
-  const recentlySubmittedUserAnswersMetaRef = useRef(new Map()); // Map<stableKey, {firstSeenAt, renderedAt}>
-  const lastRegressionLogRef = useRef(new Set()); // Track logged regressions (prevent spam)
+  const recentlySubmittedUserAnswersRef = React.useRef(new Set());
+  const recentlySubmittedUserAnswersMetaRef = React.useRef(new Map()); // Map<stableKey, {firstSeenAt, renderedAt}>
+  const lastRegressionLogRef = React.useRef(new Set()); // Track logged regressions (prevent spam)
 
   // TRY1 EXECUTION GATE: Only run when boot is ready
   console.log('[CQ_USECALLBACK_MARK][BEFORE_TRY1]', { ts: Date.now() });
@@ -7137,7 +7137,7 @@ function CandidateInterviewInner() {
     // One-time warning if fallback triggered (dev-only, once per mount)
     // DISABLED: Hook inside try/catch causes minifier TDZ (js)
     /*
-    const fallbackWarningLoggedRef = React.useRef(false);
+    const fallbackWarningLoggedRef = React.React.useRef(false);
     if (bottomBarModeSOTSafe !== bottomBarModeSOT__LOCAL && !fallbackWarningLoggedRef.current) {
       fallbackWarningLoggedRef.current = true;
       if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
@@ -7804,10 +7804,10 @@ function CandidateInterviewInner() {
 
   // STABLE: Single mount per session - track by sessionId (survives remounts)
   
-  const initMapRef = useRef({});
+  const initMapRef = React.useRef({});
   
   // SESSION RECOVERY: Attempt to find session by dept+file if sessionId missing
-  const sessionRecoveryAttemptedRef = useRef(false);
+  const sessionRecoveryAttemptedRef = React.useRef(false);
   
   __cqHookSite('H12P_3:useEffect@L7131');
   __cqHookSite('H12P2_N1:useEffect_TR@L7134');
@@ -7876,11 +7876,11 @@ function CandidateInterviewInner() {
 // DUPLICATE useEffect block removed
   
   // STABLE: Component instance tracking - MUST NOT change during session
-  const componentInstanceId = useRef(`CandidateInterview-${sessionId}`);
+  const componentInstanceId = React.useRef(`CandidateInterview-${sessionId}`);
   
   __cqHookSite('H12P_3:useEffect@L7131');
   __cqHookSite('H12P2_N2:useEffect@L7208');
-  useEffect(() => {
+  React.useEffect(() => {
     candidateInterviewMountCount++;
     
     // HARD REMOUNT DETECTOR: Track per sessionId
@@ -8052,7 +8052,7 @@ function CandidateInterviewInner() {
   // Global TDZ Trap
   __cqHookSite('H12P_4:useEffect@L7371');
   __cqHookSite('H12P2_N3:useEffect@L7379');
-  useEffect(() => {
+  React.useEffect(() => {
     const handleGlobalTdz = (event) => {
       try {
         const reason = event.reason || event.error;
@@ -8083,7 +8083,7 @@ function CandidateInterviewInner() {
   // UI_CONTRACT: 3-row shell audit (unconditional hook - must run on every render)
   __cqHookSite('H12P_5:useEffect@L7401');
   __cqHookSite('H12P2_N4:useEffect@L7409');
-  useEffect(() => {
+  React.useEffect(() => {
     if (typeof window === 'undefined' || !historyRef.current) return;
     
     requestAnimationFrame(() => {
@@ -8122,15 +8122,15 @@ function CandidateInterviewInner() {
 
   
 
-  const pendingPersistRef = useRef(null);
-  const lastPersistTimeRef = useRef(0);
-  const persistCountSinceLastWriteRef = useRef(0);
+  const pendingPersistRef = React.useRef(null);
+  const lastPersistTimeRef = React.useRef(0);
+  const persistCountSinceLastWriteRef = React.useRef(0);
   const PERSIST_THROTTLE_MS = 3000;
   const PERSIST_BATCH_COUNT = 3;
 
   __cqHookSite('H12P_6:useCallback@L7446');
   __cqHookSite('H12P2_N5:useCallback@L7455');
-  const flushPersist = useCallback(async () => {
+  const flushPersist = React.useCallback(async () => {
     if (!pendingPersistRef.current) return;
 
     const { newTranscript, newQueue, newCurrentItem } = pendingPersistRef.current;
@@ -8160,7 +8160,7 @@ function CandidateInterviewInner() {
 
   __cqHookSite('H12P_7:useCallback@L7474');
   __cqHookSite('H12P2_N6:useCallback@L7484');
-  const persistStateToDatabase = useCallback(async (ignoredTranscript, newQueue, newCurrentItem) => {
+  const persistStateToDatabase = React.useCallback(async (ignoredTranscript, newQueue, newCurrentItem) => {
     // TRANSCRIPT GUARD: Warn if transcript argument is passed (should always be null)
     if (ignoredTranscript !== null && ignoredTranscript !== undefined) {
       console.warn('[TRANSCRIPT_GUARD][PERSIST_CALLED_WITH_TRANSCRIPT]', {
@@ -8189,7 +8189,7 @@ function CandidateInterviewInner() {
 
   __cqHookSite('H12P_8:useEffect@L7501');
   __cqHookSite('H12P2_N7:useEffect@L7512');
-  useEffect(() => {
+  React.useEffect(() => {
     return () => {
       if (pendingPersistRef.current) {
         flushPersist();
@@ -8199,7 +8199,7 @@ function CandidateInterviewInner() {
 
   __cqHookSite('H12P_9:useCallback@L7509');
   __cqHookSite('H12P2_N8:useCallback@L7521');
-  const advanceToNextBaseQuestion = useCallback(async (baseQuestionId, currentTranscript = null) => {
+  const advanceToNextBaseQuestion = React.useCallback(async (baseQuestionId, currentTranscript = null) => {
     // V3 BLOCKING GATE: Block advancement if V3 is active
     if (isV3Blocking) {
       console.log('[FLOW][BLOCKED_ADVANCE_DUE_TO_V3]', {
@@ -8370,7 +8370,7 @@ function CandidateInterviewInner() {
 
   __cqHookSite('H12P_10:useCallback@L7678');
   __cqHookSite('H12P2_N9:useCallback@L7691');
-  const onFollowupPackComplete = useCallback(async (baseQuestionId, packId) => {
+  const onFollowupPackComplete = React.useCallback(async (baseQuestionId, packId) => {
     const question = engine_S.QById[baseQuestionId];
     if (!question) {
       advanceToNextBaseQuestion(baseQuestionId);
@@ -8717,7 +8717,7 @@ function CandidateInterviewInner() {
 
   __cqHookSite('H12P_11:useCallback@L8022');
   __cqHookSite('H12P2_N10:useCallback@L8037');
-  const handleAnswer = useCallback(async (value) => {
+  const handleAnswer = React.useCallback(async (value) => {
     // GUARD: Block YES/NO during V3 prompt answering (prevents stray "Yes" bubble)
     if (activeUiItem_S_SAFE?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
       // Allow V3 probe answer submission (text input), block YES/NO only
@@ -11400,7 +11400,7 @@ function CandidateInterviewInner() {
 
   // HELPER: Append CTA acknowledgement to transcript (section transition click)
   __cqHookSite('H12P_12:useCallback@L10704');
-  const appendCtaAcknowledgeToTranscript = useCallback(async ({ sessionId, currentSectionId, nextSectionId }) => {
+  const appendCtaAcknowledgeToTranscript = React.useCallback(async ({ sessionId, currentSectionId, nextSectionId }) => {
     try {
       // Build deterministic stableKey
       const stableKey = `cta-ack:${sessionId}:${currentSectionId}:${nextSectionId}`;
@@ -11494,7 +11494,7 @@ function CandidateInterviewInner() {
   };
 
   // HELPER: Transition to multi-instance "another instance?" gate (reusable)
-  const transitionToAnotherInstanceGate = useCallback(async (v3Context) => {
+  const transitionToAnotherInstanceGate = React.useCallback(async (v3Context) => {
     const { packId, categoryId, categoryLabel, instanceNumber, packData } = v3Context || v3ProbingContext_S;
     const baseQuestionId = v3BaseQuestionIdRef.current;
     
@@ -12135,7 +12135,7 @@ function CandidateInterviewInner() {
   }, [v3ProbingContext_S, sessionId, persistStateToDatabase]);
 
   // V3 EXIT: Idempotent exit function (only runs once)
-  const exitV3Once = useCallback((reason, payload) => {
+  const exitV3Once = React.useCallback((reason, payload) => {
     if (exitV3HandledRef.current) {
       console.log('[EXIT_V3][SKIP] Already handled');
       return;
@@ -12162,7 +12162,7 @@ function CandidateInterviewInner() {
   }, [sessionId]);
 
   // V3 OPENER PERSISTENCE: DISABLED - Append on submit only (prevents duplicate during active state)
-  useEffect(() => {
+  React.useEffect(() => {
     if (!activeUiItem_S || activeUiItem_S_SAFE.kind !== "V3_OPENER" || !currentItem_S) return;
 
     const stableKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
@@ -12180,7 +12180,7 @@ function CandidateInterviewInner() {
   }, [activeUiItem_S_SAFE?.kind, currentItem_S]);
 
   // V3 probing completion handler - ENFORCES required fields completion before MI_GATE
-  const handleV3ProbingComplete = useCallback(async (result) => {
+  const handleV3ProbingComplete = React.useCallback(async (result) => {
     const { packId, categoryId, instanceNumber, nextAction, stopReason, missingFields } = result || {};
     
     // REQUIRED FIELDS GATE: Block MI_GATE if any required fields missing
@@ -12207,7 +12207,7 @@ function CandidateInterviewInner() {
   }, [exitV3Once]);
 
   // V3 transcript update handler - BLOCK V3 probe prompts from appending
-  const handleV3TranscriptUpdate = useCallback(async (entry) => {
+  const handleV3TranscriptUpdate = React.useCallback(async (entry) => {
     // V3 UI CONTRACT: Hard-block V3 probe prompts from EVER entering transcript
     const entryType = entry?.type || entry?.messageType || '';
     const entrySource = entry?.source || entry?.meta?.source || '';
@@ -12244,7 +12244,7 @@ function CandidateInterviewInner() {
   }, []);
 
   // V3 ATOMIC PROMPT COMMIT: All state changes for activating V3 prompt in bottom bar
-  const commitV3PromptToBottomBar = useCallback(async ({ packId, instanceNumber, loopKey, promptText, promptId: providedPromptId, categoryId }) => {
+  const commitV3PromptToBottomBar = React.useCallback(async ({ packId, instanceNumber, loopKey, promptText, promptId: providedPromptId, categoryId }) => {
     // FIX A: Generate deterministic promptId ALWAYS (never null)
     const promptId = providedPromptId || `${loopKey}:${promptIdCounterRef.current++}`;
     
@@ -12489,7 +12489,7 @@ function CandidateInterviewInner() {
   }, [v3ProbingActive, screenMode, sessionId, setDbTranscriptSafe, dbTranscript]);
 
   // V3 prompt change handler - receives prompt with canonical promptId from V3ProbingLoop
-  const handleV3PromptChange = useCallback(async (promptData) => {
+  const handleV3PromptChange = React.useCallback(async (promptData) => {
     // Support both string (legacy) and object (new) payloads
     const promptText = typeof promptData === 'string' ? promptData : promptData?.promptText;
     let canonicalPromptId = typeof promptData === 'object' ? promptData?.promptId : null;
@@ -12639,7 +12639,7 @@ function CandidateInterviewInner() {
   const normalizeForSignature = (s) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
   
   // V3 answer submit handler - routes answer to V3ProbingLoop
-  const handleV3AnswerSubmit = useCallback(async (answerText) => {
+  const handleV3AnswerSubmit = React.useCallback(async (answerText) => {
     try {
     // PART 3A: Send click trace
     const v3PromptIdSOT = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
@@ -13126,7 +13126,7 @@ function CandidateInterviewInner() {
   }, [v3ProbingContext_S, sessionId, v3ActivePromptText, currentItem_S, setDbTranscriptSafe, dbTranscript]);
   
   // V3 REFRESH RUNNER: Safe post-commit transcript refresh
-  useEffect(() => {
+  React.useEffect(() => {
     const request = v3RefreshRequestedRef.current;
     if (!request) return;
     if (v3RefreshInFlightRef.current) return;
@@ -13170,7 +13170,7 @@ function CandidateInterviewInner() {
   }, [v3RefreshTick, refreshTranscriptFromDB]);
   
   // V3 COMMIT ACK VERIFICATION: Verify answer persisted + repair if missing
-  useEffect(() => {
+  React.useEffect(() => {
     // KILL SWITCH: Allow instant disable if needed
     if (!ENABLE_V3_ACK_REPAIR) return;
     
@@ -13379,7 +13379,7 @@ function CandidateInterviewInner() {
   }, [dbTranscript, sessionId, setDbTranscriptSafe]);
   
   // V3 answer consumed handler - clears pending answer after V3ProbingLoop consumes it
-  const handleV3AnswerConsumed = useCallback(({ loopKey, answerToken, probeCount, submitId }) => {
+  const handleV3AnswerConsumed = React.useCallback(({ loopKey, answerToken, probeCount, submitId }) => {
     console.log('[V3_ANSWER_CONSUMED][CLEAR_PENDING]', {
       loopKey,
       answerToken,
@@ -13393,7 +13393,7 @@ function CandidateInterviewInner() {
   }, [v3PendingAnswer]);
 
   // V3 answer needed handler - stores answer submit capability + snapshot-based watchdog
-  const handleV3AnswerNeeded = useCallback((answerContext) => {
+  const handleV3AnswerNeeded = React.useCallback((answerContext) => {
     console.log('[V3_ANSWER_NEEDED]', { 
       hasPrompt: !!answerContext?.promptText,
       incidentId: answerContext?.incidentId 
@@ -13682,7 +13682,7 @@ function CandidateInterviewInner() {
   }, [v3ProbingActive, v3ActivePromptText, v3ProbingContext_S, sessionId, exitV3Once, transitionToAnotherInstanceGate]);
 
   // Deferred transition handler (fixes React warning)
-  useEffect(() => {
+  React.useEffect(() => {
     if (!pendingTransition) return;
 
     const executePendingTransition = async () => {
@@ -13872,7 +13872,7 @@ function CandidateInterviewInner() {
   }, [pendingTransition, dbTranscript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId, v3ProbingContext_S, multiInstanceGate, engine_S, refreshTranscriptFromDB]);
 
   // ITEM-SCOPED COMMIT TRACKING: Track which item is being submitted
-  const committingItemIdRef = useRef(null);
+  const committingItemIdRef = React.useRef(null);
   
   // HELPER: TDZ-safe commit guard (prevents minifier collision with isCommitting state)
   const cqIsItemCommitting = (itemId) => {
@@ -13883,7 +13883,7 @@ function CandidateInterviewInner() {
   // This effect removed to eliminate repeated DB fetches
   
   // FIX B4: V3 draft restore - load draft when V3 prompt becomes active (with fallback promptId)
-  useEffect(() => {
+  React.useEffect(() => {
   if (!v3ProbingActive || !v3ProbingContext_S) return;
 
   const loopKey = `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`;
@@ -13935,7 +13935,7 @@ function CandidateInterviewInner() {
   }, [v3ProbingActive, v3ProbingContext_S?.promptId, sessionId]);
   
   // FIX B4: V3 draft save - persist draft on input change during V3 probing (with fallback promptId)
-  useEffect(() => {
+  React.useEffect(() => {
     if (!v3ProbingActive || !v3ProbingContext_S) return;
     
     const loopKey = `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`;
@@ -13971,7 +13971,7 @@ function CandidateInterviewInner() {
   }, [input, v3ProbingActive, v3ProbingContext_S?.promptId, sessionId]);
   
   // FIX C: V3 UI history persistence - save to localStorage
-  useEffect(() => {
+  React.useEffect(() => {
     if (!v3ProbingActive || !v3ProbingContext_S) return;
     if (v3ProbeDisplayHistory_S.length === 0) return;
     
@@ -13987,7 +13987,7 @@ function CandidateInterviewInner() {
   }, [v3ProbeDisplayHistory_S, v3ProbingActive, v3ProbingContext_S?.categoryId, sessionId]);
   
   // FIX C: V3 UI history restore - load from localStorage on mount
-  useEffect(() => {
+  React.useEffect(() => {
     if (!v3ProbingActive || !v3ProbingContext_S) return;
     
     const loopKey = `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`;
@@ -14010,7 +14010,7 @@ function CandidateInterviewInner() {
   }, [v3ProbingActive, v3ProbingContext_S?.categoryId, v3ProbingContext_S?.instanceNumber, sessionId]);
 
   // UX: Restore draft when currentItem_S changes
-  useEffect(() => {
+  React.useEffect(() => {
     if (!currentItem_S || !sessionId) return;
     
     // FIX B: Skip normal draft restore for V3 probing (uses V3-specific draft above)
@@ -14113,7 +14113,7 @@ function CandidateInterviewInner() {
   }, [currentItem_S, sessionId, buildDraftKey, v3ProbingActive]);
 
   // Measure question card height dynamically
-  useEffect(() => {
+  React.useEffect(() => {
     if (questionCardRef.current) {
       const resizeObserver = new ResizeObserver((entries) => {
         for (let entry of entries) {
@@ -14126,7 +14126,7 @@ function CandidateInterviewInner() {
   }, [currentItem_S, validationHint]);
 
   // AUTO-GROWING INPUT: Sync cqDiagEnabled to ref for stable logging in long-lived callbacks
-  useEffect(() => {
+  React.useEffect(() => {
     cqDiagEnabledRef.current = cqDiagEnabled;
   }, [cqDiagEnabled]);
   
@@ -14158,8 +14158,8 @@ function CandidateInterviewInner() {
   // ============================================================================
   // FOOTER MEASUREMENT SOT - Dynamic, mode-agnostic, ref-latch (TDZ-safe)
   // ============================================================================
-  const footerObservedRef = React.useRef(false);
-  const footerObserverAttachLoggedRef = React.useRef(false);
+  const footerObservedRef = React.React.useRef(false);
+  const footerObserverAttachLoggedRef = React.React.useRef(false);
   
   cqHookMark('HOOK_49:useEffect:footerMeasurement');
   useEffect_TR(() => {
@@ -14618,7 +14618,7 @@ function CandidateInterviewInner() {
 
 
 
-  const getQuestionDisplayNumber = useCallback((questionId) => {
+  const getQuestionDisplayNumber = React.useCallback((questionId) => {
     if (!engine_S) return '';
 
     if (displayNumberMapRef.current[questionId]) {
@@ -15270,7 +15270,7 @@ function CandidateInterviewInner() {
   }, [transcriptSOT_S.length, bottomBarModeSOT_SAFE, dynamicBottomPaddingPx, cqDiagEnabled]);
   
   // TDZ GUARD: Track previous render list length for append detection (using ref, not direct variable)
-  const prevFinalListLenForScrollRef = useRef(0);
+  const prevFinalListLenForScrollRef = React.useRef(0);
   
   // GOLDEN CONTRACT CHECK - HOISTED TO BATCH 3 (line ~4465)
   
