@@ -20974,6 +20974,32 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       lastHookSite: (typeof window !== 'undefined') ? (window.__CQ_LAST_HOOKSITE__ || null) : null,
       lastRenderSig: (typeof window !== 'undefined') ? (window.__CQ_LAST_RENDER_SIG__ || null) : null
     });
+    
+    // ERROR FINGERPRINT CAPTURE (preview/flag-gated, fail-safe)
+    try {
+      const isDevEnv = (typeof window !== 'undefined' && window.location?.hostname) 
+        ? (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))
+        : false;
+      const fingerprintEnabled = isDevEnv || (typeof window !== 'undefined' && window.CQ_ERROR_FINGERPRINT === true);
+      
+      if (fingerprintEnabled) {
+        const stackHash = (e?.stack || '').substring(0, 120).replace(/\s+/g, ' ');
+        const snapshot = {
+          name: e?.name || 'Error',
+          message: e?.message || 'Unknown',
+          stackHash,
+          sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
+          bootNotReady: (typeof __cqBootNotReady !== 'undefined' ? __cqBootNotReady : null),
+          v3ProbingActive: (typeof v3ProbingActive !== 'undefined' ? v3ProbingActive : null),
+          v3PromptPhase: (typeof v3PromptPhase !== 'undefined' ? v3PromptPhase : null),
+          lastTry1Step: lastTry1StepRef?.current || null,
+          ts: Date.now()
+        };
+        console.error('[CQ_ERROR_FINGERPRINT]', snapshot);
+      }
+    } catch (_) {
+      // Fingerprint logging must never throw
+    }
 
     let __cqShouldRethrow_310 = false;
 
