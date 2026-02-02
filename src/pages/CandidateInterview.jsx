@@ -1509,9 +1509,6 @@ let __cqRemountNonce_MEM = 0;
 let __cqLastRemountTs_MEM = 0;
 let __cqLastRemountSession_MEM = null;
 
-// Session epoch token: Detect stale async callbacks across session swaps
-let __cqSessionEpoch_MEM = 0;
-
 // Kill-switch latch: One-way flag to stop rendering after #310 redirect
 let __cq310KillLatched_MEM = false;
 
@@ -2374,30 +2371,6 @@ function CandidateInterviewInner() {
     // Detector must never throw
   }
   
-  // INSTRUMENTATION: Global render instance proof (every render, dev-only)
-  try {
-    if (typeof window !== 'undefined') {
-      const hn = window.location?.hostname || '';
-      const isDevEnv = hn.includes('preview') || hn.includes('localhost');
-      if (isDevEnv) {
-        if (typeof __cqRenderSeq_MEM === 'undefined') {
-          let __cqRenderSeq_MEM = 0;
-        }
-        __cqRenderSeq_MEM = (__cqRenderSeq_MEM || 0) + 1;
-        console.log('[CQ_RENDER_INSTANCE_PROOF]', {
-          renderSeq: __cqRenderSeq_MEM,
-          reactVersion: React?.version || 'unknown',
-          singletonMatch: (window.__CQ_REACT_SINGLETON__ && typeof React !== 'undefined') 
-            ? (window.__CQ_REACT_SINGLETON__ === React) 
-            : null,
-          ts: Date.now()
-        });
-      }
-    }
-  } catch (_) {
-    // Proof logging must never throw
-  }
-  
   const navigate = useNavigate();
   
   // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
@@ -3140,34 +3113,7 @@ function CandidateInterviewInner() {
     });
     
     // Background refresh (upsert only, never replace) - BEST EFFORT
-    // INSTRUMENTATION: Cancel previous timer to prevent post-unmount firing
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = null;
-    }
-    
-    // INSTRUMENTATION: Capture session epoch for stale callback detection
-    const epoch = __cqSessionEpoch_MEM;
-    
-    refreshTimerRef.current = setTimeout(async () => {
-      refreshTimerRef.current = null;
-      
-      // INSTRUMENTATION: Stale callback check
-      if (epoch !== __cqSessionEpoch_MEM) {
-        const isDevEnv = (typeof window !== 'undefined' && window.location?.hostname) 
-          ? (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))
-          : false;
-        if (isDevEnv) {
-          console.warn('[CQ_STALE_CALLBACK_DROPPED]', {
-            context: 'appendAndRefresh_setTimeout',
-            capturedEpoch: epoch,
-            currentEpoch: __cqSessionEpoch_MEM,
-            reason: 'Session changed - skipping state update'
-          });
-        }
-        return; // Skip state update - session changed
-      }
-      
+    setTimeout(async () => {
       try {
         const freshAfterAppend = await base44.entities.InterviewSession.get(sessionId);
         const freshTranscript = freshAfterAppend.transcript_snapshot || [];
@@ -4119,15 +4065,12 @@ function CandidateInterviewInner() {
     }
   }, []);
   
-  const initializeInterview = useCallback_TR("T08_INIT_INTERVIEW", async (didCancelRef) => {
+  const initializeInterview = useCallback_TR("T08_INIT_INTERVIEW", async () => {
     // Guard: require sessionId
     if (!sessionId) {
       console.warn('[CQ_INIT][SKIP] initializeInterview called without sessionId');
       return;
     }
-    
-    // INSTRUMENTATION: Capture session epoch for stale callback detection
-    const epoch = __cqSessionEpoch_MEM;
     
     // BOOTSTRAP INVARIANT: Prevent duplicate engine bootstrap per session.
     if (typeof window !== 'undefined') {
@@ -4147,17 +4090,6 @@ function CandidateInterviewInner() {
       if (typeof window !== 'undefined') {
         window[cqStartedKey] = true;
         console.log('[CQ_INIT][STARTED_FLAG_SET]', { key: cqStartedKey });
-      }
-
-      // INSTRUMENTATION: Guard state update - skip if cancelled
-      if (didCancelRef && didCancelRef.current) {
-        const isDevEnv = (typeof window !== 'undefined' && window.location?.hostname) 
-          ? (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))
-          : false;
-        if (isDevEnv) {
-          console.log('[CQ_INIT][ABORTED_BEFORE_SETLOADING]', { sessionId, epoch, currentEpoch: __cqSessionEpoch_MEM });
-        }
-        return;
       }
 
       // Ensure loading is on during initialization (gated - prevent regression after ready)
@@ -4231,49 +4163,11 @@ function CandidateInterviewInner() {
         return;
       }
 
-      // INSTRUMENTATION: Guard state update - skip if cancelled or session changed
-      if (didCancelRef && didCancelRef.current) {
-        const isDevEnv = (typeof window !== 'undefined' && window.location?.hostname) 
-          ? (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))
-          : false;
-        if (isDevEnv) {
-          console.log('[CQ_INIT][ABORTED_BEFORE_SETENGINE]', { sessionId, epoch, currentEpoch: __cqSessionEpoch_MEM });
-        }
-        return;
-      }
-      
-      // INSTRUMENTATION: Stale callback check before setting engine
-      if (epoch !== __cqSessionEpoch_MEM) {
-        const isDevEnv = (typeof window !== 'undefined' && window.location?.hostname) 
-          ? (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))
-          : false;
-        if (isDevEnv) {
-          console.warn('[CQ_STALE_CALLBACK_DROPPED]', {
-            context: 'initializeInterview_setEngine',
-            capturedEpoch: epoch,
-            currentEpoch: __cqSessionEpoch_MEM,
-            reason: 'Session changed - skipping state update'
-          });
-        }
-        return;
-      }
-
       // 2) Hydrate engine into state
       if (boot?.engine) {
         setEngine(boot.engine);
       } else {
         setEngine(boot);
-      }
-
-      // INSTRUMENTATION: Guard resume call - skip if cancelled
-      if (didCancelRef && didCancelRef.current) {
-        const isDevEnv = (typeof window !== 'undefined' && window.location?.hostname) 
-          ? (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))
-          : false;
-        if (isDevEnv) {
-          console.log('[CQ_INIT][ABORTED_BEFORE_RESUME]', { sessionId });
-        }
-        return;
       }
 
       // 3) Resume/hydrate session data using existing function
@@ -4289,17 +4183,6 @@ function CandidateInterviewInner() {
       console.log('[CQ_INIT][RESUME_FROM_DB_OK]', { sessionId });
 
     } catch (err) {
-      // INSTRUMENTATION: Guard state update - skip if cancelled
-      if (didCancelRef && didCancelRef.current) {
-        const isDevEnv = (typeof window !== 'undefined' && window.location?.hostname) 
-          ? (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))
-          : false;
-        if (isDevEnv) {
-          console.log('[CQ_INIT][ABORTED_ON_ERROR]', { sessionId, error: err.message });
-        }
-        return;
-      }
-      
       // Set error using existing error setter
       setError(err);
       setIsLoading(false);
@@ -4311,9 +4194,6 @@ function CandidateInterviewInner() {
   // BOOTSTRAP KICKSTART - Replaces legacy render-kick
   // ============================================================================
   useEffect_TR("T09_BOOT_KICKSTART", () => {
-    // INSTRUMENTATION: Async abort flag
-    let didCancel = false;
-    
     try {
       console.log("[CQ_301_DIAG][BOOT_KICKSTART]", {
         rid: (typeof __cqRid !== 'undefined' ? __cqRid : 'no_rid'),
@@ -4361,22 +4241,8 @@ function CandidateInterviewInner() {
         return;
       }
       console.log('[CQ_BOOT_RENDERKICK][USE_EFFECT_KICKSTART]', { sessionId });
-      
-      // INSTRUMENTATION: Pass abort flag to async function
-      const didCancelRef = { current: didCancel };
-      initializeInterview(didCancelRef);
+      initializeInterview();
     }
-    
-    // INSTRUMENTATION: Cleanup - abort async work on unmount
-    return () => {
-      didCancel = true;
-      const isDevEnv = (typeof window !== 'undefined' && window.location?.hostname) 
-        ? (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))
-        : false;
-      if (isDevEnv) {
-        console.log('[CQ_KICKSTART_CLEANUP]', { sessionId, didCancel: true });
-      }
-    };
   }, [sessionId]);
   
   // ============================================================================
@@ -5369,19 +5235,6 @@ function CandidateInterviewInner() {
     });
     
     if (!sessionId) return;
-    
-    // INSTRUMENTATION: Increment session epoch (invalidates old async callbacks)
-    __cqSessionEpoch_MEM++;
-    const isDevEnv = (typeof window !== 'undefined' && window.location?.hostname) 
-      ? (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))
-      : false;
-    if (isDevEnv) {
-      console.log('[CQ_SESSION_EPOCH]', {
-        newEpoch: __cqSessionEpoch_MEM,
-        sessionId,
-        reason: 'Session changed - invalidating old callbacks'
-      });
-    }
     
     // V3 ACK METRICS: Log final stats on session change
     if (v3AckSetCountRef.current > 0) {
