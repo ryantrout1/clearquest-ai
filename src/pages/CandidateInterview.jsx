@@ -21143,6 +21143,14 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                   }
                 } catch (_) {}
                 
+                // CRASH MARKER: Persist #310 recovery signal across redirect (session-scoped)
+                try {
+                  if (typeof window !== 'undefined' && window.sessionStorage) {
+                    window.sessionStorage.setItem('CQ_LAST_CRASH', '310');
+                    window.sessionStorage.setItem('CQ_LAST_CRASH_TS', String(Date.now()));
+                  }
+                } catch (_) {}
+                
                 console.error('[CQ_310_KILLSWITCH][REDIRECT]', {
                   from: (typeof window !== 'undefined' ? window.location.pathname : null),
                   to: '/Home',
