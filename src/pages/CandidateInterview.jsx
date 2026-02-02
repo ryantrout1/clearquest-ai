@@ -1934,7 +1934,7 @@ function CandidateInterviewInner() {
     __cqReactUseRefN += 1;
     try { /* useRef tracking disabled (React #310 compliance) */ } catch (_) {}
     try { console.log('[CQ_REACT_USEREF_CALL]', { n: __cqReactUseRefN }); } catch (_) {}
-    return React.React.useRef(...args);
+    return React.useRef(...args);
   };
   
   const __cqHookSite = (label) => { try { /* Hook site tracking disabled (React #310 compliance) */ } catch (_) {} };
@@ -1974,7 +1974,7 @@ function CandidateInterviewInner() {
     const label = isLabel ? labelOrFn : undefined;
     const hookArgs = isLabel ? rest : [labelOrFn, ...rest];
     __cqTrace('useEffect', label);
-    return React.React.useEffect(...hookArgs);
+    return React.useEffect(...hookArgs);
   }
   const useEffect_TR2 = useEffect_TR; // Minifier compatibility alias
   function useLayoutEffect_TR(labelOrFn, ...rest) {
@@ -1982,23 +1982,23 @@ function CandidateInterviewInner() {
     const label = isLabel ? labelOrFn : undefined;
     const hookArgs = isLabel ? rest : [labelOrFn, ...rest];
     __cqTrace('useLayoutEffect', label);
-    return React.React.useLayoutEffect(...hookArgs);
+    return React.useLayoutEffect(...hookArgs);
   }
   function ReactUseLayoutEffect_TR(labelOrFn, ...rest) {
     const isLabel = typeof labelOrFn === 'string';
     const label = isLabel ? labelOrFn : undefined;
     const hookArgs = isLabel ? rest : [labelOrFn, ...rest];
     __cqTrace('React.useLayoutEffect', label);
-    return React.React.useLayoutEffect(...hookArgs);
+    return React.useLayoutEffect(...hookArgs);
   }
   function useCallback_TR(labelOrFn, ...rest) {
     const isLabel = typeof labelOrFn === 'string';
     const label = isLabel ? labelOrFn : undefined;
     const hookArgs = isLabel ? rest : [labelOrFn, ...rest];
     __cqTrace('useCallback', label);
-    return React.React.useCallback(...hookArgs);
+    return React.useCallback(...hookArgs);
   }
-  function useRef_TR_L(label, ...args) { __cqTrace(`useRef:${label}`); return React.React.useRef(...args); }
+  function useRef_TR_L(label, ...args) { __cqTrace(`useRef:${label}`); return React.useRef(...args); }
   
   // HOOK CENSUS HELPER: Log trace counter state (dev-only, no hook)
   const cqLogHookCensus = (label) => {
@@ -3685,7 +3685,7 @@ function CandidateInterviewInner() {
   
   // HOOK ORDER FIX: Overflow detection MUST be top-level (before early returns)
   // Computes if scroll container content exceeds viewport - drives dynamic footer padding
-  React.React.useLayoutEffect(() => {
+  React.useLayoutEffect(() => {
     const el = historyRef.current;
     if (!el) return;
     
@@ -6298,16 +6298,16 @@ function CandidateInterviewInner() {
   
   // 3-ROW SHELL FLAG: Disable legacy footer spacer checks
   const IS_3ROW_SHELL = true;
-  const footerSpacerDisabledLoggedRef = React.React.useRef(false);
+  const footerSpacerDisabledLoggedRef = React.useRef(false);
   
   // GUARDRAIL DEDUPE: Track logged errors to prevent spam
-  const lastClearanceErrorKeyRef = React.React.useRef(null);
+  const lastClearanceErrorKeyRef = React.useRef(null);
   
   // GRAVITY FOLLOW: Track last scroll for dedupe
-  const lastGravityFollowKeyRef = React.React.useRef(null);
+  const lastGravityFollowKeyRef = React.useRef(null);
   
   // GOLDEN CONTRACT CHECK: Dedupe tracking for golden check emissions
-  const lastGoldenCheckPayloadRef = React.React.useRef(null);
+  const lastGoldenCheckPayloadRef = React.useRef(null);
   
   // CANONICAL DETECTOR: Log once per session (reduce noise)
   const canonicalDetectorLoggedRef = React.useRef(false);
@@ -7137,7 +7137,7 @@ function CandidateInterviewInner() {
     // One-time warning if fallback triggered (dev-only, once per mount)
     // DISABLED: Hook inside try/catch causes minifier TDZ (js)
     /*
-    const fallbackWarningLoggedRef = React.React.useRef(false);
+    const fallbackWarningLoggedRef = React.useRef(false);
     if (bottomBarModeSOTSafe !== bottomBarModeSOT__LOCAL && !fallbackWarningLoggedRef.current) {
       fallbackWarningLoggedRef.current = true;
       if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
@@ -14158,8 +14158,8 @@ function CandidateInterviewInner() {
   // ============================================================================
   // FOOTER MEASUREMENT SOT - Dynamic, mode-agnostic, ref-latch (TDZ-safe)
   // ============================================================================
-  const footerObservedRef = React.React.useRef(false);
-  const footerObserverAttachLoggedRef = React.React.useRef(false);
+  const footerObservedRef = React.useRef(false);
+  const footerObserverAttachLoggedRef = React.useRef(false);
   
   cqHookMark('HOOK_49:useEffect:footerMeasurement');
   useEffect_TR(() => {
