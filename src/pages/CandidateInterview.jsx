@@ -21012,15 +21012,15 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     } catch (e) {
       try {
         // if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = `TRY1_CATCH_ENTER:${typeof window.__CQ_LAST_RENDER_STEP__ !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : 'UNKNOWN'}`;
-        console.log('[CQ_DIAG][TRY1_CATCH_ENTER]', { lastStep: (typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null) });
+        console.log('[CQ_DIAG][TRY1_CATCH_ENTER]', { lastStep: (__cqLastRenderStep_MEM || null) });
       } catch (_) {}
     
     console.error('[CQ_TRY1_CATCH][ERROR]', {
       message: e?.message,
       name: e?.name,
       stack: e?.stack,
-      lastStep: typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null,
-      lastHookSite: (typeof window !== 'undefined') ? (window.__CQ_LAST_HOOKSITE__ || null) : null,
+      lastStep: (__cqLastRenderStep_MEM || null),
+      lastHookSite: (__cqLastHookSite_MEM || null),
       lastRenderSig: (typeof window !== 'undefined') ? (window.__CQ_LAST_RENDER_SIG__ || null) : null
     });
     
@@ -21068,7 +21068,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
           const msg = (e && e.message) ? String(e.message) : '';
           const looks310 = msg.includes('Minified React error #310');
           console.error('[CQ_301_DIAG][DECODE_HINT]', {
-            lastStep: (typeof window.__CQ_LAST_RENDER_STEP__ !== 'undefined') ? window.__CQ_LAST_RENDER_STEP__ : null,
+            lastStep: (__cqLastRenderStep_MEM || null),
             looks310,
             message: msg
           });
