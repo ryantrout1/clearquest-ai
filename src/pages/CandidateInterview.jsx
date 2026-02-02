@@ -1780,9 +1780,11 @@ function CandidateInterviewInner() {
   };
 
   const cqHookMark = (name) => {
-    // DETERMINISTIC BREADCRUMB: Always set hooksite (ungated)
+    // DETERMINISTIC BREADCRUMB: Always set hooksite (ref-based, render-safe)
     try {
-      if (typeof window !== 'undefined') window.__CQ_LAST_HOOKSITE__ = name;
+      if (typeof lastHookSiteRef !== 'undefined' && lastHookSiteRef?.current !== undefined) {
+        lastHookSiteRef.current = name;
+      }
     } catch (_) {}
     
     const __cqCensusEnabledNow = (() => {
@@ -2206,7 +2208,9 @@ function CandidateInterviewInner() {
   // RENDER-STEP BREADCRUMBS: TDZ-safe diagnostic helper (hoisted function)
   function cqSetRenderStep(step) {
     try { 
-      if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = step;
+      if (typeof lastTry1StepRef !== 'undefined' && lastTry1StepRef?.current !== undefined) {
+        lastTry1StepRef.current = step;
+      }
     } catch (_) {}
   }
   
@@ -21037,8 +21041,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
           v3PromptPhase: (typeof v3PromptPhase !== 'undefined' ? v3PromptPhase : null),
           lastTry1Step: lastTry1StepRef?.current || null,
           // ENRICHMENT: Hook trace + React singleton detection
-          lastStep: (typeof window !== 'undefined' ? (window.__CQ_LAST_RENDER_STEP__ || null) : null),
-          lastHookSite: (typeof window !== 'undefined' ? (window.__CQ_LAST_HOOKSITE__ || null) : null),
+          lastStep: (lastTry1StepRef?.current || null),
+          lastHookSite: (lastHookSiteRef?.current || null),
           lastRenderSig: (typeof window !== 'undefined' ? (window.__CQ_LAST_RENDER_SIG__ || null) : null),
           reactVersion: (typeof React !== 'undefined' ? (React?.version || 'unknown') : null),
           reactSingletonMatch: (typeof window !== 'undefined' && window.__CQ_REACT_SINGLETON__ && typeof React !== 'undefined') 
