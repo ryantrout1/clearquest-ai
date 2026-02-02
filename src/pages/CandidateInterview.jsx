@@ -11928,7 +11928,25 @@ function CandidateInterviewInner() {
         
         if (reactivationCount >= 2) {
           // MAX RE-ACTIVATIONS REACHED - force forward progress to MI_GATE
-          const currentPhaseSOT = computeInterviewPhaseSOT();
+          let currentPhaseSOT;
+          try {
+            currentPhaseSOT = computeInterviewPhaseSOT();
+          } catch (e) {
+            console.error('[PHASE_SOT][FAILOPEN]', { error: e?.message, callSite: 'transitionToAnotherInstanceGate_oscillation' });
+            currentPhaseSOT = {
+              phase: "BOOTSTRAP",
+              allowedActions: new Set([]),
+              blockedReasons: ["Phase computation error"],
+              derivedFlags: {
+                canSubmitText: false,
+                canClickYesNo: false,
+                shouldShowPrompt: false,
+                shouldBlockInput: true,
+                shouldSuppressMiGate: true,
+                shouldSuppressFallback: true
+              }
+            };
+          }
           console.warn('[FALLBACK_OSCILLATION_GUARD][STOP]', {
             key: reactivationKey,
             count: reactivationCount,
