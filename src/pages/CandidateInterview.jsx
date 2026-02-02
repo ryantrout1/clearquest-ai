@@ -5809,7 +5809,25 @@ function CandidateInterviewInner() {
     );
     
     // Compute current phase (single source of truth)
-    const phaseSOT = computeInterviewPhaseSOT();
+    let phaseSOT;
+    try {
+      phaseSOT = computeInterviewPhaseSOT();
+    } catch (e) {
+      console.error('[PHASE_SOT][FAILOPEN]', { error: e?.message, callSite: 'getStabilitySnapshotSOT' });
+      phaseSOT = {
+        phase: "BOOTSTRAP",
+        allowedActions: new Set([]),
+        blockedReasons: ["Phase computation error"],
+        derivedFlags: {
+          canSubmitText: false,
+          canClickYesNo: false,
+          shouldShowPrompt: false,
+          shouldBlockInput: true,
+          shouldSuppressMiGate: true,
+          shouldSuppressFallback: true
+        }
+      };
+    }
     
     // Build snapshot object (safe, non-PII fields only)
     const snapshot = {
