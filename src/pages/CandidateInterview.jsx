@@ -1494,6 +1494,12 @@ const buildV3OpenerStableKey = (packId, instanceNumber) => {
   return `v3-opener:${packId}:${instanceNumber}`;
 };
 
+// ============================================================================
+// MODULE-SCOPE BREADCRUMB STORAGE - Render-safe (no window writes, no ref coupling)
+// ============================================================================
+let __cqLastRenderStep_MEM = null;
+let __cqLastHookSite_MEM = null;
+
 // Centralized V2 probe runner for both base questions and follow-ups
 // CRITICAL: For V2 packs, we ALWAYS call the backend - it controls progression
 /**
@@ -1780,11 +1786,9 @@ function CandidateInterviewInner() {
   };
 
   const cqHookMark = (name) => {
-    // DETERMINISTIC BREADCRUMB: Always set hooksite (ref-based, render-safe)
+    // DETERMINISTIC BREADCRUMB: Always set hooksite (module-scope memory, render-safe)
     try {
-      if (typeof lastHookSiteRef !== 'undefined' && lastHookSiteRef?.current !== undefined) {
-        lastHookSiteRef.current = name;
-      }
+      __cqLastHookSite_MEM = name;
     } catch (_) {}
     
     const __cqCensusEnabledNow = (() => {
@@ -2208,9 +2212,7 @@ function CandidateInterviewInner() {
   // RENDER-STEP BREADCRUMBS: TDZ-safe diagnostic helper (hoisted function)
   function cqSetRenderStep(step) {
     try { 
-      if (typeof lastTry1StepRef !== 'undefined' && lastTry1StepRef?.current !== undefined) {
-        lastTry1StepRef.current = step;
-      }
+      __cqLastRenderStep_MEM = step;
     } catch (_) {}
   }
   
@@ -21041,8 +21043,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
           v3PromptPhase: (typeof v3PromptPhase !== 'undefined' ? v3PromptPhase : null),
           lastTry1Step: lastTry1StepRef?.current || null,
           // ENRICHMENT: Hook trace + React singleton detection
-          lastStep: (lastTry1StepRef?.current || null),
-          lastHookSite: (lastHookSiteRef?.current || null),
+          lastStep: (__cqLastRenderStep_MEM || null),
+          lastHookSite: (__cqLastHookSite_MEM || null),
           lastRenderSig: (typeof window !== 'undefined' ? (window.__CQ_LAST_RENDER_SIG__ || null) : null),
           reactVersion: (typeof React !== 'undefined' ? (React?.version || 'unknown') : null),
           reactSingletonMatch: (typeof window !== 'undefined' && window.__CQ_REACT_SINGLETON__ && typeof React !== 'undefined') 
