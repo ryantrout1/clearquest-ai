@@ -1506,6 +1506,8 @@ let __cqHookSigCurr_MEM = null;
 
 // Remount nonce: Force React to discard stale component instance on #310
 let __cqRemountNonce_MEM = 0;
+let __cqLastRemountTs_MEM = 0;
+let __cqLastRemountSession_MEM = null;
 
 // Centralized V2 probe runner for both base questions and follow-ups
 // CRITICAL: For V2 packs, we ALWAYS call the backend - it controls progression
@@ -21103,11 +21105,29 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
           // FORCE REMOUNT: Increment nonce to clear stale dispatcher on #310
           if (looks310) {
-            __cqRemountNonce_MEM++;
-            console.log('[CQ_REMOUNT][NONCE_INC]', { 
-              nonce: __cqRemountNonce_MEM,
-              reason: 'React #310 detected - forcing remount on next render'
-            });
+            const now = Date.now();
+            const sid = (typeof sessionId !== 'undefined' ? sessionId : null);
+
+            // COOLDOWN: prevent remount thrash (one attempt per session per 5000ms)
+            const sameSession = (__cqLastRemountSession_MEM && sid) ? (__cqLastRemountSession_MEM === sid) : false;
+            const inCooldown = (now - (__cqLastRemountTs_MEM || 0)) < 5000;
+
+            if (sameSession && inCooldown) {
+              console.warn('[CQ_REMOUNT][SKIP_COOLDOWN]', { 
+                sessionId: sid,
+                nonce: __cqRemountNonce_MEM,
+                msSinceLast: (now - (__cqLastRemountTs_MEM || 0))
+              });
+            } else {
+              __cqLastRemountTs_MEM = now;
+              __cqLastRemountSession_MEM = sid;
+              __cqRemountNonce_MEM++;
+              console.log('[CQ_REMOUNT][NONCE_INC]', { 
+                nonce: __cqRemountNonce_MEM,
+                sessionId: sid,
+                reason: 'React #310 detected - forcing remount on next render'
+              });
+            }
           }
         }
       }
