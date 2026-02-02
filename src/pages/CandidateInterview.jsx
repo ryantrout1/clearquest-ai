@@ -1780,6 +1780,11 @@ function CandidateInterviewInner() {
   };
 
   const cqHookMark = (name) => {
+    // DETERMINISTIC BREADCRUMB: Always set hooksite (ungated)
+    try {
+      if (typeof window !== 'undefined') window.__CQ_LAST_HOOKSITE__ = name;
+    } catch (_) {}
+    
     const __cqCensusEnabledNow = (() => {
       try {
         if (typeof window === 'undefined') return false;
@@ -2200,9 +2205,8 @@ function CandidateInterviewInner() {
   
   // RENDER-STEP BREADCRUMBS: TDZ-safe diagnostic helper (hoisted function)
   function cqSetRenderStep(step) {
-    // NEUTRALIZED: No window write (prevents render-time global mutation)
     try { 
-      // Render-step tracking disabled (React #310 compliance)
+      if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = step;
     } catch (_) {}
   }
   
@@ -2307,32 +2311,36 @@ function CandidateInterviewInner() {
   
   // MULTI-REACT DETECTOR: Detect duplicate React instances/objects (React #310 root cause)
   try {
+    // ALWAYS initialize singleton (ungated - ensures reactSingletonMatch is never null)
+    if (typeof React !== 'undefined' && typeof window !== 'undefined' && !window.__CQ_REACT_SINGLETON__) {
+      window.__CQ_REACT_SINGLETON__ = React;
+    }
+    
+    // GATED: Logging only (preview/localhost OR manual flag)
     const isDevEnv = (typeof window !== 'undefined' && window.location?.hostname) 
       ? (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))
       : false;
     const detectorEnabled = isDevEnv || (typeof window !== 'undefined' && window.CQ_ERROR_FINGERPRINT === true);
     
-    if (detectorEnabled && typeof React !== 'undefined') {
-      if (!window.__CQ_REACT_SINGLETON__) {
-        // First render - store React object reference
-        window.__CQ_REACT_SINGLETON__ = React;
-        console.log('[CQ_MULTI_REACT_DETECTOR][SINGLETON_SET]', { 
-          reactVersion: React?.version || 'unknown',
+    if (detectorEnabled && typeof React !== 'undefined' && typeof window !== 'undefined') {
+      const singletonMatch = window.__CQ_REACT_SINGLETON__ === React;
+      
+      if (!singletonMatch) {
+        console.error('[CQ_MULTI_REACT_DETECTOR][MISMATCH]', {
+          firstReactVersion: window.__CQ_REACT_SINGLETON__?.version || 'unknown',
+          currentReactVersion: React?.version || 'unknown',
+          singletonMatch: false,
+          reason: 'Multiple React instances detected - different object references',
+          sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
           ts: Date.now()
         });
-      } else {
-        // Subsequent render - compare React objects
-        const singletonMatch = window.__CQ_REACT_SINGLETON__ === React;
-        if (!singletonMatch) {
-          console.error('[CQ_MULTI_REACT_DETECTOR][MISMATCH]', {
-            firstReactVersion: window.__CQ_REACT_SINGLETON__?.version || 'unknown',
-            currentReactVersion: React?.version || 'unknown',
-            singletonMatch: false,
-            reason: 'Multiple React instances detected - different object references',
-            sessionId: (typeof sessionId !== 'undefined' ? sessionId : null),
-            ts: Date.now()
-          });
-        }
+      } else if (!window.__CQ_REACT_SINGLETON_LOGGED__) {
+        window.__CQ_REACT_SINGLETON_LOGGED__ = true;
+        console.log('[CQ_MULTI_REACT_DETECTOR][SINGLETON_OK]', { 
+          reactVersion: React?.version || 'unknown',
+          singletonMatch: true,
+          ts: Date.now()
+        });
       }
     }
   } catch (_) {
