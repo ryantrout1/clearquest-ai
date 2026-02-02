@@ -1504,6 +1504,9 @@ let __cqLastHookSite_MEM = null;
 let __cqHookSigPrev_MEM = null;
 let __cqHookSigCurr_MEM = null;
 
+// Remount nonce: Force React to discard stale component instance on #310
+let __cqRemountNonce_MEM = 0;
+
 // Centralized V2 probe runner for both base questions and follow-ups
 // CRITICAL: For V2 packs, we ALWAYS call the backend - it controls progression
 /**
@@ -21097,6 +21100,15 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
           // If it's the minified 310, mark for rethrow (instead of throwing inside try)
           __cqShouldRethrow_310 = looks310;
+
+          // FORCE REMOUNT: Increment nonce to clear stale dispatcher on #310
+          if (looks310) {
+            __cqRemountNonce_MEM++;
+            console.log('[CQ_REMOUNT][NONCE_INC]', { 
+              nonce: __cqRemountNonce_MEM,
+              reason: 'React #310 detected - forcing remount on next render'
+            });
+          }
         }
       }
     } catch (_) {}
@@ -24113,11 +24125,14 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   // DEFAULT EXPORT - Wrapped with Error Boundary
   // ============================================================================
   export default function CandidateInterview() {
-  return (
-  <CQCandidateInterviewErrorBoundary>
-    <CandidateInterviewInner />
-  </CQCandidateInterviewErrorBoundary>
-  );
+    const sessionId = (typeof window !== 'undefined' && window.__CQ_SESSION__) || null;
+    const remountKey = `${sessionId || 'no-session'}:${__cqRemountNonce_MEM}`;
+
+    return (
+    <CQCandidateInterviewErrorBoundary>
+      <CandidateInterviewInner key={remountKey} />
+    </CQCandidateInterviewErrorBoundary>
+    );
   }
   try { CandidateInterview.displayName = 'CandidateInterview'; } catch (_) {}
   try { CQCandidateInterviewErrorBoundary.displayName = 'CQCandidateInterviewErrorBoundary'; } catch (_) {}
