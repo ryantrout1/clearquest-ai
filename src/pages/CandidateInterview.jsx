@@ -6619,6 +6619,9 @@ function CandidateInterviewInner() {
   // HOOK CENSUS: Mark before TRY1
   cqHookMark('PRE_TRY1');
   
+  // EDIT 4: Hook site marker (TRY1 top)
+  __cqLastHookSite_MEM = "TRY1_TOP";
+  
   // BOOT GUARD FLAG - Prevents early returns that cause hook divergence (React #310 fix)
   // Declared early to ensure visibility in all render paths (TRY1 + JSX_TRY2)
   let __cqBootGuardBlockRender = false;
@@ -6627,7 +6630,52 @@ function CandidateInterviewInner() {
   
   if (!__cqBootNotReady) {
     cqSetRenderStep('TRY1:ENTER_BLOCK_TOP');
+    
+    // EDIT 1: Micro-step marker 01
+    try {
+      __cqLastRenderStep_MEM = 'TRY1:TOP:01_AFTER_ENTER';
+      if (typeof window !== 'undefined') {
+        const hn = window.location?.hostname || '';
+        const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+        if (isDevEnv) {
+          console.log('[CQ_TRY1_STEP]', { step: '01_AFTER_ENTER', ts: Date.now() });
+        }
+      }
+    } catch (_) {}
+    
+    // EDIT 3: Dispatcher snapshot (TRY1 enter)
+    try {
+      if (typeof window !== 'undefined') {
+        const hn = window.location?.hostname || '';
+        const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+        if (isDevEnv) {
+          console.log('[CQ_DISPATCHER_SNAPSHOT][TRY1_ENTER]', {
+            reactVersion: React?.version || 'unknown',
+            typeofUseState: typeof React.useState,
+            typeofUseEffect: typeof React.useEffect,
+            useEffectMatch: (React.useEffect === useEffect),
+            ts: Date.now()
+          });
+        }
+      }
+    } catch (_) {}
+    
+    // EDIT 2: Segment A - try/catch wrap
+    try {
     // Boot ready - execute TRY1 normally
+    
+    // EDIT 1: Micro-step marker 02
+    try {
+      __cqLastRenderStep_MEM = 'TRY1:TOP:02_AFTER_MODE_SAFE';
+      if (typeof window !== 'undefined') {
+        const hn = window.location?.hostname || '';
+        const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+        if (isDevEnv) {
+          console.log('[CQ_TRY1_STEP]', { step: '02_AFTER_MODE_SAFE', ts: Date.now() });
+        }
+      }
+    } catch (_) {}
+    
     // ============================================================================
     // RENDER-TIME GLOBAL MUTATION GUARDRAIL (Dev-only regression prevention)
     // ============================================================================
@@ -6673,6 +6721,50 @@ function CandidateInterviewInner() {
         });
       }
     }
+    
+    } catch (segmentError) {
+      // EDIT 2: Segment A catch
+      console.error('[CQ_TRY1_SEGMENT_FAIL]', {
+        seg: 'A',
+        step: __cqLastRenderStep_MEM,
+        message: segmentError?.message,
+        stack: segmentError?.stack
+      });
+      throw segmentError;
+    }
+    
+    // EDIT 3: Dispatcher snapshot (Segment A end)
+    try {
+      if (typeof window !== 'undefined') {
+        const hn = window.location?.hostname || '';
+        const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+        if (isDevEnv) {
+          console.log('[CQ_DISPATCHER_SNAPSHOT][SEGMENT_A_END]', {
+            reactVersion: React?.version || 'unknown',
+            typeofUseState: typeof React.useState,
+            typeofUseEffect: typeof React.useEffect,
+            useEffectMatch: (React.useEffect === useEffect),
+            ts: Date.now()
+          });
+        }
+      }
+    } catch (_) {}
+    
+    // EDIT 1: Micro-step marker 03
+    try {
+      __cqLastRenderStep_MEM = 'TRY1:TOP:03_AFTER_CURRENT_ITEM';
+      if (typeof window !== 'undefined') {
+        const hn = window.location?.hostname || '';
+        const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+        if (isDevEnv) {
+          console.log('[CQ_TRY1_STEP]', { step: '03_AFTER_CURRENT_ITEM', ts: Date.now() });
+        }
+      }
+    } catch (_) {}
+    
+    // EDIT 2: Segment B - try/catch wrap
+    try {
+    
     try {
         // if (typeof window !== 'undefined') window.__CQ_LAST_RENDER_STEP__ = 'TRY1_ENTER';
         console.log('[CQ_DIAG][EARLY_STEP]', { step: 'TRY1_ENTER' });
@@ -6856,7 +6948,33 @@ function CandidateInterviewInner() {
   } catch (_) {}
   
   console.log('[CQ_TRY1_STEP2_GUARD][ENTERED]', { sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), ts: Date.now() });
-  // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_2:BEFORE_ACTIVE_UI_PICK';
+  } catch (segmentError) {
+      // EDIT 2: Segment B catch
+      console.error('[CQ_TRY1_SEGMENT_FAIL]', {
+        seg: 'B',
+        step: __cqLastRenderStep_MEM,
+        message: segmentError?.message,
+        stack: segmentError?.stack
+      });
+      throw segmentError;
+    }
+
+    // EDIT 1: Micro-step marker 04
+    try {
+      __cqLastRenderStep_MEM = 'TRY1:TOP:04_AFTER_ACTIVE_UI_ITEM';
+      if (typeof window !== 'undefined') {
+        const hn = window.location?.hostname || '';
+        const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+        if (isDevEnv) {
+          console.log('[CQ_TRY1_STEP]', { step: '04_AFTER_ACTIVE_UI_ITEM', ts: Date.now() });
+        }
+      }
+    } catch (_) {}
+
+    // EDIT 2: Segment C - try/catch wrap
+    try {
+
+    // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_2:BEFORE_ACTIVE_UI_PICK';
   console.log('[CQ_DIAG][TRY1_STEP]', { step: '2:BEFORE_ACTIVE_UI_PICK' });
   lastTry1StepRef.current = '2:BEFORE_ACTIVE_UI_PICK';
   cqMark('BEFORE_ACTIVE_UI_PICK');
@@ -6913,6 +7031,29 @@ function CandidateInterviewInner() {
       };
       }
       }
+
+      } catch (segmentError) {
+          // EDIT 2: Segment C catch
+          console.error('[CQ_TRY1_SEGMENT_FAIL]', {
+            seg: 'C',
+            step: __cqLastRenderStep_MEM,
+            message: segmentError?.message,
+            stack: segmentError?.stack
+          });
+          throw segmentError;
+        }
+
+        // EDIT 1: Micro-step marker 05
+        try {
+          __cqLastRenderStep_MEM = 'TRY1:TOP:05_AFTER_V3_PROMPT_TEXT';
+          if (typeof window !== 'undefined') {
+            const hn = window.location?.hostname || '';
+            const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+            if (isDevEnv) {
+              console.log('[CQ_TRY1_STEP]', { step: '05_AFTER_V3_PROMPT_TEXT', ts: Date.now() });
+            }
+          }
+        } catch (_) {}
 
       console.log('[CQ_AFTER_RESOLVER][OK]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), kind: (typeof activeUiItem_S !== 'undefined' && activeUiItem_S?.kind) || null });
       console.log('[CQ_TRY1_STEP2_GUARD][AFTER_STEP2]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), activeUiKind: (typeof activeUiItem_S !== 'undefined' && activeUiItem_S?.kind) || null });
@@ -18342,9 +18483,33 @@ function CandidateInterviewInner() {
   // TDZ FIX: shouldRenderInTranscript MOVED TO TOP OF COMPONENT (hoisted out of TRY1)
   // Hoisted to prevent crash-before-declare ReferenceError in transcript planners.
   
+  // EDIT 1: Micro-step marker 06
+    try {
+      __cqLastRenderStep_MEM = 'TRY1:TOP:06_AFTER_TRANSCRIPT_PLAN';
+      if (typeof window !== 'undefined') {
+        const hn = window.location?.hostname || '';
+        const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+        if (isDevEnv) {
+          console.log('[CQ_TRY1_STEP]', { step: '06_AFTER_TRANSCRIPT_PLAN', ts: Date.now() });
+        }
+      }
+    } catch (_) {}
+    
   cqSetRenderStep('TRY1:FINAL_LIST_COMPUTE_START');
   // HOOK ORDER FIX: Ref-cached computation (memoization restored)
     finalTranscriptList_S_computed = (() => {
+    
+    // EDIT 1: Micro-step marker 07
+    try {
+      __cqLastRenderStep_MEM = 'TRY1:TOP:07_AFTER_RENDERED_TRANSCRIPT';
+      if (typeof window !== 'undefined') {
+        const hn = window.location?.hostname || '';
+        const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+        if (isDevEnv) {
+          console.log('[CQ_TRY1_STEP]', { step: '07_AFTER_RENDERED_TRANSCRIPT', ts: Date.now() });
+        }
+      }
+    } catch (_) {}
     const hasVisibleActivePromptForSuppression = (activePromptText || '').trim().length > 0;
     cqTdzMark('INSIDE_FINAL_TRANSCRIPT_LIST_MEMO_START');
 
@@ -20566,7 +20731,32 @@ function CandidateInterviewInner() {
       }
     }
     
+    // EDIT 1: Micro-step marker 08
+      try {
+        __cqLastRenderStep_MEM = 'TRY1:TOP:08_AFTER_BOTTOM_BAR_MODE';
+        if (typeof window !== 'undefined') {
+          const hn = window.location?.hostname || '';
+          const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+          if (isDevEnv) {
+            console.log('[CQ_TRY1_STEP]', { step: '08_AFTER_BOTTOM_BAR_MODE', ts: Date.now() });
+          }
+        }
+      } catch (_) {}
+
     cqSetRenderStep('TRY1:FINAL_LIST_REFS_WRITE');
+
+    // EDIT 1: Micro-step marker 09
+      try {
+        __cqLastRenderStep_MEM = 'TRY1:TOP:09_AFTER_FOOTER_FLAGS';
+        if (typeof window !== 'undefined') {
+          const hn = window.location?.hostname || '';
+          const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+          if (isDevEnv) {
+            console.log('[CQ_TRY1_STEP]', { step: '09_AFTER_FOOTER_FLAGS', ts: Date.now() });
+          }
+        }
+      } catch (_) {}
+
     // TDZ GUARD: Update length counter + sync finalList refs (use frozen renderedItems)
     bottomAnchorLenRef.current = renderedItems.length;
     finalListRef.current = Array.isArray(renderedItems) ? renderedItems : [];
@@ -21151,6 +21341,18 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     };
   };
 
+    // EDIT 1: Micro-step marker 10
+    try {
+      __cqLastRenderStep_MEM = 'TRY1:TOP:10_BEFORE_RENDER_PLAN_APPLY';
+      if (typeof window !== 'undefined') {
+        const hn = window.location?.hostname || '';
+        const isDevEnv = hn.includes('preview') || hn.includes('localhost');
+        if (isDevEnv) {
+          console.log('[CQ_TRY1_STEP]', { step: '10_BEFORE_RENDER_PLAN_APPLY', ts: Date.now() });
+        }
+      }
+    } catch (_) {}
+    
     cqSetRenderStep('TRY1:END');
     cqLog('DEBUG', '[CQ_TDZ_CONFIRM][TRY1_COMPLETED]', {
       ts: Date.now(),
