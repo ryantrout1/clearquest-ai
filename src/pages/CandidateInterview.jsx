@@ -21143,15 +21143,27 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                   }
                 } catch (_) {}
                 
+                // Build redirect URL to StartInterview with crash flag + dept/file preservation
+                let redirectUrl = '/startinterview?cq_crash=310';
+                try {
+                  if (typeof window !== 'undefined' && window.location?.search) {
+                    const params = new URLSearchParams(window.location.search || '');
+                    const dept = params.get('dept');
+                    const file = params.get('file');
+                    if (dept) redirectUrl += `&dept=${encodeURIComponent(dept)}`;
+                    if (file) redirectUrl += `&file=${encodeURIComponent(file)}`;
+                  }
+                } catch (_) {}
+                
                 console.error('[CQ_310_KILLSWITCH][REDIRECT]', {
                   from: (typeof window !== 'undefined' ? window.location.pathname : null),
-                  to: '/Home?cq_crash=310',
+                  to: redirectUrl,
                   sessionId: sid,
                   reason: 'React #310 dispatcher corruption — forcing clean app reload'
                 });
                 
                 if (typeof window !== 'undefined' && window.location && typeof window.location.assign === 'function') {
-                  window.location.assign('/Home?cq_crash=310');
+                  window.location.assign(redirectUrl);
                 }
               } catch (_) {}
             }

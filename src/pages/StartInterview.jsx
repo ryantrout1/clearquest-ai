@@ -287,10 +287,14 @@ export default function StartInterview() {
               action: 'Rendering Welcome form instead of auto-resume'
             });
             
-            // Clear URL param so refresh doesn't keep blocking
+            // Clear crash flag but preserve dept/file params
             try {
               if (typeof window !== 'undefined' && window.history && typeof window.history.replaceState === 'function') {
-                window.history.replaceState({}, '', window.location.pathname);
+                const p = new URLSearchParams(window.location.search || '');
+                p.delete('cq_crash');
+                const next = p.toString();
+                const nextUrl = next ? `${window.location.pathname}?${next}` : window.location.pathname;
+                window.history.replaceState({}, '', nextUrl);
               }
             } catch (_) {}
             
