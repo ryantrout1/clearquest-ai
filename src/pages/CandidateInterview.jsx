@@ -943,6 +943,7 @@ class CQCandidateInterviewErrorBoundary extends React.Component {
         name: error?.name,
         lastRenderStep: (typeof window !== 'undefined' ? (window.__CQ_LAST_RENDER_STEP__ || null) : null),
         lastHookSite: (typeof window !== 'undefined') ? (window.__CQ_LAST_HOOKSITE__ || null) : null,
+        lastHookCall: (typeof window !== 'undefined' ? (window.CQ_LAST_HOOK_CALL || null) : null),
         lastRenderSig: (typeof window !== 'undefined') ? (window.__CQ_LAST_RENDER_SIG__ || null) : null,
         componentStack: info?.componentStack || null,
         buildStamp: (typeof window !== 'undefined' && window.__CQ_RUNTIME_PROBE__ ? window.__CQ_RUNTIME_PROBE__.buildStamp : null),
@@ -1502,6 +1503,7 @@ const buildV3OpenerStableKey = (packId, instanceNumber) => {
 // ============================================================================
 let __cqLastRenderStep_MEM = null;
 let __cqLastHookSite_MEM = null;
+let __cqLastHookCall_MEM = null;
 
 // Hook signature tracking (module-scope, diagnostic only)
 let __cqHookSigPrev_MEM = null;
@@ -2399,6 +2401,8 @@ function CandidateInterviewInner() {
     }
   } catch (_) {}
   
+  __cqLastHookCall_MEM = 'H01_useNavigate';
+  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const navigate = useNavigate();
   
   // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
@@ -2409,12 +2413,18 @@ function CandidateInterviewInner() {
   const sessionId = sessionFromSession || sessionFromSessionId || sessionFromGlobal || null;
   
   // SESSION STICKY REF: Persist sessionId across mounts (memory-safe)
+  __cqLastHookCall_MEM = 'H02_useRef_resolvedSessionRef';
+  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const resolvedSessionRef = React.useRef(null);
   
   // SESSION LOCK REF: Once locked, interview cannot invalidate (prevents reset to WELCOME)
+  __cqLastHookCall_MEM = 'H03_useRef_lockedSessionIdRef';
+  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const lockedSessionIdRef = React.useRef(null);
   
   // FORENSIC: Mount-only log showing what session params we received
+  __cqLastHookCall_MEM = 'H04_useRef_sessionParamLoggedRef';
+  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const sessionParamLoggedRef = React.useRef(false);
   if (!sessionParamLoggedRef.current) {
     sessionParamLoggedRef.current = true;
@@ -2591,30 +2601,48 @@ function CandidateInterviewInner() {
   // Moving it below the early return will cause: "Cannot access 'showRedirectFallback' before initialization"
   // 
   // FORENSIC: TDZ FIX - showRedirectFallback state MUST be before early return
+  __cqLastHookCall_MEM = 'H05_useState_showRedirectFallback';
+  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const [showRedirectFallback, setShowRedirectFallback] = React.useState(false);
 
   // REACT #310 AUDIT: Track last successful TRY1 step for crash correlation
+  __cqLastHookCall_MEM = 'H06_useRef_lastTry1StepRef';
+  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const lastTry1StepRef = React.useRef('NOT_STARTED');
 
+  __cqLastHookCall_MEM = 'H07_useState_engine_S';
+  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const [engine_S, setEngine] = React.useState(null);
   
   // BOOT READY LATCH: One-way flag to prevent boot state regression (once ready, always ready)
+  __cqLastHookCall_MEM = 'H08_useRef_cqBootReadyLatchedRef';
+  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const cqBootReadyLatchedRef = React.useRef(false);
   
   // BOOT WARN ONCE: Prevent spam when blocking regression setters
+  __cqLastHookCall_MEM = 'H09_useRef_cqBootWarnOnceRef';
+  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const cqBootWarnOnceRef = React.useRef({ loadingTrue: false, sessionNull: false, engineNull: false });
   
   // SESSION RECOVERY STATE: Track recovery in-flight to prevent redirect during lookup
+  __cqLastHookCall_MEM = 'H10_useState_isRecoveringSession';
+  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const [isRecoveringSession, setIsRecoveringSession] = React.useState(false);
   
   // EDIT 3: Timer ref for refresh timeout (prevent post-unmount firing)
+  __cqLastHookCall_MEM = 'H11_useRef_refreshTimerRef';
+  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const refreshTimerRef = React.useRef(null);
   
   // TDZ_FIX: HOISTED-SAFE PERSISTENCE - Plain function with zero closure dependencies
   // CRITICAL: Declared at top-of-component to eliminate ALL TDZ risks
   // This function uses ONLY its parameters - no component state/refs/consts
   cqHookMark('HOOK_10:useRef:inFlightEnsures');
+  __cqLastHookCall_MEM = 'H12_useRef_inFlightEnsuresRef';
+  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const inFlightEnsuresRef = React.useRef({});
+    __cqLastHookCall_MEM = 'H13_useRef_resumeFromDBFnRef';
+    try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
     const resumeFromDBFnRef = React.useRef(null);
   
   /**
@@ -2790,7 +2818,11 @@ function CandidateInterviewInner() {
   const TYPING_IDLE_MS = 1500; // 1.5s idle timeout
 
 
+  __cqLastHookCall_MEM = 'H14_useState_session';
+  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const [session, setSession] = React.useState(null);
+  __cqLastHookCall_MEM = 'H15_useState_department';
+  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const [department, setDepartment] = React.useState(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
@@ -21525,6 +21557,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
         stack: e?.stack,
         lastStep: (__cqLastRenderStep_MEM || null),
         lastHookSite: (__cqLastHookSite_MEM || null),
+        lastHookCall: (typeof window !== 'undefined' ? window.CQ_LAST_HOOK_CALL : __cqLastHookCall_MEM),
         lastRenderSig: (typeof window !== 'undefined') ? (window.__CQ_LAST_RENDER_SIG__ || null) : null,
         hookSigPrev: (__cqHookSigPrev_MEM || null),
         hookSigCurr: (__cqHookSigCurr_MEM || null),
