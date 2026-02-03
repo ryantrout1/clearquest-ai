@@ -3296,7 +3296,7 @@ function CandidateInterviewInner() {
   );
   
   // Footer overlap guardrail: Track max overlap seen for regression detection
-  const maxOverlapSeenRef = ReactUseRef_TR({ maxOverlapPx: 0, lastModeSeen: null });
+  const maxOverlapSeenRef = React.useRef({ maxOverlapPx: 0, lastModeSeen: null });
 
   // TDZ_FIX: REMOVED - Replaced with hoisted-safe plain function at component top (line ~1220)
 
@@ -6541,8 +6541,8 @@ function CandidateInterviewInner() {
   const expandedInstancesRef = React.useRef(new Set()); // Track expanded instances (prevent repeat)
   
   // UI CONTRACT STATUS: Component-level refs (prevents cross-session leakage)
-  const openerMergeStatusRef = ReactUseRef_TR('UNKNOWN');
-  const footerClearanceStatusRef = ReactUseRef_TR('UNKNOWN');
+  const openerMergeStatusRef = React.useRef('UNKNOWN');
+  const footerClearanceStatusRef = React.useRef('UNKNOWN');
   
   // 3-ROW SHELL FLAG: Disable legacy footer spacer checks
   const IS_3ROW_SHELL = true;
