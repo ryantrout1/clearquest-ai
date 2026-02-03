@@ -5530,7 +5530,34 @@ function CandidateInterviewInner() {
     };
   }, [sessionId]);
   
-  // HOOK CENSUS: Mark after final MAIN hook (T01-T15 interview logic)
+  // ============================================================================
+  // HOOK 16/56: SESSION URL REPAIR (React #310 fix - moved from render)
+  // ============================================================================
+  // Session URL repair: Restore session param if stripped from URL
+  useEffect_TR("T16_SESSION_URL_REPAIR", () => {
+    // Only run when sessionId becomes null BUT we have it in ref
+    if (sessionId) return;
+    if (!resolvedSessionRef.current) return;
+    if (didSessionRepairRef.current) return;
+    
+    didSessionRepairRef.current = true;
+    
+    // Build repaired URL with session param
+    const params = new URLSearchParams(window.location.search || "");
+    params.set("session", resolvedSessionRef.current);
+    const repairedUrl = `/candidateinterview?${params.toString()}`;
+    
+    console.log('[CANDIDATE_INTERVIEW][SESSION_URL_REPAIR]', {
+      from: window.location.search,
+      to: repairedUrl,
+      repairedSession: resolvedSessionRef.current
+    });
+    
+    // Hard replace to repaired URL (preserves all query params)
+    window.location.replace(repairedUrl);
+  }, [sessionId]);
+  
+  // HOOK CENSUS: Mark after final MAIN hook (T01-T16 interview logic)
   cqHookMark('POST_MAIN_HOOKS');
   
   // DEV-ONLY: POST_HOOKS marker counter increment
@@ -20945,24 +20972,20 @@ function CandidateInterviewInner() {
   // If session is missing from URL BUT we have it in ref, repair URL automatically
   if (!sessionId && resolvedSessionRef.current && !didSessionRepairRef.current) {
     didSessionRepairRef.current = true;
-    
+
     // Build repaired URL with session param
     const params = new URLSearchParams(window.location.search || "");
     params.set("session", resolvedSessionRef.current);
     const repairedUrl = `/candidateinterview?${params.toString()}`;
-    
+
     console.log('[CANDIDATE_INTERVIEW][SESSION_URL_REPAIR]', {
       from: window.location.search,
       to: repairedUrl,
       repairedSession: resolvedSessionRef.current
     });
-    
-    // Hard replace to repaired URL (preserves all query params)
-    window.location.replace(repairedUrl);
 
-    // BOOT GUARD: Set flag instead of returning early (prevents hook divergence)
-    __cqBootGuardBlockRender = true;
-    }
+    // Redirect moved to useEffect (T16) - prevents render-time flash
+  }
 
   // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
   // SESSION LOCK: Suppress invalidation if session was previously locked
