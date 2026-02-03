@@ -2402,7 +2402,6 @@ function CandidateInterviewInner() {
   } catch (_) {}
   
   __cqLastHookCall_MEM = 'H01_useNavigate';
-  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const navigate = useNavigate();
   
   // SESSION PARAM PARSING: Accept from query params OR global window.__CQ_SESSION__
@@ -2414,17 +2413,14 @@ function CandidateInterviewInner() {
   
   // SESSION STICKY REF: Persist sessionId across mounts (memory-safe)
   __cqLastHookCall_MEM = 'H02_useRef_resolvedSessionRef';
-  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const resolvedSessionRef = React.useRef(null);
   
   // SESSION LOCK REF: Once locked, interview cannot invalidate (prevents reset to WELCOME)
   __cqLastHookCall_MEM = 'H03_useRef_lockedSessionIdRef';
-  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const lockedSessionIdRef = React.useRef(null);
   
   // FORENSIC: Mount-only log showing what session params we received
   __cqLastHookCall_MEM = 'H04_useRef_sessionParamLoggedRef';
-  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const sessionParamLoggedRef = React.useRef(false);
   if (!sessionParamLoggedRef.current) {
     sessionParamLoggedRef.current = true;
@@ -2602,36 +2598,29 @@ function CandidateInterviewInner() {
   // 
   // FORENSIC: TDZ FIX - showRedirectFallback state MUST be before early return
   __cqLastHookCall_MEM = 'H05_useState_showRedirectFallback';
-  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const [showRedirectFallback, setShowRedirectFallback] = React.useState(false);
 
   // REACT #310 AUDIT: Track last successful TRY1 step for crash correlation
   __cqLastHookCall_MEM = 'H06_useRef_lastTry1StepRef';
-  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const lastTry1StepRef = React.useRef('NOT_STARTED');
 
   __cqLastHookCall_MEM = 'H07_useState_engine_S';
-  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const [engine_S, setEngine] = React.useState(null);
   
   // BOOT READY LATCH: One-way flag to prevent boot state regression (once ready, always ready)
   __cqLastHookCall_MEM = 'H08_useRef_cqBootReadyLatchedRef';
-  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const cqBootReadyLatchedRef = React.useRef(false);
   
   // BOOT WARN ONCE: Prevent spam when blocking regression setters
   __cqLastHookCall_MEM = 'H09_useRef_cqBootWarnOnceRef';
-  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const cqBootWarnOnceRef = React.useRef({ loadingTrue: false, sessionNull: false, engineNull: false });
   
   // SESSION RECOVERY STATE: Track recovery in-flight to prevent redirect during lookup
   __cqLastHookCall_MEM = 'H10_useState_isRecoveringSession';
-  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const [isRecoveringSession, setIsRecoveringSession] = React.useState(false);
   
   // EDIT 3: Timer ref for refresh timeout (prevent post-unmount firing)
   __cqLastHookCall_MEM = 'H11_useRef_refreshTimerRef';
-  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const refreshTimerRef = React.useRef(null);
   
   // TDZ_FIX: HOISTED-SAFE PERSISTENCE - Plain function with zero closure dependencies
@@ -2639,10 +2628,8 @@ function CandidateInterviewInner() {
   // This function uses ONLY its parameters - no component state/refs/consts
   cqHookMark('HOOK_10:useRef:inFlightEnsures');
   __cqLastHookCall_MEM = 'H12_useRef_inFlightEnsuresRef';
-  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const inFlightEnsuresRef = React.useRef({});
     __cqLastHookCall_MEM = 'H13_useRef_resumeFromDBFnRef';
-    try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
     const resumeFromDBFnRef = React.useRef(null);
   
   /**
@@ -2819,13 +2806,21 @@ function CandidateInterviewInner() {
 
 
   __cqLastHookCall_MEM = 'H14_useState_session';
-  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const [session, setSession] = React.useState(null);
   __cqLastHookCall_MEM = 'H15_useState_department';
-  try { if (typeof window !== 'undefined') window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM; } catch (_) {}
   const [department, setDepartment] = React.useState(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
+  
+  // REACT #310 FIX: Sync diagnostic breadcrumbs to window AFTER render (prevents render-time mutation)
+  React.useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.__CQ_LAST_RENDER_STEP__ = __cqLastRenderStep_MEM || null;
+        window.CQ_LAST_HOOK_CALL = __cqLastHookCall_MEM || null;
+      }
+    } catch (_) {}
+  });
 
   cqHookMark('HOOK_20:useState:sections');
   const [sections, setSections] = React.useState([]);
@@ -7449,9 +7444,6 @@ function CandidateInterviewInner() {
   // EDIT E0: Segment E0 - First executable post-05Z block
   try {
     cqSetRenderStep('TRY1:TOP:06A_ENTER_POST05Z_EXEC');
-    if (typeof window !== 'undefined') {
-      window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06A_ENTER_POST05Z_EXEC';
-    }
   
   const currentItem_SType = v3GateActive ? 'v3_gate' :
                           v3ProbingActive ? 'v3_probing' :
@@ -7459,9 +7451,6 @@ function CandidateInterviewInner() {
                           currentItem_S?.type || null;
   
   cqSetRenderStep('TRY1:TOP:06B_AFTER_CURRENT_ITEM_STYPE');
-  if (typeof window !== 'undefined') {
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06B_AFTER_CURRENT_ITEM_STYPE';
-  }
 
 
 
@@ -7584,9 +7573,6 @@ function CandidateInterviewInner() {
     lastTry1StepRef.current = '5_4:AFTER_YESNO_ROUTE_LOG';
 
     cqSetRenderStep('TRY1:TOP:06C_AFTER_MODE_SAFE_BLOCK');
-    if (typeof window !== 'undefined') {
-      window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06C_AFTER_MODE_SAFE_BLOCK';
-    }
 
     // TDZ GUARD: Do not reference late-derived vars (effectiveItemType_SAFE, etc.) above this line.
 
@@ -7629,9 +7615,6 @@ function CandidateInterviewInner() {
   lastTry1StepRef.current = '6:AFTER_MODE_VALIDATION';
   
   cqSetRenderStep('TRY1:TOP:06D_AFTER_MODE_VALIDATION');
-  if (typeof window !== 'undefined') {
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06D_AFTER_MODE_VALIDATION';
-  }
   
   const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
   const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
@@ -7640,9 +7623,6 @@ function CandidateInterviewInner() {
                             v3PromptPhase === "ANSWER_NEEDED";
   
   cqSetRenderStep('TRY1:TOP:06E_AFTER_V3_PROMPT_FLAGS');
-  if (typeof window !== 'undefined') {
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06E_AFTER_V3_PROMPT_FLAGS';
-  }
   
   // [CQ_301_DIAG] Derived checkpoint runner (REMOVED - 301 resolved)
   
@@ -7674,18 +7654,12 @@ function CandidateInterviewInner() {
   })();
   
   cqSetRenderStep('TRY1:TOP:06F_AFTER_BOTTOM_BAR_MODE');
-  if (typeof window !== 'undefined') {
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06F_AFTER_BOTTOM_BAR_MODE';
-  }
   
   cqSetRenderStep('TRY1:TOP:06H_EXIT_POST05Z_EXEC');
-  if (typeof window !== 'undefined') {
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06H_EXIT_POST05Z_EXEC';
-  }
   } catch (e) {
     console.error('[CQ_TRY1_SEGMENT_FAIL]', {
       seg: 'E0',
-      step: (typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null),
+      step: (__cqLastRenderStep_MEM || null),
       message: e?.message,
       name: e?.name,
       stack: e?.stack
@@ -18377,9 +18351,6 @@ function CandidateInterviewInner() {
   // EDIT E: Segment E - Derived snapshot wrap
   try {
     cqSetRenderStep('TRY1:TOP:06A_ENTER_DERIVED_SNAPSHOT');
-    if (typeof window !== 'undefined') {
-      window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06A_ENTER_DERIVED_SNAPSHOT';
-    }
     
   // [TDZ_GUARD][DERIVED_SNAPSHOT]
   // Centralized render-time derived computations (NO hooks in this block).
@@ -18390,9 +18361,6 @@ function CandidateInterviewInner() {
   const activeKindSOT = activeUiItem_S_SAFE?.kind || currentItem_S?.type || 'UNKNOWN';
   
   cqSetRenderStep('TRY1:TOP:06B_AFTER_ACTIVE_KIND');
-  if (typeof window !== 'undefined') {
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06B_AFTER_ACTIVE_KIND';
-  }
   
   effectiveItemType = activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" ? 'required_anchor_fallback' :
                            activeUiItem_S_SAFE.kind === "V3_PROMPT" ? 'v3_probing' : 
@@ -18402,9 +18370,6 @@ function CandidateInterviewInner() {
                            currentItem_SType;
   
   cqSetRenderStep('TRY1:TOP:06C_AFTER_EFFECTIVE_ITEM_TYPE');
-  if (typeof window !== 'undefined') {
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06C_AFTER_EFFECTIVE_ITEM_TYPE';
-  }
   const activeCard_SKeySOT = (() => {
     if (activeUiItem_S_SAFE.kind === "V3_PROMPT") {
       const promptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
@@ -18427,9 +18392,6 @@ function CandidateInterviewInner() {
   })();
   
   cqSetRenderStep('TRY1:TOP:06D_AFTER_ACTIVE_CARD_KEY');
-  if (typeof window !== 'undefined') {
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06D_AFTER_ACTIVE_CARD_KEY';
-  }
   
   const hasActiveCardSOT = Boolean(activeCard_SKeySOT);
   activeCard_S = null;
@@ -18582,9 +18544,6 @@ function CandidateInterviewInner() {
   safeActivePromptText = sanitizeCandidateFacingText(activePromptText, 'ACTIVE_PROMPT_TEXT');
   
   cqSetRenderStep('TRY1:TOP:06F_AFTER_ACTIVE_PROMPT_TEXT');
-  if (typeof window !== 'undefined') {
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06F_AFTER_ACTIVE_PROMPT_TEXT';
-  }
   
   const needsPrompt = bottomBarModeSOT === 'TEXT_INPUT' || 
                       ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
@@ -18618,9 +18577,6 @@ function CandidateInterviewInner() {
     : (!currentItem_S || isCommitting || !(input ?? "").trim());
   
   cqSetRenderStep('TRY1:TOP:06G_AFTER_FINAL_FLAGS');
-  if (typeof window !== 'undefined') {
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06G_AFTER_FINAL_FLAGS';
-  }
 
   const derived = {
     hasActiveV3Prompt,
@@ -18644,13 +18600,10 @@ function CandidateInterviewInner() {
   };
   
   cqSetRenderStep('TRY1:TOP:06H_EXIT_DERIVED_SNAPSHOT');
-  if (typeof window !== 'undefined') {
-    window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06H_EXIT_DERIVED_SNAPSHOT';
-  }
   } catch (segmentError) {
     console.error('[CQ_TRY1_SEGMENT_FAIL]', {
       seg: 'E',
-      step: (typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ : null),
+      step: (__cqLastRenderStep_MEM || null),
       message: segmentError?.message,
       name: segmentError?.name,
       stack: segmentError?.stack
@@ -18664,14 +18617,6 @@ function CandidateInterviewInner() {
   // EDIT 3: Marker 06 - Post-derived-snapshot marker (legacy name retained for compatibility)
     try {
       __cqLastRenderStep_MEM = 'TRY1:TOP:06_AFTER_DERIVED_SNAPSHOT';
-      if (typeof window !== 'undefined') {
-        window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:06_AFTER_DERIVED_SNAPSHOT';
-        const hn = window.location?.hostname || '';
-        const isDevEnv = hn.includes('preview') || hn.includes('localhost');
-        if (isDevEnv) {
-          console.log('[CQ_TRY1_STEP]', { step: '06_AFTER_DERIVED_SNAPSHOT', ts: Date.now() });
-        }
-      }
     } catch (_) {}
     
   cqSetRenderStep('TRY1:FINAL_LIST_COMPUTE_START');
@@ -21557,7 +21502,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
         stack: e?.stack,
         lastStep: (__cqLastRenderStep_MEM || null),
         lastHookSite: (__cqLastHookSite_MEM || null),
-        lastHookCall: (typeof window !== 'undefined' ? window.CQ_LAST_HOOK_CALL : __cqLastHookCall_MEM),
+        lastHookCall: (__cqLastHookCall_MEM || (typeof window !== 'undefined' ? window.CQ_LAST_HOOK_CALL : null)),
         lastRenderSig: (typeof window !== 'undefined') ? (window.__CQ_LAST_RENDER_SIG__ || null) : null,
         hookSigPrev: (__cqHookSigPrev_MEM || null),
         hookSigCurr: (__cqHookSigCurr_MEM || null),
