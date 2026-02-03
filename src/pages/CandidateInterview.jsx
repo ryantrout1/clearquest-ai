@@ -6692,7 +6692,6 @@ function CandidateInterviewInner() {
     try {
       __cqLastRenderStep_MEM = 'TRY1:TOP:01_AFTER_ENTER';
       if (typeof window !== 'undefined') {
-        window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:01_AFTER_ENTER';  // Secondary: Mirror to window
         const hn = window.location?.hostname || '';
         const isDevEnv = hn.includes('preview') || hn.includes('localhost');
         if (isDevEnv) {
@@ -7106,7 +7105,6 @@ function CandidateInterviewInner() {
         try {
           __cqLastRenderStep_MEM = 'TRY1:TOP:05_AFTER_V3_PROMPT_TEXT';
           if (typeof window !== 'undefined') {
-            window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:05_AFTER_V3_PROMPT_TEXT';
             const hn = window.location?.hostname || '';
             const isDevEnv = hn.includes('preview') || hn.includes('localhost');
             if (isDevEnv) {
@@ -7119,34 +7117,22 @@ function CandidateInterviewInner() {
         try {
           try {
             __cqLastRenderStep_MEM = 'TRY1:TOP:05A_ENTER_POST05';
-            if (typeof window !== 'undefined') {
-              window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:05A_ENTER_POST05';
-            }
           } catch (_) {}
 
         console.log('[CQ_AFTER_RESOLVER][OK]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), kind: (typeof activeUiItem_S !== 'undefined' && activeUiItem_S?.kind) || null });
 
         try {
         __cqLastRenderStep_MEM = 'TRY1:TOP:05B_AFTER_RESOLVER_LOG';
-        if (typeof window !== 'undefined') {
-          window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:05B_AFTER_RESOLVER_LOG';
-        }
         } catch (_) {}
 
         console.log('[CQ_TRY1_STEP2_GUARD][AFTER_STEP2]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), activeUiKind: (typeof activeUiItem_S !== 'undefined' && activeUiItem_S?.kind) || null });
 
         try {
         __cqLastRenderStep_MEM = 'TRY1:TOP:05C_AFTER_STEP2_GUARD';
-        if (typeof window !== 'undefined') {
-          window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:05C_AFTER_STEP2_GUARD';
-        }
         } catch (_) {}
 
         try {
         __cqLastRenderStep_MEM = 'TRY1:TOP:05Z_EXIT_POST05';
-        if (typeof window !== 'undefined') {
-          window.__CQ_LAST_RENDER_STEP__ = 'TRY1:TOP:05Z_EXIT_POST05';
-        }
         } catch (_) {}
         } catch (segmentError) {
           console.error('[CQ_TRY1_SEGMENT_FAIL]', {
