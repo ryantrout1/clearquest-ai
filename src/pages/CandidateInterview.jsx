@@ -1965,9 +1965,9 @@ function CandidateInterviewInner() {
   
   let __cqReactUseRefN = 0;
   const ReactUseRef_TR = (...args) => {
-    __cqReactUseRefN += 1;
-    try { /* useRef tracking disabled (React #310 compliance) */ } catch (_) {}
-    try { console.log('[CQ_REACT_USEREF_CALL]', { n: __cqReactUseRefN }); } catch (_) {}
+    // RENDER-PURE: All side effects removed (React #310 hardening)
+    // __cqReactUseRefN += 1; // DISABLED - render-time mutation
+    // console.log('[CQ_REACT_USEREF_CALL]', ...); // DISABLED - render-time side effect
     return React.useRef(...args);
   };
   
