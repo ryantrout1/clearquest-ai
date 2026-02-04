@@ -21647,7 +21647,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     } catch (_) {}
 
     if (__cqShouldRethrow_310) {
-      throw e;
+      // PHASE 1 FIX: Do NOT throw during render (causes hook-order mismatch)
+      // The redirect at line ~21639 already navigates away; set guard for fallback UI
+      __cqBootGuardBlockRender = true;
     }
     
     try {
@@ -21680,8 +21682,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       message: e?.message,
     });
     
-    // REACT #310 FIX: Rethrow all TRY1 errors (prevents render-path drift)
-    throw e;
+    // PHASE 1 FIX: Do NOT throw during render (causes hook-order mismatch)
+    // Set guard flag to render fallback UI instead of throwing
+    __cqBootGuardBlockRender = true;
     }
   } else {
     // Boot not ready - skip TRY1 execution
