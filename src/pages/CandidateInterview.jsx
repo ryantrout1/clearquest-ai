@@ -117,6 +117,45 @@ import {
 } from "../components/utils/chatTranscriptHelpers";
 import { getV3DeterministicOpener } from "../components/utils/v3ProbingPrompts";
 
+// Phase 2 extractions - pure helpers and constants
+import {
+  TRANSCRIPT_DENYLIST,
+  isV3PromptTranscriptItem,
+  isRenderableTranscriptEntry,
+  dedupeByStableKey,
+  shouldRenderTranscriptEntry
+} from "./candidateInterview/transcriptHelpers";
+import {
+  buildSectionsFromEngine,
+  getNextQuestionInSectionFlow,
+  determineInitialSectionIndex
+} from "./candidateInterview/sectionHelpers";
+import {
+  buildV3ProbeQStableKey,
+  buildV3ProbeAStableKey,
+  buildMiGateQStableKey,
+  buildMiGateAStableKey,
+  buildMiGateItemId,
+  buildV3OpenerStableKey
+} from "./candidateInterview/stableKeyBuilders";
+import {
+  DEBUG_MODE,
+  CQ_DEBUG_FOOTER_ANCHOR,
+  ENFORCE_TRANSCRIPT_CONTRACT,
+  ENABLE_CHAT_VIRTUALIZATION,
+  ENABLE_SYNTHETIC_TRANSCRIPT,
+  ENABLE_MI_GATE_UI_CONTRACT_SELFTEST,
+  FOLLOWUP_PACK_NAMES,
+  WHAT_TO_EXPECT,
+  ENABLE_LIVE_AI_FOLLOWUPS,
+  DEBUG_AI_PROBES
+} from "./candidateInterview/constants";
+import {
+  isMiGateItem,
+  getFieldProbeKey,
+  getBackendQuestionText
+} from "./candidateInterview/utils";
+
 // ============================================================================
 // MODULE LOAD PROOF - Diagnostic marker for module evaluation
 // ============================================================================
@@ -291,12 +330,6 @@ try {
   }
 } catch (_) {}
 
-// Global logging flag for CandidateInterview
-const DEBUG_MODE = false;
-
-// Footer anchor diagnostics flag (set to true to enable flex layout diagnostics)
-const CQ_DEBUG_FOOTER_ANCHOR = false;
-
 // Simple in-memory registry so we only log each question once per session.
 // Key format: `${sessionId}::${questionKey}`
 const transcriptQuestionLogRegistry = new Set();
@@ -321,183 +354,8 @@ const logOnce = (key, logFn) => {
   return true;
 };
 
-// PART C: Unified MI gate detector (consistent across all checks)
-const isMiGateItem = (item, packId, instanceNumber) => {
-  if (!item || !packId || instanceNumber === undefined) return false;
-  
-  // Match active card gates
-  if (item.__activeCard_S && item.kind === 'multi_instance_gate') {
-    const itemPackId = item.packId || item.meta?.packId;
-    const itemInstance = item.instanceNumber || item.meta?.instanceNumber;
-    return itemPackId === packId && itemInstance === instanceNumber;
-  }
-  
-  // Match transcript gate entries
-  if (item.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
-    const itemPackId = item.meta?.packId || item.packId;
-    const itemInstance = item.meta?.instanceNumber || item.instanceNumber;
-    return itemPackId === packId && itemInstance === instanceNumber;
-  }
-  
-  return false;
-};
-
 // PART A: Violation snapshot helper - declared inside component (needs refs/state access)
 // Legacy wrapper removed - captureViolationSnapshot called directly
-
-// ============================================================================
-// TRANSCRIPT CONTRACT (v1) - Single Source of Truth
-// ============================================================================
-// Defines what entries are shown in ChatGPT-style transcript view
-// Only conversational turns are visible, system/mechanical events are filtered out
-
-  // TRANSCRIPT DENYLIST: System events and internal markers (NOT user-visible Q/A)
-  // V3 UPDATE: V3_PROBE_QUESTION and V3_PROBE_ANSWER now ALLOWED (legal record)
-  // PROMPT_LANE_CONTEXT: ALLOWED (non-chat annotation, provides Q/A context)
-  const TRANSCRIPT_DENYLIST = new Set([
-  'SYSTEM_EVENT',             // All system events
-  'SESSION_CREATED',          // Session lifecycle
-  'SESSION_RESUMED',
-  'ANSWER_SUBMITTED',         // Answer submitted event (audit only)
-  'PACK_ENTERED',             // Pack lifecycle
-  'PACK_EXITED',
-  'SECTION_STARTED',          // Section lifecycle
-  'AI_PROBING_CALLED',        // AI probing events
-  'AI_PROBING_RESPONSE',
-  'V3_PROBE_ASKED',           // V3 probe system events (visibleToCandidate=false)
-  'PROCESSING',               // No processing bubbles
-  'REVIEWING',                // No reviewing bubbles
-  'AI_THINKING',              // No thinking bubbles
-  ]);
-
-  // V3 FILTER REMOVED: V3 probe Q/A now in transcript (legal record)
-  // Only block internal system events
-  const isV3PromptTranscriptItem = (msg) => {
-    const t = msg?.messageType || msg?.type || msg?.kind;
-    
-    // ALLOW: V3 opener prompts (FOLLOWUP_CARD_SHOWN with variant='opener')
-    if (t === "FOLLOWUP_CARD_SHOWN") {
-      const variant = msg?.meta?.variant || msg?.variant || msg?.followupVariant;
-      if (variant === "opener") {
-        return false; // DO NOT block opener prompts
-      }
-    }
-    
-    // BLOCK: Internal V3 system events only
-    const V3_INTERNAL_TYPES = [
-      "V3_PROBE_ASKED",     // Internal system event
-      "V3_PROBE_PROMPT",    // Internal marker
-      "V3_PROBE",           // Internal event
-      "AI_FOLLOWUP_QUESTION" // Legacy internal type
-    ];
-    
-    if (V3_INTERNAL_TYPES.includes(t)) {
-      console.log('[V3_SYSTEM_EVENT][BLOCKED]', {
-        messageType: t,
-        textPreview: msg?.text?.substring(0, 60) || null,
-        reason: 'Internal system event - not legal record'
-      });
-      return true;
-    }
-    
-    return false;
-  };
-
-  // Helper: Filter renderable transcript entries (no flicker)
-  const isRenderableTranscriptEntry = (t) => {
-    if (!t) return false;
-
-    const mt = t.messageType || t.type;
-    
-    // PRIORITY 0: QUESTION_SHOWN always renders (base Q/A contract - never filter)
-    if (mt === 'QUESTION_SHOWN') return true;
-    
-    // PRIORITY 0.5: REQUIRED_ANCHOR_QUESTION always renders (deterministic fallback)
-    if (mt === 'REQUIRED_ANCHOR_QUESTION') {
-      console.log('[CQ_RENDER_SOT][REQUIRED_ANCHOR_Q_INCLUDED]', {
-        stableKey: t.stableKey || t.id,
-        anchor: t.meta?.anchor || t.anchor
-      });
-      return true;
-    }
-    
-    // PRIORITY 0.6: PROMPT_LANE_CONTEXT always renders (non-chat annotation)
-    if (mt === 'PROMPT_LANE_CONTEXT') {
-      console.log('[CQ_RENDER_SOT][PROMPT_CONTEXT_INCLUDED]', {
-        stableKey: t.stableKey || t.id,
-        anchor: t.meta?.anchor || t.anchor
-      });
-      return true;
-    }
-    
-    // PRIORITY 1: LEGAL RECORD - visibleToCandidate=true ALWAYS renders
-    // This ensures all candidate-visible entries appear in UI (no drops)
-    if (t.visibleToCandidate === true) {
-      return true;
-    }
-    
-    // PRIORITY 1.5: V3 probe Q/A default to visible (unless explicitly false)
-    // Fixes missing V3_PROBE_ANSWER when visibleToCandidate is undefined
-    const isV3ProbeQA = (t.messageType === 'V3_PROBE_QUESTION' || t.type === 'V3_PROBE_QUESTION') ||
-                        (t.messageType === 'V3_PROBE_ANSWER' || t.type === 'V3_PROBE_ANSWER');
-    if (isV3ProbeQA && t.visibleToCandidate !== false) {
-      return true;
-    }
-    
-    // PRIORITY 2: User messages always render (fail-open for legacy entries)
-    if (t.role === 'user' || t.kind === 'user') {
-      // Still block system event types
-      if (mt === 'SYSTEM_EVENT') return false;
-      if (TRANSCRIPT_DENYLIST.has(mt)) return false;
-      return true;
-    }
-
-    // PRIORITY 3: Block internal system events (visibleToCandidate=false or undefined)
-    if (mt === 'SYSTEM_EVENT') return false;
-    if (t.visibleToCandidate === false) return false;
-    if (TRANSCRIPT_DENYLIST.has(mt)) return false;
-    
-    // Never show typing/thinking/loading placeholders (prevents flicker)
-    if (
-      mt === 'ASSISTANT_TYPING' ||
-      mt === 'TYPING' ||
-      mt === 'THINKING' ||
-      mt === 'LOADING' ||
-      mt === 'PROBE_THINKING' ||
-      mt === 'V3_THINKING' ||
-      mt === 'PLACEHOLDER' ||
-      mt === 'PROCESSING' ||
-      mt === 'REVIEWING' ||
-      mt === 'AI_THINKING'
-    ) return false;
-    
-    // V3 UI CONTRACT: Block internal V3 system events only (visibleToCandidate handles legal record)
-    if (isV3PromptTranscriptItem(t)) {
-      return false;
-    }
-
-    return true;
-    };
-
-  // Helper: Dedupe by stableKey (prefer visibleToCandidate=true)
-  const dedupeByStableKey = (arr) => {
-    const map = new Map();
-    for (const t of (arr || [])) {
-      const key = t.stableKey || t.id || `${t.messageType || t.type}:${t.createdAt || ''}:${t.text || ''}`;
-      // Prefer visibleToCandidate=true version
-      if (!map.has(key) || (map.get(key)?.visibleToCandidate !== true && t.visibleToCandidate === true)) {
-        map.set(key, t);
-      }
-    }
-    return Array.from(map.values());
-  };
-
-  /**
-   * Determine if a transcript entry should be rendered (legacy wrapper)
-   */
-  function shouldRenderTranscriptEntry(entry, index) {
-    return isRenderableTranscriptEntry(entry);
-  }
 
 /**
  * Returns true if this question has already been logged for this session.
@@ -531,7 +389,7 @@ function hasQuestionBeenLogged(sessionId, questionKey) {
 // - STREAM_SUPPRESS MUST NEVER remove items from dbTranscript
 // - Transcript is permanent and immutable (append-only, monotonic)
 // - BASE Q+A MUST be committed BEFORE V3 probing activates (hard lifecycle ordering)
-const ENFORCE_TRANSCRIPT_CONTRACT = true;
+// ENFORCE_TRANSCRIPT_CONTRACT imported from ./candidateInterview/constants
 
 // CQ_RULE: Base Q+A commit barrier - MUST commit to transcript BEFORE V3 activation
 // This prevents "lost first question" when V3 probing starts without base Q/A in transcript
@@ -633,15 +491,8 @@ const ENABLE_V3_PROBING = true;
 // V3 ACK/REPAIR feature flag (kill switch for prod safety)
 const ENABLE_V3_ACK_REPAIR = true;
 
-// Feature flag: Enable chat virtualization for long interviews
-const ENABLE_CHAT_VIRTUALIZATION = false;
-
-// UI CONTRACT: Disable synthetic transcript injection (must use append-only DB transcript)
-const ENABLE_SYNTHETIC_TRANSCRIPT = false;
-
-// MI_GATE UI CONTRACT: Enable self-test verification (log-only, non-blocking)
-// Set to false to disable self-test logging if it causes noise
-const ENABLE_MI_GATE_UI_CONTRACT_SELFTEST = true;
+// ENABLE_CHAT_VIRTUALIZATION, ENABLE_SYNTHETIC_TRANSCRIPT, ENABLE_MI_GATE_UI_CONTRACT_SELFTEST
+// imported from ./candidateInterview/constants
 
 // Removed anchor-based gating diagnostic helpers - V2 now uses field-based gating only
 
@@ -663,167 +514,11 @@ const ContentContainer = ({ children, className = "" }) => (
 
 
 
-// ============================================================================
-// SECTION-BASED HELPER FUNCTIONS (HOISTED)
-// ============================================================================
+// Section helpers imported from ./candidateInterview/sectionHelpers:
+// buildSectionsFromEngine, getNextQuestionInSectionFlow, determineInitialSectionIndex
 
-function buildSectionsFromEngine(engine_SData) {
-  try {
-    const sectionEntities = engine_SData.Sections || [];
-    const sectionOrder = engine_SData.sectionOrder || [];
-    const questionsBySection = engine_SData.questionsBySection || {};
-
-    if (sectionEntities.length > 0) {
-      const orderedSections = sectionEntities
-        .filter(section => section.active !== false)
-        .sort((a, b) => (a.section_order || 0) - (b.section_order || 0))
-        .map(section => {
-          const sectionId = section.section_id;
-          const sectionQuestions = questionsBySection[sectionId] || [];
-          const questionIds = sectionQuestions.map(q => q.id || q.question_id);
-
-          return {
-            id: sectionId,
-            dbId: section.id,
-            displayName: section.section_name,
-            description: section.description || null,
-            questionIds: questionIds,
-            section_order: section.section_order,
-            active: section.active !== false
-          };
-        })
-        .filter(s => s.questionIds.length > 0);
-
-      if (orderedSections.length > 0) {
-        return orderedSections;
-      }
-    }
-
-    if (sectionOrder.length > 0) {
-      const orderedSections = sectionOrder
-        .filter(s => s.active !== false)
-        .map((section, idx) => {
-          const sectionId = section.id || section.section_id;
-          const sectionQuestions = questionsBySection[sectionId] || [];
-          const questionIds = sectionQuestions.map(q => q.id || q.question_id);
-
-          return {
-            id: sectionId,
-            dbId: section.dbId || section.id,
-            displayName: section.name || section.section_name || sectionId,
-            description: section.description || null,
-            questionIds: questionIds,
-            section_order: section.order || section.section_order || idx + 1,
-            active: section.active !== false
-          };
-        })
-        .filter(s => s.questionIds.length > 0);
-
-      if (orderedSections.length > 0) {
-        return orderedSections;
-      }
-    }
-
-    return [];
-  } catch (err) {
-    console.warn('[SECTIONS] Error building sections (non-fatal):', err.message);
-    return [];
-  }
-}
-
-function getNextQuestionInSectionFlow({ sections, currentSectionIndex, currentQuestionId, answeredQuestionIds = new Set() }) {
-  if (!sections || sections.length === 0) {
-    return { mode: 'DONE' };
-  }
-
-  const currentSection = sections[currentSectionIndex];
-  if (!currentSection) {
-    return { mode: 'DONE' };
-  }
-
-  const sectionQuestions = currentSection.questionIds || [];
-  const currentIdx = sectionQuestions.indexOf(currentQuestionId);
-
-  if (currentIdx === -1) {
-    const firstUnanswered = sectionQuestions.find(qId => !answeredQuestionIds.has(qId));
-    if (firstUnanswered) {
-      return {
-        mode: 'QUESTION',
-        nextSectionIndex: currentSectionIndex,
-        nextQuestionId: firstUnanswered
-      };
-    }
-  }
-
-  for (let i = currentIdx + 1; i < sectionQuestions.length; i++) {
-    const nextQuestionId = sectionQuestions[i];
-    if (!answeredQuestionIds.has(nextQuestionId)) {
-      return {
-        mode: 'QUESTION',
-        nextSectionIndex: currentSectionIndex,
-        nextQuestionId
-      };
-    }
-  }
-
-  for (let nextIdx = currentSectionIndex + 1; nextIdx < sections.length; nextIdx++) {
-    const nextSection = sections[nextIdx];
-    if (!nextSection.active) continue;
-
-    const nextSectionQuestions = nextSection.questionIds || [];
-    const firstUnanswered = nextSectionQuestions.find(qId => !answeredQuestionIds.has(qId));
-
-    if (firstUnanswered) {
-      return {
-        mode: 'SECTION_TRANSITION',
-        nextSectionIndex: nextIdx,
-        nextQuestionId: firstUnanswered,
-        completedSection: currentSection,
-        nextSection
-      };
-    }
-  }
-
-  return { mode: 'DONE' };
-}
-
-function determineInitialSectionIndex(orderedSections, sessionData, engine_SData) {
-  if (!orderedSections || orderedSections.length === 0) return 0;
-
-  const currentItem_SSnapshot = sessionData.current_item_snapshot;
-  if (currentItem_SSnapshot?.id && currentItem_SSnapshot?.type === 'question') {
-    const questionId = currentItem_SSnapshot.id;
-    const location = engine_SData.questionIdToSection?.[questionId];
-
-    if (location?.sectionId) {
-      const sectionIndex = orderedSections.findIndex(s => s.id === location.sectionId);
-      if (sectionIndex !== -1) {
-        return sectionIndex;
-      }
-    }
-  }
-
-  return 0;
-}
-
-// Follow-up pack display names
-const FOLLOWUP_PACK_NAMES = {
-  'PACK_LE_APPS': 'Applications with other Law Enforcement Agencies',
-  'PACK_WITHHOLD_INFO': 'Withheld Information',
-  'PACK_DISQUALIFIED': 'Prior Disqualification',
-  'PACK_CHEATING': 'Test Cheating',
-  'PACK_DUI': 'DUI Incident',
-  'PACK_LICENSE_SUSPENSION': 'License Suspension',
-  'PACK_RECKLESS_DRIVING': 'Reckless Driving'
-};
-
-const WHAT_TO_EXPECT = {
-  'APPLICATIONS_WITH_OTHER_LE': 'your prior law enforcement applications and their outcomes',
-  'DRIVING_RECORD': 'your driving history, such as citations, collisions, and any license actions'
-};
-
-const ENABLE_LIVE_AI_FOLLOWUPS = true;
-const DEBUG_AI_PROBES = DEBUG_MODE;
+// FOLLOWUP_PACK_NAMES, WHAT_TO_EXPECT, ENABLE_LIVE_AI_FOLLOWUPS, DEBUG_AI_PROBES
+// imported from ./candidateInterview/constants
 
 // ============================================================================
 // ERROR BOUNDARY - Catch render-time TDZ crashes
@@ -1175,7 +870,7 @@ const ensureWelcomeInTranscript = async (sessionId, currentTranscript) => {
 
 const useProbeEngineV2 = usePerFieldProbing;
 
-const getFieldProbeKey = (packId, instanceNumber, fieldKey) => `${packId}_${instanceNumber || 1}_${fieldKey}`;
+// getFieldProbeKey imported from ./candidateInterview/utils
 
 // STEP 1: Helper to store backend question text
 const storeBackendQuestionText = (packId, fieldKey, instanceNumber, questionText, setMapFn) => {
@@ -1196,10 +891,7 @@ const storeBackendQuestionText = (packId, fieldKey, instanceNumber, questionText
   });
 };
 
-// STEP 1: Helper to retrieve backend question text
-const getBackendQuestionText = (map, packId, fieldKey, instanceNumber) => {
-  return map?.[packId]?.[fieldKey]?.[String(instanceNumber)] || null;
-};
+// getBackendQuestionText imported from ./candidateInterview/utils
 
 const callProbeEngineV2PerField = async (base44Client, params) => {
   const { packId, fieldKey, fieldValue, previousProbesCount, incidentContext, sessionId, questionCode, baseQuestionId, instanceNumber, schemaSource, resolvedField } = params;
@@ -1465,38 +1157,9 @@ const maybeAutoSkipV2Field = async ({
   }
 };
 
-// ============================================================================
-// V3 PROBE STABLEKEY BUILDERS - Single source of truth for key format
-// ============================================================================
-const buildV3ProbeQStableKey = (sessionId, categoryId, instanceNumber, probeIndex) => {
-  return `v3-probe-q:${sessionId}:${categoryId}:${instanceNumber}:${probeIndex}`;
-};
-
-const buildV3ProbeAStableKey = (sessionId, categoryId, instanceNumber, probeIndex) => {
-  return `v3-probe-a:${sessionId}:${categoryId}:${instanceNumber}:${probeIndex}`;
-};
-
-// ============================================================================
-// MI GATE STABLEKEY BUILDERS - Single source of truth for MI gate identity
-// ============================================================================
-const buildMiGateQStableKey = (packId, instanceNumber) => {
-  return `mi-gate:${packId}:${instanceNumber}:q`;
-};
-
-const buildMiGateAStableKey = (packId, instanceNumber) => {
-  return `mi-gate:${packId}:${instanceNumber}:a`;
-};
-
-const buildMiGateItemId = (packId, instanceNumber) => {
-  return `multi-instance-gate-${packId}-${instanceNumber}`;
-};
-
-// ============================================================================
-// V3 OPENER STABLEKEY BUILDER - Single source of truth
-// ============================================================================
-const buildV3OpenerStableKey = (packId, instanceNumber) => {
-  return `v3-opener:${packId}:${instanceNumber}`;
-};
+// Stable key builders imported from ./candidateInterview/stableKeyBuilders:
+// buildV3ProbeQStableKey, buildV3ProbeAStableKey, buildMiGateQStableKey,
+// buildMiGateAStableKey, buildMiGateItemId, buildV3OpenerStableKey
 
 // ============================================================================
 // MODULE-SCOPE BREADCRUMB STORAGE - Render-safe (no window writes, no ref coupling)
