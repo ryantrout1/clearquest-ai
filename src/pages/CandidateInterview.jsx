@@ -16458,6 +16458,10 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     try { console.log('[CQ_RENDER_END_REACHED][ALWAYS_ON]', { rid: (typeof __cqRid !== 'undefined' ? __cqRid : 'no_rid'), ts: Date.now() }); } catch (_) {}
 
     // BOOT GUARD FALLBACK: Unified fallback for all guard conditions (prevents hook-order divergence)
+    // React #310 fix: Override guard when boot is fully ready
+    if (isLoading === false && !!session && !!engine_S) {
+      __cqBootGuardBlockRender = false;
+    }
     if (__cqBootGuardBlockRender) {
       return cqLoadingReturnJSX_SAFE || (<div />);
     }
