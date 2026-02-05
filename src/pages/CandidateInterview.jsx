@@ -5251,7 +5251,7 @@ function CandidateInterviewInner() {
   const cqBootNotReady = isLoading || !session || !(session.id) || !engine_S;
   const cqShouldRenderBootBlock = cqBootNotReady;
   
-  const cqBootBlockUI = (() => {
+  const cqBootBlockUI = cqShouldRenderBootBlock ? (() => {
       console.log('[CQ_BOOT_GUARD][RETURN]', {
           sessionId,
           isLoading,
@@ -5350,8 +5350,8 @@ function CandidateInterviewInner() {
               </div>
           </div>
       );
-  })();
-  
+  })() : null;
+
   // BOOT GATE: Skip TRY1/derived logic when boot incomplete (preserves hook order)
   // NOTE: __cqBootNotReady now declared above BATCH 1 hooks (line ~3220) to prevent TDZ in dep arrays
   
