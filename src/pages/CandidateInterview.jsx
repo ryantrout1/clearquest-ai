@@ -2103,34 +2103,34 @@ function CandidateInterviewInner() {
   // FORENSIC: Mount-only log showing what session params we received
   __cqLastHookCall_MEM = 'H04_useRef_sessionParamLoggedRef';
   const sessionParamLoggedRef = React.useRef(false);
-  if (!sessionParamLoggedRef.current) {
-    sessionParamLoggedRef.current = true;
-    console.log('[CANDIDATE_INTERVIEW][SESSION_PARAM_SOT]', {
-      sessionFromSession,
-      sessionFromSessionId,
-      sessionFromGlobal,
-      resolved: sessionId,
-      search: window.location.search
-    });
-  }
-  
+
+  // FIX #310: Move render-time ref mutations into a single effect
+  React.useEffect(() => {
+    if (!sessionParamLoggedRef.current) {
+      sessionParamLoggedRef.current = true;
+      console.log('[CANDIDATE_INTERVIEW][SESSION_PARAM_SOT]', {
+        sessionFromSession,
+        sessionFromSessionId,
+        sessionFromGlobal,
+        resolved: sessionId,
+        search: window.location.search
+      });
+    }
+    if (sessionId && !resolvedSessionRef.current) {
+      resolvedSessionRef.current = sessionId;
+      console.log('[CANDIDATE_INTERVIEW][SESSION_STICKY_SET]', { sessionId });
+    }
+    if (sessionId && !lockedSessionIdRef.current) {
+      lockedSessionIdRef.current = sessionId;
+      console.log('[SESSION_LOCK][ACQUIRED]', { sessionId });
+    }
+  }, [sessionId]);
+
   // Log when global is used
   if (sessionFromGlobal && !sessionFromSession && !sessionFromSessionId) {
     console.log('[CANDIDATE_INTERVIEW][SESSION_FROM_GLOBAL]', {
       sessionId: sessionFromGlobal
     });
-  }
-  
-  // STICKY SET: Store resolved session if truthy (mount-only)
-  if (sessionId && !resolvedSessionRef.current) {
-    resolvedSessionRef.current = sessionId;
-    console.log('[CANDIDATE_INTERVIEW][SESSION_STICKY_SET]', { sessionId });
-  }
-  
-  // SESSION LOCK: Capture first valid sessionId (prevents invalidation after interview starts)
-  if (sessionId && !lockedSessionIdRef.current) {
-    lockedSessionIdRef.current = sessionId;
-    console.log('[SESSION_LOCK][ACQUIRED]', { sessionId });
   }
   
   // EFFECTIVE SESSION: Use locked session as authoritative source (ignores transient nulls)
