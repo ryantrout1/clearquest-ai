@@ -150,11 +150,9 @@ export const FIELD_QUESTION_TEMPLATES = {
   
   // Agency-specific
   agency: "Which agency or organization was involved?",
-  agency_name: "What is the name of the agency?",
   employer: "Who was the employer?",
   position: "What position were you applying for or held?",
-  position_applied_for: "What position were you applying for?",
-  
+
   // Integrity-specific (8-field MVP - realigned semantics)
   agency_name: "What was the name of the law enforcement agency where you omitted information?",
   position_applied_for: "What position did you apply for with that agency?",
