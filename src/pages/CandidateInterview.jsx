@@ -96,6 +96,22 @@ import V3ProbingLoop from "../components/interview/V3ProbingLoop";
 import V3DebugPanel from "../components/interview/V3DebugPanel";
 import BottomBarAutoFocusGuard from "../components/interview/BottomBarAutoFocusGuard";
 import YesNoControls from "../components/interview/YesNoControls";
+import ContentContainer from "../components/interview/ContentContainer";
+import { InterviewHeader } from "./candidateInterview/components/InterviewHeader";
+import { InterviewModals } from "./candidateInterview/components/InterviewModals";
+import { ScrollbarStyles } from "./candidateInterview/components/ScrollbarStyles";
+import {
+  V3OpenerHistoryCard,
+  V3ProbeQuestionCard,
+  V3ProbeAnswerCard,
+  UserAnswerCard,
+  AssistantMessageCard,
+  QuestionShownCard,
+  ActiveV3ProbeCard,
+  ActiveV3OpenerCard,
+  MiGateCard,
+  RequiredAnchorFallbackCard,
+} from "./candidateInterview/components/TranscriptCards";
 import { appendQuestionEntry, appendAnswerEntry } from "../components/utils/transcriptLogger";
 import { applySectionGateIfNeeded } from "../components/interview/sectionGateHandler";
 import {
@@ -506,13 +522,7 @@ const ENABLE_V3_ACK_REPAIR = true;
 // File revision: 2025-12-02 - Cleaned and validated
 
 // ============================================================================
-// CONTENT CONTAINER - Enforce max-width for all cards
-// ============================================================================
-const ContentContainer = ({ children, className = "" }) => (
-  <div className={`mx-auto w-full max-w-5xl ${className}`}>
-    {children}
-  </div>
-);
+// CONTENT CONTAINER: Now imported from ../components/interview/ContentContainer
 
 // ============================================================================
 // LEGACY TRANSCRIPT CLEANUP - DISABLED (V3 probe Q/A now allowed in transcript)
@@ -19056,67 +19066,15 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
     return (
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col overflow-hidden">
-      <header className="bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3 flex-shrink-0">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-semibold text-white">ClearQuest Interview</h1>
-              {department && (
-                <>
-                  <span className="text-slate-600 hidden sm:inline">•</span>
-                  <span className="text-xs text-slate-200 hidden sm:inline">{department.department_name}</span>
-                </>
-              )}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowPauseModal(true)}
-              className="bg-slate-700/50 border-slate-600 text-slate-200"
-            >
-              <Pause className="w-4 h-4 mr-1" />
-              Pause
-            </Button>
-          </div>
-
-          {sections.length > 0 && activeSection && (
-            <div>
-              <div className="text-sm font-medium text-blue-400 mb-1">
-                {activeSection.displayName}
-              </div>
-              <div className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all"
-                  style={{
-                    width: `${questionCompletionPct}%`,
-                    boxShadow: questionCompletionPct > 0 ? '0 0 8px rgba(59, 130, 246, 0.5)' : 'none'
-                  }}
-                />
-              </div>
-              <div className="flex justify-between items-center mt-1">
-                <span className="text-xs text-slate-400">
-                  Section {currentSectionIndex + 1} of {sections.length}
-                </span>
-                <span className="text-xs font-medium text-blue-400">{questionCompletionPct}% complete</span>
-              </div>
-            </div>
-          )}
-        </div>
-      </header>
-      <style>
-        {`
-          .cq-scroll {
-            scrollbar-color: #232a33 #0f1216;
-          }
-          .cq-scroll::-webkit-scrollbar-track {
-            background: #0f1216;
-          }
-          .cq-scroll::-webkit-scrollbar-thumb {
-            background: #232a33;
-            border-radius: 6px;
-          }
-        `}
-      </style>
+      <InterviewHeader
+        department={department}
+        sections={sections}
+        activeSection={activeSection}
+        currentSectionIndex={currentSectionIndex}
+        questionCompletionPct={questionCompletionPct}
+        onPauseClick={() => setShowPauseModal(true)}
+      />
+      <ScrollbarStyles />
 
       <main 
         className="flex-1 overflow-y-auto cq-scroll scrollbar-thin min-h-0" 
@@ -19258,28 +19216,18 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                         stableKey: entry.stableKey || null,
                         promptTextPreview: String(safeCardPrompt || '').slice(0, 90),
                         sanitized: safeCardPrompt !== entry.text,
-                        // Provenance metadata (if present on entry object)
                         v3PromptSource: entry?.v3PromptSource ?? entry?.meta?.v3PromptSource ?? '(missing)',
                         v3LlmMs: entry?.v3LlmMs ?? entry?.meta?.v3LlmMs ?? null
                       });
-                      
+
                       return (
-                        <div key={entryKey} data-stablekey={entry.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
-                          <ContentContainer>
-                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
-                                {entry.instanceNumber > 1 && (
-                                  <>
-                                    <span className="text-xs text-slate-500">•</span>
-                                    <span className="text-xs text-slate-400">Instance {entry.instanceNumber}</span>
-                                  </>
-                                )}
-                              </div>
-                              <p className="text-white text-sm leading-relaxed">{safeCardPrompt}</p>
-                            </div>
-                          </ContentContainer>
-                        </div>
+                        <ActiveV3ProbeCard
+                          key={entryKey}
+                          entryKey={entryKey}
+                          stableKey={entry.stableKey}
+                          text={safeCardPrompt}
+                          instanceNumber={entry.instanceNumber}
+                        />
                       );
                     } else if (cardKind === "required_anchor_fallback_prompt") {
                      // REQUIRED_ANCHOR_FALLBACK: Main pane prompt (ephemeral, not transcript)
@@ -19313,38 +19261,23 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                       
                       // STEP 2: Sanitize opener card text
                       const safeOpenerPrompt = sanitizeCandidateFacingText_SAFE(entry.text, 'PROMPT_LANE_CARD_V3_OPENER');
-                      
-                      const instanceTitle = entry.categoryLabel && entry.instanceNumber > 1 
-                        ? `${entry.categoryLabel} — Instance ${entry.instanceNumber}` 
-                        : entry.categoryLabel;
-                      
+
                       console.log('[INSTANCE_TITLE][OPENER_TITLE_OK]', {
                         packId: entry.packId,
                         instanceNumber: entry.instanceNumber,
-                        titlePreview: instanceTitle
+                        categoryLabel: entry.categoryLabel
                       });
-                      
+
                       return (
-                        <div key={entryKey} data-stablekey={entry.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
-                          <ContentContainer>
-                            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
-                              {entry.categoryLabel && (
-                                <div className="flex items-center gap-2 mb-2">
-                                  <span className="text-sm font-medium text-purple-400">
-                                    {instanceTitle}
-                                  </span>
-                                </div>
-                              )}
-                              <p className="text-white text-sm leading-relaxed">{safeOpenerPrompt}</p>
-                              {entry.exampleNarrative && (
-                                <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
-                                  <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
-                                  <p className="text-slate-300 text-xs italic">{entry.exampleNarrative}</p>
-                                </div>
-                              )}
-                            </div>
-                          </ContentContainer>
-                        </div>
+                        <ActiveV3OpenerCard
+                          key={entryKey}
+                          entryKey={entryKey}
+                          stableKey={entry.stableKey}
+                          categoryLabel={entry.categoryLabel}
+                          instanceNumber={entry.instanceNumber}
+                          text={safeOpenerPrompt}
+                          exampleNarrative={entry.exampleNarrative}
+                        />
                       );
                     } else if (cardKind === "multi_instance_gate") {
                      // UI CONTRACT ENFORCEMENT: Transcript context = read-only (activeCard_S is footer-bound)
@@ -19414,22 +19347,13 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                      } else if (cardKind === "required_anchor_fallback_prompt") {
                      // REQUIRED_ANCHOR_FALLBACK: Main pane prompt card (UI contract)
                      return (
-                      <div key={entryKey} data-stablekey={entry.stableKey} data-cq-active-card="true" data-ui-contract-card="true">
-                        <ContentContainer>
-                          <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
-                              {entry.instanceNumber > 1 && (
-                                <>
-                                  <span className="text-xs text-slate-500">•</span>
-                                  <span className="text-xs text-slate-400">Instance {entry.instanceNumber}</span>
-                                </>
-                              )}
-                            </div>
-                            <p className="text-white text-sm leading-relaxed">{entry.text}</p>
-                          </div>
-                        </ContentContainer>
-                      </div>
+                       <ActiveV3ProbeCard
+                         key={entryKey}
+                         entryKey={entryKey}
+                         stableKey={entry.stableKey}
+                         text={entry.text}
+                         instanceNumber={entry.instanceNumber}
+                       />
                      );
                      } else if (cardKind === "v3_thinking") {
                      // TASK B: V3 thinking placeholder during initial decide
@@ -19503,15 +19427,11 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                    });
 
                    return (
-                     <div key={entryKey} style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
-                       <ContentContainer>
-                       <div className="flex justify-end">
-                         <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                           <p className="text-white text-sm">{entry.text || entry.message || entry.content || '(answer)'}</p>
-                         </div>
-                       </div>
-                       </ContentContainer>
-                     </div>
+                     <V3ProbeAnswerCard
+                       key={entryKey}
+                       entryKey={entryKey}
+                       text={entry.text || entry.message || entry.content || '(answer)'}
+                     />
                    );
                   }
 
@@ -19548,59 +19468,25 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                       return null;
                     }
                     
-                    const instanceTitle = entry.categoryLabel && entry.instanceNumber > 1
-                      ? `${entry.categoryLabel} — Instance ${entry.instanceNumber}`
-                      : entry.categoryLabel;
-
                     return (
-                      <div key={entryKey} data-stablekey={entry.stableKey}>
-                        <ContentContainer>
-                          <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                            {entry.categoryLabel && (
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm font-medium text-purple-400">{instanceTitle}</span>
-                              </div>
-                            )}
-                            <p className="text-white text-sm leading-relaxed">{entry.text}</p>
-                            {entry.exampleNarrative && (
-                              <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
-                                <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
-                                <p className="text-slate-300 text-xs italic">{entry.exampleNarrative}</p>
-                              </div>
-                            )}
-                          </div>
-                        </ContentContainer>
-                      </div>
+                      <V3OpenerHistoryCard
+                        key={entryKey}
+                        entryKey={entryKey}
+                        stableKey={entry.stableKey}
+                        categoryLabel={entry.categoryLabel}
+                        instanceNumber={entry.instanceNumber}
+                        text={entry.text}
+                        exampleNarrative={entry.exampleNarrative}
+                      />
                     );
                   }
                   
                   if (entry.kind === 'v3_probe_q') {
-                    return (
-                      <div key={entryKey}>
-                        <ContentContainer>
-                          <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-sm font-medium text-purple-400">AI Follow-Up</span>
-                            </div>
-                            <p className="text-white text-sm leading-relaxed">{entry.text}</p>
-                          </div>
-                        </ContentContainer>
-                      </div>
-                    );
+                    return <V3ProbeQuestionCard key={entryKey} entryKey={entryKey} text={entry.text} />;
                   }
 
                   if (entry.kind === 'v3_probe_a') {
-                    return (
-                      <div key={entryKey} style={{ marginBottom: 10 }}>
-                        <ContentContainer>
-                          <div className="flex justify-end">
-                            <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                              <p className="text-white text-sm">{entry.text}</p>
-                            </div>
-                          </div>
-                        </ContentContainer>
-                      </div>
-                    );
+                    return <V3ProbeAnswerCard key={entryKey} entryKey={entryKey} text={entry.text} />;
                   }
                   
                   // Transcript entries (existing logic continues below)
@@ -19754,15 +19640,13 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               // No modification needed for BASE_QUESTION context
               
               return (
-                <div key={entryKey} style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
-                  <ContentContainer>
-                  <div className="flex justify-end">
-                    <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
-                      <p className="text-white text-sm">{displayText}</p>
-                    </div>
-                  </div>
-                  </ContentContainer>
-                </div>
+                <UserAnswerCard
+                  key={entryKey}
+                  entryKey={entryKey}
+                  stableKey={entry.stableKey || entry.id}
+                  text={displayText}
+                  style={{ marginBottom: 10 }}
+                />
               );
             }
 
@@ -19924,15 +19808,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               }
               
               return (
-                <div key={entryKey} style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
-                  <ContentContainer>
-                  <div className="flex justify-end">
-                    <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                      <p className="text-white text-sm">{displayText}</p>
-                    </div>
-                  </div>
-                  </ContentContainer>
-                </div>
+                <V3ProbeAnswerCard key={entryKey} entryKey={entryKey} text={displayText} />
               );
             }
 
@@ -20012,15 +19888,10 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
               {/* V3 probe answer - FALLBACK: Catch answers with stableKey pattern */}
               {entry.role === 'user' && entry.stableKey?.startsWith('v3-probe-a:') && (
-                <div style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
-                  <ContentContainer>
-                  <div className="flex justify-end">
-                    <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                      <p className="text-white text-sm">{entry.text || entry.message || '(answer)'}</p>
-                    </div>
-                  </div>
-                  </ContentContainer>
-                </div>
+                <V3ProbeAnswerCard
+                  entryKey={entry.stableKey || entry.id}
+                  text={entry.text || entry.message || '(answer)'}
+                />
               )}
 
               {/* CTA acknowledgement - "Begin next section" */}
@@ -20038,15 +19909,12 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
               {/* User message - "Got it — Let's Begin" or any other user text */}
               {entry.role === 'user' && !entry.messageType?.includes('ANSWER') && !entry.messageType?.includes('v3_') && !entry.messageType?.includes('GATE') && entry.messageType !== 'CTA_ACK' && (
-                <div style={{ marginBottom: 10 }} data-stablekey={entry.stableKey || entry.id}>
-                  <ContentContainer>
-                  <div className="flex justify-end">
-                    <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
-                      <p className="text-white text-sm">{entry.text}</p>
-                    </div>
-                  </div>
-                  </ContentContainer>
-                </div>
+                <UserAnswerCard
+                  entryKey={entry.stableKey || entry.id}
+                  stableKey={entry.stableKey || entry.id}
+                  text={entry.text}
+                  style={{ marginBottom: 10 }}
+                />
               )}
 
               {/* Session resumed marker (collapsed system note) */}
@@ -20273,15 +20141,12 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
               {/* Base answer (user) */}
               {entry.role === 'user' && entry.type === 'base_answer' && (
-                <div style={{ marginBottom: 10 }}>
-                  <ContentContainer>
-                  <div className="flex justify-end">
-                    <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
-                      <p className="text-white text-sm">{entry.answer || entry.text}</p>
-                    </div>
-                  </div>
-                  </ContentContainer>
-                </div>
+                <UserAnswerCard
+                  entryKey={entry.stableKey || entry.id}
+                  stableKey={entry.stableKey || entry.id}
+                  text={entry.answer || entry.text}
+                  style={{ marginBottom: 10 }}
+                />
               )}
 
               {/* Legacy combined question+answer entries (backward compatibility) */}
@@ -21829,34 +21694,13 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
         </div>
       </main>
 
-      <Dialog open={showCompletionModal} onOpenChange={() => {}}>
-        <DialogContent className="bg-slate-900 border-slate-700 text-white">
-          <DialogHeader>
-            <DialogTitle>Interview Complete</DialogTitle>
-            <DialogDescription className="text-slate-300">
-              Thank you for completing your interview.
-            </DialogDescription>
-          </DialogHeader>
-          <Button onClick={handleCompletionConfirm} disabled={isCompletingInterview}>
-            {isCompletingInterview ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-            OK
-          </Button>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showPauseModal} onOpenChange={setShowPauseModal}>
-        <DialogContent className="bg-slate-900 border-slate-700 text-white">
-          <DialogHeader>
-            <DialogTitle>Interview Paused</DialogTitle>
-            <DialogDescription className="text-slate-300">
-              Your interview is paused. You can resume anytime.
-            </DialogDescription>
-          </DialogHeader>
-          <Button onClick={() => setShowPauseModal(false)} className="bg-blue-600">
-            Keep Working
-          </Button>
-        </DialogContent>
-      </Dialog>
+      <InterviewModals
+        showCompletionModal={showCompletionModal}
+        showPauseModal={showPauseModal}
+        setShowPauseModal={setShowPauseModal}
+        handleCompletionConfirm={handleCompletionConfirm}
+        isCompletingInterview={isCompletingInterview}
+      />
 
       {/* V3 Debug Panel - Admin only AND ?debug=1 */}
       {debugEnabled && v3DebugEnabled && session?.ide_version === "V3" && (
