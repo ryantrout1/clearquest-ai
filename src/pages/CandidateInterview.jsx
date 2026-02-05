@@ -15662,26 +15662,8 @@ finalTranscriptList_S_computed = deriveTranscriptPipeline({
   // BOOT GUARD FLAG - Prevents early returns that cause hook divergence (React #310 fix)
   // ============================================================================
 
-  // ============================================================================
-  // SESSION URL REPAIR: Auto-fix stripped session param before redirect
-  // ============================================================================
-  // If session is missing from URL BUT we have it in ref, repair URL automatically
-  if (!sessionId && resolvedSessionRef.current && !didSessionRepairRef.current) {
-    didSessionRepairRef.current = true;
-
-    // Build repaired URL with session param
-    const params = new URLSearchParams(window.location.search || "");
-    params.set("session", resolvedSessionRef.current);
-    const repairedUrl = `/candidateinterview?${params.toString()}`;
-
-    console.log('[CANDIDATE_INTERVIEW][SESSION_URL_REPAIR]', {
-      from: window.location.search,
-      to: repairedUrl,
-      repairedSession: resolvedSessionRef.current
-    });
-
-    // Redirect moved to useEffect (T16) - prevents render-time flash
-  }
+  // SESSION URL REPAIR: now handled entirely in useEffect T16 (React #310 fix)
+  // See HOOK 16/56: SESSION_URL_REPAIR above — no render-time mutation needed.
 
   // HARD ROUTE GUARD: Render placeholder if no sessionId (navigation happens in useEffect)
   // SESSION LOCK: Suppress invalidation if session was previously locked
