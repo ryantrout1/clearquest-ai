@@ -16226,6 +16226,15 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
         hookCurrN: (__cqHookSigCurr_MEM ? __cqHookSigCurr_MEM.n : null),
         hookCurrLast: (__cqHookSigCurr_MEM ? __cqHookSigCurr_MEM.last : null)
       });
+      console.error('[CQ_TRY1_CATCH][PRIMITIVES]',
+        'lastStep=', (typeof __cqLastRenderStep_MEM !== 'undefined' ? __cqLastRenderStep_MEM : null),
+        'lastHookSite=', (typeof __cqLastHookSite_MEM !== 'undefined' ? __cqLastHookSite_MEM : null),
+        'lastHookCall=', (typeof __cqLastHookCall_MEM !== 'undefined' ? __cqLastHookCall_MEM : null),
+        'hookPrevN=', (__cqHookSigPrev_MEM ? __cqHookSigPrev_MEM.n : null),
+        'hookPrevLast=', (__cqHookSigPrev_MEM ? __cqHookSigPrev_MEM.last : null),
+        'hookCurrN=', (__cqHookSigCurr_MEM ? __cqHookSigCurr_MEM.n : null),
+        'hookCurrLast=', (__cqHookSigCurr_MEM ? __cqHookSigCurr_MEM.last : null)
+      );
     }
     
     // ERROR FINGERPRINT CAPTURE (preview/flag-gated, fail-safe)
