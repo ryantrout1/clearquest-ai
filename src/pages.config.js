@@ -53,7 +53,6 @@ import AiSettings from './pages/AiSettings';
 import BackfillSummaries from './pages/BackfillSummaries';
 import CandidateInterview from './pages/CandidateInterview';
 import CandidateInterviewSession from './pages/CandidateInterviewSession';
-import candidateinterviewClean from './pages/CandidateInterview_CLEAN';
 import CreateDepartment from './pages/CreateDepartment';
 import DepartmentDashboard from './pages/DepartmentDashboard';
 import Departments from './pages/Departments';
@@ -90,7 +89,6 @@ export const PAGES = {
     "BackfillSummaries": BackfillSummaries,
     "CandidateInterview": CandidateInterview,
     "CandidateInterviewSession": CandidateInterviewSession,
-    "CandidateInterview_CLEAN": candidateinterviewClean,
     "CreateDepartment": CreateDepartment,
     "DepartmentDashboard": DepartmentDashboard,
     "Departments": Departments,

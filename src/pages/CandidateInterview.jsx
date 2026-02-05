@@ -2153,6 +2153,9 @@ function CandidateInterviewInner() {
   __cqLastHookCall_MEM = 'H06_useRef_lastTry1StepRef';
   const lastTry1StepRef = React.useRef('NOT_STARTED');
 
+  __cqLastHookCall_MEM = 'H06b_useRef_fallbackWarningLoggedRef';
+  const fallbackWarningLoggedRef = React.useRef(false);
+
   __cqLastHookCall_MEM = 'H07_useState_engine_S';
   const [engine_S, setEngine] = React.useState(null);
   
@@ -7143,7 +7146,6 @@ function CandidateInterviewInner() {
     // One-time warning if fallback triggered (dev-only, once per mount)
     // DISABLED: Hook inside try/catch causes minifier TDZ (js)
     /*
-    const fallbackWarningLoggedRef = React.useRef(false);
     if (bottomBarModeSOTSafe !== bottomBarModeSOT__LOCAL && !fallbackWarningLoggedRef.current) {
       fallbackWarningLoggedRef.current = true;
       if (typeof window !== 'undefined' && (window.location.hostname.includes('preview') || window.location.hostname.includes('localhost'))) {
