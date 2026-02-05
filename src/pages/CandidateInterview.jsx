@@ -16459,7 +16459,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
     // BOOT GUARD FALLBACK: Unified fallback for all guard conditions (prevents hook-order divergence)
     if (__cqBootGuardBlockRender) {
-      return cqLoadingReturnJSX;
+      return cqLoadingReturnJSX_SAFE || (<div />);
     }
 
     // REACT #310 FIX: Conditional render WITHOUT early return (all hooks already declared above)
