@@ -2333,17 +2333,19 @@ function CandidateInterviewInner() {
   
   // FORENSIC: Mount-only bootstrap confirmation (proves session param routing worked)
   const bootstrapOkLoggedRef = React.useRef(false);
-  if (!bootstrapOkLoggedRef.current && effectiveSessionId) {
-    bootstrapOkLoggedRef.current = true;
-    console.log('[CANDIDATE_INTERVIEW][BOOTSTRAP_OK]', {
-      sessionId: effectiveSessionId,
-      rawSessionId: sessionId,
-      hasSession: !!effectiveSessionId,
-      lockedSession: lockedSessionIdRef.current,
-      search: window.location.search,
-      note: 'Session param received - no redirect loop'
-    });
-  }
+  React.useEffect(() => {
+    if (!bootstrapOkLoggedRef.current && effectiveSessionId) {
+      bootstrapOkLoggedRef.current = true;
+      console.log('[CANDIDATE_INTERVIEW][BOOTSTRAP_OK]', {
+        sessionId: effectiveSessionId,
+        rawSessionId: sessionId,
+        hasSession: !!effectiveSessionId,
+        lockedSession: lockedSessionIdRef.current,
+        search: window.location.search,
+        note: 'Session param received - no redirect loop'
+      });
+    }
+  }, [effectiveSessionId, sessionId]);
 
   // CTA CONSTANTS: Top-level scope (referenced by effects and handlers)
   const CTA_GAP_PX = 12;
