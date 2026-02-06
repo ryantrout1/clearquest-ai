@@ -19236,7 +19236,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       showRedirectFallback: typeof showRedirectFallback !== 'undefined' ? showRedirectFallback : 'undefined',
     })}
   >
-    {__cqBootNotReady ? cqBootBlockUI : (__tdzTraceJsx || <div className="min-h-screen bg-slate-900" />)}
+ {__tdzTraceJsx || <div className="min-h-screen bg-slate-900" />}
   </CQTdzLocatorBoundary>
   );
   }
