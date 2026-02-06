@@ -16221,7 +16221,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
         'hookPrevN=', (__cqHookSigPrev_MEM ? __cqHookSigPrev_MEM.n : null),
         'hookPrevLast=', (__cqHookSigPrev_MEM ? __cqHookSigPrev_MEM.last : null),
         'hookCurrN=', (__cqHookSigCurr_MEM ? __cqHookSigCurr_MEM.n : null),
-        'hookCurrLast=', (__cqHookSigCurr_MEM ? __cqHookSigCurr_MEM.last : null)
+        'hookCurrLast=', (__cqHookSigCurr_MEM ? __cqHookSigCurr_MEM.last : null),
+        'lastTry1Step=', (lastTry1StepRef && lastTry1StepRef.current) ? lastTry1StepRef.current : null,
+        'bootNotReady=', (typeof __cqBootNotReady !== 'undefined') ? __cqBootNotReady : (typeof cqBootNotReady !== 'undefined' ? cqBootNotReady : null)
       );
     }
     
