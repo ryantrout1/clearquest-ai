@@ -10843,10 +10843,10 @@ function CandidateInterviewInner() {
   // Step 1: Compute currentItem_SType (MOVED to prevent TDZ)
   
   // Step 2: Compute footer controller (determines which UI block controls bottom bar)
-  const footerControllerLocal = activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" ? "REQUIRED_ANCHOR_FALLBACK" :
-                                activeUiItem_S_SAFE.kind === "V3_PROMPT" ? "V3_PROMPT" :
-                                activeUiItem_S_SAFE.kind === "V3_OPENER" ? "V3_OPENER" :
-                                activeUiItem_S_SAFE.kind === "MI_GATE" ? "MI_GATE" :
+  const footerControllerLocal = activeUiItem_S_SAFE?.kind === "REQUIRED_ANCHOR_FALLBACK" ? "REQUIRED_ANCHOR_FALLBACK" :
+                                activeUiItem_S_SAFE?.kind === "V3_PROMPT" ? "V3_PROMPT" :
+                                activeUiItem_S_SAFE?.kind === "V3_OPENER" ? "V3_OPENER" :
+                                activeUiItem_S_SAFE?.kind === "MI_GATE" ? "MI_GATE" :
                                 "DEFAULT";
   
   // TDZ ELIMINATED: Late bottomBarMode declaration removed - bottomBarModeSOT is canonical source
