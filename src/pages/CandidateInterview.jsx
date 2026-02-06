@@ -6225,6 +6225,5920 @@ function CandidateInterviewInner() {
   const recentlySubmittedUserAnswersRef = React.useRef(new Set());
   const recentlySubmittedUserAnswersMetaRef = React.useRef(new Map()); // Map<stableKey, {firstSeenAt, renderedAt}>
   const lastRegressionLogRef = React.useRef(new Set()); // Track logged regressions (prevent spam)
+  // HOOK 12/12 now hoisted to BATCH 2 (lines ~3728-3974)
+  // Original removed from TRY1 to prevent conditional hook count
+
+  // REACT #310 FIX: Converted from useCallback to plain function (refs prevent hook dispatcher crash)
+  function scrollToBottomSafely(reason = 'default') {
+    // REACT #310 FIX: Read from refs instead of closure deps
+    const footerHeightPx_SAFE = (typeof footerHeightPxRef !== 'undefined' && footerHeightPxRef?.current != null) ? footerHeightPxRef.current : footerHeightPx;
+    const transcriptSOT_SAFE = (typeof transcriptSOTRef !== 'undefined' && Array.isArray(transcriptSOTRef?.current)) ? transcriptSOTRef.current : transcriptSOT_S;
+    
+    if (!autoScrollEnabledRef.current) return;
+    if (!bottomAnchorRef.current || !historyRef.current) return;
+    
+    // Gate on transcript growth: only scroll when canonical transcript grows
+    const currentLen = Array.isArray(transcriptSOT_SAFE) ? transcriptSOT_SAFE.length : 0;
+    if (currentLen <= lastAutoScrollLenRef.current) {
+      return; // No growth, no scroll (prevents snap on rerenders)
+    }
+    
+    // Cooldown: prevent rapid double-scroll
+    const now = Date.now();
+    if (now - lastAutoScrollAtRef.current < 120) {
+      return;
+    }
+    
+    // Update tracking refs
+    lastAutoScrollLenRef.current = currentLen;
+    lastAutoScrollAtRef.current = now;
+    
+    // RAF coalescing: prevent multiple scrolls in same frame
+    if (pendingScrollRafRef.current) {
+      cancelAnimationFrame(pendingScrollRafRef.current);
+    }
+    
+    pendingScrollRafRef.current = requestAnimationFrame(() => {
+      pendingScrollRafRef.current = null;
+      
+      // Mark scroll as programmatic to prevent detection loop
+      isProgrammaticScrollRef.current = true;
+      
+      // Determine scroll behavior: auto for first scroll, smooth afterwards
+      const isFirstScroll = lastAutoScrollLenRef.current === currentLen && !didInitialSnapRef.current;
+      const behavior = isFirstScroll ? 'auto' : 'smooth';
+      
+      // Scroll to bottom anchor (footer-safe padding already applied via className)
+      bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior });
+      
+      // Clear programmatic flag after scroll completes
+      requestAnimationFrame(() => {
+        isProgrammaticScrollRef.current = false;
+      });
+    });
+  }
+
+  // REACT #310 FIX: Converted from useCallback to plain function (removes hook dispatcher slot)
+  function autoScrollToBottom() {
+    if (isUserTyping) return;
+    scrollToBottomSafely('autoScroll');
+  }
+
+  // UX: Mark user as typing and set timeout to unlock after idle period
+  // CRITICAL: Does NOT trigger transcript refresh (prevents flashing)
+  // REACT #310 FIX: Converted from useCallback to plain function (removes hook dispatcher slot)
+  function markUserTyping() {
+    if (!isUserTyping) {
+      console.log("[UX][TYPING_LOCK]", { locked: true, note: "scroll locked, no transcript refresh" });
+      setIsUserTyping(true);
+    }
+
+    if (typingLockTimeoutRef.current) {
+      clearTimeout(typingLockTimeoutRef.current);
+    }
+
+    typingLockTimeoutRef.current = setTimeout(() => {
+      console.log("[UX][TYPING_LOCK]", { locked: false, note: "scroll unlocked" });
+      setIsUserTyping(false);
+      typingLockTimeoutRef.current = null;
+    }, TYPING_IDLE_MS);
+  }
+
+  // UX: Build draft key for sessionStorage
+  // REACT #310 FIX: Converted from useCallback to plain function (removes hook dispatcher slot)
+  function buildDraftKey(sessionId, packId, fieldKey, instanceNumber) {
+    return `cq_draft_${sessionId}_${packId || "none"}_${fieldKey || "none"}_${instanceNumber || 0}`;
+  }
+
+  // UX: Save draft to sessionStorage
+  // REACT #310 FIX: Converted from useCallback to plain function (removes hook dispatcher slot)
+  function saveDraft(value) {
+    if (!sessionId) return;
+
+    const packId = currentItem_S?.packId || activeV2Pack?.packId || null;
+    const fieldKey = currentItem_S?.fieldKey || currentItem_S?.id || null;
+    const instanceNumber = currentItem_S?.instanceNumber || activeV2Pack?.instanceNumber || 0;
+    const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
+
+    try {
+      window.sessionStorage.setItem(draftKey, value);
+      
+      // ABANDONMENT SAFETY: Log draft save
+      console.log('[DRAFT][SAVE]', {
+        keyPreview: draftKey.substring(0, 40),
+        len: value?.length || 0
+      });
+      
+      console.log("[FORENSIC][STORAGE][WRITE]", { operation: 'WRITE', key: draftKey, success: true, valueLength: value?.length || 0 });
+    } catch (e) {
+      const isTrackingPrevention = e.message?.includes('tracking') || e.name === 'SecurityError';
+      console.log("[FORENSIC][STORAGE][WRITE]", { 
+        operation: 'WRITE', 
+        key: draftKey, 
+        success: false, 
+        error: e.message,
+        isTrackingPrevention,
+        fallbackBehavior: 'Draft lost - continue without storage'
+      });
+      console.warn("[UX][DRAFT] Failed to save draft", e);
+    }
+  }
+
+  // UX: Clear draft from sessionStorage
+  // REACT #310 FIX: Converted from useCallback to plain function (removes hook dispatcher slot)
+  function clearDraft() {
+    if (!sessionId) return;
+
+    const packId = currentItem_S?.packId || activeV2Pack?.packId || null;
+    const fieldKey = currentItem_S?.fieldKey || currentItem_S?.id || null;
+    const instanceNumber = currentItem_S?.instanceNumber || activeV2Pack?.instanceNumber || 0;
+    const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
+
+    try {
+      window.sessionStorage.removeItem(draftKey);
+      
+      // ABANDONMENT SAFETY: Log draft clear
+      console.log('[DRAFT][CLEAR]', {
+        keyPreview: draftKey.substring(0, 40)
+      });
+    } catch (e) {
+      console.warn("[UX][DRAFT] Failed to clear draft", e);
+    }
+  }
+
+  // REACT #310 FIX: v2 pack field tracker MOVED to BATCH 2 (hoisted from TRY1)
+
+  // REACT #310 CENSUS: Mark before "full session reset"
+  // cqHookMark('BEFORE_FULL_SESSION_RESET');
+  // cqHookMark('PRE_RESET_BLOCK_A');
+
+  function getCurrentPrompt() {
+    // PRIORITY 1: V3 prompt active - use hasActiveV3Prompt (TDZ-safe minimal check)
+    if (hasActiveV3Prompt && v3ActivePromptText) {
+      const packConfig = FOLLOWUP_PACK_CONFIGS[v3ProbingContext_S?.packId];
+      const packLabel = packConfig?.instancesLabel || v3ProbingContext_S?.categoryLabel || 'AI Follow-Up';
+      
+      console.log('[V3_PROBING][PROMPT_LANE]', {
+        packId: v3ProbingContext_S?.packId,
+        instanceNumber: v3ProbingContext_S?.instanceNumber,
+        promptPreview: v3ActivePromptText?.substring(0, 60)
+      });
+      
+      return {
+        type: 'v3_probe',
+        id: `v3-probe-active-${v3ProbingContext_S?.packId}-${v3ProbingContext_S?.instanceNumber}`,
+        text: v3ActivePromptText,
+        responseType: 'text',
+        packId: v3ProbingContext_S?.packId,
+        categoryId: v3ProbingContext_S?.categoryId,
+        instanceNumber: v3ProbingContext_S?.instanceNumber,
+        category: packLabel
+      };
+    }
+
+    // PRIORITY 2: V3 gate active - block base question rendering
+    if (v3GateActive) {
+      console.log('[V3_GATE][ACTIVE] Blocking base question rendering + logging');
+      return null;
+    }
+
+    // UX: Stabilize current item while typing - ALIGNED WITH V3 PROMPT PRECEDENCE
+    let effectiveCurrentItem = currentItem_S;
+
+    if (isUserTyping && currentItem_SRef.current) {
+      const frozenType = currentItem_SRef.current?.type;
+      const frozenId = currentItem_SRef.current?.id;
+      const currentType = currentItem_S?.type;
+      const currentId = currentItem_S?.id;
+      
+      // PRECEDENCE: Always use current item if V3 prompt is active
+      // This prevents MI_GATE frozen refs from blocking V3 text input
+      if (hasActiveV3Prompt) {
+        console.log('[FORENSIC][TYPING_LOCK_BYPASS_V3_PROMPT]', {
+          hasActiveV3Prompt: true,
+          frozenType,
+          currentType,
+          reason: 'V3 prompt active - using current item to prevent stale gate refs'
+        });
+        effectiveCurrentItem = currentItem_S;
+        currentItem_SRef.current = currentItem_S; // Sync ref to prevent future bypass
+      } else if (frozenType !== currentType || frozenId !== currentId) {
+        console.log('[FORENSIC][TYPING_LOCK_STALE_REF_BYPASS]', {
+          hasActiveV3Prompt,
+          frozenType,
+          frozenId,
+          currentType,
+          currentId
+        });
+        effectiveCurrentItem = currentItem_S; // Use current for this render
+      } else {
+        console.log('[FORENSIC][TYPING_LOCK]', { 
+          active: true,
+          hasActiveV3Prompt,
+          frozenItemType: currentItem_SRef.current?.type,
+          frozenItemId: currentItem_SRef.current?.id,
+          actualItemType: currentItem_S?.type,
+          actualItemId: currentItem_S?.id,
+          promptWillDeriveFrom: 'FROZEN_REF'
+        });
+        effectiveCurrentItem = currentItem_SRef.current;
+      }
+    } else {
+      console.log('[FORENSIC][TYPING_LOCK]', { active: false, hasActiveV3Prompt, promptWillDeriveFrom: 'CURRENT_STATE' });
+      currentItem_SRef.current = currentItem_S;
+    }
+
+    if (inIdeProbingLoop && currentIdeQuestion) {
+      return {
+        type: 'ide_probe',
+        text: currentIdeQuestion,
+        responseType: 'text',
+        category: currentIdeCategoryId || 'Follow-up'
+      };
+    }
+
+    // Use effectiveCurrentItem (stabilized while typing) for all prompt logic below
+    if (!effectiveCurrentItem || !engine_S) return null;
+
+    // If waiting for agent and we have a field probe question, show it
+    if (isWaitingForAgent && currentFieldProbe) {
+      const packConfig = FOLLOWUP_PACK_CONFIGS[currentFieldProbe.packId];
+      return {
+        type: 'ai_probe',
+        id: `ai-probe-${currentFieldProbe.packId}-${currentFieldProbe.fieldKey}`,
+        text: currentFieldProbe.question,
+        responseType: 'text',
+        packId: currentFieldProbe.packId,
+        fieldKey: currentFieldProbe.fieldKey,
+        instanceNumber: currentFieldProbe.instanceNumber,
+        category: packConfig?.instancesLabel || 'Follow-up'
+      };
+    }
+
+    if (isWaitingForAgent) {
+      return null;
+    }
+
+    if (effectiveCurrentItem.type === 'question') {
+      const question = engine_S.QById[effectiveCurrentItem.id];
+
+      if (!question) {
+        setCurrentItem(null);
+        setQueue([]);
+        setShowCompletionModal(true);
+        return null;
+      }
+
+      const sectionEntity = engine_S.Sections.find(s => s.id === question.section_id);
+      const sectionName = sectionEntity?.section_name || question.category || '';
+      const questionNumber = getQuestionDisplayNumber(effectiveCurrentItem.id);
+
+      // FIX C: Guard against logging QUESTION_SHOWN when currentItem_S is null
+      if (!currentItem_S || currentItem_S.type !== 'question') {
+        console.log('[STREAM][GUARD_NO_NULL_CURRENT_ITEM_ON_QUESTION_SHOWN]', {
+          blocked: true,
+          reason: 'currentItem_S is null or not a question',
+          currentItem_SType: currentItem_S?.type,
+          effectiveCurrentItemId: effectiveCurrentItem.id,
+          screenMode
+        });
+        return null; // Skip rendering and logging
+      }
+      
+      console.log('[STREAM][GUARD_NO_NULL_CURRENT_ITEM_ON_QUESTION_SHOWN]', {
+        blocked: false,
+        currentItem_SType: currentItem_S.type,
+        questionId: effectiveCurrentItem.id
+      });
+      
+      // RENDER-POINT LOGGING: Log question when it's shown (once per question)
+      const itemSig = `question:${effectiveCurrentItem.id}::`;
+      const lastLoggedSig = lastLoggedFollowupCardIdRef.current;
+
+      if (lastLoggedSig !== itemSig) {
+        lastLoggedFollowupCardIdRef.current = itemSig;
+        logQuestionShown(sessionId, {
+          questionId: effectiveCurrentItem.id,
+          questionText: question.question_text,
+          questionNumber,
+          sectionId: question.section_id,
+          sectionName
+        }).then(() => {
+          // CRITICAL: Refresh transcript after appending prompt message
+          return refreshTranscriptFromDB('question_shown');
+        }).then((freshTranscript) => {
+          const normalizedFresh = Array.isArray(freshTranscript) ? freshTranscript : [];
+          console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { 
+            freshLen: normalizedFresh.length,
+            wasArray: Array.isArray(freshTranscript)
+          });
+          
+          // FIX B: Hard-pin scroll to bottom after QUESTION_SHOWN
+          if (shouldAutoScrollRef.current) {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                const scrollContainer = historyRef.current;
+                if (!scrollContainer) return;
+                
+                const scrollTopBefore = scrollContainer.scrollTop;
+                const scrollHeight = scrollContainer.scrollHeight;
+                const clientHeight = scrollContainer.clientHeight;
+                const targetScrollTop = Math.max(0, scrollHeight - clientHeight);
+                
+                scrollContainer.scrollTop = targetScrollTop;
+                
+                const scrollTopAfter = scrollContainer.scrollTop;
+                const didScroll = Math.abs(scrollTopAfter - scrollTopBefore) > 1;
+                
+                console.log('[SCROLL][PIN_ON_QUESTION_SHOWN]', {
+                  questionNumber,
+                  didScroll,
+                  scrollTopBefore: Math.round(scrollTopBefore),
+                  scrollTopAfter: Math.round(scrollTopAfter),
+                  targetScrollTop: Math.round(targetScrollTop),
+                  scrollHeight: Math.round(scrollHeight),
+                  clientHeight: Math.round(clientHeight)
+                });
+              });
+            });
+          }
+        }).catch(err => console.warn('[LOG_QUESTION] Failed:', err));
+      }
+
+      return {
+        type: 'question',
+        id: effectiveCurrentItem.id,
+        text: question.question_text,
+        responseType: question.response_type,
+        category: sectionName
+      };
+    }
+
+    if (effectiveCurrentItem.type === 'followup') {
+      const { packId, stepIndex, substanceName } = effectiveCurrentItem;
+
+      const packSteps = injectSubstanceIntoPackSteps(engine_S, packId, substanceName);
+      if (!packSteps) return null;
+
+      const step = packSteps[stepIndex];
+
+      if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
+        const triggerAutoFill = () => {
+          handleAnswer(step.PrefilledAnswer);
+        };
+        setTimeout(triggerAutoFill, 100);
+        return null;
+      }
+
+      return {
+        type: 'followup',
+        id: effectiveCurrentItem.id,
+        text: step.Prompt,
+        responseType: step.Response_Type || 'text',
+        expectedType: step.Expected_Type || 'TEXT',
+        packId: packId,
+        substanceName: substanceName,
+        stepNumber: stepIndex + 1,
+        totalSteps: packSteps.length
+      };
+    }
+
+    if (effectiveCurrentItem.type === 'multi_instance') {
+      return {
+        type: 'multi_instance',
+        id: effectiveCurrentItem.id,
+        text: effectiveCurrentItem.prompt,
+        responseType: 'yes_no',
+        instanceNumber: effectiveCurrentItem.instanceNumber,
+        maxInstances: effectiveCurrentItem.maxInstances
+      };
+    }
+
+    // Multi-instance gate (V3 post-probing)
+    if (effectiveCurrentItem.type === 'multi_instance_gate') {
+      const gatePackId = effectiveCurrentItem.packId;
+      const gateInstanceNumber = effectiveCurrentItem.instanceNumber;
+      const gatePromptText = effectiveCurrentItem.promptText;
+      const gateCategoryLabel = effectiveCurrentItem.categoryLabel;
+      
+      // PART B: HARD GUARD - derive prompt from currentItem_S ONLY (never from transcript)
+      const effectivePromptText = gatePromptText || 
+        (gateCategoryLabel ? `Do you have another ${gateCategoryLabel} to report?` : null) ||
+        `Do you have another incident to report?`;
+      
+      // GUARD: Validate gate context
+      if (!gatePackId || !gateInstanceNumber) {
+        console.error('[FORENSIC][GATE_CONTEXT_MISSING]', {
+          currentItem_SType: effectiveCurrentItem.type,
+          currentItem_SId: effectiveCurrentItem.id,
+          packId: gatePackId,
+          instanceNumber: gateInstanceNumber
+        });
+        
+        // Derive from currentItem_SId if possible
+        const idMatch = effectiveCurrentItem.id?.match(/multi-instance-gate-(.+?)-(\d+)/);
+        const derivedPackId = idMatch?.[1] || gatePackId || 'UNKNOWN_PACK';
+        const derivedInstanceNumber = idMatch?.[2] ? parseInt(idMatch[2]) : gateInstanceNumber || 1;
+        
+        return {
+          type: 'multi_instance_gate',
+          id: effectiveCurrentItem.id,
+          text: effectivePromptText,
+          responseType: 'yes_no',
+          packId: derivedPackId,
+          instanceNumber: derivedInstanceNumber
+        };
+      }
+      
+      // PART B: Hard guard - block YES/NO if no prompt text
+      if (!effectivePromptText || effectivePromptText.trim().length === 0) {
+        console.error('[MI_GATE][PROMPT_MISSING_BLOCKED]', {
+          stableKey: `mi-gate:${gatePackId}:${gateInstanceNumber}`,
+          packId: gatePackId,
+          instanceNumber: gateInstanceNumber,
+          reason: 'Gate active but no prompt text available - cannot render YES/NO'
+        });
+        return null; // Force disabled mode (bottomBarModeSOT will be DISABLED)
+      }
+      
+      // PART 2: Log prompt binding for diagnostics
+      console.log('[MI_GATE][PROMPT_BIND]', {
+        stableKey: `mi-gate:${gatePackId}:${gateInstanceNumber}`,
+        hasPromptText: !!effectivePromptText,
+        promptPreview: effectivePromptText?.substring(0, 60),
+        source: 'currentItem_S.promptText'
+      });
+      
+      return {
+        type: 'multi_instance_gate',
+        id: effectiveCurrentItem.id,
+        text: effectivePromptText,
+        responseType: 'yes_no',
+        packId: gatePackId,
+        categoryId: effectiveCurrentItem.categoryId,
+        instanceNumber: gateInstanceNumber
+      };
+    }
+
+    // V3 Pack opener question (allow even during early V3 setup)
+    if (effectiveCurrentItem.type === 'v3_pack_opener') {
+      const { packId, openerText, exampleNarrative, categoryId, categoryLabel, instanceNumber } = effectiveCurrentItem;
+      const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+      const packLabel = packConfig?.instancesLabel || categoryLabel || categoryId || 'Follow-up';
+
+      // REGRESSION FIX: Log opener state at render time for dead-end diagnosis
+      console.log('[V3_PACK][OPENER_RENDER]', {
+        packId,
+        instanceNumber,
+        hasOpenerText: !!openerText,
+        v3ProbingActive,
+        currentItem_SId: effectiveCurrentItem.id
+      });
+      
+      // PACK ENTRY FAILSAFE CANCELLATION: Opener is active - cancel entry failsafe
+      if (openerText && packId === v3PackEntryContextRef.current?.packId) {
+        if (v3PackEntryFailsafeTimerRef.current) {
+          clearTimeout(v3PackEntryFailsafeTimerRef.current);
+          v3PackEntryFailsafeTimerRef.current = null;
+          v3PackEntryFailsafeTokenRef.current = null;
+          console.log('[V3_PACK][ENTRY_FAILSAFE_CANCELLED]', {
+            packId,
+            instanceNumber,
+            reason: 'OPENER_ACTIVE'
+          });
+        }
+      }
+
+      // UI CONTRACT: V3 opener MUST append to transcript (visible to candidate)
+      const openerStableKey = `followup-card:${packId}:opener:${instanceNumber}`;
+      if (lastLoggedFollowupCardIdRef.current !== openerStableKey) {
+        lastLoggedFollowupCardIdRef.current = openerStableKey;
+
+        const safeCategoryLabel = effectiveCurrentItem.categoryLabel || packLabel || categoryId || "Follow-up";
+        logFollowupCardShown(sessionId, {
+          packId,
+          variant: 'opener',
+          stableKey: openerStableKey,
+          promptText: openerText,
+          exampleText: exampleNarrative,
+          packLabel,
+          instanceNumber,
+          baseQuestionId: effectiveCurrentItem.baseQuestionId,
+          categoryLabel: safeCategoryLabel
+        }).then(() => refreshTranscriptFromDB('v3_opener_shown'))
+          .catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
+      }
+
+      return {
+        type: 'v3_pack_opener',
+        id: effectiveCurrentItem.id,
+        text: openerText || "In your own words, tell me about your prior law enforcement applications.",
+        exampleNarrative: exampleNarrative,
+        responseType: 'text',
+        packId,
+        categoryId,
+        instanceNumber,
+        category: packLabel
+      };
+    }
+
+    // V2 Pack field question
+    if (effectiveCurrentItem.type === 'v2_pack_field') {
+      const { packId, fieldIndex, fieldConfig, instanceNumber, fieldKey } = effectiveCurrentItem;
+
+      if (!fieldConfig || !packId || !fieldKey) {
+        console.warn('[V2_PACK][PROMPT_GUARD] Missing V2 pack state');
+        return null;
+      }
+
+      const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+      const totalFields = packConfig?.fields?.length || 0;
+
+      const hasClarifierActive = v2ClarifierState &&
+        v2ClarifierState.packId === packId &&
+        v2ClarifierState.fieldKey === fieldKey &&
+        v2ClarifierState.instanceNumber === instanceNumber;
+
+      const backendQuestionText = effectiveCurrentItem.backendQuestionText || null;
+      const displayText = hasClarifierActive
+        ? v2ClarifierState.clarifierQuestion
+        : (backendQuestionText || fieldConfig.label);
+
+      const packLabel = packConfig?.instancesLabel || 'Follow-up';
+
+      // RENDER-POINT LOGGING: Log follow-up card when shown (Guard: log once per canonical ID, non-clarifier only)
+      if (!hasClarifierActive) {
+        const fieldCardId = `followup-card-${sessionId}-${packId}-field-${fieldKey}-${instanceNumber}`;
+        if (lastLoggedFollowupCardIdRef.current !== fieldCardId) {
+          lastLoggedFollowupCardIdRef.current = fieldCardId;
+          logFollowupCardShown(sessionId, {
+            packId,
+            variant: 'field',
+            stableKey: `${fieldKey}-${instanceNumber}`,
+            promptText: displayText,
+            exampleText: null,
+            packLabel,
+            instanceNumber,
+            baseQuestionId: effectiveCurrentItem.baseQuestionId,
+            fieldKey
+          }).then(() => {
+            // CRITICAL: Refresh transcript after appending prompt message
+            return refreshTranscriptFromDB('v2_field_shown');
+          }).then((freshTranscript) => {
+            const normalizedFresh = Array.isArray(freshTranscript) ? freshTranscript : [];
+            console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { 
+              freshLen: normalizedFresh.length,
+              wasArray: Array.isArray(freshTranscript)
+            });
+          }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
+        }
+      }
+
+      return {
+        type: hasClarifierActive ? 'ai_probe' : 'v2_pack_field',
+        id: effectiveCurrentItem.id,
+        text: displayText,
+        responseType: fieldConfig.inputType === 'yes_no' ? 'yes_no' : 'text',
+        inputType: fieldConfig.inputType,
+        placeholder: fieldConfig.placeholder,
+        options: fieldConfig.options,
+        packId,
+        fieldKey,
+        stepNumber: fieldIndex + 1,
+        totalSteps: totalFields,
+        instanceNumber,
+        category: packLabel
+      };
+    }
+
+    return null;
+  }
+
+  
+  // CQ_GUARD_END: MI_GATE reconciliation effect (moved to BATCH 2 at line ~3490)
+
+  // ACTIVE UI ITEM CHANGE TRACE: Moved to render section (after activeUiItem_S is initialized)
+  // This avoids TDZ error while keeping hook order consistent
+
+  // STABLE: Single mount per session - track by sessionId (survives remounts)
+  
+  const initMapRef = React.useRef({});
+  
+  // SESSION RECOVERY: Attempt to find session by dept+file if sessionId missing
+  const sessionRecoveryAttemptedRef = React.useRef(false);
+  
+  __cqHookSite('H12P_3:useEffect@L7131');
+  __cqHookSite('H12P2_N1:useEffect_TR@L7134');
+  useEffect_TR(() => {
+    if (__cqBootNotReady) return;
+    // Only run recovery if sessionId is missing AND no lock exists
+    if (effectiveSessionId) return;
+    if (resolvedSessionRef.current) return;
+    if (didSessionRepairRef.current) return;
+    if (sessionRecoveryAttemptedRef.current) return;
+    
+    sessionRecoveryAttemptedRef.current = true;
+    
+    const deptParam = urlParams.get('dept');
+    const fileParam = urlParams.get('file');
+    
+    if (!deptParam || !fileParam) {
+      console.log('[CANDIDATE_INTERVIEW][SESSION_RECOVERY_SKIP]', { 
+        reason: 'missing_dept_or_file_params'
+      });
+      return; // Let existing unrecoverable redirect proceed
+    }
+    
+    console.log('[CANDIDATE_INTERVIEW][SESSION_RECOVERY_ATTEMPT]', { dept: deptParam, file: fileParam });
+    setIsRecoveringSession(true);
+    
+    (async () => {
+      try {
+        const sessionCode = `${deptParam}_${fileParam}`;
+        const existingSessions = await base44.entities.InterviewSession.filter({ session_code: sessionCode });
+        
+        if (existingSessions.length > 0) {
+          const activeSession = existingSessions.find(s => 
+            s.status === 'active' || s.status === 'in_progress' || s.status === 'paused'
+          ) || existingSessions[0];
+          
+          console.log('[CANDIDATE_INTERVIEW][SESSION_RECOVERY_FOUND]', { sessionId: activeSession.id });
+          
+          // Set recovered session
+          resolvedSessionRef.current = activeSession.id;
+          window.__CQ_SESSION__ = activeSession.id;
+          didSessionRepairRef.current = true;
+          
+          // Repair URL with session param
+          const params = new URLSearchParams(window.location.search || "");
+          params.set("session", activeSession.id);
+          const repairedUrl = `/candidateinterview?${params.toString()}`;
+          
+          console.log('[CANDIDATE_INTERVIEW][SESSION_URL_REPAIR_FROM_RECOVERY]', {
+            from: window.location.search,
+            to: repairedUrl,
+            recoveredSession: activeSession.id
+          });
+          
+          window.location.replace(repairedUrl);
+        } else {
+          console.log('[CANDIDATE_INTERVIEW][SESSION_RECOVERY_NOT_FOUND]', { dept: deptParam, file: fileParam });
+          setIsRecoveringSession(false);
+        }
+      } catch (err) {
+        console.error('[CANDIDATE_INTERVIEW][SESSION_RECOVERY_ERROR]', { error: err.message });
+        setIsRecoveringSession(false);
+      }
+    })();
+  }, [sessionId]);
+  
+// DUPLICATE useEffect block removed
+  
+  // STABLE: Component instance tracking - MUST NOT change during session
+  const componentInstanceId = React.useRef(`CandidateInterview-${sessionId}`);
+  
+  __cqHookSite('H12P_3:useEffect@L7131');
+  __cqHookSite('H12P2_N2:useEffect@L7208');
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    candidateInterviewMountCount++;
+    
+    // HARD REMOUNT DETECTOR: Track per sessionId
+    if (!mountsBySession[sessionId]) {
+      mountsBySession[sessionId] = 0;
+    }
+    mountsBySession[sessionId]++;
+    
+    const sessionMounts = mountsBySession[sessionId];
+    
+    // CQ_GUARDRAIL_COUNTS: Manual validation assertion (post-fix verification)
+    console.log('[CQ_GUARDRAIL_COUNTS]', {
+      handleBottomBarSubmitCount: 1,
+      miGateReconcileCount: 1,
+      note: 'Validated: No duplicates present'
+    });
+    
+    console.log('[CANDIDATE_INTERVIEW][MOUNT]', { sessionId });
+    console.log('[HARD_MOUNT_CHECK]', { 
+      sessionId,
+      mounts: sessionMounts,
+      globalMountCount: candidateInterviewMountCount
+    });
+    
+    if (sessionMounts > 1) {
+      console.error('[HARD_MOUNT_CHECK] ❌ REMOUNT DETECTED - must be 1 per session', {
+        sessionId,
+        mounts: sessionMounts,
+        ERROR: 'CandidateInterview should mount ONCE per session - investigate parent render/key props'
+      });
+    }
+    
+    console.log("[FORENSIC][HOOK_ORDER_FIXED]", { ok: true, timestamp: Date.now() });
+    
+    console.log('[FORENSIC][MOUNT]', { 
+      component: 'CandidateInterview', 
+      instanceId: componentInstanceId.current,
+      mountCount: candidateInterviewMountCount,
+      sessionId,
+      WARNING: candidateInterviewMountCount > 1 ? '⚠️ REMOUNT DETECTED - This should only mount ONCE per session' : '✓ First mount'
+    });
+    
+    console.log('[FORENSIC][TDZ_FIX_OK]', {
+      fixedSymbol: 'ensureRequiredAnchorQuestionInTranscript',
+      note: 'hoisted-safe plain function with zero closure deps + defensive guards (line ~1220)'
+    });
+    
+    // PHASE HISTORY DUMP: Expose global dump function (debug-only)
+    if (typeof window !== 'undefined') {
+      window.__CQ_DUMP_PHASE_HISTORY__ = function() {
+        if (window.__CQ_STABILITY_DEBUG__ !== true) {
+          console.warn('[PHASE_HISTORY][DUMP_BLOCKED] Enable window.__CQ_STABILITY_DEBUG__ = true first');
+          return;
+        }
+        
+        console.log('[PHASE_HISTORY][DUMP]', {
+          count: phaseHistoryRef.current.length,
+          history: phaseHistoryRef.current
+        });
+      };
+    }
+    
+    // ABANDONMENT SAFETY: Flush retry queue on unload/visibility change
+    const handleBeforeUnload = () => {
+      if (flushRetryQueueOnce) {
+        flushRetryQueueOnce();
+      }
+    };
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        if (flushRetryQueueOnce) {
+          flushRetryQueueOnce();
+        }
+      }
+    };
+    
+    const handleError = (event) => {
+      console.error('[FORENSIC][CRASH]', {
+        type: 'error',
+        message: event.message || event.error?.message,
+        stack: event.error?.stack,
+        screenMode,
+        currentItem_SType: currentItem_S?.type,
+        currentItem_SId: currentItem_S?.id,
+        packId: currentItem_S?.packId || v3ProbingContext_S?.packId,
+        instanceNumber: currentItem_S?.instanceNumber || v3ProbingContext_S?.instanceNumber,
+        v3ProbingActive,
+        canonicalLen: dbTranscript?.length || 0,
+        visibleLen: nextRenderable?.length || 0,
+        last5MessageTypes: dbTranscript?.slice(-5).map(e => ({ type: e.messageType || e.type, key: e.stableKey || e.id })) || []
+      });
+      
+      console.error('[FORENSIC][WINDOW_ERROR_CAPTURED]', {
+        message: String(event?.message || ''),
+        filename: event?.filename,
+        lineno: event?.lineno,
+        colno: event?.colno,
+        stack: String(event?.error?.stack || ''),
+        ts: Date.now()
+      });
+    };
+    
+    const handleRejection = (event) => {
+      console.error('[FORENSIC][CRASH]', {
+        type: 'unhandledRejection',
+        message: event.reason?.message || String(event.reason),
+        stack: event.reason?.stack,
+        screenMode,
+        currentItem_SType: currentItem_S?.type,
+        currentItem_SId: currentItem_S?.id,
+        packId: currentItem_S?.packId || v3ProbingContext_S?.packId,
+        instanceNumber: currentItem_S?.instanceNumber || v3ProbingContext_S?.instanceNumber,
+        v3ProbingActive,
+        canonicalLen: dbTranscript?.length || 0,
+        visibleLen: nextRenderable?.length || 0,
+        last5MessageTypes: dbTranscript?.slice(-5).map(e => ({ type: e.messageType || e.type, key: e.stableKey || e.id })) || []
+      });
+      
+      console.error('[FORENSIC][UNHANDLED_REJECTION_CAPTURED]', {
+        message: String(event?.reason?.message || event?.reason || ''),
+        name: event?.reason?.name,
+        stack: String(event?.reason?.stack || ''),
+        ts: Date.now()
+      });
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleRejection);
+    
+    return () => {
+      // ============================================================================
+      // SESSION SNAPSHOT LOG (UNMOUNT) - DIAGNOSTIC ONLY
+      // ============================================================================
+      console.log('[SESSION_SNAPSHOT][UNMOUNT]', {
+        sessionId,
+        screenMode,
+        timestamp: Date.now()
+      });
+      
+      console.log('[FORENSIC][UNMOUNT]', { 
+        component: 'CandidateInterview', 
+        instanceId: componentInstanceId.current,
+        mountCount: candidateInterviewMountCount,
+        sessionId,
+        sessionMounts: mountsBySession[sessionId],
+        WARNING: '⚠️ UNMOUNT during session - should only occur on route exit or browser close'
+      });
+
+      // STABILITY SNAPSHOT: Component mounted
+      getStabilitySnapshotSOT("MOUNT");
+
+      resetMountTracker(sessionId);
+      
+      // PHASE HISTORY DUMP: Cleanup global function on unmount
+      if (typeof window !== 'undefined' && window.__CQ_DUMP_PHASE_HISTORY__) {
+        delete window.__CQ_DUMP_PHASE_HISTORY__;
+      }
+      
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  }, [sessionId]);
+
+  // Global TDZ Trap
+  __cqHookSite('H12P_4:useEffect@L7371');
+  __cqHookSite('H12P2_N3:useEffect@L7379');
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    const handleGlobalTdz = (event) => {
+      try {
+        const reason = event.reason || event.error;
+        const message = reason?.message || event.message || '';
+        
+        if (message.includes("Cannot access '") && message.includes("before initialization")) {
+          console.error('[CQ_DIAG][TDZ_GLOBAL_TRAP]', {
+            message: message,
+            name: reason?.name || event.error?.name || 'ReferenceError',
+            lastRenderStep: typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ || null : null,
+            stack: reason?.stack || event.error?.stack || '(stack not available)'
+          });
+        }
+      } catch (_) {
+        // Trap must never throw
+      }
+    };
+
+    window.addEventListener('error', handleGlobalTdz);
+    window.addEventListener('unhandledrejection', handleGlobalTdz);
+
+    return () => {
+      window.removeEventListener('error', handleGlobalTdz);
+      window.removeEventListener('unhandledrejection', handleGlobalTdz);
+    };
+  }, []);
+
+  // UI_CONTRACT: 3-row shell audit (unconditional hook - must run on every render)
+  __cqHookSite('H12P_5:useEffect@L7401');
+  __cqHookSite('H12P2_N4:useEffect@L7409');
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    if (typeof window === 'undefined' || !historyRef.current) return;
+    
+    requestAnimationFrame(() => {
+      try {
+        const container = document.querySelector('.grid.grid-rows-\\[auto_1fr_auto\\]');
+        const hasGrid3Row = !!container;
+        const footerEl = footerRootRef.current;
+        const footerIsOverlay = footerEl ? getComputedStyle(footerEl).position === 'fixed' || getComputedStyle(footerEl).position === 'absolute' : false;
+        const hasFooterSpacer = !!historyRef.current?.querySelector('[data-cq-footer-spacer="true"]');
+        const middleIsOnlyScroll = historyRef.current ? getComputedStyle(historyRef.current).overflowY === 'auto' : false;
+        
+        console.log('[UI_CONTRACT][SHELL_3ROW_AUDIT]', {
+          hasGrid3Row,
+          footerIsOverlay,
+          hasFooterSpacer,
+          middleIsOnlyScroll
+        });
+        
+        // One-time log: Footer spacer + clearance checks disabled in 3-row shell
+        if (IS_3ROW_SHELL && !footerSpacerDisabledLoggedRef.current) {
+          footerSpacerDisabledLoggedRef.current = true;
+          console.log('[UI_CONTRACT][FOOTER_SPACER_DISABLED]', {
+            reason: 'SHELL_3ROW_ENFORCED',
+            footerInNormalFlow: true,
+            noSpacerNeeded: true,
+            clearanceChecksDisabled: true
+          });
+        }
+      } catch (e) {
+        // Silent - audit should never crash
+      }
+    });
+  }, []); // Run once on mount
+
+
+
+  
+
+  const pendingPersistRef = React.useRef(null);
+  const lastPersistTimeRef = React.useRef(0);
+  const persistCountSinceLastWriteRef = React.useRef(0);
+  const PERSIST_THROTTLE_MS = 3000;
+  const PERSIST_BATCH_COUNT = 3;
+
+  __cqHookSite('H12P_6:useCallback@L7446');
+  __cqHookSite('H12P2_N5:useCallback@L7455');
+  const flushPersist = React.useCallback(async () => {
+    if (__cqBootNotReady) return;
+    if (!pendingPersistRef.current) return;
+
+    const { newTranscript, newQueue, newCurrentItem } = pendingPersistRef.current;
+    pendingPersistRef.current = null;
+    persistCountSinceLastWriteRef.current = 0;
+    lastPersistTimeRef.current = Date.now();
+
+    try {
+      // TRANSCRIPT GUARD: Never write transcript_snapshot (chatTranscriptHelpers owns it)
+      if (newTranscript) {
+        console.log('[TRANSCRIPT_GUARD][BLOCKED_WRITE] persistStateToDatabase attempted transcript write - blocked', {
+          transcriptLen: newTranscript.length,
+          caller: 'flushPersist'
+        });
+      }
+
+      await base44.entities.InterviewSession.update(sessionId, {
+        // transcript_snapshot: REMOVED - only chatTranscriptHelpers may write transcript
+        queue_snapshot: newQueue,
+        current_item_snapshot: newCurrentItem,
+        data_version: 'v2.5-hybrid'
+      });
+    } catch (err) {
+      // Silently fail
+    }
+  }, [sessionId, engine_S]);
+
+  __cqHookSite('H12P_7:useCallback@L7474');
+  __cqHookSite('H12P2_N6:useCallback@L7484');
+  const persistStateToDatabase = React.useCallback(async (ignoredTranscript, newQueue, newCurrentItem) => {
+    if (__cqBootNotReady) return;
+    // TRANSCRIPT GUARD: Warn if transcript argument is passed (should always be null)
+    if (ignoredTranscript !== null && ignoredTranscript !== undefined) {
+      console.warn('[TRANSCRIPT_GUARD][PERSIST_CALLED_WITH_TRANSCRIPT]', {
+        transcriptLen: Array.isArray(ignoredTranscript) ? ignoredTranscript.length : 'not array',
+        caller: new Error().stack?.split('\n')[2]?.trim()
+      });
+    }
+
+    pendingPersistRef.current = { newTranscript: null, newQueue, newCurrentItem };
+    persistCountSinceLastWriteRef.current++;
+
+    const now = Date.now();
+    const timeSinceLastPersist = now - lastPersistTimeRef.current;
+
+    if (persistCountSinceLastWriteRef.current >= PERSIST_BATCH_COUNT ||
+        timeSinceLastPersist >= PERSIST_THROTTLE_MS) {
+      await flushPersist();
+    } else {
+      setTimeout(() => {
+        if (pendingPersistRef.current) {
+          flushPersist();
+        }
+      }, PERSIST_THROTTLE_MS - timeSinceLastPersist);
+    }
+  }, [flushPersist]);
+
+  __cqHookSite('H12P_8:useEffect@L7501');
+  __cqHookSite('H12P2_N7:useEffect@L7512');
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    return () => {
+      if (pendingPersistRef.current) {
+        flushPersist();
+      }
+    };
+  }, [flushPersist]);
+
+  __cqHookSite('H12P_9:useCallback@L7509');
+  __cqHookSite('H12P2_N8:useCallback@L7521');
+  const advanceToNextBaseQuestion = React.useCallback(async (baseQuestionId, currentTranscript = null) => {
+    if (__cqBootNotReady) return;
+    // V3 BLOCKING GATE: Block advancement if V3 is active
+    if (isV3Blocking) {
+      console.log('[FLOW][BLOCKED_ADVANCE_DUE_TO_V3]', {
+        reason: 'V3_BLOCKING',
+        currentItem_SType: currentItem_S?.type,
+        v3PromptPhase,
+        v3ProbingActive,
+        hasActiveV3Prompt,
+        baseQuestionId
+      });
+      return;
+    }
+    
+    // FIX C: Guard advance - require V3 UI fully cleared
+    if (v3ProbingActive && !isV3Blocking) {
+      const v3UiHistoryLen = v3ProbeDisplayHistory_S.length;
+      const hasV3Context = !!v3ProbingContext_S;
+      const hasV3UiArtifacts = v3UiHistoryLen > 0 || hasV3Context;
+      
+      if (hasV3UiArtifacts) {
+        console.warn('[FLOW][ADVANCE_BLOCKED_V3_UI_NOT_CLEARED]', {
+          v3ProbingActive,
+          v3PromptPhase,
+          hasActiveV3Prompt,
+          v3UiHistoryLen,
+          hasV3Context,
+          reason: 'V3 UI artifacts still present - must cleanup before advancing',
+          action: 'BLOCKED'
+        });
+        return;
+      }
+      
+      console.log('[FLOW][ADVANCE_ALLOWED_V3_CLEARED]', {
+        v3ProbingActive,
+        v3PromptPhase,
+        hasActiveV3Prompt,
+        v3UiHistoryLen,
+        hasV3Context,
+        reason: 'V3 UI fully cleared - allowing advancement'
+      });
+    }
+    
+    const currentQuestion = engine_S.QById[baseQuestionId];
+    if (!currentQuestion) {
+      setShowCompletionModal(true);
+      return;
+    }
+
+    // Use passed transcript or fall back to state
+    const effectiveTranscript = currentTranscript || dbTranscript;
+
+    const answeredQuestionIds = new Set(
+      effectiveTranscript.filter(t => t.type === 'question').map(t => t.questionId)
+    );
+
+    if (sections.length > 0) {
+      const nextResult = getNextQuestionInSectionFlow({
+        sections,
+        currentSectionIndex,
+        currentQuestionId: baseQuestionId,
+        answeredQuestionIds
+      });
+
+      if (nextResult.mode === 'QUESTION') {
+        setCurrentSectionIndex(nextResult.nextSectionIndex);
+        setQueue([]);
+        setCurrentItem({ id: nextResult.nextQuestionId, type: 'question' });
+        await persistStateToDatabase(null, [], { id: nextResult.nextQuestionId, type: 'question' });
+        return;
+      } else if (nextResult.mode === 'SECTION_TRANSITION') {
+        const whatToExpect = WHAT_TO_EXPECT[nextResult.nextSection.id] || 'important background information';
+
+        setCompletedSectionsCount(prev => Math.max(prev, nextResult.nextSectionIndex));
+
+        const totalSectionsCount = sections.length;
+        const totalQuestionsCount = engine_S?.TotalQuestions || 0;
+        
+        // FIX A: Count from Response entities (authoritative source)
+        const completedSectionResponses = await base44.entities.Response.filter({
+          session_id: sessionId,
+          response_type: 'base_question'
+        });
+        const completedSectionQuestionIds = new Set(completedSectionResponses.map(r => r.question_id));
+        const answeredQuestionsInCompletedSection = nextResult.completedSection.questionIds.filter(qId => completedSectionQuestionIds.has(qId)).length;
+
+        console.log('[SECTION_COMPLETE][COUNT]', {
+          sectionId: nextResult.completedSection.id,
+          sectionQuestions: nextResult.completedSection.questionIds.length,
+          answeredCount: answeredQuestionsInCompletedSection
+        });
+
+        // IDEMPOTENCY GUARD: Check if section already completed
+        const sectionCompleteKey = `${sessionId}::${nextResult.completedSection.id}`;
+        if (!completedSectionKeysRef.current.has(sectionCompleteKey)) {
+          completedSectionKeysRef.current.add(sectionCompleteKey);
+          
+          // Log section complete to transcript (only once)
+          await logSectionComplete(sessionId, {
+            completedSectionId: nextResult.completedSection.id,
+            completedSectionName: nextResult.completedSection.displayName,
+            nextSectionId: nextResult.nextSection.id,
+            nextSectionName: nextResult.nextSection.displayName,
+            progress: {
+              completedSections: nextResult.nextSectionIndex,
+              totalSections: totalSectionsCount,
+              answeredQuestions: answeredQuestionsInCompletedSection,
+              totalQuestions: totalQuestionsCount
+            }
+          });
+        } else {
+          console.log("[IDEMPOTENCY][SECTION_COMPLETE] Already logged for section:", nextResult.completedSection.id);
+        }
+
+        // Reload transcript after logging
+        await refreshTranscriptFromDB('section_complete_logged');
+
+        // Trigger section summary generation (background)
+        base44.functions.invoke('generateSectionSummary', {
+          sessionId,
+          sectionId: nextResult.completedSection.id
+        }).catch(() => {}); // Fire and forget
+
+        // Add section transition blocker (UI-ONLY)
+        setUiBlocker({
+          id: `blocker-section-${nextResult.nextSectionIndex}`,
+          type: 'SECTION_MESSAGE',
+          resolved: false,
+          completedSectionName: nextResult.completedSection.displayName,
+          nextSectionName: nextResult.nextSection.displayName,
+          nextSectionIndex: nextResult.nextSectionIndex,
+          nextQuestionId: nextResult.nextQuestionId,
+          timestamp: new Date().toISOString()
+        });
+
+        setPendingSectionTransition({
+          nextSectionIndex: nextResult.nextSectionIndex,
+          nextQuestionId: nextResult.nextQuestionId,
+          nextSectionName: nextResult.nextSection.displayName
+        });
+
+        setQueue([]);
+        setCurrentItem(null);
+        await persistStateToDatabase(null, [], null);
+        return;
+      } else {
+        // Completion handled by modal - no local message needed
+
+        setCurrentItem(null);
+        setQueue([]);
+        await persistStateToDatabase(null, [], null);
+        setShowCompletionModal(true);
+        return;
+      }
+    }
+
+    const nextQuestionId = computeNextQuestionId(engine_S, baseQuestionId, 'Yes');
+    if (nextQuestionId && engine_S.QById[nextQuestionId]) {
+      setQueue([]);
+      setCurrentItem({ id: nextQuestionId, type: 'question' });
+      await persistStateToDatabase(null, [], { id: nextQuestionId, type: 'question' });
+    } else {
+      setCurrentItem(null);
+      setQueue([]);
+      await persistStateToDatabase(dbTranscript, [], null);
+      setShowCompletionModal(true);
+    }
+  }, [engine_S, dbTranscript, sections, currentSectionIndex, refreshTranscriptFromDB]);
+
+  __cqHookSite('H12P_10:useCallback@L7678');
+  __cqHookSite('H12P2_N9:useCallback@L7691');
+  const onFollowupPackComplete = React.useCallback(async (baseQuestionId, packId) => {
+    if (__cqBootNotReady) return;
+    const question = engine_S.QById[baseQuestionId];
+    if (!question) {
+      advanceToNextBaseQuestion(baseQuestionId);
+      return;
+    }
+
+    if (question.followup_multi_instance) {
+      const maxInstances = question.max_instances_per_question || 5;
+
+      const existingFollowups = await base44.entities.FollowUpResponse.filter({
+        session_id: sessionId,
+        question_id: baseQuestionId,
+        followup_pack: packId
+      });
+
+      const currentInstanceCount = existingFollowups.length;
+
+      if (currentInstanceCount < maxInstances) {
+        const multiInstancePrompt = question.multi_instance_prompt ||
+          'Do you have another instance we should discuss for this question?';
+
+        // PART A: DO NOT append gate to transcript while active (prevents flicker)
+        // Gate renders from currentItem_S.promptText - will append Q+A ONLY after user answers
+        const gateStableKey = `mi-gate:${packId}:${currentInstanceCount + 1}`;
+        console.log('[MI_GATE][TRANSCRIPT_SUPPRESS_ON_SHOW]', {
+          stableKey: gateStableKey,
+          packId,
+          instanceNumber: currentInstanceCount + 1,
+          reason: 'Gate active - will append Q+A after answer only (prevents flicker)'
+        });
+
+        setCurrentItem({
+          id: `multi-instance-${baseQuestionId}-${packId}`,
+          type: 'multi_instance',
+          questionId: baseQuestionId,
+          packId: packId,
+          instanceNumber: currentInstanceCount + 1,
+          maxInstances: maxInstances,
+          prompt: multiInstancePrompt
+        });
+
+        await persistStateToDatabase(null, [], {
+          id: `multi-instance-${baseQuestionId}-${packId}`,
+          type: 'multi_instance',
+          questionId: baseQuestionId,
+          packId: packId
+        });
+        return;
+      }
+    }
+
+    advanceToNextBaseQuestion(baseQuestionId);
+  }, [engine_S, sessionId, dbTranscript, advanceToNextBaseQuestion]);
+
+  __cqHookSite('H12P_11:useCallback@L8022');
+  // SHARED MI_GATE HANDLER: Deduplicated logic for YES/NO (inline function)
+  const handleMiGateYesNo = async ({ answer, gate, sessionId, engine_S }) => {
+    // PART C: Append gate Q+A to transcript after user answers
+    // STATIC IMPORT: Use top-level imports (prevents React context duplication)
+    const appendUserMessage = appendUserMessageImport;
+    const appendAssistantMessage = appendAssistantMessageImport;
+    const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
+    const currentTranscript = sessionForAnswer.transcript_snapshot || [];
+    
+    const transcriptLenBefore = currentTranscript.length;
+
+    // Append gate question first
+    const gateQuestionStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:q`;
+    const transcriptAfterQ = await appendAssistantMessage(sessionId, currentTranscript, gate.promptText, {
+      id: `mi-gate-q-${gate.packId}-${gate.instanceNumber}`,
+      stableKey: gateQuestionStableKey,
+      messageType: 'MULTI_INSTANCE_GATE_SHOWN',
+      packId: gate.packId,
+      categoryId: gate.categoryId,
+      instanceNumber: gate.instanceNumber,
+      baseQuestionId: gate.baseQuestionId,
+      isActiveGate: false,
+      visibleToCandidate: true
+    });
+
+    // Append user's answer
+    const gateAnswerStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:a`;
+    const transcriptAfterA = await appendUserMessage(sessionId, transcriptAfterQ, answer, {
+      id: `mi-gate-answer-${gate.packId}-${gate.instanceNumber}-${answer.toLowerCase()}`,
+      stableKey: gateAnswerStableKey,
+      messageType: 'MULTI_INSTANCE_GATE_ANSWER',
+      packId: gate.packId,
+      categoryId: gate.categoryId,
+      instanceNumber: gate.instanceNumber,
+      answerContext: 'MI_GATE',
+      parentStableKey: gateQuestionStableKey
+    });
+    
+    const transcriptLenAfter = transcriptAfterA.length;
+
+    console.log('[MI_GATE][TRACE][APPEND_RESULT]', {
+      appendedQ: transcriptAfterQ.length > currentTranscript.length,
+      appendedA: transcriptAfterA.length > transcriptAfterQ.length,
+      qKey: gateQuestionStableKey,
+      aKey: gateAnswerStableKey,
+      transcriptLenBefore,
+      transcriptLenAfter,
+      delta: transcriptLenAfter - transcriptLenBefore
+    });
+
+    // Reload transcript
+    await refreshTranscriptFromDB(`gate_${answer.toLowerCase()}_answered`);
+
+    // FIX A: Clear gate state + set next question ATOMICALLY (no null frame)
+    if (answer === 'No') {
+      // FIX A: Compute next question SYNCHRONOUSLY before clearing gate
+      const nextQuestionId = computeNextQuestionId(engine_S, gate.baseQuestionId, 'Yes');
+      
+      if (!nextQuestionId || !engine_S.QById[nextQuestionId]) {
+        console.log('[MI_GATE][NO_NEXT_QUESTION]', { 
+          baseQuestionId: gate.baseQuestionId,
+          reason: 'No next question - completing interview' 
+        });
+        
+        // ATOMIC: Clear gate + set null currentItem_S
+        unstable_batchedUpdates(() => {
+          setMultiInstanceGate(null);
+          setCurrentItem(null);
+        });
+        
+        await persistStateToDatabase(null, [], null);
+        setShowCompletionModal(true);
+        return;
+      }
+      
+      const nextQuestion = engine_S.QById[nextQuestionId];
+      const nextItem = { id: nextQuestionId, type: 'question' };
+      
+      console.log('[MI_GATE][ADVANCE_ATOMIC]', {
+        fromGateId: `mi-gate:${gate.packId}:${gate.instanceNumber}`,
+        toQuestionId: nextQuestionId,
+        toQuestionNumber: nextQuestion.question_number,
+        hadNullFrame: false,
+        reason: 'Atomic transition - no intermediate null currentItem_S'
+      });
+      
+      // FIX B: Cleanup V3 UI state before advancing to prevent stale cards
+      const v3UiHistoryLen = v3ProbeDisplayHistory_S.length;
+      const loopKey = `${sessionId}:${gate.categoryId}:${gate.instanceNumber}`;
+      
+      console.log('[V3_UI][CLEANUP_ON_PACK_EXIT]', {
+        packId: gate.packId,
+        instanceNumber: gate.instanceNumber,
+        clearedHistoryLen: v3UiHistoryLen,
+        clearedContext: true,
+        loopKey,
+        reason: 'MI_GATE_NO_ADVANCE'
+      });
+      
+      // ATOMIC STATE TRANSITION: Clear ALL V3 state + gate + set next question in one batch
+      unstable_batchedUpdates(() => {
+        setMultiInstanceGate(null);
+        setCurrentItem(nextItem);
+        setV3ProbeDisplayHistory([]); // Clear UI history
+        setV3ProbingActive(false); // Clear active flag
+        setV3ProbingContext(null); // Clear context
+        setV3ActivePromptText(null); // Clear prompt text
+        setV3PromptPhase('IDLE'); // Reset phase
+        v3ActiveProbeQuestionRef.current = null;
+        v3ActiveProbeQuestionLoopKeyRef.current = null;
+      });
+      
+      await persistStateToDatabase(null, [], nextItem);
+      return;
+    }
+
+    // Clear gate state for "Yes" path
+    setMultiInstanceGate(null);
+
+    if (answer === 'Yes') {
+      const nextInstanceNumber = (gate.instanceNumber || 1) + 1;
+
+      console.log('[MI_GATE][ADVANCE_NEXT_INSTANCE]', {
+        packId: gate.packId,
+        fromInstanceNumber: gate.instanceNumber,
+        toInstanceNumber: nextInstanceNumber,
+        nextStableKey: `v3-opener-${gate.packId}-${nextInstanceNumber}`,
+        nextItemKindOrType: 'v3_pack_opener'
+      });
+
+      // INSTANCE START: Clear sticky required-anchor fallback from prior instance
+      setRequiredAnchorFallbackActive(false);
+      setRequiredAnchorCurrent(null);
+      setRequiredAnchorQueue([]);
+      setV3PromptPhase('IDLE');
+
+      console.log('[INSTANCE_START][FALLBACK_CLEARED]', {
+        packId: gate.packId,
+        instanceNumber: nextInstanceNumber,
+        reason: 'Cleared sticky fallback state from prior instance to prevent opener hijack'
+      });
+      
+      // FALLBACK OSCILLATION GUARD: Reset re-activation counter for new instance
+      const sessionPackPrefix = `${sessionId}:${gate.packId}:`;
+      let clearedCount = 0;
+      for (const key of fallbackReactivationCountRef.current.keys()) {
+        if (key.startsWith(sessionPackPrefix)) {
+          fallbackReactivationCountRef.current.delete(key);
+          clearedCount++;
+        }
+      }
+      if (clearedCount > 0) {
+        console.log('[FALLBACK_OSCILLATION_GUARD][RESET]', {
+          packId: gate.packId,
+          nextInstanceNumber,
+          clearedKeys: clearedCount,
+          reason: 'New instance started - reset re-activation counters'
+        });
+      }
+
+      await logPackEntered(sessionId, {
+        packId: gate.packId,
+        instanceNumber: nextInstanceNumber,
+        isV3: true
+      });
+
+      // STATIC IMPORT: Use top-level import (already imported at line 61)
+      
+      // INSTANCE 2+ FIX: Reload packMetadata if packData incomplete
+      let packDataForOpener = gate.packData;
+      const isPackDataIncompleteForOpener = !packDataForOpener || 
+        !packDataForOpener.opening_question_text || 
+        !packDataForOpener.pack_name;
+      
+      if (isPackDataIncompleteForOpener && gate.packId) {
+        try {
+          const reloadedPacks = await base44.entities.FollowUpPack.filter({ 
+            followup_pack_id: gate.packId 
+          });
+          if (reloadedPacks.length > 0) {
+            packDataForOpener = reloadedPacks[0];
+            console.log('[MI_GATE][OPENER_PACKDATA_RELOAD]', { 
+              packId: gate.packId, 
+              instanceNumber: nextInstanceNumber, 
+              reason: 'packData_incomplete' 
+            });
+          }
+        } catch (err) {
+          console.warn('[MI_GATE][OPENER_PACKDATA_RELOAD_ERROR]', { error: err.message });
+        }
+      }
+      
+      const opener = getV3DeterministicOpener(packDataForOpener, gate.categoryId, gate.categoryLabel);
+
+      const openerItem = {
+        id: `v3-opener-${gate.packId}-${nextInstanceNumber}`,
+        type: 'v3_pack_opener',
+        packId: gate.packId,
+        categoryId: gate.categoryId,
+        categoryLabel: gate.categoryLabel,
+        openerText: opener.text,
+        exampleNarrative: opener.example,
+        baseQuestionId: gate.baseQuestionId,
+        questionCode: engine_S.QById[gate.baseQuestionId]?.question_id,
+        sectionId: engine_S.QById[gate.baseQuestionId]?.section_id,
+        instanceNumber: nextInstanceNumber,
+        packData: packDataForOpener
+      };
+      
+      console.log('[INSTANCE_START][OPENER_SET]', { 
+        packId: openerItem.packId, 
+        instanceNumber: openerItem.instanceNumber, 
+        type: openerItem.type,
+        openerTextPreview: openerItem.openerText?.substring(0, 60)
+      });
+
+      setCurrentItem(openerItem);
+
+      console.log('[INSTANCE_START][OPENER_SET_OK]', { 
+        packId: openerItem.packId, 
+        instanceNumber: openerItem.instanceNumber 
+      });
+
+      await persistStateToDatabase(null, [], openerItem);
+      
+      // REGRESSION CHECK
+      setTimeout(async () => {
+        const checkSession = await base44.entities.InterviewSession.get(sessionId);
+        const checkCurrentItem = checkSession.current_item_snapshot;
+        
+        if (!checkCurrentItem || checkCurrentItem.type !== 'v3_pack_opener' || checkCurrentItem.instanceNumber !== nextInstanceNumber) {
+          console.error('[MI_GATE][ADVANCE_FAILED]', {
+            packId: gate.packId,
+            expectedInstanceNumber: nextInstanceNumber,
+            actualItemType: checkCurrentItem?.type,
+            actualInstanceNumber: checkCurrentItem?.instanceNumber,
+            actualItemId: checkCurrentItem?.id
+          });
+        } else {
+          console.log('[MI_GATE][ADVANCE_VERIFIED]', {
+            packId: gate.packId,
+            toInstanceNumber: nextInstanceNumber,
+            currentItem_SType: checkCurrentItem.type
+          });
+        }
+      }, 200);
+    } else {
+      console.log('[MI_GATE][EXIT_LOOP]', {
+        packId: gate.packId,
+        instanceNumber: gate.instanceNumber,
+        reason: "NO",
+        nextItemKindOrType: 'question'
+      });
+      
+      await logPackExited(sessionId, {
+        packId: gate.packId,
+        instanceNumber: gate.instanceNumber
+      });
+      
+      // FIX B: Cleanup V3 UI state when exiting pack via legacy path (if somehow reached)
+      const legacyV3UiHistoryLen = v3ProbeDisplayHistory_S.length;
+      if (legacyV3UiHistoryLen > 0 || v3ProbingActive || v3ProbingContext_S) {
+        const legacyLoopKey = `${sessionId}:${gate.categoryId}:${gate.instanceNumber}`;
+        
+        console.log('[V3_UI][CLEANUP_ON_PACK_EXIT_LEGACY]', {
+          packId: gate.packId,
+          instanceNumber: gate.instanceNumber,
+          clearedHistoryLen: legacyV3UiHistoryLen,
+          clearedContext: !!v3ProbingContext_S,
+          loopKey: legacyLoopKey,
+          reason: 'LEGACY_EXIT_PATH'
+        });
+        
+        setV3ProbeDisplayHistory([]);
+        setV3ProbingActive(false);
+        setV3ProbingContext(null);
+        setV3ActivePromptText(null);
+        setV3PromptPhase('IDLE');
+        v3ActiveProbeQuestionRef.current = null;
+        v3ActiveProbeQuestionLoopKeyRef.current = null;
+      }
+
+      if (gate.baseQuestionId) {
+        const freshAfterGateNo = await refreshTranscriptFromDB('gate_no_before_advance');
+        await advanceToNextBaseQuestion(gate.baseQuestionId, freshAfterGateNo);
+      }
+    }
+  };
+
+  __cqHookSite('H12P_11:useCallback@L8022');
+  __cqHookSite('H12P2_N10:useCallback@L8037');
+  const handleAnswer = React.useCallback(async (value) => {
+    if (__cqBootNotReady) return;
+    return handleAnswerImpl({
+      // State values
+      activeUiItem_S_SAFE,
+      v3PromptPhase,
+      bottomBarModeSOT,
+      bottomBarModeSOT_SAFE,
+      currentItem_S,
+      effectiveItemType_SAFE,
+      engine_S,
+      isCommitting,
+      sessionId,
+      session,
+      activeV2Pack,
+      v2ClarifierState,
+      v2PackMode,
+      aiFollowupCounts,
+      aiProbingEnabled,
+      aiProbingDisabledForSession,
+      currentFollowUpAnswers,
+      multiInstanceGate,
+      queue,
+      dbTranscript,
+      sections,
+      currentSectionIndex,
+      sectionCompletionMessage,
+      
+      // Refs
+      submittedKeysRef,
+      lastIdempotencyLockedRef,
+      lastV3SubmitLockKeyRef,
+      committingItemIdRef,
+      canonicalTranscriptRef,
+      completedSectionKeysRef,
+      inputRef,
+      lastLoggedV2PackFieldRef,
+      triggeredPacksRef,
+      recentlySubmittedUserAnswersRef,
+      v3ActivePromptTextRef,
+      v3BaseQuestionIdRef,
+      v3OpenerFailsafeTimerRef,
+      v3OpenerSubmitLoopKeyRef,
+      v3OpenerSubmittedRef,
+      v3OpenerSubmitTokenRef,
+      v3OptimisticPersistRef,
+      v3PackEntryContextRef,
+      v3PackEntryFailsafeTimerRef,
+      v3PackEntryFailsafeTokenRef,
+      v3ProbingActiveRef,
+      
+      // State setters
+      setActiveV2Pack,
+      setAiFollowupCounts,
+      setBackendQuestionTextMap,
+      setCompletedSectionsCount,
+      setCurrentFieldProbe,
+      setCurrentFollowUpAnswers,
+      setCurrentIdeCategoryId,
+      setCurrentIdeQuestion,
+      setCurrentIncidentId,
+      setCurrentItem,
+      setDbTranscriptSafe,
+      setError,
+      setFieldSuggestions,
+      setInIdeProbingLoop,
+      setInput,
+      setIsCommitting,
+      setIsInvokeLLMMode,
+      setIsWaitingForAgent,
+      setPendingSectionTransition,
+      setQueue,
+      setSectionCompletionMessage,
+      setShowCompletionModal,
+      setUiBlocker,
+      setV2ClarifierState,
+      setV2PackMode,
+      setV2PackTriggerQuestionId,
+      setV3ProbeDisplayHistory,
+      setV3ProbingActive,
+      setV3ProbingContext,
+      setValidationHint,
+      
+      // Functions
+      advanceToNextBaseQuestion,
+      onFollowupPackComplete,
+      persistStateToDatabase,
+      refreshTranscriptFromDB,
+      clearDraft,
+      navigate,
+      logOnce,
+      runV2FieldProbeIfNeeded,
+      saveFollowUpAnswer,
+      saveV2PackFieldResponse,
+      getPackMaxAiFollowups,
+      generateFieldSuggestions,
+      hasQuestionBeenLogged,
+      AlertCircle,
+      Button,
+      cqIsItemCommitting,
+    }, value);
+  }, [currentItem_S, engine_S, queue, dbTranscript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, sectionCompletionMessage, activeV2Pack, v2PackMode, aiFollowupCounts, aiProbingEnabled, aiProbingDisabledForSession, refreshTranscriptFromDB]);
+
+
+  // HELPER: Append CTA acknowledgement to transcript (section transition click)
+  __cqHookSite('H12P_12:useCallback@L10704');
+  const appendCtaAcknowledgeToTranscript = React.useCallback(async ({ sessionId, currentSectionId, nextSectionId }) => {
+    if (__cqBootNotReady) return;
+    try {
+      // Build deterministic stableKey
+      const stableKey = `cta-ack:${sessionId}:${currentSectionId}:${nextSectionId}`;
+      
+      // Dedupe check
+      const freshSession = await base44.entities.InterviewSession.get(sessionId);
+      const currentTranscript = freshSession.transcript_snapshot || [];
+      
+      if (currentTranscript.some(e => e.stableKey === stableKey)) {
+        console.log('[CTA][ACK_DEDUPED]', { stableKey, reason: 'Already in transcript' });
+        return currentTranscript;
+      }
+      
+      console.log('[CTA][ACK_APPEND_START]', { stableKey, currentSectionId, nextSectionId });
+      
+      // STATIC IMPORT: Use top-level import
+      const updatedTranscript = await appendUserMessageImport(sessionId, currentTranscript, "Begin next section", {
+        id: `cta-ack-${sessionId}-${currentSectionId}-${nextSectionId}`,
+        stableKey,
+        messageType: 'CTA_ACK',
+        effectiveItemType: 'section_transition',
+        bottomBarModeSOT: 'CTA',
+        sectionId: currentSectionId,
+        nextSectionId,
+        visibleToCandidate: true
+      });
+      
+      console.log('[CTA][ACK_APPEND_OK]', { 
+        stableKey, 
+        transcriptLenAfter: updatedTranscript.length,
+        transcriptLenBefore: currentTranscript.length
+      });
+      
+      // Local invariant check
+      const foundInReturned = updatedTranscript.some(e => e.stableKey === stableKey);
+      if (!foundInReturned) {
+        console.error('[CTA][ACK_LOCAL_MISSING_AFTER_WRITE]', { 
+          stableKey, 
+          action: 'refresh_forced',
+          transcriptLenAfter: updatedTranscript.length
+        });
+      }
+      
+      return updatedTranscript;
+    } catch (err) {
+      console.error('[CTA][ACK_APPEND_ERROR]', { error: err.message });
+      return null;
+    }
+  }, [sessionId]);
+
+  // TDZ_FIX: Duplicate removed - helper now declared at line 1712 (before repair pass useEffect)
+
+  // HELPER: Prioritize missing required anchors for fallback prompting
+  const prioritizeMissingRequired = (missingRequired) => {
+    if (!Array.isArray(missingRequired) || missingRequired.length <= 1) {
+      return missingRequired; // No sorting needed for 0 or 1 items
+    }
+    
+    // Priority scoring function (pack-agnostic semantic heuristics)
+    const getPriorityScore = (anchorId) => {
+      const id = String(anchorId).toLowerCase();
+      
+      // Tier 1: Position/role/title (most important - defines the context)
+      if (/position|role|title|rank/i.test(id)) return 100;
+      
+      // Tier 2: Agency/employer/organization (second most important)
+      if (/agency|department|employer|organization/i.test(id)) return 80;
+      
+      // Tier 3: Date/temporal (helpful for context)
+      if (/date|month|year|when|approx/i.test(id)) return 60;
+      
+      // Tier 4: Outcome/result/status (less critical for initial context)
+      if (/outcome|result|status/i.test(id)) return 40;
+      
+      // Default: preserve original order
+      return 0;
+    };
+    
+    // Stable sort: higher scores first, preserve relative order for ties
+    const sorted = [...missingRequired].sort((a, b) => {
+      const scoreA = getPriorityScore(a);
+      const scoreB = getPriorityScore(b);
+      
+      if (scoreA !== scoreB) return scoreB - scoreA; // Descending
+      
+      // Tie: preserve original order
+      return missingRequired.indexOf(a) - missingRequired.indexOf(b);
+    });
+    
+    return sorted;
+  };
+
+  // HELPER: Transition to multi-instance "another instance?" gate (reusable)
+  const transitionToAnotherInstanceGate = React.useCallback(async (v3Context) => {
+    if (__cqBootNotReady) return;
+    const { packId, categoryId, categoryLabel, instanceNumber, packData } = v3Context || v3ProbingContext_S;
+    const baseQuestionId = v3BaseQuestionIdRef.current;
+    
+    console.log('[V3_PACK][ASK_ANOTHER_INSTANCE]', {
+      packId,
+      instanceNumber,
+      loopKey: `${sessionId}:${categoryId}:${instanceNumber || 1}`
+    });
+    
+    // STABILITY SNAPSHOT: MI_GATE transition initiated
+    getStabilitySnapshotSOT("MI_GATE_SHOW");
+    
+    // HUMAN LABEL RESOLUTION: Ensure categoryLabel is human-friendly
+    let humanCategoryLabel = categoryLabel;
+    
+    // Try pack config first
+    const packConfigForLabel = FOLLOWUP_PACK_CONFIGS?.[packId];
+    if (packConfigForLabel?.instancesLabel) {
+      humanCategoryLabel = packConfigForLabel.instancesLabel;
+    } else if (packData?.pack_name) {
+      // Try pack metadata
+      humanCategoryLabel = packData.pack_name;
+    } else if (categoryId) {
+      // Fallback: Convert categoryId to title case
+      humanCategoryLabel = categoryId
+        .replace(/_/g, ' ')
+        .toLowerCase()
+        .replace(/\b\w/g, c => c.toUpperCase());
+    }
+    
+    // Default fallback if all else fails
+    if (!humanCategoryLabel || humanCategoryLabel.trim() === '' || /^[A-Z_]+$/.test(humanCategoryLabel)) {
+      humanCategoryLabel = 'incident';
+    }
+    
+    console.log('[MI_GATE][HUMAN_LABEL_RESOLVED]', {
+      packId,
+      categoryId,
+      labelPreview: humanCategoryLabel,
+      source: packConfigForLabel?.instancesLabel ? 'packConfig' : 
+              packData?.pack_name ? 'packData' : 
+              categoryId ? 'categoryId_formatted' : 'fallback'
+    });
+    
+    // MINIMAL MI_GATE GUARD: Block if required fields incomplete (V3 packs only)
+    const packConfig = FOLLOWUP_PACK_CONFIGS?.[packId];
+    const isV3Pack = packConfig?.isV3Pack === true || packConfig?.engine_SVersion === 'v3';
+    
+    if (isV3Pack) {
+      // REQUIRED-FIELD AUDIT: Check incident data directly (do not trust opener merge status)
+      let missingRequired = [];
+      let existingIncidentId = null;
+      
+      try {
+        // Fetch current session to inspect incident facts
+        const currentSession = await base44.entities.InterviewSession.get(sessionId);
+        const incidents = currentSession?.incidents || [];
+        
+        // Find incident for this pack/instance
+        const incident = incidents.find(inc => 
+          (inc.category_id === categoryId || inc.incident_type === packId) &&
+          inc.instance_number === instanceNumber
+        );
+        
+        if (incident) {
+          // Store existing incidentId for reuse
+          existingIncidentId = incident.incident_id;
+          
+          // Get required fields from pack config
+          const requiredAnchors = packConfig?.requiredAnchors || [];
+          
+          // FIX: Read incident.facts as OBJECT (not array)
+          const facts = incident.facts || {};
+          
+          // Check which required fields are missing
+          missingRequired = requiredAnchors.filter(anchor => {
+            const value = facts[anchor];
+            return value == null || String(value).trim() === '';
+          });
+          
+          console.log('[MI_GATE][REQUIRED_FIELD_AUDIT]', {
+            packId,
+            instanceNumber,
+            requiredAnchors,
+            incidentFactsKeys: Object.keys(facts),
+            missingRequired,
+            existingIncidentId
+          });
+        } else {
+          // No incident found - treat as incomplete
+          missingRequired = packConfig?.requiredAnchors || [];
+          console.log('[MI_GATE][REQUIRED_FIELD_AUDIT_NO_INCIDENT]', {
+            packId,
+            instanceNumber,
+            reason: 'Incident not found - assuming all required fields missing'
+          });
+        }
+      } catch (err) {
+        console.warn('[MI_GATE][REQUIRED_FIELD_AUDIT_ERROR]', {
+          error: err.message,
+          fallback: 'Using engine_S payload metadata'
+        });
+        // Fallback to engine_S payload if incident fetch fails
+        const payloadMissing = v3Context?.missingFields || [];
+        missingRequired = Array.isArray(payloadMissing) 
+          ? payloadMissing.map(f => f.field_id || f)
+          : [];
+      }
+      
+      // SAFETY CHECK: Block MI_GATE if required fields incomplete
+      const miGateBlocked = v3Context?.miGateBlocked === true;
+      const stopReason = v3Context?.stopReason || null;
+      
+      const shouldBlockGate = missingRequired.length > 0 || 
+                             miGateBlocked || 
+                             stopReason === 'REQUIRED_FIELDS_INCOMPLETE';
+      
+      if (shouldBlockGate) {
+        console.log('[MI_GATE][REQUIRED_FIELD_AUDIT_BLOCK]', {
+          packId,
+          instanceNumber,
+          missingRequired,
+          reason: 'Required fields incomplete - V3 probing must complete first'
+        });
+        
+        // DEADLOCK DETECTION: Check if V3 is headless (engine_S won't prompt)
+        const isV3Headless = v3ProbingActive && !hasActiveV3Prompt && bottomBarModeSOT === 'V3_WAITING';
+
+        if (isV3Headless && missingRequired.length > 0) {
+          // PHASE GATE: Only activate fallback when phase allows it
+          let fallbackPhaseSOT;
+          try {
+            fallbackPhaseSOT = computeInterviewPhaseSOT();
+          } catch (e) {
+            console.error('[PHASE_SOT][FAILOPEN]', { error: e?.message, callSite: 'transitionToAnotherInstanceGate_fallback' });
+            fallbackPhaseSOT = {
+              phase: "BOOTSTRAP",
+              allowedActions: new Set([]),
+              blockedReasons: ["Phase computation error"],
+              derivedFlags: {
+                canSubmitText: false,
+                canClickYesNo: false,
+                shouldShowPrompt: false,
+                shouldBlockInput: true,
+                shouldSuppressMiGate: true,
+                shouldSuppressFallback: true
+              }
+            };
+          }
+          
+          // Require phase to be V3_PROCESSING or V3_PROBING
+          if (fallbackPhaseSOT.phase !== "V3_PROCESSING" && fallbackPhaseSOT.phase !== "V3_PROBING") {
+            console.warn('[PHASE_BLOCK][FALLBACK]', { 
+              phase: fallbackPhaseSOT.phase, 
+              reasons: fallbackPhaseSOT.blockedReasons,
+              context: 'Fallback blocked - phase not V3_PROCESSING or V3_PROBING'
+            });
+            return; // Exit transitionToAnotherInstanceGate early
+          }
+          
+          // Check derived flag
+          if (fallbackPhaseSOT.derivedFlags.shouldSuppressFallback) {
+            console.warn('[PHASE_BLOCK][FALLBACK]', { 
+              phase: fallbackPhaseSOT.phase, 
+              reasons: fallbackPhaseSOT.blockedReasons 
+            });
+            return; // Exit transitionToAnotherInstanceGate early
+          }
+          
+          console.log('[REQUIRED_ANCHOR_FALLBACK][START]', {
+            packId,
+            instanceNumber,
+            missingRequired,
+            reason: 'v3_headless_no_prompt'
+          });
+
+          // DEFENSIVE GUARD: Define incidents from session (prevent ReferenceError)
+          let incidents = [];
+          try {
+            const currentSession = await base44.entities.InterviewSession.get(sessionId);
+            incidents = (currentSession?.incidents || []).filter(Boolean);
+
+            console.log('[FORENSIC][CRASH_GUARD_INCIDENTS_DEFINED]', {
+              hasSession: !!currentSession,
+              incidentsCount: incidents.length
+            });
+          } catch (err) {
+            console.error('[REQUIRED_ANCHOR_FALLBACK][INCIDENTS_NOT_READY]', {
+              screenMode,
+              note: 'session/incidents unavailable; skipping incident lookup',
+              error: err.message
+            });
+            // incidents remains empty array - continue with fallback-only logic
+          }
+
+          // COMBINED SATISFACTION: Recompute with fallback answers included
+          const facts = existingIncidentId && incidents.find(inc => inc.incident_id === existingIncidentId)?.facts || {};
+          const satisfiedByFacts = missingRequired.filter(anchor => {
+            const value = facts[anchor];
+            return value != null && String(value).trim() !== '';
+          });
+
+          const satisfiedByFallback = missingRequired.filter(anchor => 
+            fallbackAnsweredRef.current[anchor] === true
+          );
+
+          // Recompute missing: exclude BOTH facts-satisfied AND fallback-answered
+          const recomputedMissing = missingRequired.filter(anchor => {
+            const inFacts = facts[anchor] != null && String(facts[anchor]).trim() !== '';
+            const inFallback = fallbackAnsweredRef.current[anchor] === true;
+            return !inFacts && !inFallback;
+          });
+
+          console.log('[REQUIRED_ANCHOR_FALLBACK][MISSING_REQUIRED_COMPUTE]', {
+            initialMissingCount: missingRequired.length,
+            satisfiedByFactsCount: satisfiedByFacts.length,
+            satisfiedByFallbackCount: satisfiedByFallback.length,
+            recomputedMissingCount: recomputedMissing.length,
+            missingRequired: recomputedMissing,
+            satisfiedByFacts,
+            satisfiedByFallback
+          });
+
+          // Use recomputed list
+          missingRequired = recomputedMissing;
+
+          // If all satisfied, exit fallback immediately
+          if (missingRequired.length === 0) {
+            console.log('[REQUIRED_ANCHOR_FALLBACK][SKIP_ALL_SATISFIED]', {
+              packId,
+              instanceNumber,
+              reason: 'All required anchors satisfied by facts or fallback - no need to activate'
+            });
+            return; // Exit - don't activate fallback
+          }
+
+          // PRIORITIZE: Sort missing anchors by importance
+          const sortedMissing = prioritizeMissingRequired(missingRequired);
+
+          console.log('[REQUIRED_ANCHOR_FALLBACK][QUEUE_SORTED]', {
+            before: missingRequired,
+            after: sortedMissing
+          });
+          
+          // PERSIST FALLBACK CONTEXT: Store for submit routing (use existing incident)
+          requiredAnchorFallbackContextRef.current = {
+            packId,
+            categoryId,
+            instanceNumber,
+            incidentId: existingIncidentId // Already found in audit
+          };
+          
+          console.log('[REQUIRED_ANCHOR_FALLBACK][CONTEXT_SET]', {
+            packId,
+            categoryId,
+            instanceNumber,
+            incidentId: existingIncidentId
+          });
+          
+          // PERSIST FALLBACK QUESTION: Append assistant question to transcript (once per anchor)
+          try {
+            const questionStableKey = `required-anchor:q:${sessionId}:${categoryId}:${instanceNumber}:${sortedMissing[0]}`;
+            const currentSession = await base44.entities.InterviewSession.get(sessionId);
+            const currentTranscript = currentSession.transcript_snapshot || [];
+            
+            // Dedupe: Check if already persisted
+            if (!currentTranscript.some(e => e.stableKey === questionStableKey)) {
+              // TDZ FIX: Compute fallback question text INLINE (no closure reference)
+              const transitionPackConfig = FOLLOWUP_PACK_CONFIGS?.[packId];
+              const transitionAnchor = transitionPackConfig?.factAnchors?.find(a => a.key === sortedMissing[0]);
+              let transitionQuestionText = transitionAnchor?.label 
+                ? `What ${transitionAnchor.label}?`
+                : `Please provide: ${sortedMissing[0]}`;
+              
+              // MUST-HAVE ASSERTION: Ensure questionText is never empty
+              if (!transitionQuestionText || transitionQuestionText.trim() === '') {
+                transitionQuestionText = `Please provide: ${sortedMissing[0]}`;
+              }
+              
+              const appendAssistantMessage = appendAssistantMessageImport;
+              
+              await appendAssistantMessage(sessionId, currentTranscript, transitionQuestionText, {
+                id: `required-anchor-q-${sessionId}-${categoryId}-${instanceNumber}-${sortedMissing[0]}`,
+                stableKey: questionStableKey,
+                messageType: 'REQUIRED_ANCHOR_QUESTION',
+                packId,
+                categoryId,
+                instanceNumber,
+                anchor: sortedMissing[0],
+                kind: 'REQUIRED_ANCHOR_FALLBACK',
+                visibleToCandidate: true
+              });
+              
+              console.log('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_APPEND_OK]', {
+                stableKey: questionStableKey,
+                anchor: sortedMissing[0],
+                preview: transitionQuestionText
+              });
+            } else {
+              console.log('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_EXISTS]', {
+                stableKey: questionStableKey,
+                anchor: sortedMissing[0]
+              });
+            }
+          } catch (err) {
+            console.error('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_ERROR]', {
+              error: err.message,
+              anchor: sortedMissing[0]
+            });
+          }
+          
+          // TAKE OWNERSHIP: Disable V3 completely to prevent competition
+          setV3ProbingActive(false);
+          setV3ProbingContext(null);
+          setV3ActivePromptText(null);
+          
+          // Clear V3 optimistic markers and failsafe timers
+          if (v3OpenerFailsafeTimerRef.current) {
+            clearTimeout(v3OpenerFailsafeTimerRef.current);
+            v3OpenerFailsafeTimerRef.current = null;
+          }
+          v3OpenerSubmitTokenRef.current = null;
+          v3OpenerSubmitLoopKeyRef.current = null;
+          
+          // Clear optimistic persist markers
+          const loopKey = `${sessionId}:${categoryId}:${instanceNumber}`;
+          Object.keys(v3OptimisticPersistRef.current).forEach(key => {
+            if (key.includes(loopKey)) {
+              delete v3OptimisticPersistRef.current[key];
+            }
+          });
+          
+          // QUESTION TEXT SOT: Use resolver for human-readable question
+          const contextFallbackQuestionText = resolveAnchorToHumanQuestion(
+            sortedMissing[0],
+            packId
+          );
+          
+          console.log('[REQUIRED_ANCHOR_FALLBACK][QUESTION_TEXT_RESOLVED]', {
+            anchor: sortedMissing[0],
+            textPreview: contextFallbackQuestionText
+          });
+          
+          // PERSIST PROMPT LANE CONTEXT: Non-chat context item for UI rendering
+          const contextStableKey = `fallback-prompt:${sessionId}:${categoryId}:${instanceNumber}:${sortedMissing[0]}`;
+          
+          console.log('[CQ_TRANSCRIPT][FALLBACK_PROMPT_CONTEXT_PERSIST_BEGIN]', {
+            stableKey: contextStableKey,
+            anchor: sortedMissing[0]
+          });
+          
+          try {
+            const appendAssistantMessage = appendAssistantMessageImport;
+            const contextSession = await base44.entities.InterviewSession.get(sessionId);
+            const contextTranscript = contextSession.transcript_snapshot || [];
+            
+            await appendAssistantMessage(sessionId, contextTranscript, contextFallbackQuestionText, {
+              id: `fallback-context-${sessionId}-${categoryId}-${instanceNumber}-${sortedMissing[0]}`,
+              stableKey: contextStableKey,
+              messageType: 'PROMPT_LANE_CONTEXT',
+              packId,
+              categoryId,
+              instanceNumber,
+              anchor: sortedMissing[0],
+              contextKind: 'REQUIRED_ANCHOR_FALLBACK',
+              isNonChat: true,
+              visibleToCandidate: true
+            });
+            
+            console.log('[CQ_TRANSCRIPT][FALLBACK_PROMPT_CONTEXT_PERSIST_OK]', {
+              stableKey: contextStableKey,
+              anchor: sortedMissing[0]
+            });
+            
+            // Refresh to pull context into local state
+            await refreshTranscriptFromDB('fallback_context_persisted');
+          } catch (err) {
+            console.error('[CQ_TRANSCRIPT][FALLBACK_PROMPT_CONTEXT_ERROR]', {
+              error: err.message,
+              anchor: sortedMissing[0]
+            });
+            // Non-blocking - continue without context if persist fails
+          }
+          
+          // ACTIVATE FALLBACK: Ask for required anchors deterministically (prioritized)
+          setRequiredAnchorFallbackActive(true);
+          setRequiredAnchorQueue([...sortedMissing]);
+          setRequiredAnchorCurrent(sortedMissing[0]);
+          
+          // STABILITY SNAPSHOT: Fallback activated
+          getStabilitySnapshotSOT("FALLBACK_ON");
+          
+          // CLEAR STUCK STATE + Set phase to ANSWER_NEEDED (enables Send button)
+          setIsCommitting(false);
+          setV3PromptPhase('ANSWER_NEEDED');
+          
+          // TRANSCRIPT CONTEXT PRESERVED
+          console.log('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_CONTEXT_PRESERVED]', {
+            transcriptLen: canonicalTranscriptRef.current.length,
+            reason: 'Fallback activated - existing transcript preserved'
+          });
+          
+          console.log('[REQUIRED_ANCHOR_FALLBACK][TAKE_OWNERSHIP]', {
+            packId,
+            instanceNumber,
+            anchor: sortedMissing[0],
+            note: 'Set v3ProbingActive=false + cleared optimistic/failsafe + enabled input'
+          });
+          
+          console.log('[REQUIRED_ANCHOR_FALLBACK][PROMPT]', {
+            anchor: sortedMissing[0]
+          });
+          
+          return; // Exit - fallback will render prompt
+        } else if (!isV3Headless) {
+          console.log('[REQUIRED_ANCHOR_FALLBACK][SKIP]', {
+            reason: 'V3_has_prompt_or_not_waiting',
+            v3ProbingActive,
+            hasActiveV3Prompt,
+            bottomBarModeSOT
+          });
+        }
+        
+        // CLEAR STUCK STATE: Prevent "Thinking..." limbo
+        setIsCommitting(false);
+        setV3PromptPhase('IDLE'); // Reset phase to allow new prompt
+        
+        // FALLBACK OSCILLATION GUARD: Prevent infinite re-activation loops
+        const reactivationKey = `${sessionId}:${packId}:${instanceNumber}`;
+        const reactivationCount = fallbackReactivationCountRef.current.get(reactivationKey) || 0;
+        
+        if (reactivationCount >= 2) {
+          // MAX RE-ACTIVATIONS REACHED - force forward progress to MI_GATE
+          let currentPhaseSOT;
+          try {
+            currentPhaseSOT = computeInterviewPhaseSOT();
+          } catch (e) {
+            console.error('[PHASE_SOT][FAILOPEN]', { error: e?.message, callSite: 'transitionToAnotherInstanceGate_oscillation' });
+            currentPhaseSOT = {
+              phase: "BOOTSTRAP",
+              allowedActions: new Set([]),
+              blockedReasons: ["Phase computation error"],
+              derivedFlags: {
+                canSubmitText: false,
+                canClickYesNo: false,
+                shouldShowPrompt: false,
+                shouldBlockInput: true,
+                shouldSuppressMiGate: true,
+                shouldSuppressFallback: true
+              }
+            };
+          }
+          console.warn('[FALLBACK_OSCILLATION_GUARD][STOP]', {
+            key: reactivationKey,
+            count: reactivationCount,
+            phase: currentPhaseSOT.phase,
+            reason: 'Max fallback re-activation cycles reached - forcing MI_GATE to prevent oscillation'
+          });
+          
+          // Clear fallback state and force MI_GATE (skip re-activation)
+          setRequiredAnchorFallbackActive(false);
+          setRequiredAnchorCurrent(null);
+          setRequiredAnchorQueue([]);
+          setV3PromptPhase('IDLE');
+          setIsCommitting(false);
+          
+          // Allow gate to show (missing fields will be logged but not block progression)
+          console.log('[FALLBACK_OSCILLATION_GUARD][FORCE_PROGRESS]', {
+            packId,
+            instanceNumber,
+            missingRequired,
+            action: 'Allowing MI_GATE despite incomplete fields - preventing deadlock'
+          });
+          
+          // Do NOT re-activate V3 probing - return and let gate show
+          return;
+        }
+        
+        // Increment re-activation counter
+        fallbackReactivationCountRef.current.set(reactivationKey, reactivationCount + 1);
+        console.log('[FALLBACK_OSCILLATION_GUARD][INC]', {
+          key: reactivationKey,
+          count: reactivationCount + 1,
+          reason: 'Re-activating V3 probing after fallback incomplete'
+        });
+        
+        // RE-ACTIVATE V3 PROBING: Ensure engine_S continues collecting facts
+        setV3ProbingActive(true);
+        setV3ProbingContext({
+          packId,
+          categoryId,
+          categoryLabel,
+          baseQuestionId,
+          questionCode: engine_S?.QById?.[baseQuestionId]?.question_id,
+          sectionId: engine_S?.QById?.[baseQuestionId]?.section_id,
+          instanceNumber,
+          incidentId: existingIncidentId, // Reuse existing incident (prevents duplicate INCIDENT_CREATED)
+          packData
+        });
+        
+        setCurrentItem({
+          id: `v3-probing-${packId}-${instanceNumber}`,
+          type: 'v3_probing',
+          packId,
+          categoryId,
+          instanceNumber,
+          baseQuestionId
+        });
+        
+        console.log('[MI_GATE][REQUIRED_FIELD_AUDIT_KICK_PROBING]', {
+          packId,
+          instanceNumber,
+          missingRequired,
+          existingIncidentId,
+          reactivationCount: reactivationCount + 1,
+          note: 'Cleared submit state + re-triggered V3 probing render/phase transition'
+        });
+        
+        return; // HARD BLOCK - do not activate gate
+      }
+      
+      // All checks passed - log allowance
+      console.log('[MI_GATE][REQUIRED_FIELD_AUDIT_PASS]', {
+        packId,
+        instanceNumber,
+        requiredComplete: true,
+        reason: 'All required fields complete - allowing MI_GATE'
+      });
+    }
+    
+    const gatePromptText = `Do you have another ${humanCategoryLabel || 'incident'} to report?`;
+    const gateItemId = `multi-instance-gate-${packId}-${instanceNumber}`;
+    const gateStableKey = `mi-gate:${packId}:${instanceNumber}`;
+    
+    // FIX F: Check if gate already answered (prevent re-show)
+    const gateAnswerKey = `mi-gate:${packId}:${instanceNumber}:a`;
+    const alreadyAnswered = transcriptSOT_S.some(e => e.stableKey === gateAnswerKey);
+    
+    if (alreadyAnswered) {
+      console.log('[MI_GATE][SKIP_ALREADY_ANSWERED]', {
+        packId,
+        instanceNumber,
+        stableKey: gateAnswerKey,
+        foundAnswer: true,
+        reason: 'Gate already answered - advancing immediately'
+      });
+      
+      // Advance to next base question instead of showing gate
+      if (baseQuestionId) {
+        const freshForAdvance = await refreshTranscriptFromDB('gate_skip_already_answered');
+        await advanceToNextBaseQuestion(baseQuestionId, freshForAdvance);
+      }
+      return;
+    }
+    
+    console.log('[MULTI_INSTANCE_GATE][SHOW]', {
+      packId,
+      instanceNumber,
+      stableKey: gateStableKey,
+      shouldOfferAnotherInstance: true
+    });
+    
+    // ATOMIC STATE TRANSITION: batch to avoid intermediate TEXT_INPUT footer
+    unstable_batchedUpdates(() => {
+      // PART A.3: Force-clear V3 prompt state before MI_GATE
+      console.log('[MI_GATE][V3_PROMPT_CLEARED_ON_ENTER]', {
+        packId,
+        instanceNumber,
+        v3PromptPhase,
+        clearedPromptText: !!v3ActivePromptText,
+        clearedPromptId: !!lastV3PromptSnapshotRef.current?.promptId
+      });
+
+      // Fully exit V3 mode and clear prompts
+      setV3ProbingActive(false);
+      setV3ActivePromptText(null);
+      setV3PendingAnswer(null);
+      setV3ProbingContext(null);
+      setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
+      setUiBlocker(null);
+
+      // LIFECYCLE: Reset phase to IDLE on gate transition
+      setV3PromptPhase("IDLE");
+
+      // PART B FIX: NEVER clear UI-only history during transition to gate
+      // UI history must persist so user can see their V3 probe Q/A in chat
+      // Only clear on explicit session end or new session start
+      // TDZ FIX: Read state via functional update (not direct reference during batch)
+      setV3ProbeDisplayHistory(prev => {
+        console.log('[V3_UI_HISTORY][PRESERVE_ON_GATE]', { 
+          reason: 'TRANSITION_TO_GATE', 
+          packId, 
+          instanceNumber,
+          uiHistoryLen: prev.length,
+          lastItemsPreview: prev.slice(-2).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
+          action: 'PRESERVE (not clearing)'
+        });
+        return prev; // No mutation - just logging fresh state
+      });
+
+      // C) Clear active probe refs AND any stale prompt state
+      v3ActiveProbeQuestionRef.current = null;
+      v3ActiveProbeQuestionLoopKeyRef.current = null;
+      
+      // C) Clear stale V3 prompt rendering flags (prevents lingering prompt cards)
+      setV3ActivePromptText(null);
+      v3ActivePromptTextRef.current = null;
+      lastRenderedV3PromptKeyRef.current = null;
+      
+      console.log('[MI_GATE][V3_PROMPT_CLEARED_ON_ENTER]', {
+        packId,
+        instanceNumber,
+        clearedPromptText: true,
+        clearedPromptKey: true,
+        reason: 'Entering MI_GATE - preventing stale V3 prompt cards'
+      });
+
+      // Set up multi-instance gate as first-class currentItem_S
+      const gateItem = {
+        id: gateItemId,
+        type: 'multi_instance_gate',
+        packId,
+        categoryId,
+        categoryLabel,
+        promptText: gatePromptText,
+        instanceNumber,
+        baseQuestionId,
+        packData
+      };
+      setMultiInstanceGate({
+        active: true,
+        packId,
+        categoryId,
+        categoryLabel: humanCategoryLabel,
+        promptText: gatePromptText,
+        instanceNumber,
+        baseQuestionId,
+        packData
+      });
+      setCurrentItem(gateItem);
+    });
+    
+    // POST-MI_GATE VERIFICATION: Check fallback answers survived
+    requestAnimationFrame(() => {
+      const fallbackAnswerCount = canonicalTranscriptRef.current.filter(e => 
+        e.stableKey && e.stableKey.startsWith('fallback-answer:')
+      ).length;
+      
+      console.log('[CQ_TRANSCRIPT][POST_MIGATE_VERIFY_FALLBACK_ANSWERS]', {
+        fallbackAnswerCount,
+        transcriptLen: canonicalTranscriptRef.current.length,
+        packId,
+        instanceNumber
+      });
+    });
+    
+    // PART A: DO NOT append gate to transcript while active (prevents flicker)
+    // Gate renders from currentItem_S.promptText (PROMPT_LANE source)
+    // Will append Q+A to transcript ONLY after user answers
+    console.log('[MI_GATE][RENDER_SOURCE]', {
+      source: 'PROMPT_LANE',
+      stableKey: gateStableKey,
+      packId,
+      instanceNumber,
+      humanLabel: humanCategoryLabel
+    });
+    
+    // State is set - gate will render from currentItem_S, not transcript
+    await persistStateToDatabase(null, [], {
+      id: gateItemId,
+      type: 'multi_instance_gate',
+      packId
+    });
+  }, [v3ProbingContext_S, sessionId, persistStateToDatabase]);
+
+  // V3 EXIT: Idempotent exit function (only runs once)
+  const exitV3Once = React.useCallback((reason, payload) => {
+    if (__cqBootNotReady) return;
+    if (exitV3HandledRef.current) {
+      console.log('[EXIT_V3][SKIP] Already handled');
+      return;
+    }
+
+    exitV3HandledRef.current = true;
+    console.log('[EXIT_V3][ONCE]', { reason, baseQuestionId: v3BaseQuestionIdRef.current });
+    
+    // FAILSAFE CANCEL: Exiting probing - cancel opener failsafe
+    if (v3OpenerFailsafeTimerRef.current) {
+      clearTimeout(v3OpenerFailsafeTimerRef.current);
+      v3OpenerFailsafeTimerRef.current = null;
+      v3OpenerSubmitTokenRef.current = null;
+      v3OpenerSubmitLoopKeyRef.current = null;
+      const loopKey = payload?.packId ? `${sessionId}:${payload.categoryId || 'unknown'}:${payload.instanceNumber || 1}` : 'unknown';
+      console.log('[V3_FAILSAFE][CANCEL_ON_EXIT]', { loopKey, reason });
+    }
+
+    // Queue transition (executed in useEffect)
+    setPendingTransition({
+      type: 'EXIT_V3',
+      payload: { ...payload, reason }
+    });
+  }, [sessionId]);
+
+  // V3 OPENER PERSISTENCE: DISABLED - Append on submit only (prevents duplicate during active state)
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    if (!activeUiItem_S || activeUiItem_S_SAFE.kind !== "V3_OPENER" || !currentItem_S) return;
+
+    const stableKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
+
+    // DISABLED: Do NOT append during active opener step - submit handler owns this
+    console.log('[V3_OPENER][PERSIST_EFFECT_DISABLED]', { 
+      stableKey,
+      packId: currentItem_S.packId,
+      instanceNumber: currentItem_S.instanceNumber,
+      reason: 'Persist on submit only' 
+    });
+    
+    // Effect is now a NO-OP for history persistence
+    // History append happens in handleAnswer after submission
+  }, [activeUiItem_S_SAFE?.kind, currentItem_S]);
+
+  // V3 probing completion handler - ENFORCES required fields completion before MI_GATE
+  const handleV3ProbingComplete = React.useCallback(async (result) => {
+    if (__cqBootNotReady) return;
+    const { packId, categoryId, instanceNumber, nextAction, stopReason, missingFields } = result || {};
+    
+    // REQUIRED FIELDS GATE: Block MI_GATE if any required fields missing
+    const hasMissingRequired = Array.isArray(missingFields) && missingFields.length > 0;
+    
+    if (hasMissingRequired) {
+      console.error('[UI_CONTRACT][MI_GATE_SUPPRESSED_REQUIRED_FIELDS]', {
+        packId,
+        instanceNumber,
+        reason: 'missing_required_fields',
+        nextAction,
+        stopReason,
+        missingCount: missingFields.length,
+        missingFieldIds: missingFields.map(f => f.field_id || f).join(',')
+      });
+      
+      // DO NOT call exitV3Once - keep probing active
+      // Frontend should re-enter TEXT_INPUT mode and wait for next probe question
+      return;
+    }
+    
+    // All required fields complete - allow exit
+    exitV3Once('PROBING_COMPLETE', result);
+  }, [exitV3Once]);
+
+  // V3 transcript update handler - BLOCK V3 probe prompts from appending
+  const handleV3TranscriptUpdate = React.useCallback(async (entry) => {
+    if (__cqBootNotReady) return;
+    // V3 UI CONTRACT: Hard-block V3 probe prompts from EVER entering transcript
+    const entryType = entry?.type || entry?.messageType || '';
+    const entrySource = entry?.source || entry?.meta?.source || '';
+    const isProbePrompt = entry?.isProbePrompt === true;
+    const hasFieldKey = !!entry?.fieldKey;
+    
+    // Detection: Multiple signals for V3 probe prompts
+    const isV3ProbePrompt = 
+      entryType === 'v3_probe_question' ||
+      entryType === 'V3_PROBE_ASKED' ||
+      entryType === 'V3_PROBE_PROMPT' ||
+      entryType === 'V3_PROBE_QUESTION' ||
+      entryType === 'V3_PROMPT' ||
+      entryType === 'V3_PROBE' ||
+      entryType === 'ai_probe_question' ||
+      (entry?.role === 'assistant' && isProbePrompt) ||
+      (entrySource.includes('v3') && entrySource.includes('probe')) ||
+      (hasFieldKey && (entryType.includes('probe') || entryType.includes('V3')));
+    
+    if (isV3ProbePrompt) {
+      console.error('[V3_UI_CONTRACT][BLOCKED_APPEND]', {
+        messageType: entryType,
+        preview: (entry?.text || entry?.questionText || '').slice(0, 80),
+        source: entrySource,
+        fieldKey: entry?.fieldKey || null,
+        reason: 'V3 probe prompts must ONLY appear in input placeholder, NEVER in transcript'
+      });
+      return; // DROP - do not append
+    }
+    
+    // V3 messages written to DB by V3ProbingLoop
+    // We refresh ONCE when V3 completes, not per message (prevents refresh storm)
+    console.log('[V3_TRANSCRIPT_UPDATE]', { type: entry?.type, deferred: true });
+  }, []);
+
+  // V3 ATOMIC PROMPT COMMIT: All state changes for activating V3 prompt in bottom bar
+  const commitV3PromptToBottomBar = React.useCallback(async ({ packId, instanceNumber, loopKey, promptText, promptId: providedPromptId, categoryId }) => {
+    if (__cqBootNotReady) return;
+    // FIX A: Generate deterministic promptId ALWAYS (never null)
+    const promptId = providedPromptId || `${loopKey}:${promptIdCounterRef.current++}`;
+    
+    if (!providedPromptId) {
+      console.log('[V3_PROMPT][PROMPTID_GENERATED]', {
+        loopKey,
+        promptId,
+        reason: 'missing_providedPromptId'
+      });
+    }
+    
+    console.log('[V3_PROMPT_COMMIT]', {
+      packId,
+      categoryId,
+      instanceNumber,
+      loopKey,
+      promptId,
+      providedPromptId: !!providedPromptId,
+      preview: promptText?.substring(0, 60)
+    });
+    
+    // FIX A: Log stable promptId assignment
+    console.log('[V3_PROMPT][PROMPT_ID_ASSIGNED]', {
+      loopKey,
+      promptId,
+      categoryId,
+      reason: 'commit',
+      promptPreview: promptText?.substring(0, 60) || ''
+    });
+
+    // FIX B: SNAPSHOT - Create and store BEFORE any guards/blocks
+    const snapshot = {
+    promptId,
+    loopKey,
+    packId,
+    categoryId,
+    instanceNumber,
+    promptText,
+    expectedBottomBarMode: 'TEXT_INPUT',
+    committedAt: Date.now()
+    };
+    lastV3PromptSnapshotRef.current = snapshot;
+    
+    // FIX B: Add to snapshots array immediately (prevents NO_SNAPSHOT watchdog error)
+    setV3PromptSnapshots(prev => {
+      const exists = prev.some(s => s.promptId === promptId);
+      if (exists) {
+        console.log('[V3_PROMPT_SNAPSHOT][EXISTS]', { promptId, loopKey });
+        return prev;
+      }
+      
+      const newSnapshot = { promptId, loopKey, promptText, createdAt: Date.now() };
+      console.log('[V3_PROMPT][SNAPSHOT_RECOVERED]', { promptId, loopKey, reason: 'commit_immediate' });
+      return [...prev, newSnapshot];
+    });
+    
+    // CHANGE 1: HARD BLOCK - V3 probe prompts MUST NOT write to transcript (UI contract)
+    // They render ONLY in prompt lane card, never as chat history
+    console.log('[V3_UI_CONTRACT][BLOCK_TRANSCRIPT_WRITE]', {
+      reason: 'V3 probe prompts render in prompt lane only - blocking transcript append',
+      stableKey: `v3-probe-q:${loopKey}:${promptId}`,
+      loopKey,
+      promptId,
+      preview: promptText?.substring(0, 60) || null,
+      action: 'BLOCKED'
+    });
+    
+    // DO NOT append to transcript - return early
+    console.log('[V3_UI_CONTRACT][INVARIANT]', { promptId, loopKey, action: 'TRANSCRIPT_WRITE_BLOCKED' });
+    return promptId;
+
+    // REGRESSION GUARD: Capture transcript length before V3 prompt commit
+    const transcriptLenBeforePromptCommit = dbTranscript.length;
+    
+    // ============================================================================
+    // ALREADY ANSWERED GUARD: Multi-tier detection to prevent re-ask
+    // ============================================================================
+    // TIER 1: Match by promptId (strongest - invariant to Q commit failures)
+    const foundByPromptId = dbTranscript.some(e => 
+      (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER') &&
+      e.meta?.promptId === promptId
+    );
+    
+    // TIER 2: Latest-answer alignment (prevents false skip for new probes in same incident)
+    const stableKeyPrefix = `v3-probe-a:${sessionId}:${categoryId}:${instanceNumber}:`;
+    const answersByPrefix = dbTranscript.filter(e => 
+      e.stableKey?.startsWith(stableKeyPrefix)
+    );
+    
+    // Compute current prompt signature for matching
+    const normalizeForSignature = (s) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    const currentPromptSignature = normalizeForSignature(promptText?.substring(0, 100) || '');
+    
+    let foundByPrefixAligned = false;
+    let tier2LatestAnswerPromptId = null;
+    let tier2LatestAnswerPromptSignature = null;
+    
+    if (answersByPrefix.length > 0) {
+      // Find LATEST answer (by createdAt timestamp or index)
+      const latestAnswer = answersByPrefix.reduce((latest, current) => {
+        const latestTs = latest?.createdAt || new Date(latest?.timestamp || 0).getTime() || 0;
+        const currentTs = current?.createdAt || new Date(current?.timestamp || 0).getTime() || 0;
+        return currentTs > latestTs ? current : latest;
+      });
+      
+      tier2LatestAnswerPromptId = latestAnswer?.meta?.promptId || null;
+      tier2LatestAnswerPromptSignature = latestAnswer?.meta?.promptSignature || null;
+      
+      // Alignment check: Does latest answer correspond to THIS prompt?
+      const promptIdMatches = tier2LatestAnswerPromptId && tier2LatestAnswerPromptId === promptId;
+      const signatureMatches = tier2LatestAnswerPromptSignature && 
+                               currentPromptSignature &&
+                               tier2LatestAnswerPromptSignature === currentPromptSignature;
+      
+      foundByPrefixAligned = promptIdMatches || signatureMatches;
+    }
+    
+    // TIER 3: Match by probeQuestionCount-based expectedAKey (fallback)
+    const currentProbeCount = dbTranscript.filter(e => 
+      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+      e.meta?.sessionId === sessionId &&
+      e.meta?.categoryId === categoryId &&
+      e.meta?.instanceNumber === instanceNumber
+    ).length;
+    const expectedAKey = buildV3ProbeAStableKey(sessionId, categoryId, instanceNumber, currentProbeCount);
+    const foundByExpectedKey = dbTranscript.some(e => 
+      e.stableKey === expectedAKey ||
+      (e.messageType === 'V3_PROBE_ANSWER' && 
+       e.meta?.sessionId === sessionId && 
+       e.meta?.categoryId === categoryId && 
+       e.meta?.instanceNumber === instanceNumber && 
+       e.meta?.probeIndex === currentProbeCount)
+    );
+    
+    const foundAnswer = foundByPromptId || foundByPrefixAligned || foundByExpectedKey;
+    
+    console.log('[V3_PROBE][ANSWER_CHECK_STRONG]', {
+      promptId,
+      sessionId,
+      categoryId,
+      instanceNumber,
+      probeIndex: currentProbeCount,
+      foundByPromptId,
+      foundByPrefixAligned,
+      foundByExpectedKey,
+      foundAnswer,
+      answersByPrefixCount: answersByPrefix.length,
+      tier2LatestAnswerPromptId,
+      tier2LatestAnswerPromptSignature,
+      currentPromptSignature
+    });
+    
+    if (foundAnswer) {
+      const detectionMethod = foundByPromptId ? 'promptId_match' : 
+                             foundByPrefixAligned ? 'prefix_latest_aligned' : 
+                             'expectedKey_fallback';
+      
+      console.log('[V3_PROBE][SKIP_REASK]', {
+        promptId,
+        detectionMethod,
+        expectedStableKey: expectedAKey,
+        reason: 'answer_already_present',
+        sessionId,
+        categoryId,
+        instanceNumber,
+        probeIndex: currentProbeCount
+      });
+      
+      // Don't show prompt again - mark as satisfied
+      setV3PromptPhase("IDLE");
+      setV3ActivePromptText(null);
+      v3ActivePromptTextRef.current = null;
+      return promptId; // Return early without setting ANSWER_NEEDED
+    }
+    // ============================================================================
+    
+    // ATOMIC STATE UPDATE: All V3 prompt activation in one place
+    // CRITICAL: Does NOT modify dbTranscript - only sets prompt state
+    unstable_batchedUpdates(() => {
+    // Confirm V3 probing is active
+    if (!v3ProbingActive) {
+      setV3ProbingActive(true);
+    }
+
+    // Set active prompt text (bottom bar placeholder reads from this)
+    setV3ActivePromptText(promptText);
+
+    // CRITICAL: Update ref synchronously (watchdog reads from this)
+    v3ActivePromptTextRef.current = promptText;
+    
+    // UI HISTORY: Store active probe question for display history
+    v3ActiveProbeQuestionRef.current = promptText;
+    v3ActiveProbeQuestionLoopKeyRef.current = loopKey;
+
+    console.log('[V3_PROMPT_BIND]', { loopKey, promptLen: promptText?.length || 0 });
+
+    // LIFECYCLE: Set phase to ANSWER_NEEDED (prompt is now active)
+    setV3PromptPhase("ANSWER_NEEDED");
+    
+    // Store promptId in v3ProbingContext_S and snapshot ref for answer linking
+    setV3ProbingContext(prev => ({
+      ...prev,
+      promptId,
+      currentPromptText: promptText
+    }));
+    
+    // Update snapshot ref for answer submit (include categoryId) - REDUNDANT but kept for compatibility
+    lastV3PromptSnapshotRef.current = {
+      ...snapshot,
+      promptId,
+      categoryId,
+      promptText
+    };
+
+    // Clear typing lock (allow user input)
+    setIsUserTyping(false);
+
+    // Ensure screen mode is QUESTION (not WELCOME)
+    if (screenMode !== 'QUESTION') {
+      setScreenMode('QUESTION');
+    }
+    
+    // REGRESSION GUARD: Confirm transcript untouched during prompt commit
+    console.log('[V3_PROMPT_COMMIT][TRANSCRIPT_PRESERVED]', {
+      loopKey,
+      promptId,
+      transcriptLenBefore: transcriptLenBeforePromptCommit,
+      action: 'Prompt activated - dbTranscript state untouched'
+    });
+    });
+    
+    // FAILSAFE CANCEL: Prompt arrived - cancel opener failsafe
+    if (v3OpenerFailsafeTimerRef.current) {
+      clearTimeout(v3OpenerFailsafeTimerRef.current);
+      v3OpenerFailsafeTimerRef.current = null;
+      v3OpenerSubmitTokenRef.current = null;
+      v3OpenerSubmitLoopKeyRef.current = null;
+      console.log('[V3_FAILSAFE][CANCEL_ON_PROMPT]', { loopKey });
+    }
+    
+    return promptId;
+  }, [v3ProbingActive, screenMode, sessionId, setDbTranscriptSafe, dbTranscript]);
+
+  // V3 prompt change handler - receives prompt with canonical promptId from V3ProbingLoop
+  const handleV3PromptChange = React.useCallback(async (promptData) => {
+    if (__cqBootNotReady) return;
+    // Support both string (legacy) and object (new) payloads
+    const promptText = typeof promptData === 'string' ? promptData : promptData?.promptText;
+    let canonicalPromptId = typeof promptData === 'object' ? promptData?.promptId : null;
+    const loopKey = typeof promptData === 'object' ? promptData?.loopKey : null;
+    const packId = typeof promptData === 'object' ? promptData?.packId : (v3ProbingContext_S?.packId || currentItem_S?.packId);
+    const instanceNumber = typeof promptData === 'object' ? promptData?.instanceNumber : (v3ProbingContext_S?.instanceNumber || currentItem_S?.instanceNumber || 1);
+    const categoryId = typeof promptData === 'object' ? promptData?.categoryId : v3ProbingContext_S?.categoryId;
+    
+    // STABILITY SNAPSHOT: V3 phase change
+    if (lastV3PromptPhaseRef.current !== v3PromptPhase) {
+      getStabilitySnapshotSOT("V3_PHASE_CHANGE", { 
+        prevV3PromptPhase: lastV3PromptPhaseRef.current 
+      });
+    }
+    
+    // EDIT 3: Diagnostic log - prove parent received prompt from loop
+    console.log('[V3_PROMPT][RECEIVED_BY_PARENT]', {
+      canonicalPromptId: canonicalPromptId || 'will_generate',
+      loopKey: loopKey || 'unknown',
+      promptLen: promptText?.length || 0,
+      v3PromptSource: typeof promptData === 'object' ? promptData?.v3PromptSource : undefined,
+      v3LlmMs: typeof promptData === 'object' ? promptData?.v3LlmMs : undefined,
+      willActivate: true,
+      ts: Date.now()
+    });
+    
+    // FIX B4: Generate promptId if missing (prevents PROMPTID_MISSING error)
+    if (!canonicalPromptId) {
+      const effectiveLoopKey = loopKey || `${sessionId}:${categoryId}:${instanceNumber}`;
+      const probeIndex = dbTranscript.filter(e => 
+        (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+        e.meta?.sessionId === sessionId &&
+        e.meta?.categoryId === categoryId &&
+        e.meta?.instanceNumber === instanceNumber
+      ).length;
+      canonicalPromptId = `${effectiveLoopKey}:${probeIndex}`;
+      
+      console.warn('[V3_PROBE][PROMPTID_GENERATED_FALLBACK]', {
+        generatedPromptId: canonicalPromptId,
+        loopKey: effectiveLoopKey,
+        probeIndex,
+        reason: 'V3ProbingLoop did not provide promptId - generated fallback'
+      });
+    }
+    
+    console.log('[V3_PROMPT_CHANGE]', { 
+      promptPreview: promptText?.substring(0, 60) || null,
+      canonicalPromptId,
+      loopKey
+    });
+    
+    const effectiveLoopKey = loopKey || `${sessionId}:${categoryId}:${instanceNumber}`;
+    // FIX: promptId already contains sessionId via loopKey - don't duplicate
+    const qStableKey = `v3-probe-q:${canonicalPromptId}`;
+
+    // OPTIMISTIC APPEND: Check + append in single functional update
+    const appendSuccess = await new Promise((resolve) => {
+      setDbTranscriptSafe(prev => {
+        // Dedupe: skip if already exists
+        if (prev.some(e => e.stableKey === qStableKey || 
+            (e.messageType === 'V3_PROBE_QUESTION' && e.meta?.promptId === canonicalPromptId))) {
+          console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_DEDUPED]', {
+            stableKey: qStableKey,
+            promptId: canonicalPromptId
+          });
+          resolve(false);
+          return prev;
+        }
+
+        const qEntry = {
+          id: `v3-probe-q-${canonicalPromptId}`,
+          stableKey: qStableKey,
+          index: getNextIndex(prev),
+          role: "assistant",
+          text: promptText,
+          timestamp: new Date().toISOString(),
+          createdAt: Date.now(),
+          messageType: 'V3_PROBE_QUESTION',
+          type: 'V3_PROBE_QUESTION',
+          meta: {
+            promptId: canonicalPromptId,
+            loopKey: effectiveLoopKey,
+            packId,
+            instanceNumber,
+            categoryId,
+            source: 'v3',
+            // TASK 3: Store provenance in meta for render-time access
+            v3PromptSource: typeof promptData === 'object' ? promptData?.v3PromptSource : undefined,
+            v3LlmMs: typeof promptData === 'object' ? promptData?.v3LlmMs : undefined
+          },
+          // TASK 3: Also store at top-level for easier access
+          v3PromptSource: typeof promptData === 'object' ? promptData?.v3PromptSource : undefined,
+          v3LlmMs: typeof promptData === 'object' ? promptData?.v3LlmMs : undefined,
+          visibleToCandidate: true
+        };
+        
+        const updated = [...prev, qEntry];
+        
+        // ATOMIC SYNC: Update ref + state together
+        upsertTranscriptState(updated, 'v3_probe_q_append');
+
+        // Persist to DB async
+        base44.entities.InterviewSession.update(sessionId, {
+          transcript_snapshot: updated
+        }).then(() => {
+          console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_APPEND_OK]', {
+            stableKey: qStableKey,
+            promptId: canonicalPromptId,
+            loopKey: effectiveLoopKey,
+            promptLen: promptText?.length || 0,
+            transcriptLenAfter: updated.length
+          });
+
+          // ANCHOR: Mark this question for viewport anchoring
+          v3ScrollAnchorRef.current = {
+            kind: 'V3_PROBE_QUESTION',
+            stableKey: qStableKey,
+            ts: Date.now()
+          };
+
+          resolve(true);
+        }).catch(err => {
+          console.error('[CQ_TRANSCRIPT][V3_PROBE_Q_ERROR]', { error: err.message });
+          resolve(false);
+        });
+
+        return updated;
+      });
+    });
+    
+    if (!appendSuccess) {
+      console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_SKIP]', { stableKey: qStableKey });
+    }
+    
+    // ATOMIC COMMIT: All state changes in one place (include categoryId)
+    await commitV3PromptToBottomBar({ 
+      packId, 
+      categoryId,
+      instanceNumber, 
+      loopKey: effectiveLoopKey, 
+      promptText,
+      promptId: canonicalPromptId
+    });
+  }, [commitV3PromptToBottomBar, v3ProbingContext_S, currentItem_S, sessionId, setDbTranscriptSafe]);
+
+  // Helper: Normalize text for signature matching (shared by guard and commit)
+  const normalizeForSignature = (s) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  
+  // V3 answer submit handler - routes answer to V3ProbingLoop
+  const handleV3AnswerSubmit = React.useCallback(async (answerText) => {
+    if (__cqBootNotReady) return;
+    try {
+    // PART 3A: Send click trace
+    const v3PromptIdSOT = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+    
+    console.log('[V3_SEND][CLICK]', {
+      promptId: v3PromptIdSOT,
+      textLen: answerText?.length || 0,
+      hasText: !!answerText?.trim(),
+      v3PromptPhase,
+      activeUiItem_SKind: activeUiItem_S_SAFE?.kind
+    });
+    
+    // PART 3A: Block if no promptId
+    if (!v3PromptIdSOT) {
+      console.error('[V3_SEND][BLOCKED_NO_PROMPT_ID]', {
+        v3PromptPhase,
+        hasV3Context: !!v3ProbingContext_S,
+        hasSnapshot: !!lastV3PromptSnapshotRef.current,
+        reason: 'Cannot persist without stable promptId'
+      });
+      return;
+    }
+    
+    // TDZ FIX: Compute effectiveItemType locally (not from closure deps)
+    const localEffectiveItemType = v3ProbingActive ? 'v3_probing' : currentItem_S?.type;
+    
+    v3SubmitCounterRef.current++;
+    const submitId = v3SubmitCounterRef.current;
+    
+    // IDENTIFIER FALLBACK CHAIN: Use context first, snapshot second
+    const categoryId = v3ProbingContext_S?.categoryId || lastV3PromptSnapshotRef.current?.categoryId;
+    const instanceNumber = v3ProbingContext_S?.instanceNumber || lastV3PromptSnapshotRef.current?.instanceNumber || 1;
+    const packId = v3ProbingContext_S?.packId || lastV3PromptSnapshotRef.current?.packId;
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${categoryId}:${instanceNumber}` : null;
+    
+    // EDIT 3: Diagnostic log - prove answer submitted to loop
+    console.log('[V3_ANSWER][SUBMIT_TO_LOOP]', {
+      submitId,
+      loopKey: loopKey || 'unknown',
+      answerLen: answerText?.length || 0,
+      pendingAnswerSet: true,
+      ts: Date.now()
+    });
+    
+    // GUARD: Validate identifiers before proceeding
+    if (!categoryId || !packId) {
+      console.error('[V3_PROBE][MISSING_IDENTIFIERS]', {
+        categoryId,
+        packId,
+        instanceNumber,
+        hasContext: !!v3ProbingContext_S,
+        hasSnapshot: !!lastV3PromptSnapshotRef.current,
+        reason: 'Cannot commit without categoryId and packId'
+      });
+      return;
+    }
+    
+    // Compute probeIndex from current probe count in transcript
+    const currentProbeCount = dbTranscript.filter(e => 
+      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+      e.meta?.sessionId === sessionId &&
+      e.meta?.categoryId === categoryId &&
+      e.meta?.instanceNumber === instanceNumber
+    ).length;
+    const probeIndex = currentProbeCount;
+    
+    const payload = {
+      text: answerText,
+      submitId,
+      loopKey,
+      createdAt: Date.now()
+    };
+    
+    const promptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
+    const qStableKey = buildV3ProbeQStableKey(sessionId, categoryId, instanceNumber, probeIndex);
+    let aStableKey = buildV3ProbeAStableKey(sessionId, categoryId, instanceNumber, probeIndex);
+    
+    // VERIFICATION GUARD 1: Log built keys
+    console.log('[V3_SEND][KEYS_BUILT]', {
+      v3PromptIdSOT,
+      qStableKey,
+      aStableKey
+    });
+    
+    // VERIFICATION GUARD 2: Invariant check - aStableKey must contain promptId
+    if (!aStableKey.includes(v3PromptIdSOT)) {
+      console.error('[V3_SEND][BUG][AKEY_DOES_NOT_CONTAIN_PROMPTID]', {
+        v3PromptIdSOT,
+        aStableKey,
+        reason: 'Builder output does not contain promptId - using fallback'
+      });
+      
+      // Fallback to canonical format
+      const fallbackAKey = `v3-probe-a:${v3PromptIdSOT}`;
+      aStableKey = fallbackAKey;
+      
+      console.warn('[V3_SEND][AKEY_FALLBACK_USED]', {
+        v3PromptIdSOT,
+        fallbackAKey
+      });
+    }
+    
+    console.log('[V3_PROBE][COMMIT_BEGIN]', { 
+      sessionId, 
+      categoryId,
+      instanceNumber,
+      probeIndex,
+      promptId,
+      loopKey,
+      qKey: qStableKey,
+      aKey: aStableKey,
+      answerLen: answerText?.length || 0
+    });
+    
+    // FIX C: Clear V3 draft on successful submit (promptId already declared above)
+    if (sessionId && loopKey && promptId) {
+      const v3DraftKey = `cq_v3draft_${sessionId}_${loopKey}_${promptId}`;
+      try {
+        window.sessionStorage.removeItem(v3DraftKey);
+        
+        // ABANDONMENT SAFETY: Log V3 draft clear
+        console.log('[DRAFT][CLEAR]', {
+          keyPreview: v3DraftKey.substring(0, 40)
+        });
+        console.log('[V3_DRAFT][CLEAR_ON_SUBMIT]', { keyPreview: v3DraftKey });
+      } catch (e) {
+        console.warn('[V3_DRAFT][CLEAR_FAILED]', { error: e.message });
+      }
+    }
+    
+    // LIFECYCLE: Clear active prompt text immediately to prevent stale rendering
+    // This makes hasV3PromptText false so the prompt doesn't continue to render
+    setV3ActivePromptText("");
+    v3ActivePromptTextRef.current = "";
+    
+    console.log('[V3_PROMPT_CLEAR_ON_SUBMIT]', {
+      submitId,
+      answerPreview: answerText?.substring(0, 50),
+      phaseNow: "WILL_BE_PROCESSING_AFTER_DB",
+      clearedPromptText: true,
+      loopKey
+    });
+    
+    // PART A: FORENSIC SNAPSHOT - Before append (deferred via state to avoid TDZ)
+    setV3ProbeDisplayHistory(prev => {
+      console.log('[V3_UI_HISTORY][SNAPSHOT_BEFORE_APPEND]', {
+        uiHistoryLen: prev.length,
+        lastUiItemsPreview: prev.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
+        transcriptLen: dbTranscript.length,
+        v3ProbingActive,
+        effectiveItemType: localEffectiveItemType,
+        loopKey
+      });
+      return prev; // No mutation - just logging
+    });
+    
+    // PART 3B: Construct stableKeyA for persistence
+    const stableKeyA = `v3-probe-a:${v3PromptIdSOT}`;
+    
+    console.log('[V3_SEND][PERSIST_START]', {
+      stableKeyA,
+      promptId: v3PromptIdSOT,
+      textLen: answerText?.length || 0
+    });
+    
+    // CRITICAL: V3 probe ANSWERS must ALWAYS persist to canonical transcript BEFORE any MI_GATE stream suppression
+    // This ensures transcript completeness regardless of UI state transitions
+    let wroteTranscript = false;
+    let qAdded = false;
+    let aAdded = false;
+    
+    if (v3ProbingActive && localEffectiveItemType === 'v3_probing' && loopKey && answerText?.trim()) {
+      // RISK 3 FIX: Use v3PromptIdSOT consistently (already validated above)
+      if (!v3PromptIdSOT) {
+        console.error('[V3_TRANSCRIPT][APPEND_FAILED_NO_PROMPTID]', {
+          loopKey,
+          hasV3Context: !!v3ProbingContext_S,
+          hasSnapshot: !!lastV3PromptSnapshotRef.current,
+          reason: 'Cannot append without stable promptId'
+        });
+      } else {
+        // stableKeys already constructed above (qStableKey, aStableKey)
+        // No need to rebuild - use existing variables
+        
+        // SYNCHRONOUS COMMIT: Update canonical ref IMMEDIATELY (not in async callback)
+        setDbTranscriptSafe(prev => {
+          let working = [...prev];
+          
+          // Step 1: Ensure question exists (append if missing)
+          const questionExists = working.some(e => 
+            e.stableKey === qStableKey ||
+            (e.messageType === 'V3_PROBE_QUESTION' && e.meta?.promptId === promptId && e.meta?.sessionId === sessionId)
+          );
+          
+          if (!questionExists) {
+            const promptText = lastV3PromptSnapshotRef.current?.promptText || v3ActivePromptText || "(Question text unavailable)";
+            
+            // Compute promptSignature for Tier 2 matching
+            const questionPromptSignature = normalizeForSignature(promptText?.substring(0, 100) || '');
+            
+            const qEntry = {
+              id: `v3-probe-q-${sessionId}-${categoryId}-${instanceNumber}-${probeIndex}`,
+              stableKey: qStableKey,
+              index: getNextIndex(working),
+              role: "assistant",
+              text: promptText,
+              timestamp: new Date().toISOString(),
+              createdAt: Date.now(),
+              messageType: 'V3_PROBE_QUESTION',
+              type: 'V3_PROBE_QUESTION',
+              meta: {
+                promptId,
+                promptSignature: questionPromptSignature,
+                loopKey,
+                packId,
+                instanceNumber,
+                categoryId,
+                sessionId,
+                probeIndex,
+                source: 'v3'
+              },
+              visibleToCandidate: true
+            };
+            
+            working = [...working, qEntry];
+            qAdded = true;
+            console.log('[V3_REPAIR][Q_PAIRED_WITH_A]', { qStableKey, willAppendA: true, source: 'handleV3AnswerSubmit' });
+            
+            console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_COMMIT]', {
+              stableKey: qStableKey,
+              promptId,
+              sessionId,
+              probeIndex
+            });
+          }
+          
+          // Step 2: Append answer (dedupe check)
+          const answerExists = working.some(e => 
+            e.stableKey === aStableKey ||
+            (e.messageType === 'V3_PROBE_ANSWER' && e.meta?.promptId === promptId && e.meta?.sessionId === sessionId && e.meta?.probeIndex === probeIndex)
+          );
+          
+          if (answerExists) {
+            console.log('[V3_TRANSCRIPT][DEDUPE_A]', { stableKey: aStableKey, sessionId, probeIndex });
+            return working; // No changes needed
+          }
+          
+          // Append answer with promptSignature for Tier 2 matching
+          const answerPromptSignature = normalizeForSignature(lastV3PromptSnapshotRef.current?.promptText?.substring(0, 100) || '');
+          
+          const aEntry = {
+            id: `v3-probe-a-${sessionId}-${categoryId}-${instanceNumber}-${probeIndex}`,
+            stableKey: aStableKey,
+            index: getNextIndex(working),
+            role: "user",
+            text: answerText,
+            timestamp: new Date().toISOString(),
+            createdAt: Date.now(),
+            messageType: 'V3_PROBE_ANSWER',
+            type: 'V3_PROBE_ANSWER',
+            meta: {
+              promptId,
+              promptSignature: answerPromptSignature,
+              loopKey,
+              packId,
+              instanceNumber,
+              categoryId,
+              sessionId,
+              probeIndex,
+              source: 'v3',
+              answerContext: 'V3_PROBE'
+            },
+            visibleToCandidate: true
+          };
+          
+          const updated = [...working, aEntry];
+          aAdded = true;
+          wroteTranscript = true;
+          
+          // IMMEDIATE CANONICAL UPDATE: Use unified sync helper
+          upsertTranscriptState(updated, 'v3_probe_answer');
+
+          // COMMIT ACK: Record expected keys for verification
+          lastV3AnswerCommitAckRef.current = {
+            sessionId,
+            promptId,
+            categoryId,
+            instanceNumber,
+            probeIndex,
+            expectedAKey: aStableKey,
+            expectedQKey: qStableKey,
+            committedAt: Date.now(),
+            answerLen: answerText?.length || 0,
+            promptText: lastV3PromptSnapshotRef.current?.promptText || v3ActivePromptText
+          };
+          
+          // METRICS: Increment ack set counter
+          v3AckSetCountRef.current++;
+          
+          // PART A: Mark optimistic persist (immediate UI feedback)
+          v3OptimisticPersistRef.current[promptId] = {
+            stableKeyA: aStableKey,
+            answerText,
+            ts: Date.now(),
+            loopKey,
+            categoryId,
+            instanceNumber
+          };
+          
+          console.log('[V3_PROBE_AUDIT][PERSIST_OK]', {
+            expectedAKey: aStableKey,
+            expectedQKey: qStableKey,
+            promptId,
+            textPreview: answerText?.substring(0, 40),
+            committedAt: lastV3AnswerCommitAckRef.current.committedAt,
+            ackSetCount: v3AckSetCountRef.current,
+            optimisticMarkerSet: true
+          });
+          
+          // REQUEST REFRESH: Set request instead of calling refresh directly
+          v3RefreshRequestedRef.current = {
+            reason: 'v3_probe_answer_persisted',
+            promptId,
+            stableKeyA: aStableKey,
+            requestedAt: Date.now()
+          };
+          
+          // Trigger refresh tick to activate effect
+          setV3RefreshTick(prev => prev + 1);
+          
+          // Track for protection (E)
+          recentlySubmittedUserAnswersRef.current.add(aStableKey);
+          
+          // ANCHOR: Mark for viewport
+          recentAnchorRef.current = {
+            kind: 'V3_PROBE_ANSWER',
+            stableKey: aStableKey,
+            ts: Date.now()
+          };
+          
+          // Persist to DB async (non-blocking)
+          base44.entities.InterviewSession.update(sessionId, {
+            transcript_snapshot: updated
+          }).then(() => {
+            const probeQuestionCountAfter = updated.filter(e => 
+              e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION'
+            ).length;
+            const probeAnswerCountAfter = updated.filter(e => 
+              e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER'
+            ).length;
+            
+            // PART A: Clear optimistic marker on DB confirm
+            if (v3OptimisticPersistRef.current[promptId]) {
+              delete v3OptimisticPersistRef.current[promptId];
+              console.log('[V3_OPTIMISTIC][CLEARED]', {
+                promptId,
+                reason: 'DB_CONFIRM'
+              });
+            }
+            
+            console.log('[V3_SEND][PERSIST_OK]', {
+              stableKeyA: aStableKey,
+              promptId: v3PromptIdSOT,
+              transcriptLenAfter: updated.length
+            });
+            
+            console.log('[V3_PROBE][COMMIT_DONE]', {
+              qAdded,
+              aAdded,
+              transcriptLenAfter: updated.length,
+              probeQuestionCountAfter,
+              probeAnswerCountAfter,
+              sessionId,
+              stableKeyA: aStableKey
+            });
+            
+            // PART 3C: Post-persist validation (hard invariant, RISK 3: use v3PromptIdSOT)
+            // VERIFICATION GUARD 3: Use actual persisted key (may be fallback)
+            const foundInUpdated = updated.some(e => (e.stableKey || e.id) === aStableKey);
+            if (!foundInUpdated) {
+              console.error('[V3_SEND][INVARIANT_FAIL_NOT_IN_DB_AFTER_OK]', {
+                stableKeyA: aStableKey,
+                promptId: v3PromptIdSOT,
+                updatedLen: updated.length,
+                reason: 'Persist OK but answer not in updated transcript array'
+              });
+            }
+            
+            // CQ_TRANSCRIPT_CONTRACT: Invariant check after V3 probe append
+            if (ENFORCE_TRANSCRIPT_CONTRACT) {
+              const candidateVisibleCount = updated.filter(e => e.visibleToCandidate === true).length;
+              const last3StableKeys = updated.slice(-3).map(e => e.stableKey || e.id);
+              
+              console.log('[CQ_TRANSCRIPT][INVARIANT]', {
+                transcriptLen: updated.length,
+                candidateVisibleCount,
+                last3StableKeys,
+                context: 'v3_probe_answer'
+              });
+            }
+          }).catch(err => {
+            // PART 3B: Log persist failure (RISK 3: use v3PromptIdSOT from outer scope)
+            console.error('[V3_SEND][PERSIST_FAIL]', {
+              stableKeyA: aStableKey,
+              promptId: v3PromptIdSOT,
+              error: err.message
+            });
+            console.error('[CQ_TRANSCRIPT][V3_PROBE_PERSIST_ERROR]', { error: err.message, sessionId });
+          });
+          
+          return updated;
+        });
+      }
+      
+    } else {
+      console.log('[V3_TRANSCRIPT][APPEND_SKIPPED]', {
+        v3ProbingActive,
+        localEffectiveItemType,
+        hasLoopKey: !!loopKey,
+        hasAnswerText: !!answerText?.trim(),
+        reason: 'Preconditions not met for V3 commit'
+      });
+    }
+    
+    // Clear active probe question after processing
+    v3ActiveProbeQuestionRef.current = null;
+    v3ActiveProbeQuestionLoopKeyRef.current = null;
+    
+    // Store answer in snapshot for reconciliation (before any UI state changes)
+    if (lastV3PromptSnapshotRef.current && wroteTranscript) {
+      lastV3PromptSnapshotRef.current.lastAnswerText = answerText;
+      lastV3PromptSnapshotRef.current.lastAnswerTimestamp = Date.now();
+      
+      console.log('[V3_PROBE][SNAPSHOT_ANSWER_STORED]', {
+        promptId: lastV3PromptSnapshotRef.current.promptId,
+        answerLen: answerText?.length || 0,
+        wroteTranscript
+      });
+    }
+    
+    // DIAGNOSTIC: Verify commit succeeded
+    if (wroteTranscript) {
+      console.log('[V3_PROBE][ANSWER_COMMIT]', {
+        expectedStableKey: aStableKey,
+        wrote: true,
+        transcriptLenAfter: canonicalTranscriptRef.current.length,
+        sessionId,
+        categoryId,
+        instanceNumber,
+        probeIndex
+      });
+
+      // STABILITY SNAPSHOT: V3 probe answer committed
+      getStabilitySnapshotSOT("SUBMIT_END_V3_PROBE");
+      }
+
+      // PART B: Force immediate transition (optimistic - don't wait for DB)
+      // This prevents PROMPT_MISSING_AFTER_OPENER stall
+      setV3PromptPhase("PROCESSING");
+    console.log('[V3_PROMPT_PHASE][SET_PROCESSING_OPTIMISTIC]', {
+      submitId,
+      loopKey,
+      categoryId,
+      wroteTranscript,
+      reason: 'Optimistic transition - UI advances immediately'
+    });
+    
+    console.log('[FORENSIC][V3_SUBMIT_BREADCRUMB]', {
+      answerLen: (answerText || '').length,
+      loopKey,
+      ts: Date.now()
+    });
+    
+    setV3PendingAnswer(payload);
+    } catch (err) {
+      console.error('[FORENSIC][V3_SUBMIT_HANDLER_THROW]', {
+        err: String(err),
+        message: err?.message,
+        stack: String(err?.stack || ''),
+        ts: Date.now()
+      });
+      throw err;
+    }
+  }, [v3ProbingContext_S, sessionId, v3ActivePromptText, currentItem_S, setDbTranscriptSafe, dbTranscript]);
+  
+  // V3 REFRESH RUNNER: Safe post-commit transcript refresh
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    const request = v3RefreshRequestedRef.current;
+    if (!request) return;
+    if (v3RefreshInFlightRef.current) return;
+    
+    // Clear request BEFORE starting refresh (prevents loops)
+    const { reason, promptId, stableKeyA, requestedAt } = request;
+    v3RefreshRequestedRef.current = null;
+    
+    // Execute refresh asynchronously
+    const runRefresh = async () => {
+      v3RefreshInFlightRef.current = true;
+      
+      try {
+        const ageMs = Date.now() - requestedAt;
+        
+        console.log('[V3_PROBE][REFRESH_TRIGGERED]', {
+          promptId,
+          stableKeyA,
+          reason,
+          ageMs
+        });
+        
+        await refreshTranscriptFromDB(reason);
+        
+        console.log('[V3_PROBE][REFRESH_COMPLETE]', {
+          promptId,
+          stableKeyA
+        });
+      } catch (err) {
+        console.error('[V3_PROBE][REFRESH_ERROR]', {
+          promptId,
+          stableKeyA,
+          error: err.message
+        });
+      } finally {
+        v3RefreshInFlightRef.current = false;
+      }
+    };
+    
+    runRefresh();
+  }, [v3RefreshTick, refreshTranscriptFromDB]);
+  
+  // V3 COMMIT ACK VERIFICATION: Verify answer persisted + repair if missing
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    // KILL SWITCH: Allow instant disable if needed
+    if (!ENABLE_V3_ACK_REPAIR) return;
+    
+    const ack = lastV3AnswerCommitAckRef.current;
+    if (!ack) return;
+    
+    // Only verify for current session
+    if (ack.sessionId !== sessionId) {
+      lastV3AnswerCommitAckRef.current = null;
+      return;
+    }
+    
+    // Check if answer exists in transcript
+    const foundA = dbTranscript.some(e => 
+      e.stableKey === ack.expectedAKey ||
+      (e.messageType === 'V3_PROBE_ANSWER' && 
+       e.meta?.promptId === ack.promptId &&
+       e.meta?.probeIndex === ack.probeIndex)
+    );
+    
+    const ageMs = Date.now() - ack.committedAt;
+    
+    console.log('[V3_PROBE][ACK_VERIFY]', {
+      expectedAKey: ack.expectedAKey,
+      foundA,
+      ageMs,
+      probeIndex: ack.probeIndex
+    });
+    
+    // PART C: Check optimistic markers before repair
+    const hasOptimistic = v3OptimisticPersistRef.current[ack.promptId];
+    const optimisticAge = hasOptimistic ? Date.now() - hasOptimistic.ts : null;
+    
+    // PART D: Dedupe check - use optimistic markers
+    const foundInDbOrOptimistic = foundA || (hasOptimistic && optimisticAge < 10000);
+    
+    if (foundInDbOrOptimistic) {
+      // Success - answer found in transcript or optimistic marker active
+      v3AckClearCountRef.current++;
+      
+      // Clear optimistic marker on DB confirm
+      if (foundA && hasOptimistic) {
+        delete v3OptimisticPersistRef.current[ack.promptId];
+        console.log('[V3_OPTIMISTIC][CLEARED]', {
+          promptId: ack.promptId,
+          reason: 'DB_CONFIRM_IN_ACK'
+        });
+      }
+      
+      console.log('[V3_PROBE][ACK_CLEAR]', {
+        expectedAKey: ack.expectedAKey,
+        reason: foundA ? 'found_in_transcript' : 'optimistic_pending',
+        ageMs,
+        optimisticAge,
+        ackClearCount: v3AckClearCountRef.current
+      });
+      lastV3AnswerCommitAckRef.current = null;
+      return;
+    }
+    
+    // PART C: Grace period - accept optimistic state for up to 10s
+    if (hasOptimistic && optimisticAge < 10000) {
+      console.log('[V3_PROBE][ACK_OPTIMISTIC_PENDING]', {
+        expectedAKey: ack.expectedAKey,
+        promptId: ack.promptId,
+        optimisticAge,
+        reason: 'Optimistic persist active - DB write pending'
+      });
+      return; // Wait for DB confirmation
+    }
+    
+    // Grace period: wait 500ms before repairing
+    if (ageMs < 500) {
+      return; // Wait for next render cycle
+    }
+    
+    // PART C: Stale optimistic marker - log and clear
+    if (hasOptimistic && optimisticAge >= 10000) {
+      console.error('[V3_OPTIMISTIC][STALE]', {
+        promptId: ack.promptId,
+        expectedAKey: ack.expectedAKey,
+        optimisticAge,
+        reason: 'Optimistic marker older than 10s but DB never confirmed',
+        action: 'clearing_stale_marker'
+      });
+      delete v3OptimisticPersistRef.current[ack.promptId];
+    }
+    
+    // Missing after grace - repair
+    v3AckRepairCountRef.current++;
+    
+    // INVARIANT CHECK: Repair count should never exceed set count (dev-only)
+    if (v3AckRepairCountRef.current > v3AckSetCountRef.current) {
+      console.error('[V3_PROBE][ACK_INVARIANT_FAIL]', {
+        ackSet: v3AckSetCountRef.current,
+        ackRepaired: v3AckRepairCountRef.current,
+        reason: 'Repair count exceeds set count - impossible state detected'
+      });
+    }
+    
+    console.error('[V3_PROBE][ACK_REPAIR]', {
+      expectedAKey: ack.expectedAKey,
+      expectedQKey: ack.expectedQKey,
+      reason: 'missing_after_grace',
+      ageMs,
+      hasOptimistic,
+      optimisticAge,
+      action: 'repairing_transcript',
+      ackRepairCount: v3AckRepairCountRef.current
+    });
+    
+    // Perform repair (idempotent functional update)
+    setDbTranscriptSafe(prev => {
+      // Double-check not already present
+      const alreadyHasA = prev.some(e => e.stableKey === ack.expectedAKey);
+      if (alreadyHasA) {
+        console.log('[V3_PROBE][ACK_REPAIR_SKIP]', {
+          expectedAKey: ack.expectedAKey,
+          reason: 'answer_appeared_during_repair'
+        });
+        return prev;
+      }
+      
+      let working = [...prev];
+      
+      // Ensure Q exists first
+      const alreadyHasQ = working.some(e => e.stableKey === ack.expectedQKey);
+      if (!alreadyHasQ && ack.promptText) {
+        const qEntry = {
+          id: `v3-probe-q-repair-${ack.promptId}`,
+          stableKey: ack.expectedQKey,
+          index: getNextIndex(working),
+          role: "assistant",
+          text: ack.promptText,
+          timestamp: new Date().toISOString(),
+          createdAt: Date.now(),
+          messageType: 'V3_PROBE_QUESTION',
+          type: 'V3_PROBE_QUESTION',
+          meta: {
+            promptId: ack.promptId,
+            sessionId: ack.sessionId,
+            categoryId: ack.categoryId,
+            instanceNumber: ack.instanceNumber,
+            probeIndex: ack.probeIndex,
+            source: 'ack_repair'
+          },
+          visibleToCandidate: true
+        };
+        
+        working = [...working, qEntry];
+        console.log('[V3_PROBE][ACK_REPAIR_Q]', { stableKey: ack.expectedQKey });
+        console.log('[V3_REPAIR][Q_PAIRED_WITH_A]', { qStableKey: ack.expectedQKey, willAppendA: true, source: 'ack_repair' });
+      }
+      
+      // Insert missing answer
+      const answerText = "(Answer was submitted but lost - recovered)";
+      const aEntry = {
+        id: `v3-probe-a-repair-${ack.promptId}`,
+        stableKey: ack.expectedAKey,
+        index: getNextIndex(working),
+        role: "user",
+        text: answerText,
+        timestamp: new Date().toISOString(),
+        createdAt: Date.now(),
+        messageType: 'V3_PROBE_ANSWER',
+        type: 'V3_PROBE_ANSWER',
+        meta: {
+          promptId: ack.promptId,
+          sessionId: ack.sessionId,
+          categoryId: ack.categoryId,
+          instanceNumber: ack.instanceNumber,
+          probeIndex: ack.probeIndex,
+          source: 'ack_repair'
+        },
+        visibleToCandidate: true
+      };
+      
+      const repaired = [...working, aEntry];
+      
+      // Update canonical ref + state atomically
+      upsertTranscriptState(repaired, 'v3_ack_repair');
+      
+      // Persist to DB
+      base44.entities.InterviewSession.update(sessionId, {
+        transcript_snapshot: repaired
+      }).then(() => {
+        console.log('[V3_PROBE][ACK_REPAIR_PERSISTED]', {
+          expectedAKey: ack.expectedAKey,
+          transcriptLenAfter: repaired.length
+        });
+      }).catch(err => {
+        console.error('[V3_PROBE][ACK_REPAIR_ERROR]', { error: err.message });
+      });
+      
+      console.log('[V3_PROBE][ACK_REPAIR_DONE]', {
+        insertedA: true,
+        insertedQ: !alreadyHasQ,
+        transcriptLenAfter: repaired.length
+      });
+      
+      return repaired;
+    });
+    
+    // Clear ack after repair
+    lastV3AnswerCommitAckRef.current = null;
+  }, [dbTranscript, sessionId, setDbTranscriptSafe]);
+  
+  // V3 answer consumed handler - clears pending answer after V3ProbingLoop consumes it
+  const handleV3AnswerConsumed = React.useCallback(({ loopKey, answerToken, probeCount, submitId }) => {
+    if (__cqBootNotReady) return;
+    console.log('[V3_ANSWER_CONSUMED][CLEAR_PENDING]', {
+      loopKey,
+      answerToken,
+      probeCount,
+      submitId,
+      hadValue: !!v3PendingAnswer
+    });
+    
+    // Clear pending answer immediately (prevents stall)
+    setV3PendingAnswer(null);
+  }, [v3PendingAnswer]);
+
+  // V3 answer needed handler - stores answer submit capability + snapshot-based watchdog
+  const handleV3AnswerNeeded = React.useCallback((answerContext) => {
+    if (__cqBootNotReady) return;
+    console.log('[V3_ANSWER_NEEDED]', { 
+      hasPrompt: !!answerContext?.promptText,
+      incidentId: answerContext?.incidentId 
+    });
+    
+    // Store context for answer routing
+    v3AnswerHandlerRef.current = answerContext;
+    
+    // SNAPSHOT: Capture current state BEFORE scheduling watchdog
+    const snapshot = lastV3PromptSnapshotRef.current;
+    if (!snapshot) {
+      console.warn('[V3_PROMPT_WATCHDOG][NO_SNAPSHOT]', { reason: 'Prompt commit did not create snapshot' });
+      return;
+    }
+    
+    const promptId = snapshot.promptId;
+    
+    // IDEMPOTENCY: Skip if already handled
+    if (handledPromptIdsRef.current.has(promptId)) {
+      console.log('[V3_PROMPT_WATCHDOG][SKIP_DUPLICATE]', { promptId, loopKey: snapshot.loopKey });
+      return;
+    }
+    
+    // Mark as handled immediately
+    handledPromptIdsRef.current.add(promptId);
+    
+    // MEMORY CLEANUP: Prevent unbounded Set growth
+    if (handledPromptIdsRef.current.size > 200) {
+      const priorSize = handledPromptIdsRef.current.size;
+      handledPromptIdsRef.current.clear();
+      console.log('[V3_PROMPT_WATCHDOG][CLEANUP]', { cleared: true, priorSize });
+    }
+    
+    // WATCHDOG: Verify UI stabilizes in 1 render cycle (snapshot-based, TDZ-safe)
+    requestAnimationFrame(() => {
+      // PART 3: Verify prompt snapshot exists using ref (prevents stale state)
+      const snapshotExists = v3PromptSnapshotsRef.current.some(s => s.promptId === promptId);
+      
+      // PART A+D: Dedupe NO_SNAPSHOT warning (in-memory, once per promptId)
+      if (!snapshotExists) {
+        logOnce(`no_snapshot_${promptId}`, () => {
+          console.warn('[V3_PROMPT_WATCHDOG][NO_SNAPSHOT]', { 
+            promptId, 
+            reason: 'Prompt commit did not create snapshot - check commitV3PromptToBottomBar',
+            snapshotsLen: v3PromptSnapshotsRef.current.length
+          });
+        });
+        return;
+      }
+      
+      // Verify snapshot is still current
+      if (lastV3PromptSnapshotRef.current?.promptId !== promptId) {
+        console.log('[V3_PROMPT_WATCHDOG][SKIP_STALE]', { promptId, currentPromptId: lastV3PromptSnapshotRef.current?.promptId });
+        return;
+      }
+      
+      // STRICT CHECK: Verify prompt binding to bottom bar placeholder
+      const promptPreview = snapshot.promptText?.substring(0, 60) || '';
+      const actualPreview = v3ActivePromptText?.substring(0, 60) || '';
+      const promptMatch = v3ActivePromptText && (
+        v3ActivePromptText === snapshot.promptText ||
+        actualPreview === promptPreview
+      );
+      
+      // PROMPT-EXISTS CHECK: Use refs as source of truth
+      const promptExistsNow = !!(v3ActivePromptTextRef?.current && v3ActivePromptTextRef.current.trim().length > 0);
+      
+      // Snapshot log: prove refs are fresh (no stale closure)
+      const snapshotPayload = {
+        promptId,
+        bottomBarModeSOT: bottomBarModeSOTRef.current,
+        v3ProbingActive: v3ProbingActiveRef.current,
+        hasPrompt: !!v3ActivePromptTextRef.current,
+        promptExistsNow
+      };
+      console.log('[V3_PROMPT_WATCHDOG][REF_SNAPSHOT]', snapshotPayload);
+      lastWatchdogSnapshotRef.current = snapshotPayload; // DEV: Capture for debug bundle
+      
+      // FORCE OK: If prompt exists in refs, treat as OK (even if other flags fail)
+      if (promptExistsNow) {
+        console.log('[V3_PROMPT_WATCHDOG][FORCE_OK_PROMPT_EXISTS]', {
+          loopKey: snapshot.loopKey,
+          packId: snapshot.packId,
+          instanceNumber: snapshot.instanceNumber,
+          promptLen: v3ActivePromptTextRef.current?.length || 0
+        });
+        
+        // Release idempotency lock
+        const lockKey = lastV3SubmitLockKeyRef.current;
+        if (lockKey) {
+          if (submittedKeysRef.current.has(lockKey)) {
+            submittedKeysRef.current.delete(lockKey);
+            console.log('[IDEMPOTENCY][RELEASE]', { lockKey, packId: snapshot.packId, instanceNumber: snapshot.instanceNumber, source: 'watchdog_force_ok' });
+            lastIdempotencyReleasedRef.current = lockKey;
+          }
+          lastV3SubmitLockKeyRef.current = null;
+        }
+        return; // Exit early - prompt exists, nothing to do
+      }
+      
+      // Check UI stability using ONLY refs (no stale closures)
+      let isReady = 
+        v3ProbingActiveRef.current === true &&
+        bottomBarModeSOTRef.current === 'TEXT_INPUT' &&
+        v3ActivePromptTextRef.current &&
+        v3ActivePromptTextRef.current.trim().length > 0 &&
+        promptMatch;
+      
+      // RUNTIME ASSERT: Verify OK decision is correct (TDZ-safe via ref)
+      if (isReady) {
+        // Assert conditions match
+        if (bottomBarModeSOTRef.current !== 'TEXT_INPUT' || !promptMatch) {
+          console.error('[V3_PROMPT_WATCHDOG][ASSERT_FAIL_TO_FAILED]', {
+            reason: 'OK decision but conditions invalid',
+            packId: snapshot.packId,
+            instanceNumber: snapshot.instanceNumber,
+            loopKey: snapshot.loopKey,
+            promptId,
+            bottomBarModeSOT: bottomBarModeSOTRef.current,
+            promptMatch
+          });
+          // Force FAILED path
+          isReady = false;
+        }
+      }
+      
+      // CONSOLIDATED DECISION LOG (ref-based, no stale closure)
+      const decisionPayload = {
+        packId: snapshot.packId,
+        instanceNumber: snapshot.instanceNumber,
+        loopKey: snapshot.loopKey,
+        promptId,
+        bottomBarModeSOT: bottomBarModeSOTRef.current,
+        v3ProbingActive: v3ProbingActiveRef.current,
+        hasPrompt: !!v3ActivePromptTextRef.current,
+        promptMatch,
+        decision: isReady ? 'OK' : 'FAILED'
+      };
+      console.log('[V3_PROMPT_WATCHDOG][DECISION]', decisionPayload);
+      lastWatchdogDecisionRef.current = decisionPayload; // DEV: Capture for debug bundle
+      
+      if (isReady) {
+        const okPayload = {
+          outcome: 'OK',
+          loopKey: snapshot.loopKey,
+          packId: snapshot.packId,
+          instanceNumber: snapshot.instanceNumber,
+          promptId
+        };
+        console.log('[V3_PROMPT_WATCHDOG][OK]', okPayload);
+        lastWatchdogOutcomeRef.current = okPayload; // DEV: Capture for debug bundle
+        
+        // IDEMPOTENCY RELEASE: Use stored lock key (guarantees exact match)
+        const lockKey = lastV3SubmitLockKeyRef.current;
+        if (lockKey) {
+          if (submittedKeysRef.current.has(lockKey)) {
+            submittedKeysRef.current.delete(lockKey);
+            console.log('[IDEMPOTENCY][RELEASE]', { lockKey, packId: snapshot.packId, instanceNumber: snapshot.instanceNumber, source: 'handleOpenerSubmit' });
+            lastIdempotencyReleasedRef.current = lockKey; // DEV: Capture for debug bundle
+          }
+          lastV3SubmitLockKeyRef.current = null;
+        } else {
+          console.warn('[IDEMPOTENCY][RELEASE_MISSING_KEY]', { packId: snapshot.packId, instanceNumber: snapshot.instanceNumber });
+        }
+        return;
+      }
+      
+      // FAILED: UI did not stabilize (ref-based, no stale closure)
+      const failureReason = !promptMatch ? 'PROMPT_MISMATCH' : 
+                           bottomBarModeSOTRef.current !== 'TEXT_INPUT' ? 'WRONG_BOTTOM_BAR_MODE' :
+                           !v3ProbingActiveRef.current ? 'PROBING_NOT_ACTIVE' :
+                           'PROMPT_NOT_BOUND';
+      
+      const failedPayload = {
+        outcome: 'FAILED',
+        promptId,
+        packId: snapshot.packId,
+        instanceNumber: snapshot.instanceNumber,
+        loopKey: snapshot.loopKey,
+        reason: failureReason,
+        v3ProbingActive: v3ProbingActiveRef.current,
+        bottomBarModeSOT: bottomBarModeSOTRef.current,
+        hasPrompt: !!v3ActivePromptTextRef.current,
+        promptMatch
+      };
+      console.error('[V3_PROMPT_WATCHDOG][FAILED]', failedPayload);
+      lastWatchdogOutcomeRef.current = failedPayload; // DEV: Capture for debug bundle
+      
+      // PROMPT-EXISTS GUARD: Recheck refs before running recovery
+      const promptExistsBeforeRecovery = !!(v3ActivePromptTextRef?.current && v3ActivePromptTextRef.current.trim().length > 0);
+      
+      if (promptExistsBeforeRecovery) {
+        console.log('[V3_PROMPT_WATCHDOG][FAILED_SUPPRESSED_PROMPT_EXISTS]', {
+          loopKey: snapshot.loopKey,
+          packId: snapshot.packId,
+          instanceNumber: snapshot.instanceNumber,
+          promptLen: v3ActivePromptTextRef.current?.length || 0,
+          reason: 'Prompt exists in refs - suppressing recovery'
+        });
+        
+        // Release idempotency lock
+        const lockKey = lastV3SubmitLockKeyRef.current;
+        if (lockKey) {
+          if (submittedKeysRef.current.has(lockKey)) {
+            submittedKeysRef.current.delete(lockKey);
+            console.log('[IDEMPOTENCY][RELEASE]', { lockKey, packId: snapshot.packId, instanceNumber: snapshot.instanceNumber, source: 'watchdog_failed_suppressed' });
+            lastIdempotencyReleasedRef.current = lockKey;
+          }
+          lastV3SubmitLockKeyRef.current = null;
+        }
+        return; // Exit - do NOT run recovery
+      }
+      
+      // AUTHORITATIVE MULTI-INCIDENT DETECTION: Use pack metadata (no guessing)
+      const packData = v3ProbingContext_S?.packData;
+      
+      // Source of truth: packData fields (DB-first, then static config fallback)
+      const isMultiIncident = packData?.behavior_type === 'multi_incident' || 
+                              packData?.followup_multi_instance === true;
+      
+      // Derive source for logging
+      const sourceOfTruth = packData?.behavior_type === 'multi_incident' ? 'packMeta.behavior_type' :
+                           packData?.followup_multi_instance === true ? 'packMeta.followup_multi_instance' :
+                           'fallback:false';
+      
+      const sourcePayload = {
+        packId: snapshot.packId,
+        instanceNumber: snapshot.instanceNumber,
+        behavior_type: packData?.behavior_type,
+        followup_multi_instance: packData?.followup_multi_instance,
+        isMultiIncident
+      };
+      console.log('[V3_MULTI_INCIDENT][SOURCE_OF_TRUTH]', sourcePayload);
+      lastMultiIncidentSourceRef.current = sourcePayload; // DEV: Capture for debug bundle
+      
+      if (isMultiIncident) {
+        const recoveryPayload = {
+          packId: snapshot.packId,
+          instanceNumber: snapshot.instanceNumber,
+          reason: 'Watchdog FAILED - transitioning to gate for multi-incident pack'
+        };
+        console.log('[V3_UI_CONTRACT][RECOVERY_TO_ANOTHER_INSTANCE]', recoveryPayload);
+        lastRecoveryAnotherInstanceRef.current = recoveryPayload; // DEV: Capture for debug bundle
+        
+        // Trigger transition to multi-instance gate (reuses existing gate UI)
+        transitionToAnotherInstanceGate(v3ProbingContext_S);
+      } else {
+        // Non-multi-instance pack: advance to next question
+        console.log('[V3_PROMPT_WATCHDOG][RECOVERY_ADVANCE]', {
+          packId: snapshot.packId,
+          instanceNumber: snapshot.instanceNumber,
+          reason: 'Non-multi-instance pack - advancing to next question'
+        });
+        
+        const baseQuestionId = v3BaseQuestionIdRef.current;
+        if (baseQuestionId) {
+          exitV3Once('WATCHDOG_RECOVERY', {
+            incidentId: answerContext?.incidentId,
+            categoryId: v3ProbingContext_S?.categoryId,
+            completionReason: 'STOP',
+            messages: [],
+            reason: 'WATCHDOG_RECOVERY',
+            shouldOfferAnotherInstance: false,
+            packId: snapshot.packId,
+            categoryLabel: v3ProbingContext_S?.categoryLabel,
+            instanceNumber: snapshot.instanceNumber,
+            packData
+          });
+        }
+      }
+      
+      // IDEMPOTENCY RELEASE: Use stored lock key (guarantees exact match)
+      const lockKey = lastV3SubmitLockKeyRef.current;
+      if (lockKey) {
+        if (submittedKeysRef.current.has(lockKey)) {
+          submittedKeysRef.current.delete(lockKey);
+          console.log('[IDEMPOTENCY][RELEASE]', { lockKey, packId: snapshot.packId, instanceNumber: snapshot.instanceNumber, source: 'handleOpenerSubmit' });
+          lastIdempotencyReleasedRef.current = lockKey; // DEV: Capture for debug bundle
+        }
+        lastV3SubmitLockKeyRef.current = null;
+      } else {
+        console.warn('[IDEMPOTENCY][RELEASE_MISSING_KEY]', { packId: snapshot.packId, instanceNumber: snapshot.instanceNumber });
+      }
+      exitV3HandledRef.current = false;
+    });
+  }, [v3ProbingActive, v3ActivePromptText, v3ProbingContext_S, sessionId, exitV3Once, transitionToAnotherInstanceGate]);
+
+  // Deferred transition handler (fixes React warning)
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    if (!pendingTransition) return;
+
+    const executePendingTransition = async () => {
+      console.log('[PENDING_TRANSITION][EXECUTING]', pendingTransition.type, pendingTransition.payload);
+
+      if (pendingTransition.type === 'EXIT_V3') {
+        // IDEMPOTENCY GUARD: Prevent duplicate execution
+        if (exitV3InProgressRef.current) {
+          console.log('[EXIT_V3][SKIP] Already in progress');
+          return;
+        }
+
+        exitV3InProgressRef.current = true;
+        
+        // CRITICAL: Clear pending transition IMMEDIATELY (before async work)
+        const transitionPayload = pendingTransition.payload;
+        setPendingTransition(null);
+
+        try {
+          const result = transitionPayload;
+          const { incidentId, categoryId, completionReason, messages, reason, shouldOfferAnotherInstance, packId, categoryLabel, instanceNumber, packData } = result;
+          const baseQuestionId = v3BaseQuestionIdRef.current;
+
+          console.log('[EXIT_V3][EXECUTING]', { reason, baseQuestionId, shouldOfferAnotherInstance });
+
+        // GUARD: If multi-instance is offered, show gate BEFORE advancing
+        if (shouldOfferAnotherInstance) {
+        console.log('[EXIT_V3][MULTI_INSTANCE_GATE] Showing gate instead of advancing');
+
+        const gatePromptText = `Do you have another ${categoryLabel || 'incident'} to report?`;
+        const gateItemId = `multi-instance-gate-${packId}-${instanceNumber}`;
+        const gateStableKey = `mi-gate:${packId}:${instanceNumber}`;
+
+        console.log('[MULTI_INSTANCE_GATE][SHOW]', {
+          packId,
+          instanceNumber,
+          stableKey: gateStableKey,
+          shouldOfferAnotherInstance: true
+        });
+
+        // ATOMIC STATE TRANSITION: batch to avoid intermediate TEXT_INPUT footer
+        unstable_batchedUpdates(() => {
+          // Fully exit V3 mode and clear prompts
+          setV3ProbingActive(false);
+          setV3ActivePromptText(null);
+          setV3PendingAnswer(null);
+          setV3ProbingContext(null);
+          setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
+          setUiBlocker(null);
+          
+          // LIFECYCLE: Reset phase to IDLE on inline gate transition
+          setV3PromptPhase("IDLE");
+          
+          // PART B FIX: NEVER clear UI-only history during inline gate transition
+          // UI history must persist across instances (user should see all V3 Q/A)
+          // TDZ FIX: Read state via functional update (not direct reference during batch)
+          setV3ProbeDisplayHistory(prev => {
+            console.log('[V3_UI_HISTORY][PRESERVE_ON_GATE_INLINE]', { 
+              reason: 'TRANSITION_TO_GATE_INLINE', 
+              packId, 
+              instanceNumber,
+              uiHistoryLen: prev.length,
+              lastItemsPreview: prev.slice(-2).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
+              action: 'PRESERVE (not clearing)'
+            });
+            return prev; // No mutation - just logging fresh state
+          });
+          
+          // C) Clear active probe refs AND any stale prompt state
+          v3ActiveProbeQuestionRef.current = null;
+          v3ActiveProbeQuestionLoopKeyRef.current = null;
+          
+          // C) Clear stale V3 prompt rendering flags (prevents lingering prompt cards)
+          setV3ActivePromptText(null);
+          v3ActivePromptTextRef.current = null;
+          lastRenderedV3PromptKeyRef.current = null;
+          
+          console.log('[MI_GATE][V3_PROMPT_CLEARED_ON_INLINE_GATE]', {
+            packId,
+            instanceNumber,
+            clearedPromptText: true,
+            clearedPromptKey: true,
+            reason: 'Inline gate transition - preventing stale V3 prompt cards'
+          });
+
+          // Set up multi-instance gate as first-class currentItem_S
+          const gateItem = {
+            id: gateItemId,
+            type: 'multi_instance_gate',
+            packId,
+            categoryId,
+            categoryLabel,
+            promptText: gatePromptText,
+            instanceNumber,
+            baseQuestionId,
+            packData
+          };
+          setMultiInstanceGate({
+            active: true,
+            packId,
+            categoryId,
+            categoryLabel,
+            promptText: gatePromptText,
+            instanceNumber,
+            baseQuestionId,
+            packData
+          });
+          setCurrentItem(gateItem);
+        });
+
+        // PART A: DO NOT append gate to transcript while active (append after answer instead)
+        console.log('[MI_GATE][RENDER_SOURCE]', {
+          source: 'PROMPT_LANE',
+          stableKey: gateStableKey,
+          packId,
+          instanceNumber
+        });
+
+        await forensicCheck('gate_shown');
+
+        await persistStateToDatabase(null, [], {
+          id: gateItemId,
+          type: 'multi_instance_gate',
+          packId
+        });
+
+        exitV3HandledRef.current = false; // Reset for gate handlers
+        return; // Exit early - transition already cleared at top
+        }
+
+        // Clear gate FIRST
+        setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
+
+        // Clear V3 state
+        setV3ProbingActive(false);
+        setV3ProbingContext(null);
+        
+        // LIFECYCLE: Reset phase to IDLE on exit
+        setV3PromptPhase("IDLE");
+        
+        // PART B FIX: NEVER clear UI-only history when exiting V3 to next question
+        // User should see their entire V3 probe history across all incidents
+        // TDZ FIX: Read state via functional update (not direct reference)
+        setV3ProbeDisplayHistory(prev => {
+          console.log('[V3_UI_HISTORY][PRESERVE_ON_EXIT]', { 
+            reason: 'EXIT_V3', 
+            loopKey,
+            uiHistoryLen: prev.length,
+            lastItemsPreview: prev.slice(-2).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
+            action: 'PRESERVE (not clearing)'
+          });
+          return prev; // No mutation - just logging fresh state
+        });
+        
+        // Clear active probe refs (but not history state)
+        v3ActiveProbeQuestionRef.current = null;
+        v3ActiveProbeQuestionLoopKeyRef.current = null;
+
+        // Log pack exited (audit only)
+        if (v3ProbingContext_S?.packId) {
+          await logPackExited(sessionId, {
+            packId: v3ProbingContext_S.packId,
+            instanceNumber: v3ProbingContext_S.instanceNumber || 1
+          });
+        }
+        
+        // Refresh transcript after pack exit (V3 wrote many messages to DB)
+        await refreshTranscriptFromDB('v3_pack_exited');
+
+        // Advance to next base question AFTER clearing V3 state
+        if (baseQuestionId) {
+          console.log('[EXIT_V3][ADVANCE]', { baseQuestionId });
+          const freshForAdvance = await refreshTranscriptFromDB('before_advance_after_v3');
+          await advanceToNextBaseQuestion(baseQuestionId, freshForAdvance);
+        }
+
+          // Reset idempotency guard for next V3 pack
+          exitV3HandledRef.current = false;
+        } finally {
+          // ALWAYS reset in-progress flag
+          exitV3InProgressRef.current = false;
+        }
+      }
+    };
+
+    executePendingTransition();
+  }, [pendingTransition, dbTranscript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId, v3ProbingContext_S, multiInstanceGate, engine_S, refreshTranscriptFromDB]);
+
+  // ITEM-SCOPED COMMIT TRACKING: Track which item is being submitted
+  const committingItemIdRef = React.useRef(null);
+  
+  // HELPER: TDZ-safe commit guard (prevents minifier collision with isCommitting state)
+  const cqIsItemCommitting = (itemId) => {
+    return Boolean(isCommitting) && Boolean(itemId) && committingItemIdRef.current === itemId;
+  };
+
+  // V3 question append moved to commitV3PromptToBottomBar (synchronous, one-time)
+  // This effect removed to eliminate repeated DB fetches
+  
+  // FIX B4: V3 draft restore - load draft when V3 prompt becomes active (with fallback promptId)
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+  if (!v3ProbingActive || !v3ProbingContext_S) return;
+
+  const loopKey = `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`;
+  let promptId = v3ProbingContext_S.promptId || lastV3PromptSnapshotRef.current?.promptId;
+
+  // B4: Generate fallback promptId if missing (use probeIndex)
+  if (!promptId || promptId === 'noid') {
+  const probeIndex = dbTranscript.filter(e => 
+    (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+    e.meta?.sessionId === sessionId &&
+    e.meta?.categoryId === v3ProbingContext_S.categoryId &&
+    e.meta?.instanceNumber === (v3ProbingContext_S.instanceNumber || 1)
+  ).length;
+  promptId = `${loopKey}:${probeIndex}`;
+
+  console.log('[V3_DRAFT][PROMPTID_FALLBACK]', { 
+    generatedPromptId: promptId,
+    loopKey,
+    probeIndex,
+    reason: 'Missing stable promptId - using fallback for draft'
+  });
+  }
+
+  const v3DraftKey = `cq_v3draft_${sessionId}_${loopKey}_${promptId}`;
+
+  try {
+  const savedDraft = window.sessionStorage.getItem(v3DraftKey);
+      if (savedDraft && savedDraft.trim()) {
+        // ABANDONMENT SAFETY: Log V3 draft load
+        console.log('[DRAFT][LOAD]', {
+          found: true,
+          keyPreview: v3DraftKey.substring(0, 40),
+          len: savedDraft.length
+        });
+        console.log('[V3_DRAFT][LOAD]', { found: true, keyPreview: v3DraftKey, len: savedDraft.length });
+        setInput(savedDraft);
+      } else {
+        console.log('[DRAFT][LOAD]', {
+          found: false,
+          keyPreview: v3DraftKey.substring(0, 40)
+        });
+        console.log('[V3_DRAFT][LOAD]', { found: false, keyPreview: v3DraftKey });
+        setInput("");
+      }
+    } catch (e) {
+      console.warn('[V3_DRAFT][LOAD_FAILED]', { error: e.message });
+      setInput("");
+    }
+  }, [v3ProbingActive, v3ProbingContext_S?.promptId, sessionId]);
+  
+  // FIX B4: V3 draft save - persist draft on input change during V3 probing (with fallback promptId)
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    if (!v3ProbingActive || !v3ProbingContext_S) return;
+    
+    const loopKey = `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`;
+    let promptId = v3ProbingContext_S.promptId || lastV3PromptSnapshotRef.current?.promptId;
+    
+    // B4: Generate fallback promptId if missing
+    if (!promptId || promptId === 'noid') {
+      const probeIndex = dbTranscript.filter(e => 
+        (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
+        e.meta?.sessionId === sessionId &&
+        e.meta?.categoryId === v3ProbingContext_S.categoryId &&
+        e.meta?.instanceNumber === (v3ProbingContext_S.instanceNumber || 1)
+      ).length;
+      promptId = `${loopKey}:${probeIndex}`;
+    }
+    
+    const v3DraftKey = `cq_v3draft_${sessionId}_${loopKey}_${promptId}`;
+    
+    try {
+      if (input && input.trim()) {
+        window.sessionStorage.setItem(v3DraftKey, input);
+        
+        // ABANDONMENT SAFETY: Log V3 draft save
+        console.log('[DRAFT][SAVE]', {
+          keyPreview: v3DraftKey.substring(0, 40),
+          len: input.length
+        });
+        console.log('[V3_DRAFT][SAVE]', { keyPreview: v3DraftKey, len: input.length });
+      }
+    } catch (e) {
+      console.warn('[V3_DRAFT][SAVE_FAILED]', { error: e.message });
+    }
+  }, [input, v3ProbingActive, v3ProbingContext_S?.promptId, sessionId]);
+  
+  // FIX C: V3 UI history persistence - save to localStorage
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    if (!v3ProbingActive || !v3ProbingContext_S) return;
+    if (v3ProbeDisplayHistory_S.length === 0) return;
+    
+    const loopKey = `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`;
+    const storageKey = `cq_v3ui_${sessionId}_${loopKey}`;
+    
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(v3ProbeDisplayHistory_S));
+      console.log('[V3_UI_HISTORY][SAVE]', { len: v3ProbeDisplayHistory_S.length });
+    } catch (e) {
+      console.warn('[V3_UI_HISTORY][SAVE_FAILED]', { error: e.message });
+    }
+  }, [v3ProbeDisplayHistory_S, v3ProbingActive, v3ProbingContext_S?.categoryId, sessionId]);
+  
+  // FIX C: V3 UI history restore - load from localStorage on mount
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    if (!v3ProbingActive || !v3ProbingContext_S) return;
+    
+    const loopKey = `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`;
+    const storageKey = `cq_v3ui_${sessionId}_${loopKey}`;
+    
+    try {
+      const savedHistory = window.localStorage.getItem(storageKey);
+      if (savedHistory) {
+        const parsed = JSON.parse(savedHistory);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          console.log('[V3_UI_HISTORY][LOAD]', { found: true, len: parsed.length });
+          setV3ProbeDisplayHistory(parsed);
+        }
+      } else {
+        console.log('[V3_UI_HISTORY][LOAD]', { found: false });
+      }
+    } catch (e) {
+      console.warn('[V3_UI_HISTORY][LOAD_FAILED]', { error: e.message });
+    }
+  }, [v3ProbingActive, v3ProbingContext_S?.categoryId, v3ProbingContext_S?.instanceNumber, sessionId]);
+
+  // UX: Restore draft when currentItem_S changes
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    if (!currentItem_S || !sessionId) return;
+    
+    // FIX B: Skip normal draft restore for V3 probing (uses V3-specific draft above)
+    if (v3ProbingActive) {
+      console.log('[DRAFT][SKIP_NORMAL_RESTORE_FOR_V3]', { v3ProbingActive: true });
+      return;
+    }
+
+    const packId = currentItem_S?.packId || null;
+    const fieldKey = currentItem_S?.fieldKey || currentItem_S?.id || null;
+    const instanceNumber = currentItem_S?.instanceNumber || 0;
+    const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
+    
+    // V3 OPENER: Use dedicated openerDraft state (isolated from shared input)
+    if (currentItem_S.type === 'v3_pack_opener') {
+      try {
+        const savedDraft = window.sessionStorage.getItem(draftKey);
+        
+        // GUARD: Never seed openerDraft with prompt text
+        const openerPromptText = currentItem_S.openerText || "";
+        const draftMatchesPrompt = savedDraft && savedDraft.trim() === openerPromptText.trim() && savedDraft.length > 10;
+        
+        if (draftMatchesPrompt) {
+          console.error('[V3_UI_CONTRACT][OPENER_DRAFT_SEEDED_BLOCKED]', {
+            packId: currentItem_S.packId,
+            instanceNumber: currentItem_S.instanceNumber,
+            reason: 'Attempted to seed openerDraft with prompt text - clearing to enforce contract',
+            savedDraftLen: savedDraft?.length || 0,
+            promptLen: openerPromptText?.length || 0
+          });
+          setOpenerDraft(""); // Block prompt seeding
+          // Clear storage to prevent re-seed on next restore
+          try {
+            window.sessionStorage.removeItem(draftKey);
+          } catch {}
+        } else if (savedDraft != null && savedDraft !== "") {
+          // ABANDONMENT SAFETY: Log opener draft load
+          console.log('[DRAFT][LOAD]', {
+            found: true,
+            keyPreview: draftKey.substring(0, 40),
+            len: savedDraft?.length || 0
+          });
+          console.log("[UX][DRAFT] Restoring opener draft for", draftKey);
+          setOpenerDraft(savedDraft);
+        } else {
+          console.log('[DRAFT][LOAD]', {
+            found: false,
+            keyPreview: draftKey.substring(0, 40)
+          });
+          setOpenerDraft("");
+        }
+      } catch (e) {
+        console.log("[FORENSIC][STORAGE][READ_BLOCKED_FALLBACK]", { 
+          key: draftKey, 
+          error: e.message,
+          fallbackBehavior: 'Using in-memory draft only'
+        });
+        setOpenerDraft("");
+      }
+      setInput(""); // Clear shared input for opener (uses openerDraft instead)
+      return;
+    }
+
+    try {
+      const savedDraft = window.sessionStorage.getItem(draftKey);
+      if (savedDraft != null && savedDraft !== "") {
+        // ABANDONMENT SAFETY: Log draft load
+        console.log('[DRAFT][LOAD]', {
+          found: true,
+          keyPreview: draftKey.substring(0, 40),
+          len: savedDraft?.length || 0
+        });
+        
+        console.log("[UX][DRAFT] Restoring draft for", draftKey);
+        console.log("[FORENSIC][STORAGE][READ]", { operation: 'READ', key: draftKey, success: true, valueLength: savedDraft?.length || 0 });
+        setInput(savedDraft);
+      } else {
+        console.log('[DRAFT][LOAD]', {
+          found: false,
+          keyPreview: draftKey.substring(0, 40)
+        });
+        
+        console.log("[FORENSIC][STORAGE][READ]", { operation: 'READ', key: draftKey, success: true, found: false });
+        // UI CONTRACT: NEVER prefill with prompt - input starts empty unless real draft exists
+        setInput("");
+      }
+    } catch (e) {
+      const isTrackingPrevention = e.message?.includes('tracking') || e.name === 'SecurityError';
+      console.log("[FORENSIC][STORAGE][READ]", { 
+        operation: 'READ', 
+        key: draftKey, 
+        success: false, 
+        error: e.message,
+        isTrackingPrevention,
+        fallbackBehavior: 'Input cleared - continue without draft'
+      });
+      console.warn("[UX][DRAFT] Failed to restore draft", e);
+      setInput(""); // UI CONTRACT: NEVER use prompt as fallback
+    }
+  }, [currentItem_S, sessionId, buildDraftKey, v3ProbingActive]);
+
+  // Measure question card height dynamically
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    if (questionCardRef.current) {
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (let entry of entries) {
+          setQuestionCardHeight(entry.contentRect.height);
+        }
+      });
+      resizeObserver.observe(questionCardRef.current);
+      return () => resizeObserver.disconnect();
+    }
+  }, [currentItem_S, validationHint]);
+
+  // AUTO-GROWING INPUT: Sync cqDiagEnabled to ref for stable logging in long-lived callbacks
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    cqDiagEnabledRef.current = cqDiagEnabled;
+  }, [cqDiagEnabled]);
+  
+  // PART A: Initialize scroll owner on mount
+  cqHookMark('HOOK_48:useEffect:initScrollOwner');
+  useEffect_TR(() => {
+    if (__cqBootNotReady) return;
+    if (!bottomAnchorRef.current) return;
+    
+    requestAnimationFrame(() => {
+      const scrollOwner = getScrollOwner(bottomAnchorRef.current);
+      scrollOwnerRef.current = scrollOwner;
+      
+      if (scrollOwner) {
+        logOnce(`scroll_owner_init_${sessionId}`, () => {
+          console.log('[SCROLL_OWNER][INIT]', {
+            nodeName: scrollOwner.nodeName,
+            className: scrollOwner.className?.substring(0, 60),
+            scrollTop: Math.round(scrollOwner.scrollTop),
+            clientHeight: Math.round(scrollOwner.clientHeight),
+            scrollHeight: Math.round(scrollOwner.scrollHeight),
+            overflowY: window.getComputedStyle(scrollOwner).overflowY,
+            isHistoryRef: scrollOwner === historyRef.current
+          });
+        });
+      }
+    });
+  }, [sessionId, getScrollOwner]);
+
+  // ============================================================================
+  // FOOTER MEASUREMENT SOT - Dynamic, mode-agnostic, ref-latch (TDZ-safe)
+  // ============================================================================
+  const footerObservedRef = React.useRef(false);
+  const footerObserverAttachLoggedRef = React.useRef(false);
+  
+  cqHookMark('HOOK_49:useEffect:footerMeasurement');
+  useEffect_TR(() => {
+    if (__cqBootNotReady) return;
+    let resizeObserver = null;
+    let settlingTimers = [];
+    let pollingTimers = [];
+    let windowResizeHandler = null;
+    
+    const measureFooter = () => {
+      if (!footerShellRef.current) return;
+      const rect = footerShellRef.current.getBoundingClientRect();
+      const measured = Math.round(rect.height || footerShellRef.current.offsetHeight || 0);
+      
+      setDynamicFooterHeightPx(prev => {
+        const delta = Math.abs(measured - prev);
+        if (delta < 2) return prev;
+        
+        console.log('[FOOTER][HEIGHT_MEASURED]', {
+          height: measured,
+          delta
+        });
+        
+        return measured;
+      });
+    };
+    
+    const attachObserver = () => {
+      if (!footerShellRef.current) return false;
+      if (footerObservedRef.current) return true;
+      
+      // Attach ResizeObserver
+      resizeObserver = new ResizeObserver(measureFooter);
+      resizeObserver.observe(footerShellRef.current);
+      
+      // Initial measurement
+      requestAnimationFrame(measureFooter);
+      
+      // Settling measurements
+      settlingTimers = [
+        setTimeout(() => measureFooter(), 50),
+        setTimeout(() => measureFooter(), 150),
+        setTimeout(() => measureFooter(), 300)
+      ];
+      
+      // Window resize fallback
+      windowResizeHandler = () => requestAnimationFrame(measureFooter);
+      window.addEventListener('resize', windowResizeHandler);
+      
+      footerObservedRef.current = true;
+      
+      // Log once on successful attachment
+      if (!footerObserverAttachLoggedRef.current) {
+        footerObserverAttachLoggedRef.current = true;
+        const rect = footerShellRef.current.getBoundingClientRect();
+        const measured = Math.round(rect.height || footerShellRef.current.offsetHeight || 0);
+        console.log('[UI_CONTRACT][FOOTER_OBSERVER_ATTACHED]', { 
+          footerHeightPx: measured 
+        });
+      }
+      
+      return true;
+    };
+    
+    // Try to attach immediately
+    if (!attachObserver()) {
+      // Ref not ready - use RAF retry instead of polling
+      let rafRetryCount = 0;
+      const maxRafRetries = 8;
+      
+      const retryAttach = () => {
+        rafRetryCount++;
+        if (attachObserver() || rafRetryCount >= maxRafRetries) {
+          console.log('[PERF][POLLING_DISABLED]', {
+            replacedWith: 'RAF',
+            reason: 'setInterval violation'
+          });
+          return;
+        }
+        requestAnimationFrame(retryAttach);
+      };
+      
+      requestAnimationFrame(retryAttach);
+    }
+    
+    return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+      settlingTimers.forEach(t => clearTimeout(t));
+      pollingTimers.forEach(t => clearTimeout(t));
+      if (windowResizeHandler) {
+        window.removeEventListener('resize', windowResizeHandler);
+      }
+    };
+  }, []); // TDZ-SAFE: No deps on mode variables
+
+  // PART B: Measure footer shell height from stable wrapper (all modes)
+  cqHookMark('HOOK_50:useEffect:footerShellMeasure');
+  useEffect_TR(() => {
+    if (__cqBootNotReady) return;
+    if (!footerShellRef.current) return;
+    
+    let rafId = null;
+    let pendingMeasurement = false;
+    
+    const measureFooterShell = () => {
+      if (!footerShellRef.current) return;
+      const rect = footerShellRef.current.getBoundingClientRect();
+      const measured = Math.round(rect.height || footerShellRef.current.offsetHeight || 0);
+      
+      // PART A: Refresh scroll owner on footer resize (layout may have changed)
+      if (bottomAnchorRef.current) {
+        const newScrollOwner = getScrollOwner(bottomAnchorRef.current);
+        if (newScrollOwner && newScrollOwner !== scrollOwnerRef.current) {
+          scrollOwnerRef.current = newScrollOwner;
+          
+          logOnce(`scroll_owner_identified_${sessionId}`, () => {
+            console.log('[SCROLL_OWNER]', {
+              nodeName: newScrollOwner?.nodeName,
+              className: newScrollOwner?.className?.substring(0, 60),
+              scrollTop: Math.round(newScrollOwner?.scrollTop || 0),
+              clientHeight: Math.round(newScrollOwner?.clientHeight || 0),
+              scrollHeight: Math.round(newScrollOwner?.scrollHeight || 0),
+              overflowY: window.getComputedStyle(newScrollOwner).overflowY,
+              isHistoryRef: newScrollOwner === historyRef.current
+            });
+          });
+        }
+      }
+      
+      // HARDENED: Only update if delta >= 2px (prevents thrash)
+      setFooterShellHeightPx(prev => {
+        const delta = Math.abs(measured - prev);
+        if (delta < 2) return prev;
+        
+        console.log('[FOOTER_SHELL][MEASURE]', {
+          height: measured,
+          delta
+        });
+        
+        return measured;
+      });
+      
+      pendingMeasurement = false;
+    };
+    
+    const scheduleUpdate = () => {
+      if (pendingMeasurement) return;
+      pendingMeasurement = true;
+      rafId = requestAnimationFrame(measureFooterShell);
+    };
+    
+    const resizeObserver = new ResizeObserver(scheduleUpdate);
+    resizeObserver.observe(footerShellRef.current);
+    
+    // Initial measurement
+    scheduleUpdate();
+    
+    return () => {
+      resizeObserver.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [sessionId]); // TDZ FIX: Removed bottomBarModeSOT dep (not available at this point)
+
+  // ============================================================================
+  // UNIFIED BOTTOM BAR MODE + FOOTER PADDING COMPUTATION (Single Source of Truth)
+  // ============================================================================
+  // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
+  // CRITICAL: DECLARED FIRST - Before all effects that use bottomBarModeSOT/effectiveItemType
+  // All variables declared EXACTLY ONCE in this block
+  
+  // Step 1: Compute currentItem_SType (MOVED to prevent TDZ)
+  
+  // Step 2: Compute footer controller (determines which UI block controls bottom bar)
+  const footerControllerLocal = activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" ? "REQUIRED_ANCHOR_FALLBACK" :
+                                activeUiItem_S_SAFE.kind === "V3_PROMPT" ? "V3_PROMPT" :
+                                activeUiItem_S_SAFE.kind === "V3_OPENER" ? "V3_OPENER" :
+                                activeUiItem_S_SAFE.kind === "MI_GATE" ? "MI_GATE" :
+                                "DEFAULT";
+  
+  // TDZ ELIMINATED: Late bottomBarMode declaration removed - bottomBarModeSOT is canonical source
+  
+  cqTdzMark('BEFORE_CURRENT_PROMPT_COMPUTATION');
+ // ===============================
+ // SAFE HELPERS ZONE (TDZ FIX)
+ // ===============================
+
+  async function saveV2PackFieldResponse({ sessionId, packId, fieldKey, instanceNumber, answer, baseQuestionId, baseQuestionCode, sectionId, questionText }) {
+    try {
+      console.log('[V2_PACK_FIELD][SAVE][CALL]', {
+        sessionId,
+        packId,
+        fieldKey,
+        instanceNumber,
+        baseQuestionId,
+        baseQuestionCode,
+        answerLength: answer?.length || 0
+      });
+
+      // Upsert logic: find existing Response for this (sessionId, packId, fieldKey, instanceNumber)
+      const existing = await base44.entities.Response.filter({
+        session_id: sessionId,
+        pack_id: packId,
+        field_key: fieldKey,
+        instance_number: instanceNumber,
+        response_type: 'v2_pack_field'
+      });
+
+      const sectionEntity = engine_S.Sections.find(s => s.id === sectionId);
+      const sectionName = sectionEntity?.section_name || '';
+
+      if (existing.length > 0) {
+        // Update existing record
+        await base44.entities.Response.update(existing[0].id, {
+          answer: answer,
+          question_text: questionText,
+          response_timestamp: new Date().toISOString()
+        });
+        console.log('[V2_PACK_FIELD][SAVE][OK] Updated existing Response', existing[0].id);
+        return existing[0];
+      } else {
+        // Create new record
+        const created = await base44.entities.Response.create({
+          session_id: sessionId,
+          question_id: baseQuestionId,
+          question_text: questionText,
+          category: sectionName,
+          answer: answer,
+          triggered_followup: false,
+          is_flagged: false,
+          response_timestamp: new Date().toISOString(),
+          response_type: 'v2_pack_field',
+          pack_id: packId,
+          field_key: fieldKey,
+          instance_number: instanceNumber,
+          base_question_id: baseQuestionId,
+          base_question_code: baseQuestionCode
+        });
+        console.log('[V2_PACK_FIELD][SAVE][OK] Created new Response for', { packId, fieldKey, instanceNumber });
+        return created;
+      }
+    } catch (err) {
+      console.error('[V2_PACK_FIELD][SAVE][ERROR]', err);
+      // Non-blocking - log error but don't break UX
+      return null;
+    }
+  };
+
+
+  async function saveFollowUpAnswer(packId, fieldKey, answer, substanceName, instanceNumber = 1, factSource = "user") {
+    try {
+      const responses = await base44.entities.Response.filter({
+        session_id: sessionId,
+        followup_pack: packId,
+        triggered_followup: true
+      });
+
+      if (responses.length === 0) {
+        return;
+      }
+
+      const triggeringResponse = responses[responses.length - 1];
+
+      const existingFollowups = await base44.entities.FollowUpResponse.filter({
+        session_id: sessionId,
+        response_id: triggeringResponse.id,
+        followup_pack: packId,
+        instance_number: instanceNumber
+      });
+
+      let factsUpdate = null;
+      let unresolvedUpdate = null;
+      if (packId === "PACK_LE_APPS") {
+        const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+        const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
+
+        if (fieldConfig?.semanticKey) {
+          const semanticResult = validateFollowupValue({ packId, fieldKey, rawValue: answer });
+
+          const maxAiFollowups = getPackMaxAiFollowups(packId);
+          const wasProbed = factSource === "ai_probed";
+
+          const probeCount = wasProbed ? maxAiFollowups : 0;
+          const isUnresolved = wasProbed && (semanticResult.status === "invalid" || semanticResult.status === "unknown");
+
+          if (isUnresolved) {
+            const displayValue = fieldConfig.unknownDisplayLabel || `Not recalled after full probing`;
+            factsUpdate = {
+              [fieldConfig.semanticKey]: {
+                value: displayValue,
+                status: "unknown",
+                source: factSource
+              }
+            };
+            unresolvedUpdate = {
+              semanticKey: fieldConfig.semanticKey,
+              fieldKey: fieldKey,
+              probeCount: maxAiFollowups
+            };
+          } else if (semanticResult.status === "valid") {
+            factsUpdate = {
+              [fieldConfig.semanticKey]: {
+                value: semanticResult.normalizedValue,
+                status: "confirmed",
+                source: factSource
+              }
+            };
+          } else if (semanticResult.status === "unknown") {
+            factsUpdate = {
+              [fieldConfig.semanticKey]: {
+                value: semanticResult.normalizedValue,
+                status: "unknown",
+                source: factSource
+              }
+            };
+          }
+        }
+      }
+
+      if (existingFollowups.length === 0) {
+        const createData = {
+          session_id: sessionId,
+          response_id: triggeringResponse.id,
+          question_id: triggeringResponse.question_id,
+          followup_pack: packId,
+          instance_number: instanceNumber,
+          substance_name: substanceName || null,
+          incident_description: answer,
+          completed: false,
+          additional_details: { [fieldKey]: answer }
+        };
+
+        if (factsUpdate) {
+          createData.additional_details.facts = factsUpdate;
+        }
+
+        if (unresolvedUpdate) {
+          createData.additional_details.unresolvedFields = [unresolvedUpdate];
+        }
+
+        const createdRecord = await base44.entities.FollowUpResponse.create(createData);
+
+        if (packId === 'PACK_LE_APPS') {
+          await syncFactsToInterviewSession(sessionId, triggeringResponse.question_id, packId, createdRecord);
+        }
+      } else {
+        const existing = existingFollowups[0];
+
+        const updatedDetails = {
+          ...(existing.additional_details || {}),
+          [fieldKey]: answer
+        };
+
+        if (factsUpdate) {
+          updatedDetails.facts = {
+            ...(updatedDetails.facts || {}),
+            ...factsUpdate
+          };
+        }
+
+        if (unresolvedUpdate) {
+          const existingUnresolved = updatedDetails.unresolvedFields || [];
+          const filtered = existingUnresolved.filter(u => u.semanticKey !== unresolvedUpdate.semanticKey);
+          filtered.push(unresolvedUpdate);
+          updatedDetails.unresolvedFields = filtered;
+        }
+
+        await base44.entities.FollowUpResponse.update(existing.id, {
+          substance_name: substanceName || existing.substance_name,
+          additional_details: updatedDetails
+        });
+
+        const updatedRecord = { ...existing, additional_details: updatedDetails };
+        if (packId === 'PACK_LE_APPS') {
+          await syncFactsToInterviewSession(sessionId, triggeringResponse.question_id, packId, updatedRecord);
+        }
+      }
+
+    } catch (err) {
+      console.error('❌ Follow-up save error:', err);
+    }
+  };
+
+  async function saveAnswerToDatabase(questionId, answer, question) {
+    try {
+      const existing = await base44.entities.Response.filter({
+        session_id: sessionId,
+        question_id: questionId,
+        response_type: 'base_question'
+      });
+
+      if (existing.length > 0) {
+        return existing[0];
+      }
+
+      const currentDisplayOrder = displayOrderRef.current++;
+      const triggersFollowup = question.followup_pack && answer.toLowerCase() === 'yes';
+
+      const sectionEntity = engine_S.Sections.find(s => s.id === question.section_id);
+      const sectionName = sectionEntity?.section_name || question.category || '';
+
+      const created = await base44.entities.Response.create({
+        session_id: sessionId,
+        question_id: questionId,
+        question_text: question.question_text,
+        category: sectionName,
+        answer: answer,
+        answer_array: null,
+        triggered_followup: triggersFollowup,
+        followup_pack: triggersFollowup ? question.followup_pack : null,
+        is_flagged: false,
+        flag_reason: null,
+        response_timestamp: new Date().toISOString(),
+        display_order: currentDisplayOrder,
+        response_type: 'base_question'
+      });
+
+      return created;
+    } catch (err) {
+      console.error('❌ Database save error:', err);
+      return null;
+    }
+  };
+
+
+  handleCompletionConfirm = async () => {
+    setIsCompletingInterview(true);
+
+    try {
+      // V3 ACK METRICS: Log final reliability stats
+      console.log('[V3_PROBE][ACK_METRICS]', {
+        ackSet: v3AckSetCountRef.current,
+        ackCleared: v3AckClearCountRef.current,
+        ackRepaired: v3AckRepairCountRef.current,
+        sessionId
+      });
+      
+      await base44.entities.InterviewSession.update(sessionId, {
+        status: 'completed',
+        completed_date: new Date().toISOString(),
+        completion_percentage: 100,
+      });
+
+      // Trigger overall summary generation when interview completes (background)
+      base44.functions.invoke('triggerSummaries', {
+        sessionId,
+        triggerType: 'interview_complete'
+      }).catch(() => {}); // Fire and forget
+
+      navigate(createPageUrl("Home"));
+    } catch (err) {
+      console.error('❌ Error completing interview:', err);
+      setError('Failed to complete interview. Please try again.');
+      setIsCompletingInterview(false);
+    }
+  };
+
+
+
+  const getQuestionDisplayNumber = React.useCallback((questionId) => {
+    if (__cqBootNotReady) return '';
+    if (!engine_S) return '';
+
+    if (displayNumberMapRef.current[questionId]) {
+      return displayNumberMapRef.current[questionId];
+    }
+
+    const index = engine_S.ActiveOrdered.indexOf(questionId);
+    if (index !== -1) {
+      const displayNum = index + 1;
+      displayNumberMapRef.current[questionId] = displayNum;
+      return displayNum;
+    }
+
+    return '';
+  }, [engine_S]);
+
+
+  // ============================================================================
+  // CURRENT PROMPT COMPUTATION - Moved here after all dependencies (TDZ fix)
+  // ============================================================================
+  // CRITICAL: Must be after effectiveItemType_SAFE, bottomBarModeSOT_SAFE, activeUiItem_S
+  let __cqTdzError = null;
+  let currentPrompt = null;
+
+  try {
+    currentPrompt = getCurrentPrompt();
+    
+    cqTdzMark('AFTER_CURRENT_PROMPT_COMPUTATION_TDZ_POINT_OK');
+    
+    cqTdzMark('AFTER_CURRENT_PROMPT_COMPUTATION', { hasPrompt: !!currentPrompt });
+    
+    cqTdzMark('BEFORE_ACTIVE_PROMPT_TEXT_RESOLUTION');
+    
+    // ============================================================================
+    // ACTIVE PROMPT TEXT RESOLUTION - Consolidated render-time derivations (TDZ-safe)
+    // ============================================================================
+    // CRITICAL: All prompt-related consts consolidated here (after dependencies)
+    const activePromptText_TRY1 = computeActivePromptText({
+      requiredAnchorFallbackActive,
+      requiredAnchorCurrent,
+      v3ProbingContext_S,
+      v3ProbingActive,
+      v3ActivePromptText,
+      effectiveItemType_SAFE,
+      currentItem_S,
+      v2ClarifierState,
+      currentPrompt
+    });
+    
+    cqTdzMark('AFTER_ACTIVE_PROMPT_TEXT_RESOLUTION', { hasText: !!activePromptText_TRY1 });
+    
+    safeActivePromptText = sanitizeCandidateFacingText(activePromptText_TRY1, 'ACTIVE_PROMPT_TEXT');
+  } catch (e) {
+    __cqTdzError = e;
+    console.error('[CQ_TDZ_PROBE][ERROR]', { message: e?.message, stack: e?.stack });
+  }
+  
+  cqTdzMark('BEFORE_FOOTER_AND_PROMPT_DERIVATIONS');
+  
+  // [TDZ_FIX] Block moved to derived snapshot.
+  
+  cqTdzMark('AFTER_BOTTOM_SPACER_PX', { spacerPx: bottomSpacerPx });
+  
+  // DIAGNOSTIC LOG: Show bottom spacer computation (deduped)
+  const spacerLogKey = `${bottomBarModeSOT}:${footerShellHeightPx}:${bottomSpacerPx}`;
+  logOnce(spacerLogKey, () => {
+    console.log('[LAYOUT][BOTTOM_SPACER_APPLIED]', {
+      mode: bottomBarModeSOT_SAFE,
+      footerShellHeightPx,
+      bottomSpacerPx,
+      shouldRenderFooter_SAFE,
+      appliedTo: 'real_dom_spacer_element',
+      strategy: 'stable_shell_measurement',
+      minSpacerPx: 80
+    });
+  });
+  
+  // GUARDRAIL A: Bottom spacer assertion (verify real DOM element exists)
+  if (historyRef.current && typeof window !== 'undefined') {
+    requestAnimationFrame(() => {
+      try {
+        const scrollContainer = historyRef.current;
+        if (!scrollContainer) return;
+        
+        // Verify bottom spacer exists and has correct height
+        const spacer = bottomAnchorRef.current;
+        
+        if (!spacer) {
+          console.error('[UI_CONTRACT][BOTTOM_SPACER_MISSING]', {
+            mode: bottomBarModeSOT_SAFE,
+            expectedHeightPx: bottomSpacerPx,
+            reason: 'Bottom spacer element ref not attached'
+          });
+          return;
+        }
+        
+        const spacerRect = spacer.getBoundingClientRect();
+        const spacerHeightPx = Math.round(spacerRect.height);
+        const expectedHeightPx = bottomSpacerPx;
+        const heightTolerance = 4;
+        
+        const heightMatches = Math.abs(spacerHeightPx - expectedHeightPx) <= heightTolerance;
+        
+        if (!heightMatches) {
+          console.warn('[UI_CONTRACT][BOTTOM_SPACER_HEIGHT_MISMATCH]', {
+            mode: bottomBarModeSOT_SAFE,
+            expectedHeightPx,
+            actualHeightPx: spacerHeightPx,
+            delta: spacerHeightPx - expectedHeightPx
+          });
+        }
+        
+        // Verify scroll container has overflow
+        const computedStyle = window.getComputedStyle(scrollContainer);
+        const overflowY = computedStyle.overflowY;
+        const isScrollContainer = overflowY === 'auto' || overflowY === 'scroll';
+        
+        if (!isScrollContainer) {
+          console.error('[UI_CONTRACT][SCROLL_CONTAINER_INVALID]', {
+            mode: bottomBarModeSOT_SAFE,
+            overflowY,
+            reason: 'Container does not have overflow-y auto/scroll'
+          });
+        }
+      } catch (err) {
+        // Silent - guardrail should never crash
+      }
+    });
+  }
+  
+  // WELCOME-specific log to confirm unified path
+  if (screenMode === 'WELCOME') {
+    console.log('[WELCOME][FOOTER_PADDING_SOT]', {
+      bottomBarModeSOT_SAFE,
+      computedPaddingPx: dynamicBottomPaddingPx,
+      usesUnifiedLogic: true
+    });
+  }
+  
+  // GUARDRAIL C: Mode switch assertion - HOISTED TO BATCH 3 (line ~4455)
+  
+  // FOOTER CLEARANCE ASSERTION: DISABLED in 3-row shell mode (footer in normal flow, no overlap possible)
+  if (!IS_3ROW_SHELL && hasActiveCard && typeof window !== 'undefined') {
+    requestAnimationFrame(() => {
+      try {
+        const scrollContainer = historyRef.current;
+        const footerEl = footerRef.current;
+
+        if (!scrollContainer || !footerEl) return;
+        
+        // DIAGNOSTIC: Verify scroll container flex setup for bottom-anchoring
+        if (CQ_DEBUG_FOOTER_ANCHOR) {
+          const computed = window.getComputedStyle(scrollContainer);
+          console.log('[UI_CONTRACT][SCROLL_CONTAINER_FLEX_DIAGNOSTIC]', {
+            display: computed.display,
+            flexDirection: computed.flexDirection,
+            clientHeight: scrollContainer.clientHeight,
+            scrollHeight: scrollContainer.scrollHeight,
+            overflowY: computed.overflowY
+          });
+        }
+
+        // YES_NO ACTIVE CARD VERIFICATION: Log active question stableKey for diagnostics
+        if (screenMode === 'QUESTION' && bottomBarModeSOT === 'YES_NO' && effectiveItemType_SAFE === 'question') {
+          const activeQuestionStableKey = currentItem_S?.id ? `question-shown:${currentItem_S.id}` : null;
+          
+          if (activeQuestionStableKey) {
+            const foundInDom = scrollContainer.querySelectorAll(
+              `[data-stablekey="${activeQuestionStableKey}"][data-cq-active-card="true"]`
+            ).length;
+            
+            console.log('[UI_CONTRACT][YESNO_ACTIVE_CARD_SOT]', {
+              activeQuestionStableKey,
+              foundInDomCount: foundInDom,
+              screenMode,
+              bottomBarModeSOT_SAFE,
+              currentItem_SId: currentItem_S?.id
+            });
+            
+            // RUNTIME ASSERTION: Verify exactly 1 active card in QUESTION+YES_NO mode
+            const totalActiveCards = scrollContainer.querySelectorAll('[data-cq-active-card="true"]').length;
+            if (totalActiveCards !== 1) {
+              console.warn('[UI_CONTRACT][YESNO_ACTIVE_CARD_COUNT_ANOMALY]', {
+                count: totalActiveCards,
+                screenMode,
+                bottomBarModeSOT_SAFE,
+                expected: 1,
+                reason: totalActiveCards === 0 ? 'no_active_card_markers' : 'multiple_active_card_markers'
+              });
+            }
+          } else {
+            console.warn('[UI_CONTRACT][ACTIVE_CARD_KEY_MISSING]', {
+              screenMode,
+              bottomBarModeSOT_SAFE,
+              effectiveItemType_SAFE,
+              currentItem_SId: currentItem_S?.id,
+              action: 'NO_ACTIVE_CARD_THIS_FRAME'
+            });
+          }
+        }
+
+        // WELCOME/CTA BYPASS: Skip active card validation for welcome screen
+        // WELCOME mode has no active interview cards in scroll history (only welcome message)
+        const isWelcomeCta = screenMode === 'WELCOME' && 
+                            bottomBarModeSOT === 'CTA' && 
+                            activeUiItem_S_SAFE?.kind === 'DEFAULT';
+        
+        if (isWelcomeCta) {
+          console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SKIP]', {
+            mode: bottomBarModeSOT_SAFE,
+            screenMode,
+            activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
+            reason: 'WELCOME_CTA_NO_SCROLL_ACTIVE_CARD - welcome screen has no active interview cards to protect',
+            action: 'SKIP'
+          });
+          
+          footerClearanceStatusRef.current = 'SKIP';
+          
+          console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', {
+            status: 'SKIP',
+            mode: bottomBarModeSOT_SAFE,
+            screenMode,
+            reason: 'WELCOME_CTA_MODE'
+          });
+          
+          return; // Exit early - no validation needed
+        }
+
+        // 3-ROW SHELL: Skip spacer check (footer in normal flow, no spacer needed)
+        if (!IS_3ROW_SHELL) {
+          const spacer = scrollContainer.querySelector('[data-cq-footer-spacer="true"]');
+          if (!spacer) {
+            console.error('[UI_CONTRACT][FOOTER_SPACER_MISSING]', {
+              mode: bottomBarModeSOT_SAFE,
+              expectedHeightPx: dynamicBottomPaddingPx,
+              reason: 'Footer spacer element not found - clearance may fail'
+            });
+            return;
+          }
+        }
+
+        const scrollRect = scrollContainer.getBoundingClientRect();
+        const footerRect = footerEl.getBoundingClientRect();
+
+        // REAL ACTIVE CARD GATE: Verify hasActiveCard matches DOM reality
+        const hasRealActiveCardInDom = scrollContainer.querySelectorAll('[data-cq-active-card="true"]').length > 0;
+        
+        // SAFETY: Skip validation if hasActiveCard=true but no real cards in DOM (non-QUESTION modes)
+        if (hasActiveCard && !hasRealActiveCardInDom) {
+          // GUARD: Only SKIP for non-interview modes (WELCOME, etc.)
+          // For QUESTION modes, enforce strict FAIL behavior
+          const isQuestionMode = screenMode === 'QUESTION';
+          
+          if (!isQuestionMode) {
+            console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SKIP]', {
+              mode: bottomBarModeSOT_SAFE,
+              screenMode,
+              activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
+              hasActiveCard,
+              hasRealActiveCardInDom,
+              reason: 'HAS_ACTIVE_CARD_TRUE_BUT_NONE_IN_DOM - non-question mode',
+              action: 'SKIP'
+            });
+            
+            footerClearanceStatusRef.current = 'SKIP';
+            
+            console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', {
+              status: 'SKIP',
+              mode: bottomBarModeSOT_SAFE,
+              screenMode,
+              reason: 'DERIVED_FLAG_DOM_MISMATCH_NON_QUESTION_MODE'
+            });
+            
+            return; // Exit early - skip validation
+          }
+        }
+        
+        // STRUCTURAL ASSERTION: Verify active card is in scroll container
+        if (hasActiveCard) {
+          const activeCard_SsInContainer = scrollContainer.querySelectorAll('[data-cq-active-card="true"]');
+          
+          if (activeCard_SsInContainer.length === 0) {
+            // Dedupe: Only log once per unique mode+kind combo
+            const errorKey = `${bottomBarModeSOT}:${activeUiItem_S_SAFE?.kind}`;
+            if (lastClearanceErrorKeyRef.current !== errorKey) {
+              lastClearanceErrorKeyRef.current = errorKey;
+              console.warn('[UI_CONTRACT][ACTIVE_CARD_NOT_IN_SCROLL_CONTAINER]', {
+                mode: bottomBarModeSOT_SAFE,
+                activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
+                hasActiveCard,
+                screenMode,
+                reason: 'Active card not found in DOM yet (timing) or mounted outside scroll container',
+                action: 'SKIP_MEASUREMENT'
+              });
+            }
+            
+            footerClearanceStatusRef.current = 'SKIP';
+            
+            return; // Exit early - cannot measure
+          }
+        }
+
+        // Get last REAL item (before footer spacer) in scroll container
+        // DETERMINISTIC PRIORITY: Prefer active cards when present (most likely to be obscured)
+        let lastItem = null;
+
+        if (hasActiveCard) {
+          // Priority 1: Measure active card (most likely to be clipped)
+          const activeCard_Ss = scrollContainer.querySelectorAll('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+          const activeCard_SsArray = Array.from(activeCard_Ss).filter(el => !isUiContractNonCard(el));
+          
+          if (activeCard_SsArray.length > 0) {
+            lastItem = activeCard_SsArray[activeCard_SsArray.length - 1];
+            console.log('[UI_CONTRACT][FOOTER_MEASURE_TARGET_PRIORITY]', {
+              strategy: 'ACTIVE_CARD_FIRST',
+              hasActiveCard,
+              activeCard_SCount: activeCard_SsArray.length,
+              selectedTag: lastItem.tagName,
+              hasStablekey: lastItem.hasAttribute('data-stablekey'),
+              hasCardMarker: lastItem.hasAttribute('data-ui-contract-card'),
+              className: lastItem.className?.substring(0, 60),
+              reason: 'Active card prioritized for measurement'
+            });
+          }
+        }
+
+        // Fallback: Measure last transcript item if no active card found
+        if (!lastItem) {
+          const allItems = scrollContainer.querySelectorAll('[data-stablekey]');
+          for (let i = allItems.length - 1; i >= 0; i--) {
+            const item = allItems[i];
+            
+            // HARDENED: Exclude all non-card structural elements
+            if (isUiContractNonCard(item)) {
+              continue; // Skip structural elements (spacers, anchors, wrappers)
+            }
+            
+            // REQUIRE: Must be a card-like element (has rounded-xl or card structure)
+            const hasCardStructure = item.querySelector('.rounded-xl') || 
+                                    item.classList.contains('rounded-xl') ||
+                                    item.querySelector('[role]') ||
+                                    item.querySelector('p');
+            
+            if (hasCardStructure) {
+              lastItem = item;
+              console.log('[UI_CONTRACT][FOOTER_MEASURE_TARGET_PRIORITY]', {
+                strategy: 'TRANSCRIPT_FALLBACK',
+                hasActiveCard,
+                selectedTag: lastItem.tagName,
+                chosenTargetStableKey: lastItem.getAttribute('data-stablekey'),
+                hasCardStructure: true,
+                reason: 'No active card found - using last real card in transcript'
+              });
+              break;
+            }
+          }
+        }
+
+        if (!lastItem) {
+          console.error('[UI_CONTRACT][FOOTER_CLEARANCE_UNMEASURABLE]', {
+            mode: bottomBarModeSOT_SAFE,
+            reason: 'no_last_item_before_spacer',
+            allItemsCount: allItems.length
+          });
+          return;
+        }
+
+        // MEASUREMENT TARGET VALIDATION: Ensure lastItem is a real card container
+        const isStructuralElement = isUiContractNonCard(lastItem);
+        
+        const hasCardStructure = !isStructuralElement &&
+                                lastItem.hasAttribute('data-stablekey') &&
+                                (lastItem.querySelector('.rounded-xl') || 
+                                 lastItem.classList.contains('rounded-xl') ||
+                                 lastItem.querySelector('[role]') ||
+                                 lastItem.querySelector('p'));
+
+        let finalLastItem = lastItem;
+        let measurementCorrected = false;
+        let originalOverlapPx = 0;
+
+        if (!hasCardStructure) {
+          // THROTTLED DIAGNOSTIC: Log suspect element details once per 2s
+          logSuspectElement(lastItem, {
+            hasActiveCard,
+            activeCard_SCount: hasActiveCard ? scrollContainer.querySelectorAll('[data-cq-active-card="true"]').length : 0,
+            selectorUsed: hasActiveCard ? 'ACTIVE_CARD_FIRST' : 'TRANSCRIPT_FALLBACK'
+          });
+          
+          console.warn('[UI_CONTRACT][FOOTER_MEASURE_TARGET_SUSPECT]', {
+            reason: isStructuralElement ? 'lastItem_is_structural' : 'lastItem_not_card',
+            selectorUsed: hasActiveCard ? '[data-cq-active-card] (filtered)' : '[data-stablekey] (filtered)',
+            lastItemTagName: lastItem.tagName,
+            lastItemClassesSample: lastItem.className?.substring(0, 60),
+            hasDataStablekey: lastItem.hasAttribute('data-stablekey'),
+            isStructuralElement
+          });
+
+          // Original measurement before correction
+          const suspectRect = lastItem.getBoundingClientRect();
+          originalOverlapPx = Math.max(0, suspectRect.bottom - footerRect.top);
+
+          // STRICTER SELECTOR: Find last actual card element
+          // Strategy 1: Last element with both data-stablekey AND card structure
+          const cardCandidates = Array.from(allItems).filter(el => {
+            // HARDENED: Exclude all non-card structural elements
+            if (isUiContractNonCard(el)) return false;
+            
+            // REQUIRE: Must have card structure
+            return el.querySelector('.rounded-xl') || el.classList.contains('rounded-xl');
+          });
+
+          if (cardCandidates.length > 0) {
+            finalLastItem = cardCandidates[cardCandidates.length - 1];
+            measurementCorrected = true;
+
+            console.log('[UI_CONTRACT][FOOTER_MEASURE_TARGET_CORRECTED]', {
+              oldSelector: '[data-stablekey] (excluding spacer)',
+              newSelector: '[data-stablekey] with .rounded-xl card structure',
+              oldTagName: lastItem.tagName,
+              newTagName: finalLastItem.tagName,
+              correctedElement: true
+            });
+          }
+        }
+
+        const lastItemRect = finalLastItem.getBoundingClientRect();
+        const lastItemBottomOverlapPx = Math.max(0, lastItemRect.bottom - footerRect.top);
+
+        // Log correction if measurement changed
+        if (measurementCorrected) {
+          console.log('[UI_CONTRACT][FOOTER_MEASURE_TARGET_CORRECTED]', {
+            oldOverlapPx: Math.round(originalOverlapPx),
+            newOverlapPx: Math.round(lastItemBottomOverlapPx),
+            delta: Math.round(originalOverlapPx - lastItemBottomOverlapPx),
+            improved: lastItemBottomOverlapPx < originalOverlapPx
+          });
+        }
+
+        console.log('[UI_CONTRACT][FOOTER_CLEARANCE_ASSERT]', {
+          mode: bottomBarModeSOT_SAFE,
+          footerMeasuredHeightPx,
+          safeFooterClearancePx: SAFE_FOOTER_CLEARANCE_PX,
+          spacerHeightPx: dynamicBottomPaddingPx,
+          spacerExists: !!spacer,
+          clientHeight: Math.round(scrollRect.height),
+          scrollHeight: Math.round(scrollContainer.scrollHeight),
+          lastItemBottomOverlapPx: Math.round(lastItemBottomOverlapPx),
+          hasOverlap: lastItemBottomOverlapPx > 0,
+          measurementCorrected
+        });
+
+        // Status log: Deterministic PASS/FAIL (use corrected overlap)
+        const status = lastItemBottomOverlapPx <= 2 ? 'PASS' : 'FAIL';
+        const statusPayload = {
+          status,
+          mode: bottomBarModeSOT_SAFE,
+          overlapPx: Math.round(lastItemBottomOverlapPx),
+          spacerHeightPx: dynamicBottomPaddingPx,
+          measurementCorrected
+        };
+
+        console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', statusPayload);
+
+        // Store footer status for SOT log (component-level ref)
+        footerClearanceStatusRef.current = status;
+
+        // Dedupe failure logs: only log once per unique failure key
+        if (status === 'FAIL') {
+          const failKey = `${bottomBarModeSOT}:${Math.round(lastItemBottomOverlapPx)}`;
+          if (lastClearanceErrorKeyRef.current !== failKey) {
+            lastClearanceErrorKeyRef.current = failKey;
+            
+            if (measurementCorrected) {
+              console.warn('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS_FAIL_CORRECTED]', {
+                correctedOverlapPx: Math.round(lastItemBottomOverlapPx),
+                mode: bottomBarModeSOT_SAFE,
+                reason: 'overlap_detected_after_target_correction',
+                originalOverlapPx: Math.round(originalOverlapPx),
+                correctionImproved: lastItemBottomOverlapPx < originalOverlapPx
+              });
+            } else {
+              console.warn('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS_FAIL]', {
+                ...statusPayload,
+                footerMeasuredHeightPx,
+                lastItemBottom: Math.round(lastItemRect.bottom),
+                footerTop: Math.round(footerRect.top),
+                reason: 'Content obscured by footer despite spacer'
+              });
+            }
+          }
+        }
+        
+        if (lastItemBottomOverlapPx > 0) {
+          console.error('[UI_CONTRACT][FOOTER_OVERLAP_DETECTED]', {
+            mode: bottomBarModeSOT_SAFE,
+            overlapPx: Math.round(lastItemBottomOverlapPx),
+            footerMeasuredHeightPx,
+            spacerHeightPx: dynamicBottomPaddingPx,
+            lastItemBottom: Math.round(lastItemRect.bottom),
+            footerTop: Math.round(footerRect.top),
+            reason: 'Content obscured by footer - spacer insufficient'
+          });
+        }
+        
+        // GUARDRAIL B: Track worst-case overlap for regression detection
+        const roundedOverlap = Math.round(lastItemBottomOverlapPx);
+        if (roundedOverlap > maxOverlapSeenRef.current.maxOverlapPx) {
+          console.error('[UI_CONTRACT][FOOTER_OVERLAP_REGRESSION]', {
+            mode: bottomBarModeSOT_SAFE,
+            overlapPx: roundedOverlap,
+            previousMaxOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
+            maxOverlapPx: roundedOverlap,
+            footerMeasuredHeightPx,
+            spacerHeightPx: dynamicBottomPaddingPx,
+            lastModeSeen: maxOverlapSeenRef.current.lastModeSeen,
+            reason: 'Overlap increased - potential regression'
+          });
+          
+          maxOverlapSeenRef.current.maxOverlapPx = roundedOverlap;
+          maxOverlapSeenRef.current.lastModeSeen = bottomBarModeSOT;
+        }
+      } catch (err) {
+        // Silent - assertion should never crash
+      }
+    });
+  }
+  
+  // CTA SOT diagnostic (single consolidated log)
+  if (bottomBarModeSOT === 'CTA') {
+    console.log('[CTA][SOT_PADDING]', {
+      footerMeasuredHeightPx,
+      dynamicBottomPaddingPx,
+      shouldRenderFooter_SAFE,
+      effectiveItemType_SAFE,
+      bottomBarModeSOT
+    });
+  }
+  
+  // Step 7: Semantic helper flags
+  const isV3Gate = effectiveItemType === "v3_gate";
+  const isMultiInstanceGate = effectiveItemType === "multi_instance_gate";
+  const isQuestion = false; // Set to true during refinement if needed
+
+  // AUTO-GROWING INPUT: Re-measure footer on mode changes - HOISTED TO BATCH 3 (line ~4485)
+
+  // Re-anchor bottom on footer height changes when auto-scroll is enabled
+  // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
+  cqHookMark('HOOK_51:useEffect:reAnchorOnFooterHeight');
+  useEffect_TR("H51_REANCHOR_FOOTER", () => {
+    if (__cqBootNotReady) return;
+    // SCROLL LOCK GATE: Block footer height re-anchor during any scroll lock
+    if (isScrollWriteLocked()) {
+      return;
+    }
+    
+    if (!historyRef.current) return;
+    if (!autoScrollEnabledRef.current) return;
+    if (isUserTyping) return;
+    
+    requestAnimationFrame(() => {
+      scrollToBottom('FOOTER_HEIGHT_CHANGED');
+    });
+  }, [bottomSpacerPx, isUserTyping, scrollToBottom]);
+
+  // SMOOTH GLIDE AUTOSCROLL - HOISTED TO BATCH 3 (line ~4510)
+
+  // ANCHOR LAST V3 ANSWER - HOISTED TO BATCH 3 (line ~4615)
+  
+  // ANCHOR V3 PROBE QUESTION: Keep just-appended question visible (ChatGPT-style)
+  cqHookMark('HOOK_52:useLayoutEffect:anchorV3ProbeQ');
+  ReactUseLayoutEffect_TR("H52_ANCHOR_V3_PROBE", () => {
+    if (__cqBootNotReady) return;
+    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars (may be undefined on some renders)
+    const _bottomBarModeSOT_SAFE = (typeof bottomBarModeSOT_SAFE !== 'undefined') ? bottomBarModeSOT_SAFE : null;
+    const _dynamicBottomPaddingPx = (typeof dynamicBottomPaddingPx !== 'undefined') ? dynamicBottomPaddingPx : 0;
+    
+    // If TRY1-derived layout vars are not ready, skip this effect safely
+    if (_bottomBarModeSOT_SAFE == null) return;
+    
+    // SCROLL LOCK GATE: Block anchor during any scroll lock
+    if (isScrollWriteLocked()) {
+      return;
+    }
+    
+    if (v3ScrollAnchorRef.current.kind !== 'V3_PROBE_QUESTION') return;
+    
+    const anchorAge = Date.now() - v3ScrollAnchorRef.current.ts;
+    if (anchorAge > 1500) {
+      v3ScrollAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
+      return;
+    }
+    
+    const scrollContainer = historyRef.current;
+    if (!scrollContainer) return;
+    
+    // PART C: Bypass typing lock for V3 probe question anchor
+    if (isUserTyping && !forceAutoScrollOnceRef.current) return;
+    
+    const targetStableKey = v3ScrollAnchorRef.current.stableKey;
+    const targetEl = scrollContainer.querySelector(`[data-stablekey="${targetStableKey}"]`);
+    
+    if (!targetEl) {
+      if (cqDiagEnabled) {
+        console.warn('[SCROLL][ANCHOR_V3_PROBE_Q][NOT_FOUND]', {
+          stableKey: targetStableKey,
+          reason: 'Element not found in DOM - may not have rendered yet'
+        });
+      }
+      v3ScrollAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
+      return;
+    }
+    
+    requestAnimationFrame(() => {
+      if (!scrollContainer || !targetEl) return;
+      
+      const scrollTopBefore = scrollContainer.scrollTop;
+      const scrollHeight = scrollContainer.scrollHeight;
+      const clientHeight = scrollContainer.clientHeight;
+      const overflowPx = scrollHeight - clientHeight;
+      
+      // Compute target position (question visible above footer)
+      const elTop = targetEl.offsetTop;
+      const elHeight = targetEl.offsetHeight;
+      const footerSafePx = _dynamicBottomPaddingPx + 16;
+      
+      // Target: place question at bottom of visible area (above footer)
+      const targetScrollTop = Math.max(0, (elTop + elHeight) - clientHeight + footerSafePx);
+      
+      // Always scroll (even if overflowPx=0) to ensure visibility
+      scrollContainer.scrollTop = targetScrollTop;
+      
+      const scrollTopAfter = scrollContainer.scrollTop;
+      const didScroll = Math.abs(scrollTopAfter - scrollTopBefore) > 1;
+      
+      if (cqDiagEnabled) {
+        console.log('[SCROLL][ANCHOR_V3_PROBE_Q]', {
+          stableKey: targetStableKey,
+          didFind: true,
+          didScroll,
+          overflowPx,
+          bottomBarModeSOT_SAFE: _bottomBarModeSOT_SAFE,
+          scrollTopBefore: Math.round(scrollTopBefore),
+          scrollTopAfter: Math.round(scrollTopAfter),
+          footerSafePx
+        });
+      }
+      
+      v3ScrollAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
+    });
+  }, [transcriptSOT_S.length, bottomBarModeSOT_SAFE, dynamicBottomPaddingPx, cqDiagEnabled]);
+  
+  // TDZ GUARD: Track previous render list length for append detection (using ref, not direct variable)
+  const prevFinalListLenForScrollRef = React.useRef(0);
+  
+  // GOLDEN CONTRACT CHECK - HOISTED TO BATCH 3 (line ~4465)
+  
+  // CONSOLIDATED UI CONTRACT STATUS LOG - HOISTED TO BATCH 3 (line ~4640)
+  
+  // UI CONTRACT STATUS RESET - HOISTED TO BATCH 3 (line ~4660)
+  
+  // PART B: ACTIVE ITEM CHANGED - HOISTED TO BATCH 3 (line ~4670)
+  
+  // PART B: RENDER LIST APPENDED - HOISTED TO BATCH 3 (line ~4690)
+  
+  // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
+  cqHookMark('HOOK_53:useLayoutEffect:forceScrollQuestionShown');
+  ReactUseLayoutEffect_TR("H53_FORCE_SCROLL_Q_SHOWN", () => {
+    if (__cqBootNotReady) return;
+    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
+    const _effectiveItemType = (typeof effectiveItemType !== 'undefined') ? effectiveItemType : null;
+    const _shouldRenderFooter_SAFE = (typeof shouldRenderFooter_SAFE !== 'undefined') ? shouldRenderFooter_SAFE : false;
+    const _footerMeasuredHeightPx = (typeof footerMeasuredHeightPx !== 'undefined') ? footerMeasuredHeightPx : 0;
+    const _dynamicBottomPaddingPx = (typeof dynamicBottomPaddingPx !== 'undefined') ? dynamicBottomPaddingPx : 0;
+    const _activeUiItem_S_SAFE = (typeof activeUiItem_S_SAFE !== 'undefined') ? activeUiItem_S_SAFE : null;
+    
+    // If TRY1-derived vars are not ready, skip safely
+    if (_effectiveItemType == null) return;
+    
+    // SCROLL LOCK GATE: Block force-scroll during any scroll lock
+    if (isScrollWriteLocked()) {
+      return;
+    }
+    
+    // Only run for base questions with footer visible
+    if (_effectiveItemType !== 'question' || !_shouldRenderFooter_SAFE) return;
+    if (!currentItem_S?.id || currentItem_S.type !== 'question') return;
+    
+    // Dedupe: Only run once per question
+    if (lastQuestionShownIdRef.current === currentItem_S.id) return;
+    lastQuestionShownIdRef.current = currentItem_S.id;
+    
+    const scrollContainer = historyRef.current;
+    if (!scrollContainer || !bottomAnchorRef.current) return;
+    
+    // Force scroll to bottom after question renders
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!scrollContainer || !bottomAnchorRef.current) return;
+        
+        const scrollTopBefore = scrollContainer.scrollTop;
+        const scrollHeight = scrollContainer.scrollHeight;
+        const clientHeight = scrollContainer.clientHeight;
+        const targetScrollTop = Math.max(0, scrollHeight - clientHeight);
+        
+        scrollContainer.scrollTop = targetScrollTop;
+        
+        const scrollTopAfter = scrollContainer.scrollTop;
+        
+        console.log('[SCROLL][FORCE_ANCHOR_ON_QUESTION_SHOWN]', {
+          questionId: currentItem_S.id,
+          scrollTopBefore: Math.round(scrollTopBefore),
+          scrollTopAfter: Math.round(scrollTopAfter),
+          footerHeight: _footerMeasuredHeightPx,
+          paddingApplied: _dynamicBottomPaddingPx,
+          scrollHeight: Math.round(scrollHeight),
+          clientHeight: Math.round(clientHeight)
+        });
+        
+        // GUARDRAIL: Detect if question still below footer after scroll
+        requestAnimationFrame(() => {
+          if (!scrollContainer || !footerRootRef.current) return;
+          
+          // PART B: MI gate uses bottom anchor strategy (skip card measurement)
+          const isMiGateActive = currentItem_S?.type === 'multi_instance_gate' || 
+                                _activeUiItem_S_SAFE?.kind === 'MI_GATE';
+          
+          if (isMiGateActive) {
+            // Bottom-anchor strategy: use shared helper
+            if (!isUserTyping || forceAutoScrollOnceRef.current) {
+              requestAnimationFrame(() => {
+                scrollToBottomForMiGate('FORCE_ANCHOR_ON_QUESTION_SHOWN');
+                
+                if (forceAutoScrollOnceRef.current) {
+                  forceAutoScrollOnceRef.current = false;
+                  console.log('[SCROLL][FORCE_ONCE_CLEARED]', { reason: 'mi_gate_bottom_anchor' });
+                }
+              });
+            }
+            return; // Skip card-based measurement for MI gate
+          }
+          
+          const activeQuestionEl = scrollContainer.querySelector('[data-cq-active-card="true"]');
+          if (!activeQuestionEl) return;
+          
+          const questionRect = activeQuestionEl.getBoundingClientRect();
+          const footerRect = footerRootRef.current.getBoundingClientRect();
+          const overlapPx = Math.max(0, questionRect.bottom - footerRect.top);
+          
+          if (overlapPx > 4) {
+            // PART A: Capture violation snapshot
+            captureViolationSnapshot({
+              reason: 'QUESTION_BEHIND_FOOTER',
+              list: finalListRef.current,
+              packId: null,
+              instanceNumber: null,
+              activeItemId: currentItem_S?.id
+            });
+            
+            // PART C: Apply corrective scroll (bypass typing lock)
+            if (!isUserTyping || forceAutoScrollOnceRef.current) {
+              scrollContainer.scrollTop += overlapPx + 16;
+              console.log('[SCROLL][CORRECTIVE_NUDGE_QUESTION]', {
+                overlapPx: Math.round(overlapPx),
+                bypassedTypingLock: isUserTyping && forceAutoScrollOnceRef.current,
+                applied: true
+              });
+              
+              if (forceAutoScrollOnceRef.current) {
+                forceAutoScrollOnceRef.current = false;
+                console.log('[SCROLL][FORCE_ONCE_CLEARED]', { reason: 'corrective_nudge_question' });
+              }
+            }
+          }
+        });
+      });
+    });
+  }, [_effectiveItemType, _shouldRenderFooter_SAFE, currentItem_S?.id, currentItem_S?.type, _footerMeasuredHeightPx, _dynamicBottomPaddingPx]);
+  
+  // FOOTER PADDING COMPENSATION: Prevent jump when footer height changes
+  cqHookMark('HOOK_54:useLayoutEffect:footerPaddingCompensate');
+  ReactUseLayoutEffect_TR("H54_FOOTER_PADDING_COMP", () => {
+    if (__cqBootNotReady) return;
+    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
+    const _dynamicBottomPaddingPx = (typeof dynamicBottomPaddingPx !== 'undefined') ? dynamicBottomPaddingPx : 0;
+    const _bottomBarModeSOT = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
+    const _effectiveItemType = (typeof effectiveItemType !== 'undefined') ? effectiveItemType : null;
+    
+    // If TRY1-derived vars are not ready, skip safely
+    if (_bottomBarModeSOT == null || _effectiveItemType == null) return;
+    
+    // SCROLL LOCK GATE: Block padding compensation during any scroll lock
+    if (isScrollWriteLocked()) {
+      return;
+    }
+    
+    const prev = prevPaddingRef.current;
+    let next = _dynamicBottomPaddingPx;
+    
+    // CTA CLAMP: Never allow compensation to reduce CTA padding below minimum
+    if (_bottomBarModeSOT === 'CTA' || _effectiveItemType === 'section_transition') {
+      next = Math.max(next, CTA_MIN_PADDING_PX);
+      if (next !== _dynamicBottomPaddingPx) {
+        console.log('[CTA][PADDING_COMPENSATE_CLAMP]', {
+          raw: _dynamicBottomPaddingPx,
+          clamped: next,
+          CTA_MIN_PADDING_PX
+        });
+      }
+    }
+    
+    const delta = next - prev;
+    
+    // Update ref
+    prevPaddingRef.current = next;
+    
+    // Skip if no change
+    if (delta === 0) return;
+    
+    // GUARD: Only compensate on INCREASES (delta > 0) - prevent upward snap
+    if (delta <= 0) {
+      console.log('[SCROLL][PADDING_COMPENSATE_SKIP]', {
+        reason: 'delta_not_positive',
+        delta,
+        prev,
+        next,
+        bottomBarModeSOT
+      });
+      return;
+    }
+    
+    const scrollContainer = historyRef.current;
+    if (!scrollContainer) return;
+    
+    // Skip during V3_WAITING (no scroll adjustments during engine_S decide)
+    if (_bottomBarModeSOT === 'V3_WAITING') {
+      console.log('[SCROLL][PADDING_COMPENSATE_SKIP]', {
+        reason: 'v3_waiting_mode',
+        bottomBarModeSOT: _bottomBarModeSOT
+      });
+      return;
+    }
+    
+    // Only compensate when user is near bottom or in QUESTION mode
+    const scrollHeight = scrollContainer.scrollHeight;
+    const clientHeight = scrollContainer.clientHeight;
+    const scrollTop = scrollContainer.scrollTop;
+    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+    const nearBottom = distanceFromBottom <= 120;
+    
+    const shouldCompensate = (nearBottom || screenMode === 'QUESTION') && !isUserTyping;
+    
+    if (!shouldCompensate) return;
+    
+    // Apply compensation: adjust scrollTop to keep content anchored
+    scrollContainer.scrollTop = scrollTop + delta;
+    
+    console.log('[SCROLL][PADDING_COMPENSATE]', {
+      prev,
+      next,
+      delta,
+      nearBottom,
+      scrollTopBefore: scrollTop,
+      scrollTopAfter: scrollTop + delta
+    });
+  }, [dynamicBottomPaddingPx, screenMode, isUserTyping, bottomBarModeSOT]);
+  
+  // TDZ GUARD: Do not reference finalTranscriptList_S in hook deps before it is initialized.
+  // DETERMINISTIC BOTTOM ANCHOR ENFORCEMENT - HOISTED TO BATCH 3 (line ~4710)
+  
+  // GRAVITY FOLLOW - HOISTED TO BATCH 3 (line ~4740)
+  
+  // FOOTER OVERLAP CLAMP: Ensure active card never behind footer (unconditional)
+  cqHookMark('HOOK_55:useLayoutEffect:footerOverlapClamp');
+  ReactUseLayoutEffect_TR("H55_OVERLAP_CLAMP", () => {
+    if (__cqBootNotReady) return;
+    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
+    const _shouldRenderFooter_SAFE = (typeof shouldRenderFooter_SAFE !== 'undefined') ? shouldRenderFooter_SAFE : false;
+    const _hasActiveCardSOT = (typeof hasActiveCardSOT !== 'undefined') ? hasActiveCardSOT : false;
+    const _activeCard_SKeySOT = (typeof activeCard_SKeySOT !== 'undefined') ? activeCard_SKeySOT : null;
+    const _dynamicFooterHeightPx = (typeof dynamicFooterHeightPx !== 'undefined') ? dynamicFooterHeightPx : 0;
+    
+    // If TRY1-derived vars are not ready, skip safely
+    if (_activeCard_SKeySOT == null) return;
+    
+    if (!_shouldRenderFooter_SAFE || !_hasActiveCardSOT) return;
+    
+    requestAnimationFrame(() => {
+      const scroller = scrollOwnerRef.current || historyRef.current;
+      const activeCard_SEl = scroller?.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
+      const composerEl = footerShellRef.current;
+      
+      if (!activeCard_SEl || !composerEl) return;
+      
+      const activeRect = activeCard_SEl.getBoundingClientRect();
+      const composerRect = composerEl.getBoundingClientRect();
+      const overlapPx = Math.max(0, activeRect.bottom - (composerRect.top - 8));
+      
+      if (overlapPx > 4) {
+        const scrollTopBefore = scroller.scrollTop;
+        scroller.scrollTop += overlapPx + 8;
+        const scrollTopAfter = scroller.scrollTop;
+        
+        console.log('[SCROLL][FOOTER_OVERLAP_CLAMP]', {
+          overlapPx: Math.round(overlapPx),
+          scrollTopBefore: Math.round(scrollTopBefore),
+          scrollTopAfter: Math.round(scrollTopAfter),
+          reason: 'Active card behind footer - unconditional clamp applied'
+        });
+      }
+    });
+  }, [_shouldRenderFooter_SAFE, _hasActiveCardSOT, _activeCard_SKeySOT, _dynamicFooterHeightPx]);
+  
+  // ACTIVE CARD OVERLAP NUDGE - HOISTED TO BATCH 3 (line ~4850)
+
+  // AUTO-GROWING INPUT: Auto-resize textarea based on content (ChatGPT-style)
+  cqHookMark('HOOK_57:useEffect:autoGrowInput');
+  useEffect_TR(() => {
+    if (__cqBootNotReady) return;
+    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
+    const _bottomBarModeSOT = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
+    
+    // If TRY1-derived var is not ready, skip safely
+    if (_bottomBarModeSOT == null) return;
+    
+    const textarea = footerTextareaRef.current || inputRef.current;
+    if (!textarea) return;
+
+    // DIAGNOSTIC: Verify ref connection (cqdiag only)
+    if (cqDiagEnabledRef.current) {
+      console.log('[FOOTER][REF_CHECK]', {
+        hasTextareaRef: !!footerTextareaRef.current,
+        tagName: footerTextareaRef.current?.tagName,
+        bottomBarModeSOT_SAFE: _bottomBarModeSOT,
+        effectiveItemType: (typeof effectiveItemType !== 'undefined') ? effectiveItemType : null
+      });
+    }
+
+    // Reset to auto to measure natural height
+    textarea.style.height = 'auto';
+
+    const MAX_HEIGHT_PX = 200; // ~8 lines max
+    const scrollHeight = textarea.scrollHeight;
+    const newHeight = Math.min(scrollHeight, MAX_HEIGHT_PX);
+    
+    // Always apply new height (visual feedback)
+    textarea.style.height = `${newHeight}px`;
+    textarea.style.overflowY = scrollHeight > MAX_HEIGHT_PX ? 'auto' : 'hidden';
+    
+    // ROW-CHANGE GATE: Only trigger layout updates when rows actually change
+    const lastScrollHeight = lastTextareaScrollHeightRef.current;
+    const heightDelta = Math.abs(scrollHeight - lastScrollHeight);
+    
+    // If height change < 16px (≈ one line), treat as same row - skip layout-affecting logs
+    if (heightDelta < 16 && lastScrollHeight !== 0) {
+      // Same row - textarea height updated but no layout state changes needed
+      return;
+    }
+    
+    // Row changed - update ref to track new baseline
+    lastTextareaScrollHeightRef.current = scrollHeight;
+    
+    // HARDENED: Throttle logs using ref (no dataset mutation)
+    const delta = Math.abs(newHeight - lastAutoGrowHeightRef.current);
+    if (delta >= 4) {
+      console.log('[FOOTER][AUTO_GROW]', {
+        heightPx: newHeight,
+        scrollHeight,
+        overflowY: scrollHeight > MAX_HEIGHT_PX ? 'auto' : 'hidden',
+        maxReached: scrollHeight > MAX_HEIGHT_PX,
+        delta,
+        rowChanged: true
+      });
+      lastAutoGrowHeightRef.current = newHeight;
+    }
+  }, [input, openerDraft, _bottomBarModeSOT]);
+
+  // DEFENSIVE GUARD: Force exit WELCOME mode when interview has progressed
+  cqHookMark('HOOK_58:useEffect:forceExitWelcome');
+  useEffect_TR(() => {
+    if (__cqBootNotReady) return;
+    if (screenMode !== "WELCOME") return; // Only act if we're in WELCOME
+    
+    // Check if we should exit WELCOME based on state
+    const hasCurrentItem = currentItem_S && currentItem_S.type;
+    const hasV3Probing = v3ProbingActive;
+    const hasProgressMarkers = transcriptSOT_S?.some(t => 
+      t.messageType === 'QUESTION_SHOWN' || 
+      t.messageType === 'ANSWER' ||
+      t.messageType === 'v3_probe_question' ||
+      t.messageType === 'v3_opener_answer' ||
+      t.type === 'PACK_ENTERED'
+    );
+    
+    if (hasCurrentItem || hasV3Probing || hasProgressMarkers) {
+      console.log('[WELCOME][GUARD_EXIT]', {
+        reason: hasCurrentItem ? 'currentItem_S exists' : hasV3Probing ? 'V3 probing active' : 'progress markers in transcript',
+        screenModeBefore: screenMode,
+        currentItem_SType: currentItem_S?.type,
+        transcriptLen: transcriptSOT_S?.length || 0,
+        action: 'forcing QUESTION mode'
+      });
+      
+      setScreenMode("QUESTION");
+    }
+  }, [screenMode, currentItem_S, v3ProbingActive, transcriptSOT_S]);
+  
+  // HOOK CENSUS: Mark after TRUE final hook (end of ALL hooks including layout/scroll)
+  cqHookMark('TRUE_POST_HOOKS');
 
   // TRY1 EXECUTION GATE: Only run when boot is ready
   console.log('[CQ_USECALLBACK_MARK][BEFORE_TRY1]', { ts: Date.now() });
@@ -7235,5878 +13149,6 @@ function CandidateInterviewInner() {
     throw e;
   }
 
-  // HOOK 12/12 now hoisted to BATCH 2 (lines ~3728-3974)
-  // Original removed from TRY1 to prevent conditional hook count
-
-  // REACT #310 FIX: Converted from useCallback to plain function (refs prevent hook dispatcher crash)
-  function scrollToBottomSafely(reason = 'default') {
-    // REACT #310 FIX: Read from refs instead of closure deps
-    const footerHeightPx_SAFE = (typeof footerHeightPxRef !== 'undefined' && footerHeightPxRef?.current != null) ? footerHeightPxRef.current : footerHeightPx;
-    const transcriptSOT_SAFE = (typeof transcriptSOTRef !== 'undefined' && Array.isArray(transcriptSOTRef?.current)) ? transcriptSOTRef.current : transcriptSOT_S;
-    
-    if (!autoScrollEnabledRef.current) return;
-    if (!bottomAnchorRef.current || !historyRef.current) return;
-    
-    // Gate on transcript growth: only scroll when canonical transcript grows
-    const currentLen = Array.isArray(transcriptSOT_SAFE) ? transcriptSOT_SAFE.length : 0;
-    if (currentLen <= lastAutoScrollLenRef.current) {
-      return; // No growth, no scroll (prevents snap on rerenders)
-    }
-    
-    // Cooldown: prevent rapid double-scroll
-    const now = Date.now();
-    if (now - lastAutoScrollAtRef.current < 120) {
-      return;
-    }
-    
-    // Update tracking refs
-    lastAutoScrollLenRef.current = currentLen;
-    lastAutoScrollAtRef.current = now;
-    
-    // RAF coalescing: prevent multiple scrolls in same frame
-    if (pendingScrollRafRef.current) {
-      cancelAnimationFrame(pendingScrollRafRef.current);
-    }
-    
-    pendingScrollRafRef.current = requestAnimationFrame(() => {
-      pendingScrollRafRef.current = null;
-      
-      // Mark scroll as programmatic to prevent detection loop
-      isProgrammaticScrollRef.current = true;
-      
-      // Determine scroll behavior: auto for first scroll, smooth afterwards
-      const isFirstScroll = lastAutoScrollLenRef.current === currentLen && !didInitialSnapRef.current;
-      const behavior = isFirstScroll ? 'auto' : 'smooth';
-      
-      // Scroll to bottom anchor (footer-safe padding already applied via className)
-      bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior });
-      
-      // Clear programmatic flag after scroll completes
-      requestAnimationFrame(() => {
-        isProgrammaticScrollRef.current = false;
-      });
-    });
-  }
-
-  // REACT #310 FIX: Converted from useCallback to plain function (removes hook dispatcher slot)
-  function autoScrollToBottom() {
-    if (isUserTyping) return;
-    scrollToBottomSafely('autoScroll');
-  }
-
-  // UX: Mark user as typing and set timeout to unlock after idle period
-  // CRITICAL: Does NOT trigger transcript refresh (prevents flashing)
-  // REACT #310 FIX: Converted from useCallback to plain function (removes hook dispatcher slot)
-  function markUserTyping() {
-    if (!isUserTyping) {
-      console.log("[UX][TYPING_LOCK]", { locked: true, note: "scroll locked, no transcript refresh" });
-      setIsUserTyping(true);
-    }
-
-    if (typingLockTimeoutRef.current) {
-      clearTimeout(typingLockTimeoutRef.current);
-    }
-
-    typingLockTimeoutRef.current = setTimeout(() => {
-      console.log("[UX][TYPING_LOCK]", { locked: false, note: "scroll unlocked" });
-      setIsUserTyping(false);
-      typingLockTimeoutRef.current = null;
-    }, TYPING_IDLE_MS);
-  }
-
-  // UX: Build draft key for sessionStorage
-  // REACT #310 FIX: Converted from useCallback to plain function (removes hook dispatcher slot)
-  function buildDraftKey(sessionId, packId, fieldKey, instanceNumber) {
-    return `cq_draft_${sessionId}_${packId || "none"}_${fieldKey || "none"}_${instanceNumber || 0}`;
-  }
-
-  // UX: Save draft to sessionStorage
-  // REACT #310 FIX: Converted from useCallback to plain function (removes hook dispatcher slot)
-  function saveDraft(value) {
-    if (!sessionId) return;
-
-    const packId = currentItem_S?.packId || activeV2Pack?.packId || null;
-    const fieldKey = currentItem_S?.fieldKey || currentItem_S?.id || null;
-    const instanceNumber = currentItem_S?.instanceNumber || activeV2Pack?.instanceNumber || 0;
-    const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
-
-    try {
-      window.sessionStorage.setItem(draftKey, value);
-      
-      // ABANDONMENT SAFETY: Log draft save
-      console.log('[DRAFT][SAVE]', {
-        keyPreview: draftKey.substring(0, 40),
-        len: value?.length || 0
-      });
-      
-      console.log("[FORENSIC][STORAGE][WRITE]", { operation: 'WRITE', key: draftKey, success: true, valueLength: value?.length || 0 });
-    } catch (e) {
-      const isTrackingPrevention = e.message?.includes('tracking') || e.name === 'SecurityError';
-      console.log("[FORENSIC][STORAGE][WRITE]", { 
-        operation: 'WRITE', 
-        key: draftKey, 
-        success: false, 
-        error: e.message,
-        isTrackingPrevention,
-        fallbackBehavior: 'Draft lost - continue without storage'
-      });
-      console.warn("[UX][DRAFT] Failed to save draft", e);
-    }
-  }
-
-  // UX: Clear draft from sessionStorage
-  // REACT #310 FIX: Converted from useCallback to plain function (removes hook dispatcher slot)
-  function clearDraft() {
-    if (!sessionId) return;
-
-    const packId = currentItem_S?.packId || activeV2Pack?.packId || null;
-    const fieldKey = currentItem_S?.fieldKey || currentItem_S?.id || null;
-    const instanceNumber = currentItem_S?.instanceNumber || activeV2Pack?.instanceNumber || 0;
-    const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
-
-    try {
-      window.sessionStorage.removeItem(draftKey);
-      
-      // ABANDONMENT SAFETY: Log draft clear
-      console.log('[DRAFT][CLEAR]', {
-        keyPreview: draftKey.substring(0, 40)
-      });
-    } catch (e) {
-      console.warn("[UX][DRAFT] Failed to clear draft", e);
-    }
-  }
-
-  // REACT #310 FIX: v2 pack field tracker MOVED to BATCH 2 (hoisted from TRY1)
-
-  // REACT #310 CENSUS: Mark before "full session reset"
-  // cqHookMark('BEFORE_FULL_SESSION_RESET');
-  // cqHookMark('PRE_RESET_BLOCK_A');
-
-  function getCurrentPrompt() {
-    // PRIORITY 1: V3 prompt active - use hasActiveV3Prompt (TDZ-safe minimal check)
-    if (hasActiveV3Prompt && v3ActivePromptText) {
-      const packConfig = FOLLOWUP_PACK_CONFIGS[v3ProbingContext_S?.packId];
-      const packLabel = packConfig?.instancesLabel || v3ProbingContext_S?.categoryLabel || 'AI Follow-Up';
-      
-      console.log('[V3_PROBING][PROMPT_LANE]', {
-        packId: v3ProbingContext_S?.packId,
-        instanceNumber: v3ProbingContext_S?.instanceNumber,
-        promptPreview: v3ActivePromptText?.substring(0, 60)
-      });
-      
-      return {
-        type: 'v3_probe',
-        id: `v3-probe-active-${v3ProbingContext_S?.packId}-${v3ProbingContext_S?.instanceNumber}`,
-        text: v3ActivePromptText,
-        responseType: 'text',
-        packId: v3ProbingContext_S?.packId,
-        categoryId: v3ProbingContext_S?.categoryId,
-        instanceNumber: v3ProbingContext_S?.instanceNumber,
-        category: packLabel
-      };
-    }
-
-    // PRIORITY 2: V3 gate active - block base question rendering
-    if (v3GateActive) {
-      console.log('[V3_GATE][ACTIVE] Blocking base question rendering + logging');
-      return null;
-    }
-
-    // UX: Stabilize current item while typing - ALIGNED WITH V3 PROMPT PRECEDENCE
-    let effectiveCurrentItem = currentItem_S;
-
-    if (isUserTyping && currentItem_SRef.current) {
-      const frozenType = currentItem_SRef.current?.type;
-      const frozenId = currentItem_SRef.current?.id;
-      const currentType = currentItem_S?.type;
-      const currentId = currentItem_S?.id;
-      
-      // PRECEDENCE: Always use current item if V3 prompt is active
-      // This prevents MI_GATE frozen refs from blocking V3 text input
-      if (hasActiveV3Prompt) {
-        console.log('[FORENSIC][TYPING_LOCK_BYPASS_V3_PROMPT]', {
-          hasActiveV3Prompt: true,
-          frozenType,
-          currentType,
-          reason: 'V3 prompt active - using current item to prevent stale gate refs'
-        });
-        effectiveCurrentItem = currentItem_S;
-        currentItem_SRef.current = currentItem_S; // Sync ref to prevent future bypass
-      } else if (frozenType !== currentType || frozenId !== currentId) {
-        console.log('[FORENSIC][TYPING_LOCK_STALE_REF_BYPASS]', {
-          hasActiveV3Prompt,
-          frozenType,
-          frozenId,
-          currentType,
-          currentId
-        });
-        effectiveCurrentItem = currentItem_S; // Use current for this render
-      } else {
-        console.log('[FORENSIC][TYPING_LOCK]', { 
-          active: true,
-          hasActiveV3Prompt,
-          frozenItemType: currentItem_SRef.current?.type,
-          frozenItemId: currentItem_SRef.current?.id,
-          actualItemType: currentItem_S?.type,
-          actualItemId: currentItem_S?.id,
-          promptWillDeriveFrom: 'FROZEN_REF'
-        });
-        effectiveCurrentItem = currentItem_SRef.current;
-      }
-    } else {
-      console.log('[FORENSIC][TYPING_LOCK]', { active: false, hasActiveV3Prompt, promptWillDeriveFrom: 'CURRENT_STATE' });
-      currentItem_SRef.current = currentItem_S;
-    }
-
-    if (inIdeProbingLoop && currentIdeQuestion) {
-      return {
-        type: 'ide_probe',
-        text: currentIdeQuestion,
-        responseType: 'text',
-        category: currentIdeCategoryId || 'Follow-up'
-      };
-    }
-
-    // Use effectiveCurrentItem (stabilized while typing) for all prompt logic below
-    if (!effectiveCurrentItem || !engine_S) return null;
-
-    // If waiting for agent and we have a field probe question, show it
-    if (isWaitingForAgent && currentFieldProbe) {
-      const packConfig = FOLLOWUP_PACK_CONFIGS[currentFieldProbe.packId];
-      return {
-        type: 'ai_probe',
-        id: `ai-probe-${currentFieldProbe.packId}-${currentFieldProbe.fieldKey}`,
-        text: currentFieldProbe.question,
-        responseType: 'text',
-        packId: currentFieldProbe.packId,
-        fieldKey: currentFieldProbe.fieldKey,
-        instanceNumber: currentFieldProbe.instanceNumber,
-        category: packConfig?.instancesLabel || 'Follow-up'
-      };
-    }
-
-    if (isWaitingForAgent) {
-      return null;
-    }
-
-    if (effectiveCurrentItem.type === 'question') {
-      const question = engine_S.QById[effectiveCurrentItem.id];
-
-      if (!question) {
-        setCurrentItem(null);
-        setQueue([]);
-        setShowCompletionModal(true);
-        return null;
-      }
-
-      const sectionEntity = engine_S.Sections.find(s => s.id === question.section_id);
-      const sectionName = sectionEntity?.section_name || question.category || '';
-      const questionNumber = getQuestionDisplayNumber(effectiveCurrentItem.id);
-
-      // FIX C: Guard against logging QUESTION_SHOWN when currentItem_S is null
-      if (!currentItem_S || currentItem_S.type !== 'question') {
-        console.log('[STREAM][GUARD_NO_NULL_CURRENT_ITEM_ON_QUESTION_SHOWN]', {
-          blocked: true,
-          reason: 'currentItem_S is null or not a question',
-          currentItem_SType: currentItem_S?.type,
-          effectiveCurrentItemId: effectiveCurrentItem.id,
-          screenMode
-        });
-        return null; // Skip rendering and logging
-      }
-      
-      console.log('[STREAM][GUARD_NO_NULL_CURRENT_ITEM_ON_QUESTION_SHOWN]', {
-        blocked: false,
-        currentItem_SType: currentItem_S.type,
-        questionId: effectiveCurrentItem.id
-      });
-      
-      // RENDER-POINT LOGGING: Log question when it's shown (once per question)
-      const itemSig = `question:${effectiveCurrentItem.id}::`;
-      const lastLoggedSig = lastLoggedFollowupCardIdRef.current;
-
-      if (lastLoggedSig !== itemSig) {
-        lastLoggedFollowupCardIdRef.current = itemSig;
-        logQuestionShown(sessionId, {
-          questionId: effectiveCurrentItem.id,
-          questionText: question.question_text,
-          questionNumber,
-          sectionId: question.section_id,
-          sectionName
-        }).then(() => {
-          // CRITICAL: Refresh transcript after appending prompt message
-          return refreshTranscriptFromDB('question_shown');
-        }).then((freshTranscript) => {
-          const normalizedFresh = Array.isArray(freshTranscript) ? freshTranscript : [];
-          console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { 
-            freshLen: normalizedFresh.length,
-            wasArray: Array.isArray(freshTranscript)
-          });
-          
-          // FIX B: Hard-pin scroll to bottom after QUESTION_SHOWN
-          if (shouldAutoScrollRef.current) {
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                const scrollContainer = historyRef.current;
-                if (!scrollContainer) return;
-                
-                const scrollTopBefore = scrollContainer.scrollTop;
-                const scrollHeight = scrollContainer.scrollHeight;
-                const clientHeight = scrollContainer.clientHeight;
-                const targetScrollTop = Math.max(0, scrollHeight - clientHeight);
-                
-                scrollContainer.scrollTop = targetScrollTop;
-                
-                const scrollTopAfter = scrollContainer.scrollTop;
-                const didScroll = Math.abs(scrollTopAfter - scrollTopBefore) > 1;
-                
-                console.log('[SCROLL][PIN_ON_QUESTION_SHOWN]', {
-                  questionNumber,
-                  didScroll,
-                  scrollTopBefore: Math.round(scrollTopBefore),
-                  scrollTopAfter: Math.round(scrollTopAfter),
-                  targetScrollTop: Math.round(targetScrollTop),
-                  scrollHeight: Math.round(scrollHeight),
-                  clientHeight: Math.round(clientHeight)
-                });
-              });
-            });
-          }
-        }).catch(err => console.warn('[LOG_QUESTION] Failed:', err));
-      }
-
-      return {
-        type: 'question',
-        id: effectiveCurrentItem.id,
-        text: question.question_text,
-        responseType: question.response_type,
-        category: sectionName
-      };
-    }
-
-    if (effectiveCurrentItem.type === 'followup') {
-      const { packId, stepIndex, substanceName } = effectiveCurrentItem;
-
-      const packSteps = injectSubstanceIntoPackSteps(engine_S, packId, substanceName);
-      if (!packSteps) return null;
-
-      const step = packSteps[stepIndex];
-
-      if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
-        const triggerAutoFill = () => {
-          handleAnswer(step.PrefilledAnswer);
-        };
-        setTimeout(triggerAutoFill, 100);
-        return null;
-      }
-
-      return {
-        type: 'followup',
-        id: effectiveCurrentItem.id,
-        text: step.Prompt,
-        responseType: step.Response_Type || 'text',
-        expectedType: step.Expected_Type || 'TEXT',
-        packId: packId,
-        substanceName: substanceName,
-        stepNumber: stepIndex + 1,
-        totalSteps: packSteps.length
-      };
-    }
-
-    if (effectiveCurrentItem.type === 'multi_instance') {
-      return {
-        type: 'multi_instance',
-        id: effectiveCurrentItem.id,
-        text: effectiveCurrentItem.prompt,
-        responseType: 'yes_no',
-        instanceNumber: effectiveCurrentItem.instanceNumber,
-        maxInstances: effectiveCurrentItem.maxInstances
-      };
-    }
-
-    // Multi-instance gate (V3 post-probing)
-    if (effectiveCurrentItem.type === 'multi_instance_gate') {
-      const gatePackId = effectiveCurrentItem.packId;
-      const gateInstanceNumber = effectiveCurrentItem.instanceNumber;
-      const gatePromptText = effectiveCurrentItem.promptText;
-      const gateCategoryLabel = effectiveCurrentItem.categoryLabel;
-      
-      // PART B: HARD GUARD - derive prompt from currentItem_S ONLY (never from transcript)
-      const effectivePromptText = gatePromptText || 
-        (gateCategoryLabel ? `Do you have another ${gateCategoryLabel} to report?` : null) ||
-        `Do you have another incident to report?`;
-      
-      // GUARD: Validate gate context
-      if (!gatePackId || !gateInstanceNumber) {
-        console.error('[FORENSIC][GATE_CONTEXT_MISSING]', {
-          currentItem_SType: effectiveCurrentItem.type,
-          currentItem_SId: effectiveCurrentItem.id,
-          packId: gatePackId,
-          instanceNumber: gateInstanceNumber
-        });
-        
-        // Derive from currentItem_SId if possible
-        const idMatch = effectiveCurrentItem.id?.match(/multi-instance-gate-(.+?)-(\d+)/);
-        const derivedPackId = idMatch?.[1] || gatePackId || 'UNKNOWN_PACK';
-        const derivedInstanceNumber = idMatch?.[2] ? parseInt(idMatch[2]) : gateInstanceNumber || 1;
-        
-        return {
-          type: 'multi_instance_gate',
-          id: effectiveCurrentItem.id,
-          text: effectivePromptText,
-          responseType: 'yes_no',
-          packId: derivedPackId,
-          instanceNumber: derivedInstanceNumber
-        };
-      }
-      
-      // PART B: Hard guard - block YES/NO if no prompt text
-      if (!effectivePromptText || effectivePromptText.trim().length === 0) {
-        console.error('[MI_GATE][PROMPT_MISSING_BLOCKED]', {
-          stableKey: `mi-gate:${gatePackId}:${gateInstanceNumber}`,
-          packId: gatePackId,
-          instanceNumber: gateInstanceNumber,
-          reason: 'Gate active but no prompt text available - cannot render YES/NO'
-        });
-        return null; // Force disabled mode (bottomBarModeSOT will be DISABLED)
-      }
-      
-      // PART 2: Log prompt binding for diagnostics
-      console.log('[MI_GATE][PROMPT_BIND]', {
-        stableKey: `mi-gate:${gatePackId}:${gateInstanceNumber}`,
-        hasPromptText: !!effectivePromptText,
-        promptPreview: effectivePromptText?.substring(0, 60),
-        source: 'currentItem_S.promptText'
-      });
-      
-      return {
-        type: 'multi_instance_gate',
-        id: effectiveCurrentItem.id,
-        text: effectivePromptText,
-        responseType: 'yes_no',
-        packId: gatePackId,
-        categoryId: effectiveCurrentItem.categoryId,
-        instanceNumber: gateInstanceNumber
-      };
-    }
-
-    // V3 Pack opener question (allow even during early V3 setup)
-    if (effectiveCurrentItem.type === 'v3_pack_opener') {
-      const { packId, openerText, exampleNarrative, categoryId, categoryLabel, instanceNumber } = effectiveCurrentItem;
-      const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-      const packLabel = packConfig?.instancesLabel || categoryLabel || categoryId || 'Follow-up';
-
-      // REGRESSION FIX: Log opener state at render time for dead-end diagnosis
-      console.log('[V3_PACK][OPENER_RENDER]', {
-        packId,
-        instanceNumber,
-        hasOpenerText: !!openerText,
-        v3ProbingActive,
-        currentItem_SId: effectiveCurrentItem.id
-      });
-      
-      // PACK ENTRY FAILSAFE CANCELLATION: Opener is active - cancel entry failsafe
-      if (openerText && packId === v3PackEntryContextRef.current?.packId) {
-        if (v3PackEntryFailsafeTimerRef.current) {
-          clearTimeout(v3PackEntryFailsafeTimerRef.current);
-          v3PackEntryFailsafeTimerRef.current = null;
-          v3PackEntryFailsafeTokenRef.current = null;
-          console.log('[V3_PACK][ENTRY_FAILSAFE_CANCELLED]', {
-            packId,
-            instanceNumber,
-            reason: 'OPENER_ACTIVE'
-          });
-        }
-      }
-
-      // UI CONTRACT: V3 opener MUST append to transcript (visible to candidate)
-      const openerStableKey = `followup-card:${packId}:opener:${instanceNumber}`;
-      if (lastLoggedFollowupCardIdRef.current !== openerStableKey) {
-        lastLoggedFollowupCardIdRef.current = openerStableKey;
-
-        const safeCategoryLabel = effectiveCurrentItem.categoryLabel || packLabel || categoryId || "Follow-up";
-        logFollowupCardShown(sessionId, {
-          packId,
-          variant: 'opener',
-          stableKey: openerStableKey,
-          promptText: openerText,
-          exampleText: exampleNarrative,
-          packLabel,
-          instanceNumber,
-          baseQuestionId: effectiveCurrentItem.baseQuestionId,
-          categoryLabel: safeCategoryLabel
-        }).then(() => refreshTranscriptFromDB('v3_opener_shown'))
-          .catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
-      }
-
-      return {
-        type: 'v3_pack_opener',
-        id: effectiveCurrentItem.id,
-        text: openerText || "In your own words, tell me about your prior law enforcement applications.",
-        exampleNarrative: exampleNarrative,
-        responseType: 'text',
-        packId,
-        categoryId,
-        instanceNumber,
-        category: packLabel
-      };
-    }
-
-    // V2 Pack field question
-    if (effectiveCurrentItem.type === 'v2_pack_field') {
-      const { packId, fieldIndex, fieldConfig, instanceNumber, fieldKey } = effectiveCurrentItem;
-
-      if (!fieldConfig || !packId || !fieldKey) {
-        console.warn('[V2_PACK][PROMPT_GUARD] Missing V2 pack state');
-        return null;
-      }
-
-      const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-      const totalFields = packConfig?.fields?.length || 0;
-
-      const hasClarifierActive = v2ClarifierState &&
-        v2ClarifierState.packId === packId &&
-        v2ClarifierState.fieldKey === fieldKey &&
-        v2ClarifierState.instanceNumber === instanceNumber;
-
-      const backendQuestionText = effectiveCurrentItem.backendQuestionText || null;
-      const displayText = hasClarifierActive
-        ? v2ClarifierState.clarifierQuestion
-        : (backendQuestionText || fieldConfig.label);
-
-      const packLabel = packConfig?.instancesLabel || 'Follow-up';
-
-      // RENDER-POINT LOGGING: Log follow-up card when shown (Guard: log once per canonical ID, non-clarifier only)
-      if (!hasClarifierActive) {
-        const fieldCardId = `followup-card-${sessionId}-${packId}-field-${fieldKey}-${instanceNumber}`;
-        if (lastLoggedFollowupCardIdRef.current !== fieldCardId) {
-          lastLoggedFollowupCardIdRef.current = fieldCardId;
-          logFollowupCardShown(sessionId, {
-            packId,
-            variant: 'field',
-            stableKey: `${fieldKey}-${instanceNumber}`,
-            promptText: displayText,
-            exampleText: null,
-            packLabel,
-            instanceNumber,
-            baseQuestionId: effectiveCurrentItem.baseQuestionId,
-            fieldKey
-          }).then(() => {
-            // CRITICAL: Refresh transcript after appending prompt message
-            return refreshTranscriptFromDB('v2_field_shown');
-          }).then((freshTranscript) => {
-            const normalizedFresh = Array.isArray(freshTranscript) ? freshTranscript : [];
-            console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { 
-              freshLen: normalizedFresh.length,
-              wasArray: Array.isArray(freshTranscript)
-            });
-          }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
-        }
-      }
-
-      return {
-        type: hasClarifierActive ? 'ai_probe' : 'v2_pack_field',
-        id: effectiveCurrentItem.id,
-        text: displayText,
-        responseType: fieldConfig.inputType === 'yes_no' ? 'yes_no' : 'text',
-        inputType: fieldConfig.inputType,
-        placeholder: fieldConfig.placeholder,
-        options: fieldConfig.options,
-        packId,
-        fieldKey,
-        stepNumber: fieldIndex + 1,
-        totalSteps: totalFields,
-        instanceNumber,
-        category: packLabel
-      };
-    }
-
-    return null;
-  }
-
-  
-  // CQ_GUARD_END: MI_GATE reconciliation effect (moved to BATCH 2 at line ~3490)
-
-  // ACTIVE UI ITEM CHANGE TRACE: Moved to render section (after activeUiItem_S is initialized)
-  // This avoids TDZ error while keeping hook order consistent
-
-  // STABLE: Single mount per session - track by sessionId (survives remounts)
-  
-  const initMapRef = React.useRef({});
-  
-  // SESSION RECOVERY: Attempt to find session by dept+file if sessionId missing
-  const sessionRecoveryAttemptedRef = React.useRef(false);
-  
-  __cqHookSite('H12P_3:useEffect@L7131');
-  __cqHookSite('H12P2_N1:useEffect_TR@L7134');
-  useEffect_TR(() => {
-    // Only run recovery if sessionId is missing AND no lock exists
-    if (effectiveSessionId) return;
-    if (resolvedSessionRef.current) return;
-    if (didSessionRepairRef.current) return;
-    if (sessionRecoveryAttemptedRef.current) return;
-    
-    sessionRecoveryAttemptedRef.current = true;
-    
-    const deptParam = urlParams.get('dept');
-    const fileParam = urlParams.get('file');
-    
-    if (!deptParam || !fileParam) {
-      console.log('[CANDIDATE_INTERVIEW][SESSION_RECOVERY_SKIP]', { 
-        reason: 'missing_dept_or_file_params'
-      });
-      return; // Let existing unrecoverable redirect proceed
-    }
-    
-    console.log('[CANDIDATE_INTERVIEW][SESSION_RECOVERY_ATTEMPT]', { dept: deptParam, file: fileParam });
-    setIsRecoveringSession(true);
-    
-    (async () => {
-      try {
-        const sessionCode = `${deptParam}_${fileParam}`;
-        const existingSessions = await base44.entities.InterviewSession.filter({ session_code: sessionCode });
-        
-        if (existingSessions.length > 0) {
-          const activeSession = existingSessions.find(s => 
-            s.status === 'active' || s.status === 'in_progress' || s.status === 'paused'
-          ) || existingSessions[0];
-          
-          console.log('[CANDIDATE_INTERVIEW][SESSION_RECOVERY_FOUND]', { sessionId: activeSession.id });
-          
-          // Set recovered session
-          resolvedSessionRef.current = activeSession.id;
-          window.__CQ_SESSION__ = activeSession.id;
-          didSessionRepairRef.current = true;
-          
-          // Repair URL with session param
-          const params = new URLSearchParams(window.location.search || "");
-          params.set("session", activeSession.id);
-          const repairedUrl = `/candidateinterview?${params.toString()}`;
-          
-          console.log('[CANDIDATE_INTERVIEW][SESSION_URL_REPAIR_FROM_RECOVERY]', {
-            from: window.location.search,
-            to: repairedUrl,
-            recoveredSession: activeSession.id
-          });
-          
-          window.location.replace(repairedUrl);
-        } else {
-          console.log('[CANDIDATE_INTERVIEW][SESSION_RECOVERY_NOT_FOUND]', { dept: deptParam, file: fileParam });
-          setIsRecoveringSession(false);
-        }
-      } catch (err) {
-        console.error('[CANDIDATE_INTERVIEW][SESSION_RECOVERY_ERROR]', { error: err.message });
-        setIsRecoveringSession(false);
-      }
-    })();
-  }, [sessionId]);
-  
-// DUPLICATE useEffect block removed
-  
-  // STABLE: Component instance tracking - MUST NOT change during session
-  const componentInstanceId = React.useRef(`CandidateInterview-${sessionId}`);
-  
-  __cqHookSite('H12P_3:useEffect@L7131');
-  __cqHookSite('H12P2_N2:useEffect@L7208');
-  React.useEffect(() => {
-    candidateInterviewMountCount++;
-    
-    // HARD REMOUNT DETECTOR: Track per sessionId
-    if (!mountsBySession[sessionId]) {
-      mountsBySession[sessionId] = 0;
-    }
-    mountsBySession[sessionId]++;
-    
-    const sessionMounts = mountsBySession[sessionId];
-    
-    // CQ_GUARDRAIL_COUNTS: Manual validation assertion (post-fix verification)
-    console.log('[CQ_GUARDRAIL_COUNTS]', {
-      handleBottomBarSubmitCount: 1,
-      miGateReconcileCount: 1,
-      note: 'Validated: No duplicates present'
-    });
-    
-    console.log('[CANDIDATE_INTERVIEW][MOUNT]', { sessionId });
-    console.log('[HARD_MOUNT_CHECK]', { 
-      sessionId,
-      mounts: sessionMounts,
-      globalMountCount: candidateInterviewMountCount
-    });
-    
-    if (sessionMounts > 1) {
-      console.error('[HARD_MOUNT_CHECK] ❌ REMOUNT DETECTED - must be 1 per session', {
-        sessionId,
-        mounts: sessionMounts,
-        ERROR: 'CandidateInterview should mount ONCE per session - investigate parent render/key props'
-      });
-    }
-    
-    console.log("[FORENSIC][HOOK_ORDER_FIXED]", { ok: true, timestamp: Date.now() });
-    
-    console.log('[FORENSIC][MOUNT]', { 
-      component: 'CandidateInterview', 
-      instanceId: componentInstanceId.current,
-      mountCount: candidateInterviewMountCount,
-      sessionId,
-      WARNING: candidateInterviewMountCount > 1 ? '⚠️ REMOUNT DETECTED - This should only mount ONCE per session' : '✓ First mount'
-    });
-    
-    console.log('[FORENSIC][TDZ_FIX_OK]', {
-      fixedSymbol: 'ensureRequiredAnchorQuestionInTranscript',
-      note: 'hoisted-safe plain function with zero closure deps + defensive guards (line ~1220)'
-    });
-    
-    // PHASE HISTORY DUMP: Expose global dump function (debug-only)
-    if (typeof window !== 'undefined') {
-      window.__CQ_DUMP_PHASE_HISTORY__ = function() {
-        if (window.__CQ_STABILITY_DEBUG__ !== true) {
-          console.warn('[PHASE_HISTORY][DUMP_BLOCKED] Enable window.__CQ_STABILITY_DEBUG__ = true first');
-          return;
-        }
-        
-        console.log('[PHASE_HISTORY][DUMP]', {
-          count: phaseHistoryRef.current.length,
-          history: phaseHistoryRef.current
-        });
-      };
-    }
-    
-    // ABANDONMENT SAFETY: Flush retry queue on unload/visibility change
-    const handleBeforeUnload = () => {
-      if (flushRetryQueueOnce) {
-        flushRetryQueueOnce();
-      }
-    };
-    
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        if (flushRetryQueueOnce) {
-          flushRetryQueueOnce();
-        }
-      }
-    };
-    
-    const handleError = (event) => {
-      console.error('[FORENSIC][CRASH]', {
-        type: 'error',
-        message: event.message || event.error?.message,
-        stack: event.error?.stack,
-        screenMode,
-        currentItem_SType: currentItem_S?.type,
-        currentItem_SId: currentItem_S?.id,
-        packId: currentItem_S?.packId || v3ProbingContext_S?.packId,
-        instanceNumber: currentItem_S?.instanceNumber || v3ProbingContext_S?.instanceNumber,
-        v3ProbingActive,
-        canonicalLen: dbTranscript?.length || 0,
-        visibleLen: nextRenderable?.length || 0,
-        last5MessageTypes: dbTranscript?.slice(-5).map(e => ({ type: e.messageType || e.type, key: e.stableKey || e.id })) || []
-      });
-      
-      console.error('[FORENSIC][WINDOW_ERROR_CAPTURED]', {
-        message: String(event?.message || ''),
-        filename: event?.filename,
-        lineno: event?.lineno,
-        colno: event?.colno,
-        stack: String(event?.error?.stack || ''),
-        ts: Date.now()
-      });
-    };
-    
-    const handleRejection = (event) => {
-      console.error('[FORENSIC][CRASH]', {
-        type: 'unhandledRejection',
-        message: event.reason?.message || String(event.reason),
-        stack: event.reason?.stack,
-        screenMode,
-        currentItem_SType: currentItem_S?.type,
-        currentItem_SId: currentItem_S?.id,
-        packId: currentItem_S?.packId || v3ProbingContext_S?.packId,
-        instanceNumber: currentItem_S?.instanceNumber || v3ProbingContext_S?.instanceNumber,
-        v3ProbingActive,
-        canonicalLen: dbTranscript?.length || 0,
-        visibleLen: nextRenderable?.length || 0,
-        last5MessageTypes: dbTranscript?.slice(-5).map(e => ({ type: e.messageType || e.type, key: e.stableKey || e.id })) || []
-      });
-      
-      console.error('[FORENSIC][UNHANDLED_REJECTION_CAPTURED]', {
-        message: String(event?.reason?.message || event?.reason || ''),
-        name: event?.reason?.name,
-        stack: String(event?.reason?.stack || ''),
-        ts: Date.now()
-      });
-    };
-    
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('error', handleError);
-    window.addEventListener('unhandledrejection', handleRejection);
-    
-    return () => {
-      // ============================================================================
-      // SESSION SNAPSHOT LOG (UNMOUNT) - DIAGNOSTIC ONLY
-      // ============================================================================
-      console.log('[SESSION_SNAPSHOT][UNMOUNT]', {
-        sessionId,
-        screenMode,
-        timestamp: Date.now()
-      });
-      
-      console.log('[FORENSIC][UNMOUNT]', { 
-        component: 'CandidateInterview', 
-        instanceId: componentInstanceId.current,
-        mountCount: candidateInterviewMountCount,
-        sessionId,
-        sessionMounts: mountsBySession[sessionId],
-        WARNING: '⚠️ UNMOUNT during session - should only occur on route exit or browser close'
-      });
-
-      // STABILITY SNAPSHOT: Component mounted
-      getStabilitySnapshotSOT("MOUNT");
-
-      resetMountTracker(sessionId);
-      
-      // PHASE HISTORY DUMP: Cleanup global function on unmount
-      if (typeof window !== 'undefined' && window.__CQ_DUMP_PHASE_HISTORY__) {
-        delete window.__CQ_DUMP_PHASE_HISTORY__;
-      }
-      
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('error', handleError);
-      window.removeEventListener('unhandledrejection', handleRejection);
-    };
-  }, [sessionId]);
-
-  // Global TDZ Trap
-  __cqHookSite('H12P_4:useEffect@L7371');
-  __cqHookSite('H12P2_N3:useEffect@L7379');
-  React.useEffect(() => {
-    const handleGlobalTdz = (event) => {
-      try {
-        const reason = event.reason || event.error;
-        const message = reason?.message || event.message || '';
-        
-        if (message.includes("Cannot access '") && message.includes("before initialization")) {
-          console.error('[CQ_DIAG][TDZ_GLOBAL_TRAP]', {
-            message: message,
-            name: reason?.name || event.error?.name || 'ReferenceError',
-            lastRenderStep: typeof window !== 'undefined' ? window.__CQ_LAST_RENDER_STEP__ || null : null,
-            stack: reason?.stack || event.error?.stack || '(stack not available)'
-          });
-        }
-      } catch (_) {
-        // Trap must never throw
-      }
-    };
-
-    window.addEventListener('error', handleGlobalTdz);
-    window.addEventListener('unhandledrejection', handleGlobalTdz);
-
-    return () => {
-      window.removeEventListener('error', handleGlobalTdz);
-      window.removeEventListener('unhandledrejection', handleGlobalTdz);
-    };
-  }, []);
-
-  // UI_CONTRACT: 3-row shell audit (unconditional hook - must run on every render)
-  __cqHookSite('H12P_5:useEffect@L7401');
-  __cqHookSite('H12P2_N4:useEffect@L7409');
-  React.useEffect(() => {
-    if (typeof window === 'undefined' || !historyRef.current) return;
-    
-    requestAnimationFrame(() => {
-      try {
-        const container = document.querySelector('.grid.grid-rows-\\[auto_1fr_auto\\]');
-        const hasGrid3Row = !!container;
-        const footerEl = footerRootRef.current;
-        const footerIsOverlay = footerEl ? getComputedStyle(footerEl).position === 'fixed' || getComputedStyle(footerEl).position === 'absolute' : false;
-        const hasFooterSpacer = !!historyRef.current?.querySelector('[data-cq-footer-spacer="true"]');
-        const middleIsOnlyScroll = historyRef.current ? getComputedStyle(historyRef.current).overflowY === 'auto' : false;
-        
-        console.log('[UI_CONTRACT][SHELL_3ROW_AUDIT]', {
-          hasGrid3Row,
-          footerIsOverlay,
-          hasFooterSpacer,
-          middleIsOnlyScroll
-        });
-        
-        // One-time log: Footer spacer + clearance checks disabled in 3-row shell
-        if (IS_3ROW_SHELL && !footerSpacerDisabledLoggedRef.current) {
-          footerSpacerDisabledLoggedRef.current = true;
-          console.log('[UI_CONTRACT][FOOTER_SPACER_DISABLED]', {
-            reason: 'SHELL_3ROW_ENFORCED',
-            footerInNormalFlow: true,
-            noSpacerNeeded: true,
-            clearanceChecksDisabled: true
-          });
-        }
-      } catch (e) {
-        // Silent - audit should never crash
-      }
-    });
-  }, []); // Run once on mount
-
-
-
-  
-
-  const pendingPersistRef = React.useRef(null);
-  const lastPersistTimeRef = React.useRef(0);
-  const persistCountSinceLastWriteRef = React.useRef(0);
-  const PERSIST_THROTTLE_MS = 3000;
-  const PERSIST_BATCH_COUNT = 3;
-
-  __cqHookSite('H12P_6:useCallback@L7446');
-  __cqHookSite('H12P2_N5:useCallback@L7455');
-  const flushPersist = React.useCallback(async () => {
-    if (!pendingPersistRef.current) return;
-
-    const { newTranscript, newQueue, newCurrentItem } = pendingPersistRef.current;
-    pendingPersistRef.current = null;
-    persistCountSinceLastWriteRef.current = 0;
-    lastPersistTimeRef.current = Date.now();
-
-    try {
-      // TRANSCRIPT GUARD: Never write transcript_snapshot (chatTranscriptHelpers owns it)
-      if (newTranscript) {
-        console.log('[TRANSCRIPT_GUARD][BLOCKED_WRITE] persistStateToDatabase attempted transcript write - blocked', {
-          transcriptLen: newTranscript.length,
-          caller: 'flushPersist'
-        });
-      }
-
-      await base44.entities.InterviewSession.update(sessionId, {
-        // transcript_snapshot: REMOVED - only chatTranscriptHelpers may write transcript
-        queue_snapshot: newQueue,
-        current_item_snapshot: newCurrentItem,
-        data_version: 'v2.5-hybrid'
-      });
-    } catch (err) {
-      // Silently fail
-    }
-  }, [sessionId, engine_S]);
-
-  __cqHookSite('H12P_7:useCallback@L7474');
-  __cqHookSite('H12P2_N6:useCallback@L7484');
-  const persistStateToDatabase = React.useCallback(async (ignoredTranscript, newQueue, newCurrentItem) => {
-    // TRANSCRIPT GUARD: Warn if transcript argument is passed (should always be null)
-    if (ignoredTranscript !== null && ignoredTranscript !== undefined) {
-      console.warn('[TRANSCRIPT_GUARD][PERSIST_CALLED_WITH_TRANSCRIPT]', {
-        transcriptLen: Array.isArray(ignoredTranscript) ? ignoredTranscript.length : 'not array',
-        caller: new Error().stack?.split('\n')[2]?.trim()
-      });
-    }
-
-    pendingPersistRef.current = { newTranscript: null, newQueue, newCurrentItem };
-    persistCountSinceLastWriteRef.current++;
-
-    const now = Date.now();
-    const timeSinceLastPersist = now - lastPersistTimeRef.current;
-
-    if (persistCountSinceLastWriteRef.current >= PERSIST_BATCH_COUNT ||
-        timeSinceLastPersist >= PERSIST_THROTTLE_MS) {
-      await flushPersist();
-    } else {
-      setTimeout(() => {
-        if (pendingPersistRef.current) {
-          flushPersist();
-        }
-      }, PERSIST_THROTTLE_MS - timeSinceLastPersist);
-    }
-  }, [flushPersist]);
-
-  __cqHookSite('H12P_8:useEffect@L7501');
-  __cqHookSite('H12P2_N7:useEffect@L7512');
-  React.useEffect(() => {
-    return () => {
-      if (pendingPersistRef.current) {
-        flushPersist();
-      }
-    };
-  }, [flushPersist]);
-
-  __cqHookSite('H12P_9:useCallback@L7509');
-  __cqHookSite('H12P2_N8:useCallback@L7521');
-  const advanceToNextBaseQuestion = React.useCallback(async (baseQuestionId, currentTranscript = null) => {
-    // V3 BLOCKING GATE: Block advancement if V3 is active
-    if (isV3Blocking) {
-      console.log('[FLOW][BLOCKED_ADVANCE_DUE_TO_V3]', {
-        reason: 'V3_BLOCKING',
-        currentItem_SType: currentItem_S?.type,
-        v3PromptPhase,
-        v3ProbingActive,
-        hasActiveV3Prompt,
-        baseQuestionId
-      });
-      return;
-    }
-    
-    // FIX C: Guard advance - require V3 UI fully cleared
-    if (v3ProbingActive && !isV3Blocking) {
-      const v3UiHistoryLen = v3ProbeDisplayHistory_S.length;
-      const hasV3Context = !!v3ProbingContext_S;
-      const hasV3UiArtifacts = v3UiHistoryLen > 0 || hasV3Context;
-      
-      if (hasV3UiArtifacts) {
-        console.warn('[FLOW][ADVANCE_BLOCKED_V3_UI_NOT_CLEARED]', {
-          v3ProbingActive,
-          v3PromptPhase,
-          hasActiveV3Prompt,
-          v3UiHistoryLen,
-          hasV3Context,
-          reason: 'V3 UI artifacts still present - must cleanup before advancing',
-          action: 'BLOCKED'
-        });
-        return;
-      }
-      
-      console.log('[FLOW][ADVANCE_ALLOWED_V3_CLEARED]', {
-        v3ProbingActive,
-        v3PromptPhase,
-        hasActiveV3Prompt,
-        v3UiHistoryLen,
-        hasV3Context,
-        reason: 'V3 UI fully cleared - allowing advancement'
-      });
-    }
-    
-    const currentQuestion = engine_S.QById[baseQuestionId];
-    if (!currentQuestion) {
-      setShowCompletionModal(true);
-      return;
-    }
-
-    // Use passed transcript or fall back to state
-    const effectiveTranscript = currentTranscript || dbTranscript;
-
-    const answeredQuestionIds = new Set(
-      effectiveTranscript.filter(t => t.type === 'question').map(t => t.questionId)
-    );
-
-    if (sections.length > 0) {
-      const nextResult = getNextQuestionInSectionFlow({
-        sections,
-        currentSectionIndex,
-        currentQuestionId: baseQuestionId,
-        answeredQuestionIds
-      });
-
-      if (nextResult.mode === 'QUESTION') {
-        setCurrentSectionIndex(nextResult.nextSectionIndex);
-        setQueue([]);
-        setCurrentItem({ id: nextResult.nextQuestionId, type: 'question' });
-        await persistStateToDatabase(null, [], { id: nextResult.nextQuestionId, type: 'question' });
-        return;
-      } else if (nextResult.mode === 'SECTION_TRANSITION') {
-        const whatToExpect = WHAT_TO_EXPECT[nextResult.nextSection.id] || 'important background information';
-
-        setCompletedSectionsCount(prev => Math.max(prev, nextResult.nextSectionIndex));
-
-        const totalSectionsCount = sections.length;
-        const totalQuestionsCount = engine_S?.TotalQuestions || 0;
-        
-        // FIX A: Count from Response entities (authoritative source)
-        const completedSectionResponses = await base44.entities.Response.filter({
-          session_id: sessionId,
-          response_type: 'base_question'
-        });
-        const completedSectionQuestionIds = new Set(completedSectionResponses.map(r => r.question_id));
-        const answeredQuestionsInCompletedSection = nextResult.completedSection.questionIds.filter(qId => completedSectionQuestionIds.has(qId)).length;
-
-        console.log('[SECTION_COMPLETE][COUNT]', {
-          sectionId: nextResult.completedSection.id,
-          sectionQuestions: nextResult.completedSection.questionIds.length,
-          answeredCount: answeredQuestionsInCompletedSection
-        });
-
-        // IDEMPOTENCY GUARD: Check if section already completed
-        const sectionCompleteKey = `${sessionId}::${nextResult.completedSection.id}`;
-        if (!completedSectionKeysRef.current.has(sectionCompleteKey)) {
-          completedSectionKeysRef.current.add(sectionCompleteKey);
-          
-          // Log section complete to transcript (only once)
-          await logSectionComplete(sessionId, {
-            completedSectionId: nextResult.completedSection.id,
-            completedSectionName: nextResult.completedSection.displayName,
-            nextSectionId: nextResult.nextSection.id,
-            nextSectionName: nextResult.nextSection.displayName,
-            progress: {
-              completedSections: nextResult.nextSectionIndex,
-              totalSections: totalSectionsCount,
-              answeredQuestions: answeredQuestionsInCompletedSection,
-              totalQuestions: totalQuestionsCount
-            }
-          });
-        } else {
-          console.log("[IDEMPOTENCY][SECTION_COMPLETE] Already logged for section:", nextResult.completedSection.id);
-        }
-
-        // Reload transcript after logging
-        await refreshTranscriptFromDB('section_complete_logged');
-
-        // Trigger section summary generation (background)
-        base44.functions.invoke('generateSectionSummary', {
-          sessionId,
-          sectionId: nextResult.completedSection.id
-        }).catch(() => {}); // Fire and forget
-
-        // Add section transition blocker (UI-ONLY)
-        setUiBlocker({
-          id: `blocker-section-${nextResult.nextSectionIndex}`,
-          type: 'SECTION_MESSAGE',
-          resolved: false,
-          completedSectionName: nextResult.completedSection.displayName,
-          nextSectionName: nextResult.nextSection.displayName,
-          nextSectionIndex: nextResult.nextSectionIndex,
-          nextQuestionId: nextResult.nextQuestionId,
-          timestamp: new Date().toISOString()
-        });
-
-        setPendingSectionTransition({
-          nextSectionIndex: nextResult.nextSectionIndex,
-          nextQuestionId: nextResult.nextQuestionId,
-          nextSectionName: nextResult.nextSection.displayName
-        });
-
-        setQueue([]);
-        setCurrentItem(null);
-        await persistStateToDatabase(null, [], null);
-        return;
-      } else {
-        // Completion handled by modal - no local message needed
-
-        setCurrentItem(null);
-        setQueue([]);
-        await persistStateToDatabase(null, [], null);
-        setShowCompletionModal(true);
-        return;
-      }
-    }
-
-    const nextQuestionId = computeNextQuestionId(engine_S, baseQuestionId, 'Yes');
-    if (nextQuestionId && engine_S.QById[nextQuestionId]) {
-      setQueue([]);
-      setCurrentItem({ id: nextQuestionId, type: 'question' });
-      await persistStateToDatabase(null, [], { id: nextQuestionId, type: 'question' });
-    } else {
-      setCurrentItem(null);
-      setQueue([]);
-      await persistStateToDatabase(dbTranscript, [], null);
-      setShowCompletionModal(true);
-    }
-  }, [engine_S, dbTranscript, sections, currentSectionIndex, refreshTranscriptFromDB]);
-
-  __cqHookSite('H12P_10:useCallback@L7678');
-  __cqHookSite('H12P2_N9:useCallback@L7691');
-  const onFollowupPackComplete = React.useCallback(async (baseQuestionId, packId) => {
-    const question = engine_S.QById[baseQuestionId];
-    if (!question) {
-      advanceToNextBaseQuestion(baseQuestionId);
-      return;
-    }
-
-    if (question.followup_multi_instance) {
-      const maxInstances = question.max_instances_per_question || 5;
-
-      const existingFollowups = await base44.entities.FollowUpResponse.filter({
-        session_id: sessionId,
-        question_id: baseQuestionId,
-        followup_pack: packId
-      });
-
-      const currentInstanceCount = existingFollowups.length;
-
-      if (currentInstanceCount < maxInstances) {
-        const multiInstancePrompt = question.multi_instance_prompt ||
-          'Do you have another instance we should discuss for this question?';
-
-        // PART A: DO NOT append gate to transcript while active (prevents flicker)
-        // Gate renders from currentItem_S.promptText - will append Q+A ONLY after user answers
-        const gateStableKey = `mi-gate:${packId}:${currentInstanceCount + 1}`;
-        console.log('[MI_GATE][TRANSCRIPT_SUPPRESS_ON_SHOW]', {
-          stableKey: gateStableKey,
-          packId,
-          instanceNumber: currentInstanceCount + 1,
-          reason: 'Gate active - will append Q+A after answer only (prevents flicker)'
-        });
-
-        setCurrentItem({
-          id: `multi-instance-${baseQuestionId}-${packId}`,
-          type: 'multi_instance',
-          questionId: baseQuestionId,
-          packId: packId,
-          instanceNumber: currentInstanceCount + 1,
-          maxInstances: maxInstances,
-          prompt: multiInstancePrompt
-        });
-
-        await persistStateToDatabase(null, [], {
-          id: `multi-instance-${baseQuestionId}-${packId}`,
-          type: 'multi_instance',
-          questionId: baseQuestionId,
-          packId: packId
-        });
-        return;
-      }
-    }
-
-    advanceToNextBaseQuestion(baseQuestionId);
-  }, [engine_S, sessionId, dbTranscript, advanceToNextBaseQuestion]);
-
-  __cqHookSite('H12P_11:useCallback@L8022');
-  // SHARED MI_GATE HANDLER: Deduplicated logic for YES/NO (inline function)
-  const handleMiGateYesNo = async ({ answer, gate, sessionId, engine_S }) => {
-    // PART C: Append gate Q+A to transcript after user answers
-    // STATIC IMPORT: Use top-level imports (prevents React context duplication)
-    const appendUserMessage = appendUserMessageImport;
-    const appendAssistantMessage = appendAssistantMessageImport;
-    const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
-    const currentTranscript = sessionForAnswer.transcript_snapshot || [];
-    
-    const transcriptLenBefore = currentTranscript.length;
-
-    // Append gate question first
-    const gateQuestionStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:q`;
-    const transcriptAfterQ = await appendAssistantMessage(sessionId, currentTranscript, gate.promptText, {
-      id: `mi-gate-q-${gate.packId}-${gate.instanceNumber}`,
-      stableKey: gateQuestionStableKey,
-      messageType: 'MULTI_INSTANCE_GATE_SHOWN',
-      packId: gate.packId,
-      categoryId: gate.categoryId,
-      instanceNumber: gate.instanceNumber,
-      baseQuestionId: gate.baseQuestionId,
-      isActiveGate: false,
-      visibleToCandidate: true
-    });
-
-    // Append user's answer
-    const gateAnswerStableKey = `mi-gate:${gate.packId}:${gate.instanceNumber}:a`;
-    const transcriptAfterA = await appendUserMessage(sessionId, transcriptAfterQ, answer, {
-      id: `mi-gate-answer-${gate.packId}-${gate.instanceNumber}-${answer.toLowerCase()}`,
-      stableKey: gateAnswerStableKey,
-      messageType: 'MULTI_INSTANCE_GATE_ANSWER',
-      packId: gate.packId,
-      categoryId: gate.categoryId,
-      instanceNumber: gate.instanceNumber,
-      answerContext: 'MI_GATE',
-      parentStableKey: gateQuestionStableKey
-    });
-    
-    const transcriptLenAfter = transcriptAfterA.length;
-
-    console.log('[MI_GATE][TRACE][APPEND_RESULT]', {
-      appendedQ: transcriptAfterQ.length > currentTranscript.length,
-      appendedA: transcriptAfterA.length > transcriptAfterQ.length,
-      qKey: gateQuestionStableKey,
-      aKey: gateAnswerStableKey,
-      transcriptLenBefore,
-      transcriptLenAfter,
-      delta: transcriptLenAfter - transcriptLenBefore
-    });
-
-    // Reload transcript
-    await refreshTranscriptFromDB(`gate_${answer.toLowerCase()}_answered`);
-
-    // FIX A: Clear gate state + set next question ATOMICALLY (no null frame)
-    if (answer === 'No') {
-      // FIX A: Compute next question SYNCHRONOUSLY before clearing gate
-      const nextQuestionId = computeNextQuestionId(engine_S, gate.baseQuestionId, 'Yes');
-      
-      if (!nextQuestionId || !engine_S.QById[nextQuestionId]) {
-        console.log('[MI_GATE][NO_NEXT_QUESTION]', { 
-          baseQuestionId: gate.baseQuestionId,
-          reason: 'No next question - completing interview' 
-        });
-        
-        // ATOMIC: Clear gate + set null currentItem_S
-        unstable_batchedUpdates(() => {
-          setMultiInstanceGate(null);
-          setCurrentItem(null);
-        });
-        
-        await persistStateToDatabase(null, [], null);
-        setShowCompletionModal(true);
-        return;
-      }
-      
-      const nextQuestion = engine_S.QById[nextQuestionId];
-      const nextItem = { id: nextQuestionId, type: 'question' };
-      
-      console.log('[MI_GATE][ADVANCE_ATOMIC]', {
-        fromGateId: `mi-gate:${gate.packId}:${gate.instanceNumber}`,
-        toQuestionId: nextQuestionId,
-        toQuestionNumber: nextQuestion.question_number,
-        hadNullFrame: false,
-        reason: 'Atomic transition - no intermediate null currentItem_S'
-      });
-      
-      // FIX B: Cleanup V3 UI state before advancing to prevent stale cards
-      const v3UiHistoryLen = v3ProbeDisplayHistory_S.length;
-      const loopKey = `${sessionId}:${gate.categoryId}:${gate.instanceNumber}`;
-      
-      console.log('[V3_UI][CLEANUP_ON_PACK_EXIT]', {
-        packId: gate.packId,
-        instanceNumber: gate.instanceNumber,
-        clearedHistoryLen: v3UiHistoryLen,
-        clearedContext: true,
-        loopKey,
-        reason: 'MI_GATE_NO_ADVANCE'
-      });
-      
-      // ATOMIC STATE TRANSITION: Clear ALL V3 state + gate + set next question in one batch
-      unstable_batchedUpdates(() => {
-        setMultiInstanceGate(null);
-        setCurrentItem(nextItem);
-        setV3ProbeDisplayHistory([]); // Clear UI history
-        setV3ProbingActive(false); // Clear active flag
-        setV3ProbingContext(null); // Clear context
-        setV3ActivePromptText(null); // Clear prompt text
-        setV3PromptPhase('IDLE'); // Reset phase
-        v3ActiveProbeQuestionRef.current = null;
-        v3ActiveProbeQuestionLoopKeyRef.current = null;
-      });
-      
-      await persistStateToDatabase(null, [], nextItem);
-      return;
-    }
-
-    // Clear gate state for "Yes" path
-    setMultiInstanceGate(null);
-
-    if (answer === 'Yes') {
-      const nextInstanceNumber = (gate.instanceNumber || 1) + 1;
-
-      console.log('[MI_GATE][ADVANCE_NEXT_INSTANCE]', {
-        packId: gate.packId,
-        fromInstanceNumber: gate.instanceNumber,
-        toInstanceNumber: nextInstanceNumber,
-        nextStableKey: `v3-opener-${gate.packId}-${nextInstanceNumber}`,
-        nextItemKindOrType: 'v3_pack_opener'
-      });
-
-      // INSTANCE START: Clear sticky required-anchor fallback from prior instance
-      setRequiredAnchorFallbackActive(false);
-      setRequiredAnchorCurrent(null);
-      setRequiredAnchorQueue([]);
-      setV3PromptPhase('IDLE');
-
-      console.log('[INSTANCE_START][FALLBACK_CLEARED]', {
-        packId: gate.packId,
-        instanceNumber: nextInstanceNumber,
-        reason: 'Cleared sticky fallback state from prior instance to prevent opener hijack'
-      });
-      
-      // FALLBACK OSCILLATION GUARD: Reset re-activation counter for new instance
-      const sessionPackPrefix = `${sessionId}:${gate.packId}:`;
-      let clearedCount = 0;
-      for (const key of fallbackReactivationCountRef.current.keys()) {
-        if (key.startsWith(sessionPackPrefix)) {
-          fallbackReactivationCountRef.current.delete(key);
-          clearedCount++;
-        }
-      }
-      if (clearedCount > 0) {
-        console.log('[FALLBACK_OSCILLATION_GUARD][RESET]', {
-          packId: gate.packId,
-          nextInstanceNumber,
-          clearedKeys: clearedCount,
-          reason: 'New instance started - reset re-activation counters'
-        });
-      }
-
-      await logPackEntered(sessionId, {
-        packId: gate.packId,
-        instanceNumber: nextInstanceNumber,
-        isV3: true
-      });
-
-      // STATIC IMPORT: Use top-level import (already imported at line 61)
-      
-      // INSTANCE 2+ FIX: Reload packMetadata if packData incomplete
-      let packDataForOpener = gate.packData;
-      const isPackDataIncompleteForOpener = !packDataForOpener || 
-        !packDataForOpener.opening_question_text || 
-        !packDataForOpener.pack_name;
-      
-      if (isPackDataIncompleteForOpener && gate.packId) {
-        try {
-          const reloadedPacks = await base44.entities.FollowUpPack.filter({ 
-            followup_pack_id: gate.packId 
-          });
-          if (reloadedPacks.length > 0) {
-            packDataForOpener = reloadedPacks[0];
-            console.log('[MI_GATE][OPENER_PACKDATA_RELOAD]', { 
-              packId: gate.packId, 
-              instanceNumber: nextInstanceNumber, 
-              reason: 'packData_incomplete' 
-            });
-          }
-        } catch (err) {
-          console.warn('[MI_GATE][OPENER_PACKDATA_RELOAD_ERROR]', { error: err.message });
-        }
-      }
-      
-      const opener = getV3DeterministicOpener(packDataForOpener, gate.categoryId, gate.categoryLabel);
-
-      const openerItem = {
-        id: `v3-opener-${gate.packId}-${nextInstanceNumber}`,
-        type: 'v3_pack_opener',
-        packId: gate.packId,
-        categoryId: gate.categoryId,
-        categoryLabel: gate.categoryLabel,
-        openerText: opener.text,
-        exampleNarrative: opener.example,
-        baseQuestionId: gate.baseQuestionId,
-        questionCode: engine_S.QById[gate.baseQuestionId]?.question_id,
-        sectionId: engine_S.QById[gate.baseQuestionId]?.section_id,
-        instanceNumber: nextInstanceNumber,
-        packData: packDataForOpener
-      };
-      
-      console.log('[INSTANCE_START][OPENER_SET]', { 
-        packId: openerItem.packId, 
-        instanceNumber: openerItem.instanceNumber, 
-        type: openerItem.type,
-        openerTextPreview: openerItem.openerText?.substring(0, 60)
-      });
-
-      setCurrentItem(openerItem);
-
-      console.log('[INSTANCE_START][OPENER_SET_OK]', { 
-        packId: openerItem.packId, 
-        instanceNumber: openerItem.instanceNumber 
-      });
-
-      await persistStateToDatabase(null, [], openerItem);
-      
-      // REGRESSION CHECK
-      setTimeout(async () => {
-        const checkSession = await base44.entities.InterviewSession.get(sessionId);
-        const checkCurrentItem = checkSession.current_item_snapshot;
-        
-        if (!checkCurrentItem || checkCurrentItem.type !== 'v3_pack_opener' || checkCurrentItem.instanceNumber !== nextInstanceNumber) {
-          console.error('[MI_GATE][ADVANCE_FAILED]', {
-            packId: gate.packId,
-            expectedInstanceNumber: nextInstanceNumber,
-            actualItemType: checkCurrentItem?.type,
-            actualInstanceNumber: checkCurrentItem?.instanceNumber,
-            actualItemId: checkCurrentItem?.id
-          });
-        } else {
-          console.log('[MI_GATE][ADVANCE_VERIFIED]', {
-            packId: gate.packId,
-            toInstanceNumber: nextInstanceNumber,
-            currentItem_SType: checkCurrentItem.type
-          });
-        }
-      }, 200);
-    } else {
-      console.log('[MI_GATE][EXIT_LOOP]', {
-        packId: gate.packId,
-        instanceNumber: gate.instanceNumber,
-        reason: "NO",
-        nextItemKindOrType: 'question'
-      });
-      
-      await logPackExited(sessionId, {
-        packId: gate.packId,
-        instanceNumber: gate.instanceNumber
-      });
-      
-      // FIX B: Cleanup V3 UI state when exiting pack via legacy path (if somehow reached)
-      const legacyV3UiHistoryLen = v3ProbeDisplayHistory_S.length;
-      if (legacyV3UiHistoryLen > 0 || v3ProbingActive || v3ProbingContext_S) {
-        const legacyLoopKey = `${sessionId}:${gate.categoryId}:${gate.instanceNumber}`;
-        
-        console.log('[V3_UI][CLEANUP_ON_PACK_EXIT_LEGACY]', {
-          packId: gate.packId,
-          instanceNumber: gate.instanceNumber,
-          clearedHistoryLen: legacyV3UiHistoryLen,
-          clearedContext: !!v3ProbingContext_S,
-          loopKey: legacyLoopKey,
-          reason: 'LEGACY_EXIT_PATH'
-        });
-        
-        setV3ProbeDisplayHistory([]);
-        setV3ProbingActive(false);
-        setV3ProbingContext(null);
-        setV3ActivePromptText(null);
-        setV3PromptPhase('IDLE');
-        v3ActiveProbeQuestionRef.current = null;
-        v3ActiveProbeQuestionLoopKeyRef.current = null;
-      }
-
-      if (gate.baseQuestionId) {
-        const freshAfterGateNo = await refreshTranscriptFromDB('gate_no_before_advance');
-        await advanceToNextBaseQuestion(gate.baseQuestionId, freshAfterGateNo);
-      }
-    }
-  };
-
-  __cqHookSite('H12P_11:useCallback@L8022');
-  __cqHookSite('H12P2_N10:useCallback@L8037');
-  const handleAnswer = React.useCallback(async (value) => {
-    return handleAnswerImpl({
-      // State values
-      activeUiItem_S_SAFE,
-      v3PromptPhase,
-      bottomBarModeSOT,
-      bottomBarModeSOT_SAFE,
-      currentItem_S,
-      effectiveItemType_SAFE,
-      engine_S,
-      isCommitting,
-      sessionId,
-      session,
-      activeV2Pack,
-      v2ClarifierState,
-      v2PackMode,
-      aiFollowupCounts,
-      aiProbingEnabled,
-      aiProbingDisabledForSession,
-      currentFollowUpAnswers,
-      multiInstanceGate,
-      queue,
-      dbTranscript,
-      sections,
-      currentSectionIndex,
-      sectionCompletionMessage,
-      
-      // Refs
-      submittedKeysRef,
-      lastIdempotencyLockedRef,
-      lastV3SubmitLockKeyRef,
-      committingItemIdRef,
-      canonicalTranscriptRef,
-      completedSectionKeysRef,
-      inputRef,
-      lastLoggedV2PackFieldRef,
-      triggeredPacksRef,
-      recentlySubmittedUserAnswersRef,
-      v3ActivePromptTextRef,
-      v3BaseQuestionIdRef,
-      v3OpenerFailsafeTimerRef,
-      v3OpenerSubmitLoopKeyRef,
-      v3OpenerSubmittedRef,
-      v3OpenerSubmitTokenRef,
-      v3OptimisticPersistRef,
-      v3PackEntryContextRef,
-      v3PackEntryFailsafeTimerRef,
-      v3PackEntryFailsafeTokenRef,
-      v3ProbingActiveRef,
-      
-      // State setters
-      setActiveV2Pack,
-      setAiFollowupCounts,
-      setBackendQuestionTextMap,
-      setCompletedSectionsCount,
-      setCurrentFieldProbe,
-      setCurrentFollowUpAnswers,
-      setCurrentIdeCategoryId,
-      setCurrentIdeQuestion,
-      setCurrentIncidentId,
-      setCurrentItem,
-      setDbTranscriptSafe,
-      setError,
-      setFieldSuggestions,
-      setInIdeProbingLoop,
-      setInput,
-      setIsCommitting,
-      setIsInvokeLLMMode,
-      setIsWaitingForAgent,
-      setPendingSectionTransition,
-      setQueue,
-      setSectionCompletionMessage,
-      setShowCompletionModal,
-      setUiBlocker,
-      setV2ClarifierState,
-      setV2PackMode,
-      setV2PackTriggerQuestionId,
-      setV3ProbeDisplayHistory,
-      setV3ProbingActive,
-      setV3ProbingContext,
-      setValidationHint,
-      
-      // Functions
-      advanceToNextBaseQuestion,
-      onFollowupPackComplete,
-      persistStateToDatabase,
-      refreshTranscriptFromDB,
-      clearDraft,
-      navigate,
-      logOnce,
-      runV2FieldProbeIfNeeded,
-      saveFollowUpAnswer,
-      saveV2PackFieldResponse,
-      getPackMaxAiFollowups,
-      generateFieldSuggestions,
-      hasQuestionBeenLogged,
-      AlertCircle,
-      Button,
-      cqIsItemCommitting,
-    }, value);
-  }, [currentItem_S, engine_S, queue, dbTranscript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, sectionCompletionMessage, activeV2Pack, v2PackMode, aiFollowupCounts, aiProbingEnabled, aiProbingDisabledForSession, refreshTranscriptFromDB]);
-
-
-  // HELPER: Append CTA acknowledgement to transcript (section transition click)
-  __cqHookSite('H12P_12:useCallback@L10704');
-  const appendCtaAcknowledgeToTranscript = React.useCallback(async ({ sessionId, currentSectionId, nextSectionId }) => {
-    try {
-      // Build deterministic stableKey
-      const stableKey = `cta-ack:${sessionId}:${currentSectionId}:${nextSectionId}`;
-      
-      // Dedupe check
-      const freshSession = await base44.entities.InterviewSession.get(sessionId);
-      const currentTranscript = freshSession.transcript_snapshot || [];
-      
-      if (currentTranscript.some(e => e.stableKey === stableKey)) {
-        console.log('[CTA][ACK_DEDUPED]', { stableKey, reason: 'Already in transcript' });
-        return currentTranscript;
-      }
-      
-      console.log('[CTA][ACK_APPEND_START]', { stableKey, currentSectionId, nextSectionId });
-      
-      // STATIC IMPORT: Use top-level import
-      const updatedTranscript = await appendUserMessageImport(sessionId, currentTranscript, "Begin next section", {
-        id: `cta-ack-${sessionId}-${currentSectionId}-${nextSectionId}`,
-        stableKey,
-        messageType: 'CTA_ACK',
-        effectiveItemType: 'section_transition',
-        bottomBarModeSOT: 'CTA',
-        sectionId: currentSectionId,
-        nextSectionId,
-        visibleToCandidate: true
-      });
-      
-      console.log('[CTA][ACK_APPEND_OK]', { 
-        stableKey, 
-        transcriptLenAfter: updatedTranscript.length,
-        transcriptLenBefore: currentTranscript.length
-      });
-      
-      // Local invariant check
-      const foundInReturned = updatedTranscript.some(e => e.stableKey === stableKey);
-      if (!foundInReturned) {
-        console.error('[CTA][ACK_LOCAL_MISSING_AFTER_WRITE]', { 
-          stableKey, 
-          action: 'refresh_forced',
-          transcriptLenAfter: updatedTranscript.length
-        });
-      }
-      
-      return updatedTranscript;
-    } catch (err) {
-      console.error('[CTA][ACK_APPEND_ERROR]', { error: err.message });
-      return null;
-    }
-  }, [sessionId]);
-
-  // TDZ_FIX: Duplicate removed - helper now declared at line 1712 (before repair pass useEffect)
-
-  // HELPER: Prioritize missing required anchors for fallback prompting
-  const prioritizeMissingRequired = (missingRequired) => {
-    if (!Array.isArray(missingRequired) || missingRequired.length <= 1) {
-      return missingRequired; // No sorting needed for 0 or 1 items
-    }
-    
-    // Priority scoring function (pack-agnostic semantic heuristics)
-    const getPriorityScore = (anchorId) => {
-      const id = String(anchorId).toLowerCase();
-      
-      // Tier 1: Position/role/title (most important - defines the context)
-      if (/position|role|title|rank/i.test(id)) return 100;
-      
-      // Tier 2: Agency/employer/organization (second most important)
-      if (/agency|department|employer|organization/i.test(id)) return 80;
-      
-      // Tier 3: Date/temporal (helpful for context)
-      if (/date|month|year|when|approx/i.test(id)) return 60;
-      
-      // Tier 4: Outcome/result/status (less critical for initial context)
-      if (/outcome|result|status/i.test(id)) return 40;
-      
-      // Default: preserve original order
-      return 0;
-    };
-    
-    // Stable sort: higher scores first, preserve relative order for ties
-    const sorted = [...missingRequired].sort((a, b) => {
-      const scoreA = getPriorityScore(a);
-      const scoreB = getPriorityScore(b);
-      
-      if (scoreA !== scoreB) return scoreB - scoreA; // Descending
-      
-      // Tie: preserve original order
-      return missingRequired.indexOf(a) - missingRequired.indexOf(b);
-    });
-    
-    return sorted;
-  };
-
-  // HELPER: Transition to multi-instance "another instance?" gate (reusable)
-  const transitionToAnotherInstanceGate = React.useCallback(async (v3Context) => {
-    const { packId, categoryId, categoryLabel, instanceNumber, packData } = v3Context || v3ProbingContext_S;
-    const baseQuestionId = v3BaseQuestionIdRef.current;
-    
-    console.log('[V3_PACK][ASK_ANOTHER_INSTANCE]', {
-      packId,
-      instanceNumber,
-      loopKey: `${sessionId}:${categoryId}:${instanceNumber || 1}`
-    });
-    
-    // STABILITY SNAPSHOT: MI_GATE transition initiated
-    getStabilitySnapshotSOT("MI_GATE_SHOW");
-    
-    // HUMAN LABEL RESOLUTION: Ensure categoryLabel is human-friendly
-    let humanCategoryLabel = categoryLabel;
-    
-    // Try pack config first
-    const packConfigForLabel = FOLLOWUP_PACK_CONFIGS?.[packId];
-    if (packConfigForLabel?.instancesLabel) {
-      humanCategoryLabel = packConfigForLabel.instancesLabel;
-    } else if (packData?.pack_name) {
-      // Try pack metadata
-      humanCategoryLabel = packData.pack_name;
-    } else if (categoryId) {
-      // Fallback: Convert categoryId to title case
-      humanCategoryLabel = categoryId
-        .replace(/_/g, ' ')
-        .toLowerCase()
-        .replace(/\b\w/g, c => c.toUpperCase());
-    }
-    
-    // Default fallback if all else fails
-    if (!humanCategoryLabel || humanCategoryLabel.trim() === '' || /^[A-Z_]+$/.test(humanCategoryLabel)) {
-      humanCategoryLabel = 'incident';
-    }
-    
-    console.log('[MI_GATE][HUMAN_LABEL_RESOLVED]', {
-      packId,
-      categoryId,
-      labelPreview: humanCategoryLabel,
-      source: packConfigForLabel?.instancesLabel ? 'packConfig' : 
-              packData?.pack_name ? 'packData' : 
-              categoryId ? 'categoryId_formatted' : 'fallback'
-    });
-    
-    // MINIMAL MI_GATE GUARD: Block if required fields incomplete (V3 packs only)
-    const packConfig = FOLLOWUP_PACK_CONFIGS?.[packId];
-    const isV3Pack = packConfig?.isV3Pack === true || packConfig?.engine_SVersion === 'v3';
-    
-    if (isV3Pack) {
-      // REQUIRED-FIELD AUDIT: Check incident data directly (do not trust opener merge status)
-      let missingRequired = [];
-      let existingIncidentId = null;
-      
-      try {
-        // Fetch current session to inspect incident facts
-        const currentSession = await base44.entities.InterviewSession.get(sessionId);
-        const incidents = currentSession?.incidents || [];
-        
-        // Find incident for this pack/instance
-        const incident = incidents.find(inc => 
-          (inc.category_id === categoryId || inc.incident_type === packId) &&
-          inc.instance_number === instanceNumber
-        );
-        
-        if (incident) {
-          // Store existing incidentId for reuse
-          existingIncidentId = incident.incident_id;
-          
-          // Get required fields from pack config
-          const requiredAnchors = packConfig?.requiredAnchors || [];
-          
-          // FIX: Read incident.facts as OBJECT (not array)
-          const facts = incident.facts || {};
-          
-          // Check which required fields are missing
-          missingRequired = requiredAnchors.filter(anchor => {
-            const value = facts[anchor];
-            return value == null || String(value).trim() === '';
-          });
-          
-          console.log('[MI_GATE][REQUIRED_FIELD_AUDIT]', {
-            packId,
-            instanceNumber,
-            requiredAnchors,
-            incidentFactsKeys: Object.keys(facts),
-            missingRequired,
-            existingIncidentId
-          });
-        } else {
-          // No incident found - treat as incomplete
-          missingRequired = packConfig?.requiredAnchors || [];
-          console.log('[MI_GATE][REQUIRED_FIELD_AUDIT_NO_INCIDENT]', {
-            packId,
-            instanceNumber,
-            reason: 'Incident not found - assuming all required fields missing'
-          });
-        }
-      } catch (err) {
-        console.warn('[MI_GATE][REQUIRED_FIELD_AUDIT_ERROR]', {
-          error: err.message,
-          fallback: 'Using engine_S payload metadata'
-        });
-        // Fallback to engine_S payload if incident fetch fails
-        const payloadMissing = v3Context?.missingFields || [];
-        missingRequired = Array.isArray(payloadMissing) 
-          ? payloadMissing.map(f => f.field_id || f)
-          : [];
-      }
-      
-      // SAFETY CHECK: Block MI_GATE if required fields incomplete
-      const miGateBlocked = v3Context?.miGateBlocked === true;
-      const stopReason = v3Context?.stopReason || null;
-      
-      const shouldBlockGate = missingRequired.length > 0 || 
-                             miGateBlocked || 
-                             stopReason === 'REQUIRED_FIELDS_INCOMPLETE';
-      
-      if (shouldBlockGate) {
-        console.log('[MI_GATE][REQUIRED_FIELD_AUDIT_BLOCK]', {
-          packId,
-          instanceNumber,
-          missingRequired,
-          reason: 'Required fields incomplete - V3 probing must complete first'
-        });
-        
-        // DEADLOCK DETECTION: Check if V3 is headless (engine_S won't prompt)
-        const isV3Headless = v3ProbingActive && !hasActiveV3Prompt && bottomBarModeSOT === 'V3_WAITING';
-
-        if (isV3Headless && missingRequired.length > 0) {
-          // PHASE GATE: Only activate fallback when phase allows it
-          let fallbackPhaseSOT;
-          try {
-            fallbackPhaseSOT = computeInterviewPhaseSOT();
-          } catch (e) {
-            console.error('[PHASE_SOT][FAILOPEN]', { error: e?.message, callSite: 'transitionToAnotherInstanceGate_fallback' });
-            fallbackPhaseSOT = {
-              phase: "BOOTSTRAP",
-              allowedActions: new Set([]),
-              blockedReasons: ["Phase computation error"],
-              derivedFlags: {
-                canSubmitText: false,
-                canClickYesNo: false,
-                shouldShowPrompt: false,
-                shouldBlockInput: true,
-                shouldSuppressMiGate: true,
-                shouldSuppressFallback: true
-              }
-            };
-          }
-          
-          // Require phase to be V3_PROCESSING or V3_PROBING
-          if (fallbackPhaseSOT.phase !== "V3_PROCESSING" && fallbackPhaseSOT.phase !== "V3_PROBING") {
-            console.warn('[PHASE_BLOCK][FALLBACK]', { 
-              phase: fallbackPhaseSOT.phase, 
-              reasons: fallbackPhaseSOT.blockedReasons,
-              context: 'Fallback blocked - phase not V3_PROCESSING or V3_PROBING'
-            });
-            return; // Exit transitionToAnotherInstanceGate early
-          }
-          
-          // Check derived flag
-          if (fallbackPhaseSOT.derivedFlags.shouldSuppressFallback) {
-            console.warn('[PHASE_BLOCK][FALLBACK]', { 
-              phase: fallbackPhaseSOT.phase, 
-              reasons: fallbackPhaseSOT.blockedReasons 
-            });
-            return; // Exit transitionToAnotherInstanceGate early
-          }
-          
-          console.log('[REQUIRED_ANCHOR_FALLBACK][START]', {
-            packId,
-            instanceNumber,
-            missingRequired,
-            reason: 'v3_headless_no_prompt'
-          });
-
-          // DEFENSIVE GUARD: Define incidents from session (prevent ReferenceError)
-          let incidents = [];
-          try {
-            const currentSession = await base44.entities.InterviewSession.get(sessionId);
-            incidents = (currentSession?.incidents || []).filter(Boolean);
-
-            console.log('[FORENSIC][CRASH_GUARD_INCIDENTS_DEFINED]', {
-              hasSession: !!currentSession,
-              incidentsCount: incidents.length
-            });
-          } catch (err) {
-            console.error('[REQUIRED_ANCHOR_FALLBACK][INCIDENTS_NOT_READY]', {
-              screenMode,
-              note: 'session/incidents unavailable; skipping incident lookup',
-              error: err.message
-            });
-            // incidents remains empty array - continue with fallback-only logic
-          }
-
-          // COMBINED SATISFACTION: Recompute with fallback answers included
-          const facts = existingIncidentId && incidents.find(inc => inc.incident_id === existingIncidentId)?.facts || {};
-          const satisfiedByFacts = missingRequired.filter(anchor => {
-            const value = facts[anchor];
-            return value != null && String(value).trim() !== '';
-          });
-
-          const satisfiedByFallback = missingRequired.filter(anchor => 
-            fallbackAnsweredRef.current[anchor] === true
-          );
-
-          // Recompute missing: exclude BOTH facts-satisfied AND fallback-answered
-          const recomputedMissing = missingRequired.filter(anchor => {
-            const inFacts = facts[anchor] != null && String(facts[anchor]).trim() !== '';
-            const inFallback = fallbackAnsweredRef.current[anchor] === true;
-            return !inFacts && !inFallback;
-          });
-
-          console.log('[REQUIRED_ANCHOR_FALLBACK][MISSING_REQUIRED_COMPUTE]', {
-            initialMissingCount: missingRequired.length,
-            satisfiedByFactsCount: satisfiedByFacts.length,
-            satisfiedByFallbackCount: satisfiedByFallback.length,
-            recomputedMissingCount: recomputedMissing.length,
-            missingRequired: recomputedMissing,
-            satisfiedByFacts,
-            satisfiedByFallback
-          });
-
-          // Use recomputed list
-          missingRequired = recomputedMissing;
-
-          // If all satisfied, exit fallback immediately
-          if (missingRequired.length === 0) {
-            console.log('[REQUIRED_ANCHOR_FALLBACK][SKIP_ALL_SATISFIED]', {
-              packId,
-              instanceNumber,
-              reason: 'All required anchors satisfied by facts or fallback - no need to activate'
-            });
-            return; // Exit - don't activate fallback
-          }
-
-          // PRIORITIZE: Sort missing anchors by importance
-          const sortedMissing = prioritizeMissingRequired(missingRequired);
-
-          console.log('[REQUIRED_ANCHOR_FALLBACK][QUEUE_SORTED]', {
-            before: missingRequired,
-            after: sortedMissing
-          });
-          
-          // PERSIST FALLBACK CONTEXT: Store for submit routing (use existing incident)
-          requiredAnchorFallbackContextRef.current = {
-            packId,
-            categoryId,
-            instanceNumber,
-            incidentId: existingIncidentId // Already found in audit
-          };
-          
-          console.log('[REQUIRED_ANCHOR_FALLBACK][CONTEXT_SET]', {
-            packId,
-            categoryId,
-            instanceNumber,
-            incidentId: existingIncidentId
-          });
-          
-          // PERSIST FALLBACK QUESTION: Append assistant question to transcript (once per anchor)
-          try {
-            const questionStableKey = `required-anchor:q:${sessionId}:${categoryId}:${instanceNumber}:${sortedMissing[0]}`;
-            const currentSession = await base44.entities.InterviewSession.get(sessionId);
-            const currentTranscript = currentSession.transcript_snapshot || [];
-            
-            // Dedupe: Check if already persisted
-            if (!currentTranscript.some(e => e.stableKey === questionStableKey)) {
-              // TDZ FIX: Compute fallback question text INLINE (no closure reference)
-              const transitionPackConfig = FOLLOWUP_PACK_CONFIGS?.[packId];
-              const transitionAnchor = transitionPackConfig?.factAnchors?.find(a => a.key === sortedMissing[0]);
-              let transitionQuestionText = transitionAnchor?.label 
-                ? `What ${transitionAnchor.label}?`
-                : `Please provide: ${sortedMissing[0]}`;
-              
-              // MUST-HAVE ASSERTION: Ensure questionText is never empty
-              if (!transitionQuestionText || transitionQuestionText.trim() === '') {
-                transitionQuestionText = `Please provide: ${sortedMissing[0]}`;
-              }
-              
-              const appendAssistantMessage = appendAssistantMessageImport;
-              
-              await appendAssistantMessage(sessionId, currentTranscript, transitionQuestionText, {
-                id: `required-anchor-q-${sessionId}-${categoryId}-${instanceNumber}-${sortedMissing[0]}`,
-                stableKey: questionStableKey,
-                messageType: 'REQUIRED_ANCHOR_QUESTION',
-                packId,
-                categoryId,
-                instanceNumber,
-                anchor: sortedMissing[0],
-                kind: 'REQUIRED_ANCHOR_FALLBACK',
-                visibleToCandidate: true
-              });
-              
-              console.log('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_APPEND_OK]', {
-                stableKey: questionStableKey,
-                anchor: sortedMissing[0],
-                preview: transitionQuestionText
-              });
-            } else {
-              console.log('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_EXISTS]', {
-                stableKey: questionStableKey,
-                anchor: sortedMissing[0]
-              });
-            }
-          } catch (err) {
-            console.error('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_Q_ERROR]', {
-              error: err.message,
-              anchor: sortedMissing[0]
-            });
-          }
-          
-          // TAKE OWNERSHIP: Disable V3 completely to prevent competition
-          setV3ProbingActive(false);
-          setV3ProbingContext(null);
-          setV3ActivePromptText(null);
-          
-          // Clear V3 optimistic markers and failsafe timers
-          if (v3OpenerFailsafeTimerRef.current) {
-            clearTimeout(v3OpenerFailsafeTimerRef.current);
-            v3OpenerFailsafeTimerRef.current = null;
-          }
-          v3OpenerSubmitTokenRef.current = null;
-          v3OpenerSubmitLoopKeyRef.current = null;
-          
-          // Clear optimistic persist markers
-          const loopKey = `${sessionId}:${categoryId}:${instanceNumber}`;
-          Object.keys(v3OptimisticPersistRef.current).forEach(key => {
-            if (key.includes(loopKey)) {
-              delete v3OptimisticPersistRef.current[key];
-            }
-          });
-          
-          // QUESTION TEXT SOT: Use resolver for human-readable question
-          const contextFallbackQuestionText = resolveAnchorToHumanQuestion(
-            sortedMissing[0],
-            packId
-          );
-          
-          console.log('[REQUIRED_ANCHOR_FALLBACK][QUESTION_TEXT_RESOLVED]', {
-            anchor: sortedMissing[0],
-            textPreview: contextFallbackQuestionText
-          });
-          
-          // PERSIST PROMPT LANE CONTEXT: Non-chat context item for UI rendering
-          const contextStableKey = `fallback-prompt:${sessionId}:${categoryId}:${instanceNumber}:${sortedMissing[0]}`;
-          
-          console.log('[CQ_TRANSCRIPT][FALLBACK_PROMPT_CONTEXT_PERSIST_BEGIN]', {
-            stableKey: contextStableKey,
-            anchor: sortedMissing[0]
-          });
-          
-          try {
-            const appendAssistantMessage = appendAssistantMessageImport;
-            const contextSession = await base44.entities.InterviewSession.get(sessionId);
-            const contextTranscript = contextSession.transcript_snapshot || [];
-            
-            await appendAssistantMessage(sessionId, contextTranscript, contextFallbackQuestionText, {
-              id: `fallback-context-${sessionId}-${categoryId}-${instanceNumber}-${sortedMissing[0]}`,
-              stableKey: contextStableKey,
-              messageType: 'PROMPT_LANE_CONTEXT',
-              packId,
-              categoryId,
-              instanceNumber,
-              anchor: sortedMissing[0],
-              contextKind: 'REQUIRED_ANCHOR_FALLBACK',
-              isNonChat: true,
-              visibleToCandidate: true
-            });
-            
-            console.log('[CQ_TRANSCRIPT][FALLBACK_PROMPT_CONTEXT_PERSIST_OK]', {
-              stableKey: contextStableKey,
-              anchor: sortedMissing[0]
-            });
-            
-            // Refresh to pull context into local state
-            await refreshTranscriptFromDB('fallback_context_persisted');
-          } catch (err) {
-            console.error('[CQ_TRANSCRIPT][FALLBACK_PROMPT_CONTEXT_ERROR]', {
-              error: err.message,
-              anchor: sortedMissing[0]
-            });
-            // Non-blocking - continue without context if persist fails
-          }
-          
-          // ACTIVATE FALLBACK: Ask for required anchors deterministically (prioritized)
-          setRequiredAnchorFallbackActive(true);
-          setRequiredAnchorQueue([...sortedMissing]);
-          setRequiredAnchorCurrent(sortedMissing[0]);
-          
-          // STABILITY SNAPSHOT: Fallback activated
-          getStabilitySnapshotSOT("FALLBACK_ON");
-          
-          // CLEAR STUCK STATE + Set phase to ANSWER_NEEDED (enables Send button)
-          setIsCommitting(false);
-          setV3PromptPhase('ANSWER_NEEDED');
-          
-          // TRANSCRIPT CONTEXT PRESERVED
-          console.log('[REQUIRED_ANCHOR_FALLBACK][TRANSCRIPT_CONTEXT_PRESERVED]', {
-            transcriptLen: canonicalTranscriptRef.current.length,
-            reason: 'Fallback activated - existing transcript preserved'
-          });
-          
-          console.log('[REQUIRED_ANCHOR_FALLBACK][TAKE_OWNERSHIP]', {
-            packId,
-            instanceNumber,
-            anchor: sortedMissing[0],
-            note: 'Set v3ProbingActive=false + cleared optimistic/failsafe + enabled input'
-          });
-          
-          console.log('[REQUIRED_ANCHOR_FALLBACK][PROMPT]', {
-            anchor: sortedMissing[0]
-          });
-          
-          return; // Exit - fallback will render prompt
-        } else if (!isV3Headless) {
-          console.log('[REQUIRED_ANCHOR_FALLBACK][SKIP]', {
-            reason: 'V3_has_prompt_or_not_waiting',
-            v3ProbingActive,
-            hasActiveV3Prompt,
-            bottomBarModeSOT
-          });
-        }
-        
-        // CLEAR STUCK STATE: Prevent "Thinking..." limbo
-        setIsCommitting(false);
-        setV3PromptPhase('IDLE'); // Reset phase to allow new prompt
-        
-        // FALLBACK OSCILLATION GUARD: Prevent infinite re-activation loops
-        const reactivationKey = `${sessionId}:${packId}:${instanceNumber}`;
-        const reactivationCount = fallbackReactivationCountRef.current.get(reactivationKey) || 0;
-        
-        if (reactivationCount >= 2) {
-          // MAX RE-ACTIVATIONS REACHED - force forward progress to MI_GATE
-          let currentPhaseSOT;
-          try {
-            currentPhaseSOT = computeInterviewPhaseSOT();
-          } catch (e) {
-            console.error('[PHASE_SOT][FAILOPEN]', { error: e?.message, callSite: 'transitionToAnotherInstanceGate_oscillation' });
-            currentPhaseSOT = {
-              phase: "BOOTSTRAP",
-              allowedActions: new Set([]),
-              blockedReasons: ["Phase computation error"],
-              derivedFlags: {
-                canSubmitText: false,
-                canClickYesNo: false,
-                shouldShowPrompt: false,
-                shouldBlockInput: true,
-                shouldSuppressMiGate: true,
-                shouldSuppressFallback: true
-              }
-            };
-          }
-          console.warn('[FALLBACK_OSCILLATION_GUARD][STOP]', {
-            key: reactivationKey,
-            count: reactivationCount,
-            phase: currentPhaseSOT.phase,
-            reason: 'Max fallback re-activation cycles reached - forcing MI_GATE to prevent oscillation'
-          });
-          
-          // Clear fallback state and force MI_GATE (skip re-activation)
-          setRequiredAnchorFallbackActive(false);
-          setRequiredAnchorCurrent(null);
-          setRequiredAnchorQueue([]);
-          setV3PromptPhase('IDLE');
-          setIsCommitting(false);
-          
-          // Allow gate to show (missing fields will be logged but not block progression)
-          console.log('[FALLBACK_OSCILLATION_GUARD][FORCE_PROGRESS]', {
-            packId,
-            instanceNumber,
-            missingRequired,
-            action: 'Allowing MI_GATE despite incomplete fields - preventing deadlock'
-          });
-          
-          // Do NOT re-activate V3 probing - return and let gate show
-          return;
-        }
-        
-        // Increment re-activation counter
-        fallbackReactivationCountRef.current.set(reactivationKey, reactivationCount + 1);
-        console.log('[FALLBACK_OSCILLATION_GUARD][INC]', {
-          key: reactivationKey,
-          count: reactivationCount + 1,
-          reason: 'Re-activating V3 probing after fallback incomplete'
-        });
-        
-        // RE-ACTIVATE V3 PROBING: Ensure engine_S continues collecting facts
-        setV3ProbingActive(true);
-        setV3ProbingContext({
-          packId,
-          categoryId,
-          categoryLabel,
-          baseQuestionId,
-          questionCode: engine_S?.QById?.[baseQuestionId]?.question_id,
-          sectionId: engine_S?.QById?.[baseQuestionId]?.section_id,
-          instanceNumber,
-          incidentId: existingIncidentId, // Reuse existing incident (prevents duplicate INCIDENT_CREATED)
-          packData
-        });
-        
-        setCurrentItem({
-          id: `v3-probing-${packId}-${instanceNumber}`,
-          type: 'v3_probing',
-          packId,
-          categoryId,
-          instanceNumber,
-          baseQuestionId
-        });
-        
-        console.log('[MI_GATE][REQUIRED_FIELD_AUDIT_KICK_PROBING]', {
-          packId,
-          instanceNumber,
-          missingRequired,
-          existingIncidentId,
-          reactivationCount: reactivationCount + 1,
-          note: 'Cleared submit state + re-triggered V3 probing render/phase transition'
-        });
-        
-        return; // HARD BLOCK - do not activate gate
-      }
-      
-      // All checks passed - log allowance
-      console.log('[MI_GATE][REQUIRED_FIELD_AUDIT_PASS]', {
-        packId,
-        instanceNumber,
-        requiredComplete: true,
-        reason: 'All required fields complete - allowing MI_GATE'
-      });
-    }
-    
-    const gatePromptText = `Do you have another ${humanCategoryLabel || 'incident'} to report?`;
-    const gateItemId = `multi-instance-gate-${packId}-${instanceNumber}`;
-    const gateStableKey = `mi-gate:${packId}:${instanceNumber}`;
-    
-    // FIX F: Check if gate already answered (prevent re-show)
-    const gateAnswerKey = `mi-gate:${packId}:${instanceNumber}:a`;
-    const alreadyAnswered = transcriptSOT_S.some(e => e.stableKey === gateAnswerKey);
-    
-    if (alreadyAnswered) {
-      console.log('[MI_GATE][SKIP_ALREADY_ANSWERED]', {
-        packId,
-        instanceNumber,
-        stableKey: gateAnswerKey,
-        foundAnswer: true,
-        reason: 'Gate already answered - advancing immediately'
-      });
-      
-      // Advance to next base question instead of showing gate
-      if (baseQuestionId) {
-        const freshForAdvance = await refreshTranscriptFromDB('gate_skip_already_answered');
-        await advanceToNextBaseQuestion(baseQuestionId, freshForAdvance);
-      }
-      return;
-    }
-    
-    console.log('[MULTI_INSTANCE_GATE][SHOW]', {
-      packId,
-      instanceNumber,
-      stableKey: gateStableKey,
-      shouldOfferAnotherInstance: true
-    });
-    
-    // ATOMIC STATE TRANSITION: batch to avoid intermediate TEXT_INPUT footer
-    unstable_batchedUpdates(() => {
-      // PART A.3: Force-clear V3 prompt state before MI_GATE
-      console.log('[MI_GATE][V3_PROMPT_CLEARED_ON_ENTER]', {
-        packId,
-        instanceNumber,
-        v3PromptPhase,
-        clearedPromptText: !!v3ActivePromptText,
-        clearedPromptId: !!lastV3PromptSnapshotRef.current?.promptId
-      });
-
-      // Fully exit V3 mode and clear prompts
-      setV3ProbingActive(false);
-      setV3ActivePromptText(null);
-      setV3PendingAnswer(null);
-      setV3ProbingContext(null);
-      setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
-      setUiBlocker(null);
-
-      // LIFECYCLE: Reset phase to IDLE on gate transition
-      setV3PromptPhase("IDLE");
-
-      // PART B FIX: NEVER clear UI-only history during transition to gate
-      // UI history must persist so user can see their V3 probe Q/A in chat
-      // Only clear on explicit session end or new session start
-      // TDZ FIX: Read state via functional update (not direct reference during batch)
-      setV3ProbeDisplayHistory(prev => {
-        console.log('[V3_UI_HISTORY][PRESERVE_ON_GATE]', { 
-          reason: 'TRANSITION_TO_GATE', 
-          packId, 
-          instanceNumber,
-          uiHistoryLen: prev.length,
-          lastItemsPreview: prev.slice(-2).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
-          action: 'PRESERVE (not clearing)'
-        });
-        return prev; // No mutation - just logging fresh state
-      });
-
-      // C) Clear active probe refs AND any stale prompt state
-      v3ActiveProbeQuestionRef.current = null;
-      v3ActiveProbeQuestionLoopKeyRef.current = null;
-      
-      // C) Clear stale V3 prompt rendering flags (prevents lingering prompt cards)
-      setV3ActivePromptText(null);
-      v3ActivePromptTextRef.current = null;
-      lastRenderedV3PromptKeyRef.current = null;
-      
-      console.log('[MI_GATE][V3_PROMPT_CLEARED_ON_ENTER]', {
-        packId,
-        instanceNumber,
-        clearedPromptText: true,
-        clearedPromptKey: true,
-        reason: 'Entering MI_GATE - preventing stale V3 prompt cards'
-      });
-
-      // Set up multi-instance gate as first-class currentItem_S
-      const gateItem = {
-        id: gateItemId,
-        type: 'multi_instance_gate',
-        packId,
-        categoryId,
-        categoryLabel,
-        promptText: gatePromptText,
-        instanceNumber,
-        baseQuestionId,
-        packData
-      };
-      setMultiInstanceGate({
-        active: true,
-        packId,
-        categoryId,
-        categoryLabel: humanCategoryLabel,
-        promptText: gatePromptText,
-        instanceNumber,
-        baseQuestionId,
-        packData
-      });
-      setCurrentItem(gateItem);
-    });
-    
-    // POST-MI_GATE VERIFICATION: Check fallback answers survived
-    requestAnimationFrame(() => {
-      const fallbackAnswerCount = canonicalTranscriptRef.current.filter(e => 
-        e.stableKey && e.stableKey.startsWith('fallback-answer:')
-      ).length;
-      
-      console.log('[CQ_TRANSCRIPT][POST_MIGATE_VERIFY_FALLBACK_ANSWERS]', {
-        fallbackAnswerCount,
-        transcriptLen: canonicalTranscriptRef.current.length,
-        packId,
-        instanceNumber
-      });
-    });
-    
-    // PART A: DO NOT append gate to transcript while active (prevents flicker)
-    // Gate renders from currentItem_S.promptText (PROMPT_LANE source)
-    // Will append Q+A to transcript ONLY after user answers
-    console.log('[MI_GATE][RENDER_SOURCE]', {
-      source: 'PROMPT_LANE',
-      stableKey: gateStableKey,
-      packId,
-      instanceNumber,
-      humanLabel: humanCategoryLabel
-    });
-    
-    // State is set - gate will render from currentItem_S, not transcript
-    await persistStateToDatabase(null, [], {
-      id: gateItemId,
-      type: 'multi_instance_gate',
-      packId
-    });
-  }, [v3ProbingContext_S, sessionId, persistStateToDatabase]);
-
-  // V3 EXIT: Idempotent exit function (only runs once)
-  const exitV3Once = React.useCallback((reason, payload) => {
-    if (exitV3HandledRef.current) {
-      console.log('[EXIT_V3][SKIP] Already handled');
-      return;
-    }
-
-    exitV3HandledRef.current = true;
-    console.log('[EXIT_V3][ONCE]', { reason, baseQuestionId: v3BaseQuestionIdRef.current });
-    
-    // FAILSAFE CANCEL: Exiting probing - cancel opener failsafe
-    if (v3OpenerFailsafeTimerRef.current) {
-      clearTimeout(v3OpenerFailsafeTimerRef.current);
-      v3OpenerFailsafeTimerRef.current = null;
-      v3OpenerSubmitTokenRef.current = null;
-      v3OpenerSubmitLoopKeyRef.current = null;
-      const loopKey = payload?.packId ? `${sessionId}:${payload.categoryId || 'unknown'}:${payload.instanceNumber || 1}` : 'unknown';
-      console.log('[V3_FAILSAFE][CANCEL_ON_EXIT]', { loopKey, reason });
-    }
-
-    // Queue transition (executed in useEffect)
-    setPendingTransition({
-      type: 'EXIT_V3',
-      payload: { ...payload, reason }
-    });
-  }, [sessionId]);
-
-  // V3 OPENER PERSISTENCE: DISABLED - Append on submit only (prevents duplicate during active state)
-  React.useEffect(() => {
-    if (!activeUiItem_S || activeUiItem_S_SAFE.kind !== "V3_OPENER" || !currentItem_S) return;
-
-    const stableKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
-
-    // DISABLED: Do NOT append during active opener step - submit handler owns this
-    console.log('[V3_OPENER][PERSIST_EFFECT_DISABLED]', { 
-      stableKey,
-      packId: currentItem_S.packId,
-      instanceNumber: currentItem_S.instanceNumber,
-      reason: 'Persist on submit only' 
-    });
-    
-    // Effect is now a NO-OP for history persistence
-    // History append happens in handleAnswer after submission
-  }, [activeUiItem_S_SAFE?.kind, currentItem_S]);
-
-  // V3 probing completion handler - ENFORCES required fields completion before MI_GATE
-  const handleV3ProbingComplete = React.useCallback(async (result) => {
-    const { packId, categoryId, instanceNumber, nextAction, stopReason, missingFields } = result || {};
-    
-    // REQUIRED FIELDS GATE: Block MI_GATE if any required fields missing
-    const hasMissingRequired = Array.isArray(missingFields) && missingFields.length > 0;
-    
-    if (hasMissingRequired) {
-      console.error('[UI_CONTRACT][MI_GATE_SUPPRESSED_REQUIRED_FIELDS]', {
-        packId,
-        instanceNumber,
-        reason: 'missing_required_fields',
-        nextAction,
-        stopReason,
-        missingCount: missingFields.length,
-        missingFieldIds: missingFields.map(f => f.field_id || f).join(',')
-      });
-      
-      // DO NOT call exitV3Once - keep probing active
-      // Frontend should re-enter TEXT_INPUT mode and wait for next probe question
-      return;
-    }
-    
-    // All required fields complete - allow exit
-    exitV3Once('PROBING_COMPLETE', result);
-  }, [exitV3Once]);
-
-  // V3 transcript update handler - BLOCK V3 probe prompts from appending
-  const handleV3TranscriptUpdate = React.useCallback(async (entry) => {
-    // V3 UI CONTRACT: Hard-block V3 probe prompts from EVER entering transcript
-    const entryType = entry?.type || entry?.messageType || '';
-    const entrySource = entry?.source || entry?.meta?.source || '';
-    const isProbePrompt = entry?.isProbePrompt === true;
-    const hasFieldKey = !!entry?.fieldKey;
-    
-    // Detection: Multiple signals for V3 probe prompts
-    const isV3ProbePrompt = 
-      entryType === 'v3_probe_question' ||
-      entryType === 'V3_PROBE_ASKED' ||
-      entryType === 'V3_PROBE_PROMPT' ||
-      entryType === 'V3_PROBE_QUESTION' ||
-      entryType === 'V3_PROMPT' ||
-      entryType === 'V3_PROBE' ||
-      entryType === 'ai_probe_question' ||
-      (entry?.role === 'assistant' && isProbePrompt) ||
-      (entrySource.includes('v3') && entrySource.includes('probe')) ||
-      (hasFieldKey && (entryType.includes('probe') || entryType.includes('V3')));
-    
-    if (isV3ProbePrompt) {
-      console.error('[V3_UI_CONTRACT][BLOCKED_APPEND]', {
-        messageType: entryType,
-        preview: (entry?.text || entry?.questionText || '').slice(0, 80),
-        source: entrySource,
-        fieldKey: entry?.fieldKey || null,
-        reason: 'V3 probe prompts must ONLY appear in input placeholder, NEVER in transcript'
-      });
-      return; // DROP - do not append
-    }
-    
-    // V3 messages written to DB by V3ProbingLoop
-    // We refresh ONCE when V3 completes, not per message (prevents refresh storm)
-    console.log('[V3_TRANSCRIPT_UPDATE]', { type: entry?.type, deferred: true });
-  }, []);
-
-  // V3 ATOMIC PROMPT COMMIT: All state changes for activating V3 prompt in bottom bar
-  const commitV3PromptToBottomBar = React.useCallback(async ({ packId, instanceNumber, loopKey, promptText, promptId: providedPromptId, categoryId }) => {
-    // FIX A: Generate deterministic promptId ALWAYS (never null)
-    const promptId = providedPromptId || `${loopKey}:${promptIdCounterRef.current++}`;
-    
-    if (!providedPromptId) {
-      console.log('[V3_PROMPT][PROMPTID_GENERATED]', {
-        loopKey,
-        promptId,
-        reason: 'missing_providedPromptId'
-      });
-    }
-    
-    console.log('[V3_PROMPT_COMMIT]', {
-      packId,
-      categoryId,
-      instanceNumber,
-      loopKey,
-      promptId,
-      providedPromptId: !!providedPromptId,
-      preview: promptText?.substring(0, 60)
-    });
-    
-    // FIX A: Log stable promptId assignment
-    console.log('[V3_PROMPT][PROMPT_ID_ASSIGNED]', {
-      loopKey,
-      promptId,
-      categoryId,
-      reason: 'commit',
-      promptPreview: promptText?.substring(0, 60) || ''
-    });
-
-    // FIX B: SNAPSHOT - Create and store BEFORE any guards/blocks
-    const snapshot = {
-    promptId,
-    loopKey,
-    packId,
-    categoryId,
-    instanceNumber,
-    promptText,
-    expectedBottomBarMode: 'TEXT_INPUT',
-    committedAt: Date.now()
-    };
-    lastV3PromptSnapshotRef.current = snapshot;
-    
-    // FIX B: Add to snapshots array immediately (prevents NO_SNAPSHOT watchdog error)
-    setV3PromptSnapshots(prev => {
-      const exists = prev.some(s => s.promptId === promptId);
-      if (exists) {
-        console.log('[V3_PROMPT_SNAPSHOT][EXISTS]', { promptId, loopKey });
-        return prev;
-      }
-      
-      const newSnapshot = { promptId, loopKey, promptText, createdAt: Date.now() };
-      console.log('[V3_PROMPT][SNAPSHOT_RECOVERED]', { promptId, loopKey, reason: 'commit_immediate' });
-      return [...prev, newSnapshot];
-    });
-    
-    // CHANGE 1: HARD BLOCK - V3 probe prompts MUST NOT write to transcript (UI contract)
-    // They render ONLY in prompt lane card, never as chat history
-    console.log('[V3_UI_CONTRACT][BLOCK_TRANSCRIPT_WRITE]', {
-      reason: 'V3 probe prompts render in prompt lane only - blocking transcript append',
-      stableKey: `v3-probe-q:${loopKey}:${promptId}`,
-      loopKey,
-      promptId,
-      preview: promptText?.substring(0, 60) || null,
-      action: 'BLOCKED'
-    });
-    
-    // DO NOT append to transcript - return early
-    console.log('[V3_UI_CONTRACT][INVARIANT]', { promptId, loopKey, action: 'TRANSCRIPT_WRITE_BLOCKED' });
-    return promptId;
-
-    // REGRESSION GUARD: Capture transcript length before V3 prompt commit
-    const transcriptLenBeforePromptCommit = dbTranscript.length;
-    
-    // ============================================================================
-    // ALREADY ANSWERED GUARD: Multi-tier detection to prevent re-ask
-    // ============================================================================
-    // TIER 1: Match by promptId (strongest - invariant to Q commit failures)
-    const foundByPromptId = dbTranscript.some(e => 
-      (e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER') &&
-      e.meta?.promptId === promptId
-    );
-    
-    // TIER 2: Latest-answer alignment (prevents false skip for new probes in same incident)
-    const stableKeyPrefix = `v3-probe-a:${sessionId}:${categoryId}:${instanceNumber}:`;
-    const answersByPrefix = dbTranscript.filter(e => 
-      e.stableKey?.startsWith(stableKeyPrefix)
-    );
-    
-    // Compute current prompt signature for matching
-    const normalizeForSignature = (s) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-    const currentPromptSignature = normalizeForSignature(promptText?.substring(0, 100) || '');
-    
-    let foundByPrefixAligned = false;
-    let tier2LatestAnswerPromptId = null;
-    let tier2LatestAnswerPromptSignature = null;
-    
-    if (answersByPrefix.length > 0) {
-      // Find LATEST answer (by createdAt timestamp or index)
-      const latestAnswer = answersByPrefix.reduce((latest, current) => {
-        const latestTs = latest?.createdAt || new Date(latest?.timestamp || 0).getTime() || 0;
-        const currentTs = current?.createdAt || new Date(current?.timestamp || 0).getTime() || 0;
-        return currentTs > latestTs ? current : latest;
-      });
-      
-      tier2LatestAnswerPromptId = latestAnswer?.meta?.promptId || null;
-      tier2LatestAnswerPromptSignature = latestAnswer?.meta?.promptSignature || null;
-      
-      // Alignment check: Does latest answer correspond to THIS prompt?
-      const promptIdMatches = tier2LatestAnswerPromptId && tier2LatestAnswerPromptId === promptId;
-      const signatureMatches = tier2LatestAnswerPromptSignature && 
-                               currentPromptSignature &&
-                               tier2LatestAnswerPromptSignature === currentPromptSignature;
-      
-      foundByPrefixAligned = promptIdMatches || signatureMatches;
-    }
-    
-    // TIER 3: Match by probeQuestionCount-based expectedAKey (fallback)
-    const currentProbeCount = dbTranscript.filter(e => 
-      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
-      e.meta?.sessionId === sessionId &&
-      e.meta?.categoryId === categoryId &&
-      e.meta?.instanceNumber === instanceNumber
-    ).length;
-    const expectedAKey = buildV3ProbeAStableKey(sessionId, categoryId, instanceNumber, currentProbeCount);
-    const foundByExpectedKey = dbTranscript.some(e => 
-      e.stableKey === expectedAKey ||
-      (e.messageType === 'V3_PROBE_ANSWER' && 
-       e.meta?.sessionId === sessionId && 
-       e.meta?.categoryId === categoryId && 
-       e.meta?.instanceNumber === instanceNumber && 
-       e.meta?.probeIndex === currentProbeCount)
-    );
-    
-    const foundAnswer = foundByPromptId || foundByPrefixAligned || foundByExpectedKey;
-    
-    console.log('[V3_PROBE][ANSWER_CHECK_STRONG]', {
-      promptId,
-      sessionId,
-      categoryId,
-      instanceNumber,
-      probeIndex: currentProbeCount,
-      foundByPromptId,
-      foundByPrefixAligned,
-      foundByExpectedKey,
-      foundAnswer,
-      answersByPrefixCount: answersByPrefix.length,
-      tier2LatestAnswerPromptId,
-      tier2LatestAnswerPromptSignature,
-      currentPromptSignature
-    });
-    
-    if (foundAnswer) {
-      const detectionMethod = foundByPromptId ? 'promptId_match' : 
-                             foundByPrefixAligned ? 'prefix_latest_aligned' : 
-                             'expectedKey_fallback';
-      
-      console.log('[V3_PROBE][SKIP_REASK]', {
-        promptId,
-        detectionMethod,
-        expectedStableKey: expectedAKey,
-        reason: 'answer_already_present',
-        sessionId,
-        categoryId,
-        instanceNumber,
-        probeIndex: currentProbeCount
-      });
-      
-      // Don't show prompt again - mark as satisfied
-      setV3PromptPhase("IDLE");
-      setV3ActivePromptText(null);
-      v3ActivePromptTextRef.current = null;
-      return promptId; // Return early without setting ANSWER_NEEDED
-    }
-    // ============================================================================
-    
-    // ATOMIC STATE UPDATE: All V3 prompt activation in one place
-    // CRITICAL: Does NOT modify dbTranscript - only sets prompt state
-    unstable_batchedUpdates(() => {
-    // Confirm V3 probing is active
-    if (!v3ProbingActive) {
-      setV3ProbingActive(true);
-    }
-
-    // Set active prompt text (bottom bar placeholder reads from this)
-    setV3ActivePromptText(promptText);
-
-    // CRITICAL: Update ref synchronously (watchdog reads from this)
-    v3ActivePromptTextRef.current = promptText;
-    
-    // UI HISTORY: Store active probe question for display history
-    v3ActiveProbeQuestionRef.current = promptText;
-    v3ActiveProbeQuestionLoopKeyRef.current = loopKey;
-
-    console.log('[V3_PROMPT_BIND]', { loopKey, promptLen: promptText?.length || 0 });
-
-    // LIFECYCLE: Set phase to ANSWER_NEEDED (prompt is now active)
-    setV3PromptPhase("ANSWER_NEEDED");
-    
-    // Store promptId in v3ProbingContext_S and snapshot ref for answer linking
-    setV3ProbingContext(prev => ({
-      ...prev,
-      promptId,
-      currentPromptText: promptText
-    }));
-    
-    // Update snapshot ref for answer submit (include categoryId) - REDUNDANT but kept for compatibility
-    lastV3PromptSnapshotRef.current = {
-      ...snapshot,
-      promptId,
-      categoryId,
-      promptText
-    };
-
-    // Clear typing lock (allow user input)
-    setIsUserTyping(false);
-
-    // Ensure screen mode is QUESTION (not WELCOME)
-    if (screenMode !== 'QUESTION') {
-      setScreenMode('QUESTION');
-    }
-    
-    // REGRESSION GUARD: Confirm transcript untouched during prompt commit
-    console.log('[V3_PROMPT_COMMIT][TRANSCRIPT_PRESERVED]', {
-      loopKey,
-      promptId,
-      transcriptLenBefore: transcriptLenBeforePromptCommit,
-      action: 'Prompt activated - dbTranscript state untouched'
-    });
-    });
-    
-    // FAILSAFE CANCEL: Prompt arrived - cancel opener failsafe
-    if (v3OpenerFailsafeTimerRef.current) {
-      clearTimeout(v3OpenerFailsafeTimerRef.current);
-      v3OpenerFailsafeTimerRef.current = null;
-      v3OpenerSubmitTokenRef.current = null;
-      v3OpenerSubmitLoopKeyRef.current = null;
-      console.log('[V3_FAILSAFE][CANCEL_ON_PROMPT]', { loopKey });
-    }
-    
-    return promptId;
-  }, [v3ProbingActive, screenMode, sessionId, setDbTranscriptSafe, dbTranscript]);
-
-  // V3 prompt change handler - receives prompt with canonical promptId from V3ProbingLoop
-  const handleV3PromptChange = React.useCallback(async (promptData) => {
-    // Support both string (legacy) and object (new) payloads
-    const promptText = typeof promptData === 'string' ? promptData : promptData?.promptText;
-    let canonicalPromptId = typeof promptData === 'object' ? promptData?.promptId : null;
-    const loopKey = typeof promptData === 'object' ? promptData?.loopKey : null;
-    const packId = typeof promptData === 'object' ? promptData?.packId : (v3ProbingContext_S?.packId || currentItem_S?.packId);
-    const instanceNumber = typeof promptData === 'object' ? promptData?.instanceNumber : (v3ProbingContext_S?.instanceNumber || currentItem_S?.instanceNumber || 1);
-    const categoryId = typeof promptData === 'object' ? promptData?.categoryId : v3ProbingContext_S?.categoryId;
-    
-    // STABILITY SNAPSHOT: V3 phase change
-    if (lastV3PromptPhaseRef.current !== v3PromptPhase) {
-      getStabilitySnapshotSOT("V3_PHASE_CHANGE", { 
-        prevV3PromptPhase: lastV3PromptPhaseRef.current 
-      });
-    }
-    
-    // EDIT 3: Diagnostic log - prove parent received prompt from loop
-    console.log('[V3_PROMPT][RECEIVED_BY_PARENT]', {
-      canonicalPromptId: canonicalPromptId || 'will_generate',
-      loopKey: loopKey || 'unknown',
-      promptLen: promptText?.length || 0,
-      v3PromptSource: typeof promptData === 'object' ? promptData?.v3PromptSource : undefined,
-      v3LlmMs: typeof promptData === 'object' ? promptData?.v3LlmMs : undefined,
-      willActivate: true,
-      ts: Date.now()
-    });
-    
-    // FIX B4: Generate promptId if missing (prevents PROMPTID_MISSING error)
-    if (!canonicalPromptId) {
-      const effectiveLoopKey = loopKey || `${sessionId}:${categoryId}:${instanceNumber}`;
-      const probeIndex = dbTranscript.filter(e => 
-        (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
-        e.meta?.sessionId === sessionId &&
-        e.meta?.categoryId === categoryId &&
-        e.meta?.instanceNumber === instanceNumber
-      ).length;
-      canonicalPromptId = `${effectiveLoopKey}:${probeIndex}`;
-      
-      console.warn('[V3_PROBE][PROMPTID_GENERATED_FALLBACK]', {
-        generatedPromptId: canonicalPromptId,
-        loopKey: effectiveLoopKey,
-        probeIndex,
-        reason: 'V3ProbingLoop did not provide promptId - generated fallback'
-      });
-    }
-    
-    console.log('[V3_PROMPT_CHANGE]', { 
-      promptPreview: promptText?.substring(0, 60) || null,
-      canonicalPromptId,
-      loopKey
-    });
-    
-    const effectiveLoopKey = loopKey || `${sessionId}:${categoryId}:${instanceNumber}`;
-    // FIX: promptId already contains sessionId via loopKey - don't duplicate
-    const qStableKey = `v3-probe-q:${canonicalPromptId}`;
-
-    // OPTIMISTIC APPEND: Check + append in single functional update
-    const appendSuccess = await new Promise((resolve) => {
-      setDbTranscriptSafe(prev => {
-        // Dedupe: skip if already exists
-        if (prev.some(e => e.stableKey === qStableKey || 
-            (e.messageType === 'V3_PROBE_QUESTION' && e.meta?.promptId === canonicalPromptId))) {
-          console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_DEDUPED]', {
-            stableKey: qStableKey,
-            promptId: canonicalPromptId
-          });
-          resolve(false);
-          return prev;
-        }
-
-        const qEntry = {
-          id: `v3-probe-q-${canonicalPromptId}`,
-          stableKey: qStableKey,
-          index: getNextIndex(prev),
-          role: "assistant",
-          text: promptText,
-          timestamp: new Date().toISOString(),
-          createdAt: Date.now(),
-          messageType: 'V3_PROBE_QUESTION',
-          type: 'V3_PROBE_QUESTION',
-          meta: {
-            promptId: canonicalPromptId,
-            loopKey: effectiveLoopKey,
-            packId,
-            instanceNumber,
-            categoryId,
-            source: 'v3',
-            // TASK 3: Store provenance in meta for render-time access
-            v3PromptSource: typeof promptData === 'object' ? promptData?.v3PromptSource : undefined,
-            v3LlmMs: typeof promptData === 'object' ? promptData?.v3LlmMs : undefined
-          },
-          // TASK 3: Also store at top-level for easier access
-          v3PromptSource: typeof promptData === 'object' ? promptData?.v3PromptSource : undefined,
-          v3LlmMs: typeof promptData === 'object' ? promptData?.v3LlmMs : undefined,
-          visibleToCandidate: true
-        };
-        
-        const updated = [...prev, qEntry];
-        
-        // ATOMIC SYNC: Update ref + state together
-        upsertTranscriptState(updated, 'v3_probe_q_append');
-
-        // Persist to DB async
-        base44.entities.InterviewSession.update(sessionId, {
-          transcript_snapshot: updated
-        }).then(() => {
-          console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_APPEND_OK]', {
-            stableKey: qStableKey,
-            promptId: canonicalPromptId,
-            loopKey: effectiveLoopKey,
-            promptLen: promptText?.length || 0,
-            transcriptLenAfter: updated.length
-          });
-
-          // ANCHOR: Mark this question for viewport anchoring
-          v3ScrollAnchorRef.current = {
-            kind: 'V3_PROBE_QUESTION',
-            stableKey: qStableKey,
-            ts: Date.now()
-          };
-
-          resolve(true);
-        }).catch(err => {
-          console.error('[CQ_TRANSCRIPT][V3_PROBE_Q_ERROR]', { error: err.message });
-          resolve(false);
-        });
-
-        return updated;
-      });
-    });
-    
-    if (!appendSuccess) {
-      console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_SKIP]', { stableKey: qStableKey });
-    }
-    
-    // ATOMIC COMMIT: All state changes in one place (include categoryId)
-    await commitV3PromptToBottomBar({ 
-      packId, 
-      categoryId,
-      instanceNumber, 
-      loopKey: effectiveLoopKey, 
-      promptText,
-      promptId: canonicalPromptId
-    });
-  }, [commitV3PromptToBottomBar, v3ProbingContext_S, currentItem_S, sessionId, setDbTranscriptSafe]);
-
-  // Helper: Normalize text for signature matching (shared by guard and commit)
-  const normalizeForSignature = (s) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-  
-  // V3 answer submit handler - routes answer to V3ProbingLoop
-  const handleV3AnswerSubmit = React.useCallback(async (answerText) => {
-    try {
-    // PART 3A: Send click trace
-    const v3PromptIdSOT = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
-    
-    console.log('[V3_SEND][CLICK]', {
-      promptId: v3PromptIdSOT,
-      textLen: answerText?.length || 0,
-      hasText: !!answerText?.trim(),
-      v3PromptPhase,
-      activeUiItem_SKind: activeUiItem_S_SAFE?.kind
-    });
-    
-    // PART 3A: Block if no promptId
-    if (!v3PromptIdSOT) {
-      console.error('[V3_SEND][BLOCKED_NO_PROMPT_ID]', {
-        v3PromptPhase,
-        hasV3Context: !!v3ProbingContext_S,
-        hasSnapshot: !!lastV3PromptSnapshotRef.current,
-        reason: 'Cannot persist without stable promptId'
-      });
-      return;
-    }
-    
-    // TDZ FIX: Compute effectiveItemType locally (not from closure deps)
-    const localEffectiveItemType = v3ProbingActive ? 'v3_probing' : currentItem_S?.type;
-    
-    v3SubmitCounterRef.current++;
-    const submitId = v3SubmitCounterRef.current;
-    
-    // IDENTIFIER FALLBACK CHAIN: Use context first, snapshot second
-    const categoryId = v3ProbingContext_S?.categoryId || lastV3PromptSnapshotRef.current?.categoryId;
-    const instanceNumber = v3ProbingContext_S?.instanceNumber || lastV3PromptSnapshotRef.current?.instanceNumber || 1;
-    const packId = v3ProbingContext_S?.packId || lastV3PromptSnapshotRef.current?.packId;
-    const loopKey = v3ProbingContext_S ? `${sessionId}:${categoryId}:${instanceNumber}` : null;
-    
-    // EDIT 3: Diagnostic log - prove answer submitted to loop
-    console.log('[V3_ANSWER][SUBMIT_TO_LOOP]', {
-      submitId,
-      loopKey: loopKey || 'unknown',
-      answerLen: answerText?.length || 0,
-      pendingAnswerSet: true,
-      ts: Date.now()
-    });
-    
-    // GUARD: Validate identifiers before proceeding
-    if (!categoryId || !packId) {
-      console.error('[V3_PROBE][MISSING_IDENTIFIERS]', {
-        categoryId,
-        packId,
-        instanceNumber,
-        hasContext: !!v3ProbingContext_S,
-        hasSnapshot: !!lastV3PromptSnapshotRef.current,
-        reason: 'Cannot commit without categoryId and packId'
-      });
-      return;
-    }
-    
-    // Compute probeIndex from current probe count in transcript
-    const currentProbeCount = dbTranscript.filter(e => 
-      (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
-      e.meta?.sessionId === sessionId &&
-      e.meta?.categoryId === categoryId &&
-      e.meta?.instanceNumber === instanceNumber
-    ).length;
-    const probeIndex = currentProbeCount;
-    
-    const payload = {
-      text: answerText,
-      submitId,
-      loopKey,
-      createdAt: Date.now()
-    };
-    
-    const promptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
-    const qStableKey = buildV3ProbeQStableKey(sessionId, categoryId, instanceNumber, probeIndex);
-    let aStableKey = buildV3ProbeAStableKey(sessionId, categoryId, instanceNumber, probeIndex);
-    
-    // VERIFICATION GUARD 1: Log built keys
-    console.log('[V3_SEND][KEYS_BUILT]', {
-      v3PromptIdSOT,
-      qStableKey,
-      aStableKey
-    });
-    
-    // VERIFICATION GUARD 2: Invariant check - aStableKey must contain promptId
-    if (!aStableKey.includes(v3PromptIdSOT)) {
-      console.error('[V3_SEND][BUG][AKEY_DOES_NOT_CONTAIN_PROMPTID]', {
-        v3PromptIdSOT,
-        aStableKey,
-        reason: 'Builder output does not contain promptId - using fallback'
-      });
-      
-      // Fallback to canonical format
-      const fallbackAKey = `v3-probe-a:${v3PromptIdSOT}`;
-      aStableKey = fallbackAKey;
-      
-      console.warn('[V3_SEND][AKEY_FALLBACK_USED]', {
-        v3PromptIdSOT,
-        fallbackAKey
-      });
-    }
-    
-    console.log('[V3_PROBE][COMMIT_BEGIN]', { 
-      sessionId, 
-      categoryId,
-      instanceNumber,
-      probeIndex,
-      promptId,
-      loopKey,
-      qKey: qStableKey,
-      aKey: aStableKey,
-      answerLen: answerText?.length || 0
-    });
-    
-    // FIX C: Clear V3 draft on successful submit (promptId already declared above)
-    if (sessionId && loopKey && promptId) {
-      const v3DraftKey = `cq_v3draft_${sessionId}_${loopKey}_${promptId}`;
-      try {
-        window.sessionStorage.removeItem(v3DraftKey);
-        
-        // ABANDONMENT SAFETY: Log V3 draft clear
-        console.log('[DRAFT][CLEAR]', {
-          keyPreview: v3DraftKey.substring(0, 40)
-        });
-        console.log('[V3_DRAFT][CLEAR_ON_SUBMIT]', { keyPreview: v3DraftKey });
-      } catch (e) {
-        console.warn('[V3_DRAFT][CLEAR_FAILED]', { error: e.message });
-      }
-    }
-    
-    // LIFECYCLE: Clear active prompt text immediately to prevent stale rendering
-    // This makes hasV3PromptText false so the prompt doesn't continue to render
-    setV3ActivePromptText("");
-    v3ActivePromptTextRef.current = "";
-    
-    console.log('[V3_PROMPT_CLEAR_ON_SUBMIT]', {
-      submitId,
-      answerPreview: answerText?.substring(0, 50),
-      phaseNow: "WILL_BE_PROCESSING_AFTER_DB",
-      clearedPromptText: true,
-      loopKey
-    });
-    
-    // PART A: FORENSIC SNAPSHOT - Before append (deferred via state to avoid TDZ)
-    setV3ProbeDisplayHistory(prev => {
-      console.log('[V3_UI_HISTORY][SNAPSHOT_BEFORE_APPEND]', {
-        uiHistoryLen: prev.length,
-        lastUiItemsPreview: prev.slice(-3).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
-        transcriptLen: dbTranscript.length,
-        v3ProbingActive,
-        effectiveItemType: localEffectiveItemType,
-        loopKey
-      });
-      return prev; // No mutation - just logging
-    });
-    
-    // PART 3B: Construct stableKeyA for persistence
-    const stableKeyA = `v3-probe-a:${v3PromptIdSOT}`;
-    
-    console.log('[V3_SEND][PERSIST_START]', {
-      stableKeyA,
-      promptId: v3PromptIdSOT,
-      textLen: answerText?.length || 0
-    });
-    
-    // CRITICAL: V3 probe ANSWERS must ALWAYS persist to canonical transcript BEFORE any MI_GATE stream suppression
-    // This ensures transcript completeness regardless of UI state transitions
-    let wroteTranscript = false;
-    let qAdded = false;
-    let aAdded = false;
-    
-    if (v3ProbingActive && localEffectiveItemType === 'v3_probing' && loopKey && answerText?.trim()) {
-      // RISK 3 FIX: Use v3PromptIdSOT consistently (already validated above)
-      if (!v3PromptIdSOT) {
-        console.error('[V3_TRANSCRIPT][APPEND_FAILED_NO_PROMPTID]', {
-          loopKey,
-          hasV3Context: !!v3ProbingContext_S,
-          hasSnapshot: !!lastV3PromptSnapshotRef.current,
-          reason: 'Cannot append without stable promptId'
-        });
-      } else {
-        // stableKeys already constructed above (qStableKey, aStableKey)
-        // No need to rebuild - use existing variables
-        
-        // SYNCHRONOUS COMMIT: Update canonical ref IMMEDIATELY (not in async callback)
-        setDbTranscriptSafe(prev => {
-          let working = [...prev];
-          
-          // Step 1: Ensure question exists (append if missing)
-          const questionExists = working.some(e => 
-            e.stableKey === qStableKey ||
-            (e.messageType === 'V3_PROBE_QUESTION' && e.meta?.promptId === promptId && e.meta?.sessionId === sessionId)
-          );
-          
-          if (!questionExists) {
-            const promptText = lastV3PromptSnapshotRef.current?.promptText || v3ActivePromptText || "(Question text unavailable)";
-            
-            // Compute promptSignature for Tier 2 matching
-            const questionPromptSignature = normalizeForSignature(promptText?.substring(0, 100) || '');
-            
-            const qEntry = {
-              id: `v3-probe-q-${sessionId}-${categoryId}-${instanceNumber}-${probeIndex}`,
-              stableKey: qStableKey,
-              index: getNextIndex(working),
-              role: "assistant",
-              text: promptText,
-              timestamp: new Date().toISOString(),
-              createdAt: Date.now(),
-              messageType: 'V3_PROBE_QUESTION',
-              type: 'V3_PROBE_QUESTION',
-              meta: {
-                promptId,
-                promptSignature: questionPromptSignature,
-                loopKey,
-                packId,
-                instanceNumber,
-                categoryId,
-                sessionId,
-                probeIndex,
-                source: 'v3'
-              },
-              visibleToCandidate: true
-            };
-            
-            working = [...working, qEntry];
-            qAdded = true;
-            console.log('[V3_REPAIR][Q_PAIRED_WITH_A]', { qStableKey, willAppendA: true, source: 'handleV3AnswerSubmit' });
-            
-            console.log('[CQ_TRANSCRIPT][V3_PROBE_Q_COMMIT]', {
-              stableKey: qStableKey,
-              promptId,
-              sessionId,
-              probeIndex
-            });
-          }
-          
-          // Step 2: Append answer (dedupe check)
-          const answerExists = working.some(e => 
-            e.stableKey === aStableKey ||
-            (e.messageType === 'V3_PROBE_ANSWER' && e.meta?.promptId === promptId && e.meta?.sessionId === sessionId && e.meta?.probeIndex === probeIndex)
-          );
-          
-          if (answerExists) {
-            console.log('[V3_TRANSCRIPT][DEDUPE_A]', { stableKey: aStableKey, sessionId, probeIndex });
-            return working; // No changes needed
-          }
-          
-          // Append answer with promptSignature for Tier 2 matching
-          const answerPromptSignature = normalizeForSignature(lastV3PromptSnapshotRef.current?.promptText?.substring(0, 100) || '');
-          
-          const aEntry = {
-            id: `v3-probe-a-${sessionId}-${categoryId}-${instanceNumber}-${probeIndex}`,
-            stableKey: aStableKey,
-            index: getNextIndex(working),
-            role: "user",
-            text: answerText,
-            timestamp: new Date().toISOString(),
-            createdAt: Date.now(),
-            messageType: 'V3_PROBE_ANSWER',
-            type: 'V3_PROBE_ANSWER',
-            meta: {
-              promptId,
-              promptSignature: answerPromptSignature,
-              loopKey,
-              packId,
-              instanceNumber,
-              categoryId,
-              sessionId,
-              probeIndex,
-              source: 'v3',
-              answerContext: 'V3_PROBE'
-            },
-            visibleToCandidate: true
-          };
-          
-          const updated = [...working, aEntry];
-          aAdded = true;
-          wroteTranscript = true;
-          
-          // IMMEDIATE CANONICAL UPDATE: Use unified sync helper
-          upsertTranscriptState(updated, 'v3_probe_answer');
-
-          // COMMIT ACK: Record expected keys for verification
-          lastV3AnswerCommitAckRef.current = {
-            sessionId,
-            promptId,
-            categoryId,
-            instanceNumber,
-            probeIndex,
-            expectedAKey: aStableKey,
-            expectedQKey: qStableKey,
-            committedAt: Date.now(),
-            answerLen: answerText?.length || 0,
-            promptText: lastV3PromptSnapshotRef.current?.promptText || v3ActivePromptText
-          };
-          
-          // METRICS: Increment ack set counter
-          v3AckSetCountRef.current++;
-          
-          // PART A: Mark optimistic persist (immediate UI feedback)
-          v3OptimisticPersistRef.current[promptId] = {
-            stableKeyA: aStableKey,
-            answerText,
-            ts: Date.now(),
-            loopKey,
-            categoryId,
-            instanceNumber
-          };
-          
-          console.log('[V3_PROBE_AUDIT][PERSIST_OK]', {
-            expectedAKey: aStableKey,
-            expectedQKey: qStableKey,
-            promptId,
-            textPreview: answerText?.substring(0, 40),
-            committedAt: lastV3AnswerCommitAckRef.current.committedAt,
-            ackSetCount: v3AckSetCountRef.current,
-            optimisticMarkerSet: true
-          });
-          
-          // REQUEST REFRESH: Set request instead of calling refresh directly
-          v3RefreshRequestedRef.current = {
-            reason: 'v3_probe_answer_persisted',
-            promptId,
-            stableKeyA: aStableKey,
-            requestedAt: Date.now()
-          };
-          
-          // Trigger refresh tick to activate effect
-          setV3RefreshTick(prev => prev + 1);
-          
-          // Track for protection (E)
-          recentlySubmittedUserAnswersRef.current.add(aStableKey);
-          
-          // ANCHOR: Mark for viewport
-          recentAnchorRef.current = {
-            kind: 'V3_PROBE_ANSWER',
-            stableKey: aStableKey,
-            ts: Date.now()
-          };
-          
-          // Persist to DB async (non-blocking)
-          base44.entities.InterviewSession.update(sessionId, {
-            transcript_snapshot: updated
-          }).then(() => {
-            const probeQuestionCountAfter = updated.filter(e => 
-              e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION'
-            ).length;
-            const probeAnswerCountAfter = updated.filter(e => 
-              e.messageType === 'V3_PROBE_ANSWER' || e.type === 'V3_PROBE_ANSWER'
-            ).length;
-            
-            // PART A: Clear optimistic marker on DB confirm
-            if (v3OptimisticPersistRef.current[promptId]) {
-              delete v3OptimisticPersistRef.current[promptId];
-              console.log('[V3_OPTIMISTIC][CLEARED]', {
-                promptId,
-                reason: 'DB_CONFIRM'
-              });
-            }
-            
-            console.log('[V3_SEND][PERSIST_OK]', {
-              stableKeyA: aStableKey,
-              promptId: v3PromptIdSOT,
-              transcriptLenAfter: updated.length
-            });
-            
-            console.log('[V3_PROBE][COMMIT_DONE]', {
-              qAdded,
-              aAdded,
-              transcriptLenAfter: updated.length,
-              probeQuestionCountAfter,
-              probeAnswerCountAfter,
-              sessionId,
-              stableKeyA: aStableKey
-            });
-            
-            // PART 3C: Post-persist validation (hard invariant, RISK 3: use v3PromptIdSOT)
-            // VERIFICATION GUARD 3: Use actual persisted key (may be fallback)
-            const foundInUpdated = updated.some(e => (e.stableKey || e.id) === aStableKey);
-            if (!foundInUpdated) {
-              console.error('[V3_SEND][INVARIANT_FAIL_NOT_IN_DB_AFTER_OK]', {
-                stableKeyA: aStableKey,
-                promptId: v3PromptIdSOT,
-                updatedLen: updated.length,
-                reason: 'Persist OK but answer not in updated transcript array'
-              });
-            }
-            
-            // CQ_TRANSCRIPT_CONTRACT: Invariant check after V3 probe append
-            if (ENFORCE_TRANSCRIPT_CONTRACT) {
-              const candidateVisibleCount = updated.filter(e => e.visibleToCandidate === true).length;
-              const last3StableKeys = updated.slice(-3).map(e => e.stableKey || e.id);
-              
-              console.log('[CQ_TRANSCRIPT][INVARIANT]', {
-                transcriptLen: updated.length,
-                candidateVisibleCount,
-                last3StableKeys,
-                context: 'v3_probe_answer'
-              });
-            }
-          }).catch(err => {
-            // PART 3B: Log persist failure (RISK 3: use v3PromptIdSOT from outer scope)
-            console.error('[V3_SEND][PERSIST_FAIL]', {
-              stableKeyA: aStableKey,
-              promptId: v3PromptIdSOT,
-              error: err.message
-            });
-            console.error('[CQ_TRANSCRIPT][V3_PROBE_PERSIST_ERROR]', { error: err.message, sessionId });
-          });
-          
-          return updated;
-        });
-      }
-      
-    } else {
-      console.log('[V3_TRANSCRIPT][APPEND_SKIPPED]', {
-        v3ProbingActive,
-        localEffectiveItemType,
-        hasLoopKey: !!loopKey,
-        hasAnswerText: !!answerText?.trim(),
-        reason: 'Preconditions not met for V3 commit'
-      });
-    }
-    
-    // Clear active probe question after processing
-    v3ActiveProbeQuestionRef.current = null;
-    v3ActiveProbeQuestionLoopKeyRef.current = null;
-    
-    // Store answer in snapshot for reconciliation (before any UI state changes)
-    if (lastV3PromptSnapshotRef.current && wroteTranscript) {
-      lastV3PromptSnapshotRef.current.lastAnswerText = answerText;
-      lastV3PromptSnapshotRef.current.lastAnswerTimestamp = Date.now();
-      
-      console.log('[V3_PROBE][SNAPSHOT_ANSWER_STORED]', {
-        promptId: lastV3PromptSnapshotRef.current.promptId,
-        answerLen: answerText?.length || 0,
-        wroteTranscript
-      });
-    }
-    
-    // DIAGNOSTIC: Verify commit succeeded
-    if (wroteTranscript) {
-      console.log('[V3_PROBE][ANSWER_COMMIT]', {
-        expectedStableKey: aStableKey,
-        wrote: true,
-        transcriptLenAfter: canonicalTranscriptRef.current.length,
-        sessionId,
-        categoryId,
-        instanceNumber,
-        probeIndex
-      });
-
-      // STABILITY SNAPSHOT: V3 probe answer committed
-      getStabilitySnapshotSOT("SUBMIT_END_V3_PROBE");
-      }
-
-      // PART B: Force immediate transition (optimistic - don't wait for DB)
-      // This prevents PROMPT_MISSING_AFTER_OPENER stall
-      setV3PromptPhase("PROCESSING");
-    console.log('[V3_PROMPT_PHASE][SET_PROCESSING_OPTIMISTIC]', {
-      submitId,
-      loopKey,
-      categoryId,
-      wroteTranscript,
-      reason: 'Optimistic transition - UI advances immediately'
-    });
-    
-    console.log('[FORENSIC][V3_SUBMIT_BREADCRUMB]', {
-      answerLen: (answerText || '').length,
-      loopKey,
-      ts: Date.now()
-    });
-    
-    setV3PendingAnswer(payload);
-    } catch (err) {
-      console.error('[FORENSIC][V3_SUBMIT_HANDLER_THROW]', {
-        err: String(err),
-        message: err?.message,
-        stack: String(err?.stack || ''),
-        ts: Date.now()
-      });
-      throw err;
-    }
-  }, [v3ProbingContext_S, sessionId, v3ActivePromptText, currentItem_S, setDbTranscriptSafe, dbTranscript]);
-  
-  // V3 REFRESH RUNNER: Safe post-commit transcript refresh
-  React.useEffect(() => {
-    const request = v3RefreshRequestedRef.current;
-    if (!request) return;
-    if (v3RefreshInFlightRef.current) return;
-    
-    // Clear request BEFORE starting refresh (prevents loops)
-    const { reason, promptId, stableKeyA, requestedAt } = request;
-    v3RefreshRequestedRef.current = null;
-    
-    // Execute refresh asynchronously
-    const runRefresh = async () => {
-      v3RefreshInFlightRef.current = true;
-      
-      try {
-        const ageMs = Date.now() - requestedAt;
-        
-        console.log('[V3_PROBE][REFRESH_TRIGGERED]', {
-          promptId,
-          stableKeyA,
-          reason,
-          ageMs
-        });
-        
-        await refreshTranscriptFromDB(reason);
-        
-        console.log('[V3_PROBE][REFRESH_COMPLETE]', {
-          promptId,
-          stableKeyA
-        });
-      } catch (err) {
-        console.error('[V3_PROBE][REFRESH_ERROR]', {
-          promptId,
-          stableKeyA,
-          error: err.message
-        });
-      } finally {
-        v3RefreshInFlightRef.current = false;
-      }
-    };
-    
-    runRefresh();
-  }, [v3RefreshTick, refreshTranscriptFromDB]);
-  
-  // V3 COMMIT ACK VERIFICATION: Verify answer persisted + repair if missing
-  React.useEffect(() => {
-    // KILL SWITCH: Allow instant disable if needed
-    if (!ENABLE_V3_ACK_REPAIR) return;
-    
-    const ack = lastV3AnswerCommitAckRef.current;
-    if (!ack) return;
-    
-    // Only verify for current session
-    if (ack.sessionId !== sessionId) {
-      lastV3AnswerCommitAckRef.current = null;
-      return;
-    }
-    
-    // Check if answer exists in transcript
-    const foundA = dbTranscript.some(e => 
-      e.stableKey === ack.expectedAKey ||
-      (e.messageType === 'V3_PROBE_ANSWER' && 
-       e.meta?.promptId === ack.promptId &&
-       e.meta?.probeIndex === ack.probeIndex)
-    );
-    
-    const ageMs = Date.now() - ack.committedAt;
-    
-    console.log('[V3_PROBE][ACK_VERIFY]', {
-      expectedAKey: ack.expectedAKey,
-      foundA,
-      ageMs,
-      probeIndex: ack.probeIndex
-    });
-    
-    // PART C: Check optimistic markers before repair
-    const hasOptimistic = v3OptimisticPersistRef.current[ack.promptId];
-    const optimisticAge = hasOptimistic ? Date.now() - hasOptimistic.ts : null;
-    
-    // PART D: Dedupe check - use optimistic markers
-    const foundInDbOrOptimistic = foundA || (hasOptimistic && optimisticAge < 10000);
-    
-    if (foundInDbOrOptimistic) {
-      // Success - answer found in transcript or optimistic marker active
-      v3AckClearCountRef.current++;
-      
-      // Clear optimistic marker on DB confirm
-      if (foundA && hasOptimistic) {
-        delete v3OptimisticPersistRef.current[ack.promptId];
-        console.log('[V3_OPTIMISTIC][CLEARED]', {
-          promptId: ack.promptId,
-          reason: 'DB_CONFIRM_IN_ACK'
-        });
-      }
-      
-      console.log('[V3_PROBE][ACK_CLEAR]', {
-        expectedAKey: ack.expectedAKey,
-        reason: foundA ? 'found_in_transcript' : 'optimistic_pending',
-        ageMs,
-        optimisticAge,
-        ackClearCount: v3AckClearCountRef.current
-      });
-      lastV3AnswerCommitAckRef.current = null;
-      return;
-    }
-    
-    // PART C: Grace period - accept optimistic state for up to 10s
-    if (hasOptimistic && optimisticAge < 10000) {
-      console.log('[V3_PROBE][ACK_OPTIMISTIC_PENDING]', {
-        expectedAKey: ack.expectedAKey,
-        promptId: ack.promptId,
-        optimisticAge,
-        reason: 'Optimistic persist active - DB write pending'
-      });
-      return; // Wait for DB confirmation
-    }
-    
-    // Grace period: wait 500ms before repairing
-    if (ageMs < 500) {
-      return; // Wait for next render cycle
-    }
-    
-    // PART C: Stale optimistic marker - log and clear
-    if (hasOptimistic && optimisticAge >= 10000) {
-      console.error('[V3_OPTIMISTIC][STALE]', {
-        promptId: ack.promptId,
-        expectedAKey: ack.expectedAKey,
-        optimisticAge,
-        reason: 'Optimistic marker older than 10s but DB never confirmed',
-        action: 'clearing_stale_marker'
-      });
-      delete v3OptimisticPersistRef.current[ack.promptId];
-    }
-    
-    // Missing after grace - repair
-    v3AckRepairCountRef.current++;
-    
-    // INVARIANT CHECK: Repair count should never exceed set count (dev-only)
-    if (v3AckRepairCountRef.current > v3AckSetCountRef.current) {
-      console.error('[V3_PROBE][ACK_INVARIANT_FAIL]', {
-        ackSet: v3AckSetCountRef.current,
-        ackRepaired: v3AckRepairCountRef.current,
-        reason: 'Repair count exceeds set count - impossible state detected'
-      });
-    }
-    
-    console.error('[V3_PROBE][ACK_REPAIR]', {
-      expectedAKey: ack.expectedAKey,
-      expectedQKey: ack.expectedQKey,
-      reason: 'missing_after_grace',
-      ageMs,
-      hasOptimistic,
-      optimisticAge,
-      action: 'repairing_transcript',
-      ackRepairCount: v3AckRepairCountRef.current
-    });
-    
-    // Perform repair (idempotent functional update)
-    setDbTranscriptSafe(prev => {
-      // Double-check not already present
-      const alreadyHasA = prev.some(e => e.stableKey === ack.expectedAKey);
-      if (alreadyHasA) {
-        console.log('[V3_PROBE][ACK_REPAIR_SKIP]', {
-          expectedAKey: ack.expectedAKey,
-          reason: 'answer_appeared_during_repair'
-        });
-        return prev;
-      }
-      
-      let working = [...prev];
-      
-      // Ensure Q exists first
-      const alreadyHasQ = working.some(e => e.stableKey === ack.expectedQKey);
-      if (!alreadyHasQ && ack.promptText) {
-        const qEntry = {
-          id: `v3-probe-q-repair-${ack.promptId}`,
-          stableKey: ack.expectedQKey,
-          index: getNextIndex(working),
-          role: "assistant",
-          text: ack.promptText,
-          timestamp: new Date().toISOString(),
-          createdAt: Date.now(),
-          messageType: 'V3_PROBE_QUESTION',
-          type: 'V3_PROBE_QUESTION',
-          meta: {
-            promptId: ack.promptId,
-            sessionId: ack.sessionId,
-            categoryId: ack.categoryId,
-            instanceNumber: ack.instanceNumber,
-            probeIndex: ack.probeIndex,
-            source: 'ack_repair'
-          },
-          visibleToCandidate: true
-        };
-        
-        working = [...working, qEntry];
-        console.log('[V3_PROBE][ACK_REPAIR_Q]', { stableKey: ack.expectedQKey });
-        console.log('[V3_REPAIR][Q_PAIRED_WITH_A]', { qStableKey: ack.expectedQKey, willAppendA: true, source: 'ack_repair' });
-      }
-      
-      // Insert missing answer
-      const answerText = "(Answer was submitted but lost - recovered)";
-      const aEntry = {
-        id: `v3-probe-a-repair-${ack.promptId}`,
-        stableKey: ack.expectedAKey,
-        index: getNextIndex(working),
-        role: "user",
-        text: answerText,
-        timestamp: new Date().toISOString(),
-        createdAt: Date.now(),
-        messageType: 'V3_PROBE_ANSWER',
-        type: 'V3_PROBE_ANSWER',
-        meta: {
-          promptId: ack.promptId,
-          sessionId: ack.sessionId,
-          categoryId: ack.categoryId,
-          instanceNumber: ack.instanceNumber,
-          probeIndex: ack.probeIndex,
-          source: 'ack_repair'
-        },
-        visibleToCandidate: true
-      };
-      
-      const repaired = [...working, aEntry];
-      
-      // Update canonical ref + state atomically
-      upsertTranscriptState(repaired, 'v3_ack_repair');
-      
-      // Persist to DB
-      base44.entities.InterviewSession.update(sessionId, {
-        transcript_snapshot: repaired
-      }).then(() => {
-        console.log('[V3_PROBE][ACK_REPAIR_PERSISTED]', {
-          expectedAKey: ack.expectedAKey,
-          transcriptLenAfter: repaired.length
-        });
-      }).catch(err => {
-        console.error('[V3_PROBE][ACK_REPAIR_ERROR]', { error: err.message });
-      });
-      
-      console.log('[V3_PROBE][ACK_REPAIR_DONE]', {
-        insertedA: true,
-        insertedQ: !alreadyHasQ,
-        transcriptLenAfter: repaired.length
-      });
-      
-      return repaired;
-    });
-    
-    // Clear ack after repair
-    lastV3AnswerCommitAckRef.current = null;
-  }, [dbTranscript, sessionId, setDbTranscriptSafe]);
-  
-  // V3 answer consumed handler - clears pending answer after V3ProbingLoop consumes it
-  const handleV3AnswerConsumed = React.useCallback(({ loopKey, answerToken, probeCount, submitId }) => {
-    console.log('[V3_ANSWER_CONSUMED][CLEAR_PENDING]', {
-      loopKey,
-      answerToken,
-      probeCount,
-      submitId,
-      hadValue: !!v3PendingAnswer
-    });
-    
-    // Clear pending answer immediately (prevents stall)
-    setV3PendingAnswer(null);
-  }, [v3PendingAnswer]);
-
-  // V3 answer needed handler - stores answer submit capability + snapshot-based watchdog
-  const handleV3AnswerNeeded = React.useCallback((answerContext) => {
-    console.log('[V3_ANSWER_NEEDED]', { 
-      hasPrompt: !!answerContext?.promptText,
-      incidentId: answerContext?.incidentId 
-    });
-    
-    // Store context for answer routing
-    v3AnswerHandlerRef.current = answerContext;
-    
-    // SNAPSHOT: Capture current state BEFORE scheduling watchdog
-    const snapshot = lastV3PromptSnapshotRef.current;
-    if (!snapshot) {
-      console.warn('[V3_PROMPT_WATCHDOG][NO_SNAPSHOT]', { reason: 'Prompt commit did not create snapshot' });
-      return;
-    }
-    
-    const promptId = snapshot.promptId;
-    
-    // IDEMPOTENCY: Skip if already handled
-    if (handledPromptIdsRef.current.has(promptId)) {
-      console.log('[V3_PROMPT_WATCHDOG][SKIP_DUPLICATE]', { promptId, loopKey: snapshot.loopKey });
-      return;
-    }
-    
-    // Mark as handled immediately
-    handledPromptIdsRef.current.add(promptId);
-    
-    // MEMORY CLEANUP: Prevent unbounded Set growth
-    if (handledPromptIdsRef.current.size > 200) {
-      const priorSize = handledPromptIdsRef.current.size;
-      handledPromptIdsRef.current.clear();
-      console.log('[V3_PROMPT_WATCHDOG][CLEANUP]', { cleared: true, priorSize });
-    }
-    
-    // WATCHDOG: Verify UI stabilizes in 1 render cycle (snapshot-based, TDZ-safe)
-    requestAnimationFrame(() => {
-      // PART 3: Verify prompt snapshot exists using ref (prevents stale state)
-      const snapshotExists = v3PromptSnapshotsRef.current.some(s => s.promptId === promptId);
-      
-      // PART A+D: Dedupe NO_SNAPSHOT warning (in-memory, once per promptId)
-      if (!snapshotExists) {
-        logOnce(`no_snapshot_${promptId}`, () => {
-          console.warn('[V3_PROMPT_WATCHDOG][NO_SNAPSHOT]', { 
-            promptId, 
-            reason: 'Prompt commit did not create snapshot - check commitV3PromptToBottomBar',
-            snapshotsLen: v3PromptSnapshotsRef.current.length
-          });
-        });
-        return;
-      }
-      
-      // Verify snapshot is still current
-      if (lastV3PromptSnapshotRef.current?.promptId !== promptId) {
-        console.log('[V3_PROMPT_WATCHDOG][SKIP_STALE]', { promptId, currentPromptId: lastV3PromptSnapshotRef.current?.promptId });
-        return;
-      }
-      
-      // STRICT CHECK: Verify prompt binding to bottom bar placeholder
-      const promptPreview = snapshot.promptText?.substring(0, 60) || '';
-      const actualPreview = v3ActivePromptText?.substring(0, 60) || '';
-      const promptMatch = v3ActivePromptText && (
-        v3ActivePromptText === snapshot.promptText ||
-        actualPreview === promptPreview
-      );
-      
-      // PROMPT-EXISTS CHECK: Use refs as source of truth
-      const promptExistsNow = !!(v3ActivePromptTextRef?.current && v3ActivePromptTextRef.current.trim().length > 0);
-      
-      // Snapshot log: prove refs are fresh (no stale closure)
-      const snapshotPayload = {
-        promptId,
-        bottomBarModeSOT: bottomBarModeSOTRef.current,
-        v3ProbingActive: v3ProbingActiveRef.current,
-        hasPrompt: !!v3ActivePromptTextRef.current,
-        promptExistsNow
-      };
-      console.log('[V3_PROMPT_WATCHDOG][REF_SNAPSHOT]', snapshotPayload);
-      lastWatchdogSnapshotRef.current = snapshotPayload; // DEV: Capture for debug bundle
-      
-      // FORCE OK: If prompt exists in refs, treat as OK (even if other flags fail)
-      if (promptExistsNow) {
-        console.log('[V3_PROMPT_WATCHDOG][FORCE_OK_PROMPT_EXISTS]', {
-          loopKey: snapshot.loopKey,
-          packId: snapshot.packId,
-          instanceNumber: snapshot.instanceNumber,
-          promptLen: v3ActivePromptTextRef.current?.length || 0
-        });
-        
-        // Release idempotency lock
-        const lockKey = lastV3SubmitLockKeyRef.current;
-        if (lockKey) {
-          if (submittedKeysRef.current.has(lockKey)) {
-            submittedKeysRef.current.delete(lockKey);
-            console.log('[IDEMPOTENCY][RELEASE]', { lockKey, packId: snapshot.packId, instanceNumber: snapshot.instanceNumber, source: 'watchdog_force_ok' });
-            lastIdempotencyReleasedRef.current = lockKey;
-          }
-          lastV3SubmitLockKeyRef.current = null;
-        }
-        return; // Exit early - prompt exists, nothing to do
-      }
-      
-      // Check UI stability using ONLY refs (no stale closures)
-      let isReady = 
-        v3ProbingActiveRef.current === true &&
-        bottomBarModeSOTRef.current === 'TEXT_INPUT' &&
-        v3ActivePromptTextRef.current &&
-        v3ActivePromptTextRef.current.trim().length > 0 &&
-        promptMatch;
-      
-      // RUNTIME ASSERT: Verify OK decision is correct (TDZ-safe via ref)
-      if (isReady) {
-        // Assert conditions match
-        if (bottomBarModeSOTRef.current !== 'TEXT_INPUT' || !promptMatch) {
-          console.error('[V3_PROMPT_WATCHDOG][ASSERT_FAIL_TO_FAILED]', {
-            reason: 'OK decision but conditions invalid',
-            packId: snapshot.packId,
-            instanceNumber: snapshot.instanceNumber,
-            loopKey: snapshot.loopKey,
-            promptId,
-            bottomBarModeSOT: bottomBarModeSOTRef.current,
-            promptMatch
-          });
-          // Force FAILED path
-          isReady = false;
-        }
-      }
-      
-      // CONSOLIDATED DECISION LOG (ref-based, no stale closure)
-      const decisionPayload = {
-        packId: snapshot.packId,
-        instanceNumber: snapshot.instanceNumber,
-        loopKey: snapshot.loopKey,
-        promptId,
-        bottomBarModeSOT: bottomBarModeSOTRef.current,
-        v3ProbingActive: v3ProbingActiveRef.current,
-        hasPrompt: !!v3ActivePromptTextRef.current,
-        promptMatch,
-        decision: isReady ? 'OK' : 'FAILED'
-      };
-      console.log('[V3_PROMPT_WATCHDOG][DECISION]', decisionPayload);
-      lastWatchdogDecisionRef.current = decisionPayload; // DEV: Capture for debug bundle
-      
-      if (isReady) {
-        const okPayload = {
-          outcome: 'OK',
-          loopKey: snapshot.loopKey,
-          packId: snapshot.packId,
-          instanceNumber: snapshot.instanceNumber,
-          promptId
-        };
-        console.log('[V3_PROMPT_WATCHDOG][OK]', okPayload);
-        lastWatchdogOutcomeRef.current = okPayload; // DEV: Capture for debug bundle
-        
-        // IDEMPOTENCY RELEASE: Use stored lock key (guarantees exact match)
-        const lockKey = lastV3SubmitLockKeyRef.current;
-        if (lockKey) {
-          if (submittedKeysRef.current.has(lockKey)) {
-            submittedKeysRef.current.delete(lockKey);
-            console.log('[IDEMPOTENCY][RELEASE]', { lockKey, packId: snapshot.packId, instanceNumber: snapshot.instanceNumber, source: 'handleOpenerSubmit' });
-            lastIdempotencyReleasedRef.current = lockKey; // DEV: Capture for debug bundle
-          }
-          lastV3SubmitLockKeyRef.current = null;
-        } else {
-          console.warn('[IDEMPOTENCY][RELEASE_MISSING_KEY]', { packId: snapshot.packId, instanceNumber: snapshot.instanceNumber });
-        }
-        return;
-      }
-      
-      // FAILED: UI did not stabilize (ref-based, no stale closure)
-      const failureReason = !promptMatch ? 'PROMPT_MISMATCH' : 
-                           bottomBarModeSOTRef.current !== 'TEXT_INPUT' ? 'WRONG_BOTTOM_BAR_MODE' :
-                           !v3ProbingActiveRef.current ? 'PROBING_NOT_ACTIVE' :
-                           'PROMPT_NOT_BOUND';
-      
-      const failedPayload = {
-        outcome: 'FAILED',
-        promptId,
-        packId: snapshot.packId,
-        instanceNumber: snapshot.instanceNumber,
-        loopKey: snapshot.loopKey,
-        reason: failureReason,
-        v3ProbingActive: v3ProbingActiveRef.current,
-        bottomBarModeSOT: bottomBarModeSOTRef.current,
-        hasPrompt: !!v3ActivePromptTextRef.current,
-        promptMatch
-      };
-      console.error('[V3_PROMPT_WATCHDOG][FAILED]', failedPayload);
-      lastWatchdogOutcomeRef.current = failedPayload; // DEV: Capture for debug bundle
-      
-      // PROMPT-EXISTS GUARD: Recheck refs before running recovery
-      const promptExistsBeforeRecovery = !!(v3ActivePromptTextRef?.current && v3ActivePromptTextRef.current.trim().length > 0);
-      
-      if (promptExistsBeforeRecovery) {
-        console.log('[V3_PROMPT_WATCHDOG][FAILED_SUPPRESSED_PROMPT_EXISTS]', {
-          loopKey: snapshot.loopKey,
-          packId: snapshot.packId,
-          instanceNumber: snapshot.instanceNumber,
-          promptLen: v3ActivePromptTextRef.current?.length || 0,
-          reason: 'Prompt exists in refs - suppressing recovery'
-        });
-        
-        // Release idempotency lock
-        const lockKey = lastV3SubmitLockKeyRef.current;
-        if (lockKey) {
-          if (submittedKeysRef.current.has(lockKey)) {
-            submittedKeysRef.current.delete(lockKey);
-            console.log('[IDEMPOTENCY][RELEASE]', { lockKey, packId: snapshot.packId, instanceNumber: snapshot.instanceNumber, source: 'watchdog_failed_suppressed' });
-            lastIdempotencyReleasedRef.current = lockKey;
-          }
-          lastV3SubmitLockKeyRef.current = null;
-        }
-        return; // Exit - do NOT run recovery
-      }
-      
-      // AUTHORITATIVE MULTI-INCIDENT DETECTION: Use pack metadata (no guessing)
-      const packData = v3ProbingContext_S?.packData;
-      
-      // Source of truth: packData fields (DB-first, then static config fallback)
-      const isMultiIncident = packData?.behavior_type === 'multi_incident' || 
-                              packData?.followup_multi_instance === true;
-      
-      // Derive source for logging
-      const sourceOfTruth = packData?.behavior_type === 'multi_incident' ? 'packMeta.behavior_type' :
-                           packData?.followup_multi_instance === true ? 'packMeta.followup_multi_instance' :
-                           'fallback:false';
-      
-      const sourcePayload = {
-        packId: snapshot.packId,
-        instanceNumber: snapshot.instanceNumber,
-        behavior_type: packData?.behavior_type,
-        followup_multi_instance: packData?.followup_multi_instance,
-        isMultiIncident
-      };
-      console.log('[V3_MULTI_INCIDENT][SOURCE_OF_TRUTH]', sourcePayload);
-      lastMultiIncidentSourceRef.current = sourcePayload; // DEV: Capture for debug bundle
-      
-      if (isMultiIncident) {
-        const recoveryPayload = {
-          packId: snapshot.packId,
-          instanceNumber: snapshot.instanceNumber,
-          reason: 'Watchdog FAILED - transitioning to gate for multi-incident pack'
-        };
-        console.log('[V3_UI_CONTRACT][RECOVERY_TO_ANOTHER_INSTANCE]', recoveryPayload);
-        lastRecoveryAnotherInstanceRef.current = recoveryPayload; // DEV: Capture for debug bundle
-        
-        // Trigger transition to multi-instance gate (reuses existing gate UI)
-        transitionToAnotherInstanceGate(v3ProbingContext_S);
-      } else {
-        // Non-multi-instance pack: advance to next question
-        console.log('[V3_PROMPT_WATCHDOG][RECOVERY_ADVANCE]', {
-          packId: snapshot.packId,
-          instanceNumber: snapshot.instanceNumber,
-          reason: 'Non-multi-instance pack - advancing to next question'
-        });
-        
-        const baseQuestionId = v3BaseQuestionIdRef.current;
-        if (baseQuestionId) {
-          exitV3Once('WATCHDOG_RECOVERY', {
-            incidentId: answerContext?.incidentId,
-            categoryId: v3ProbingContext_S?.categoryId,
-            completionReason: 'STOP',
-            messages: [],
-            reason: 'WATCHDOG_RECOVERY',
-            shouldOfferAnotherInstance: false,
-            packId: snapshot.packId,
-            categoryLabel: v3ProbingContext_S?.categoryLabel,
-            instanceNumber: snapshot.instanceNumber,
-            packData
-          });
-        }
-      }
-      
-      // IDEMPOTENCY RELEASE: Use stored lock key (guarantees exact match)
-      const lockKey = lastV3SubmitLockKeyRef.current;
-      if (lockKey) {
-        if (submittedKeysRef.current.has(lockKey)) {
-          submittedKeysRef.current.delete(lockKey);
-          console.log('[IDEMPOTENCY][RELEASE]', { lockKey, packId: snapshot.packId, instanceNumber: snapshot.instanceNumber, source: 'handleOpenerSubmit' });
-          lastIdempotencyReleasedRef.current = lockKey; // DEV: Capture for debug bundle
-        }
-        lastV3SubmitLockKeyRef.current = null;
-      } else {
-        console.warn('[IDEMPOTENCY][RELEASE_MISSING_KEY]', { packId: snapshot.packId, instanceNumber: snapshot.instanceNumber });
-      }
-      exitV3HandledRef.current = false;
-    });
-  }, [v3ProbingActive, v3ActivePromptText, v3ProbingContext_S, sessionId, exitV3Once, transitionToAnotherInstanceGate]);
-
-  // Deferred transition handler (fixes React warning)
-  React.useEffect(() => {
-    if (!pendingTransition) return;
-
-    const executePendingTransition = async () => {
-      console.log('[PENDING_TRANSITION][EXECUTING]', pendingTransition.type, pendingTransition.payload);
-
-      if (pendingTransition.type === 'EXIT_V3') {
-        // IDEMPOTENCY GUARD: Prevent duplicate execution
-        if (exitV3InProgressRef.current) {
-          console.log('[EXIT_V3][SKIP] Already in progress');
-          return;
-        }
-
-        exitV3InProgressRef.current = true;
-        
-        // CRITICAL: Clear pending transition IMMEDIATELY (before async work)
-        const transitionPayload = pendingTransition.payload;
-        setPendingTransition(null);
-
-        try {
-          const result = transitionPayload;
-          const { incidentId, categoryId, completionReason, messages, reason, shouldOfferAnotherInstance, packId, categoryLabel, instanceNumber, packData } = result;
-          const baseQuestionId = v3BaseQuestionIdRef.current;
-
-          console.log('[EXIT_V3][EXECUTING]', { reason, baseQuestionId, shouldOfferAnotherInstance });
-
-        // GUARD: If multi-instance is offered, show gate BEFORE advancing
-        if (shouldOfferAnotherInstance) {
-        console.log('[EXIT_V3][MULTI_INSTANCE_GATE] Showing gate instead of advancing');
-
-        const gatePromptText = `Do you have another ${categoryLabel || 'incident'} to report?`;
-        const gateItemId = `multi-instance-gate-${packId}-${instanceNumber}`;
-        const gateStableKey = `mi-gate:${packId}:${instanceNumber}`;
-
-        console.log('[MULTI_INSTANCE_GATE][SHOW]', {
-          packId,
-          instanceNumber,
-          stableKey: gateStableKey,
-          shouldOfferAnotherInstance: true
-        });
-
-        // ATOMIC STATE TRANSITION: batch to avoid intermediate TEXT_INPUT footer
-        unstable_batchedUpdates(() => {
-          // Fully exit V3 mode and clear prompts
-          setV3ProbingActive(false);
-          setV3ActivePromptText(null);
-          setV3PendingAnswer(null);
-          setV3ProbingContext(null);
-          setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
-          setUiBlocker(null);
-          
-          // LIFECYCLE: Reset phase to IDLE on inline gate transition
-          setV3PromptPhase("IDLE");
-          
-          // PART B FIX: NEVER clear UI-only history during inline gate transition
-          // UI history must persist across instances (user should see all V3 Q/A)
-          // TDZ FIX: Read state via functional update (not direct reference during batch)
-          setV3ProbeDisplayHistory(prev => {
-            console.log('[V3_UI_HISTORY][PRESERVE_ON_GATE_INLINE]', { 
-              reason: 'TRANSITION_TO_GATE_INLINE', 
-              packId, 
-              instanceNumber,
-              uiHistoryLen: prev.length,
-              lastItemsPreview: prev.slice(-2).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
-              action: 'PRESERVE (not clearing)'
-            });
-            return prev; // No mutation - just logging fresh state
-          });
-          
-          // C) Clear active probe refs AND any stale prompt state
-          v3ActiveProbeQuestionRef.current = null;
-          v3ActiveProbeQuestionLoopKeyRef.current = null;
-          
-          // C) Clear stale V3 prompt rendering flags (prevents lingering prompt cards)
-          setV3ActivePromptText(null);
-          v3ActivePromptTextRef.current = null;
-          lastRenderedV3PromptKeyRef.current = null;
-          
-          console.log('[MI_GATE][V3_PROMPT_CLEARED_ON_INLINE_GATE]', {
-            packId,
-            instanceNumber,
-            clearedPromptText: true,
-            clearedPromptKey: true,
-            reason: 'Inline gate transition - preventing stale V3 prompt cards'
-          });
-
-          // Set up multi-instance gate as first-class currentItem_S
-          const gateItem = {
-            id: gateItemId,
-            type: 'multi_instance_gate',
-            packId,
-            categoryId,
-            categoryLabel,
-            promptText: gatePromptText,
-            instanceNumber,
-            baseQuestionId,
-            packData
-          };
-          setMultiInstanceGate({
-            active: true,
-            packId,
-            categoryId,
-            categoryLabel,
-            promptText: gatePromptText,
-            instanceNumber,
-            baseQuestionId,
-            packData
-          });
-          setCurrentItem(gateItem);
-        });
-
-        // PART A: DO NOT append gate to transcript while active (append after answer instead)
-        console.log('[MI_GATE][RENDER_SOURCE]', {
-          source: 'PROMPT_LANE',
-          stableKey: gateStableKey,
-          packId,
-          instanceNumber
-        });
-
-        await forensicCheck('gate_shown');
-
-        await persistStateToDatabase(null, [], {
-          id: gateItemId,
-          type: 'multi_instance_gate',
-          packId
-        });
-
-        exitV3HandledRef.current = false; // Reset for gate handlers
-        return; // Exit early - transition already cleared at top
-        }
-
-        // Clear gate FIRST
-        setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
-
-        // Clear V3 state
-        setV3ProbingActive(false);
-        setV3ProbingContext(null);
-        
-        // LIFECYCLE: Reset phase to IDLE on exit
-        setV3PromptPhase("IDLE");
-        
-        // PART B FIX: NEVER clear UI-only history when exiting V3 to next question
-        // User should see their entire V3 probe history across all incidents
-        // TDZ FIX: Read state via functional update (not direct reference)
-        setV3ProbeDisplayHistory(prev => {
-          console.log('[V3_UI_HISTORY][PRESERVE_ON_EXIT]', { 
-            reason: 'EXIT_V3', 
-            loopKey,
-            uiHistoryLen: prev.length,
-            lastItemsPreview: prev.slice(-2).map(e => ({ kind: e.kind, textPreview: e.text?.substring(0, 30) })),
-            action: 'PRESERVE (not clearing)'
-          });
-          return prev; // No mutation - just logging fresh state
-        });
-        
-        // Clear active probe refs (but not history state)
-        v3ActiveProbeQuestionRef.current = null;
-        v3ActiveProbeQuestionLoopKeyRef.current = null;
-
-        // Log pack exited (audit only)
-        if (v3ProbingContext_S?.packId) {
-          await logPackExited(sessionId, {
-            packId: v3ProbingContext_S.packId,
-            instanceNumber: v3ProbingContext_S.instanceNumber || 1
-          });
-        }
-        
-        // Refresh transcript after pack exit (V3 wrote many messages to DB)
-        await refreshTranscriptFromDB('v3_pack_exited');
-
-        // Advance to next base question AFTER clearing V3 state
-        if (baseQuestionId) {
-          console.log('[EXIT_V3][ADVANCE]', { baseQuestionId });
-          const freshForAdvance = await refreshTranscriptFromDB('before_advance_after_v3');
-          await advanceToNextBaseQuestion(baseQuestionId, freshForAdvance);
-        }
-
-          // Reset idempotency guard for next V3 pack
-          exitV3HandledRef.current = false;
-        } finally {
-          // ALWAYS reset in-progress flag
-          exitV3InProgressRef.current = false;
-        }
-      }
-    };
-
-    executePendingTransition();
-  }, [pendingTransition, dbTranscript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId, v3ProbingContext_S, multiInstanceGate, engine_S, refreshTranscriptFromDB]);
-
-  // ITEM-SCOPED COMMIT TRACKING: Track which item is being submitted
-  const committingItemIdRef = React.useRef(null);
-  
-  // HELPER: TDZ-safe commit guard (prevents minifier collision with isCommitting state)
-  const cqIsItemCommitting = (itemId) => {
-    return Boolean(isCommitting) && Boolean(itemId) && committingItemIdRef.current === itemId;
-  };
-
-  // V3 question append moved to commitV3PromptToBottomBar (synchronous, one-time)
-  // This effect removed to eliminate repeated DB fetches
-  
-  // FIX B4: V3 draft restore - load draft when V3 prompt becomes active (with fallback promptId)
-  React.useEffect(() => {
-  if (!v3ProbingActive || !v3ProbingContext_S) return;
-
-  const loopKey = `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`;
-  let promptId = v3ProbingContext_S.promptId || lastV3PromptSnapshotRef.current?.promptId;
-
-  // B4: Generate fallback promptId if missing (use probeIndex)
-  if (!promptId || promptId === 'noid') {
-  const probeIndex = dbTranscript.filter(e => 
-    (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
-    e.meta?.sessionId === sessionId &&
-    e.meta?.categoryId === v3ProbingContext_S.categoryId &&
-    e.meta?.instanceNumber === (v3ProbingContext_S.instanceNumber || 1)
-  ).length;
-  promptId = `${loopKey}:${probeIndex}`;
-
-  console.log('[V3_DRAFT][PROMPTID_FALLBACK]', { 
-    generatedPromptId: promptId,
-    loopKey,
-    probeIndex,
-    reason: 'Missing stable promptId - using fallback for draft'
-  });
-  }
-
-  const v3DraftKey = `cq_v3draft_${sessionId}_${loopKey}_${promptId}`;
-
-  try {
-  const savedDraft = window.sessionStorage.getItem(v3DraftKey);
-      if (savedDraft && savedDraft.trim()) {
-        // ABANDONMENT SAFETY: Log V3 draft load
-        console.log('[DRAFT][LOAD]', {
-          found: true,
-          keyPreview: v3DraftKey.substring(0, 40),
-          len: savedDraft.length
-        });
-        console.log('[V3_DRAFT][LOAD]', { found: true, keyPreview: v3DraftKey, len: savedDraft.length });
-        setInput(savedDraft);
-      } else {
-        console.log('[DRAFT][LOAD]', {
-          found: false,
-          keyPreview: v3DraftKey.substring(0, 40)
-        });
-        console.log('[V3_DRAFT][LOAD]', { found: false, keyPreview: v3DraftKey });
-        setInput("");
-      }
-    } catch (e) {
-      console.warn('[V3_DRAFT][LOAD_FAILED]', { error: e.message });
-      setInput("");
-    }
-  }, [v3ProbingActive, v3ProbingContext_S?.promptId, sessionId]);
-  
-  // FIX B4: V3 draft save - persist draft on input change during V3 probing (with fallback promptId)
-  React.useEffect(() => {
-    if (!v3ProbingActive || !v3ProbingContext_S) return;
-    
-    const loopKey = `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`;
-    let promptId = v3ProbingContext_S.promptId || lastV3PromptSnapshotRef.current?.promptId;
-    
-    // B4: Generate fallback promptId if missing
-    if (!promptId || promptId === 'noid') {
-      const probeIndex = dbTranscript.filter(e => 
-        (e.messageType === 'V3_PROBE_QUESTION' || e.type === 'V3_PROBE_QUESTION') &&
-        e.meta?.sessionId === sessionId &&
-        e.meta?.categoryId === v3ProbingContext_S.categoryId &&
-        e.meta?.instanceNumber === (v3ProbingContext_S.instanceNumber || 1)
-      ).length;
-      promptId = `${loopKey}:${probeIndex}`;
-    }
-    
-    const v3DraftKey = `cq_v3draft_${sessionId}_${loopKey}_${promptId}`;
-    
-    try {
-      if (input && input.trim()) {
-        window.sessionStorage.setItem(v3DraftKey, input);
-        
-        // ABANDONMENT SAFETY: Log V3 draft save
-        console.log('[DRAFT][SAVE]', {
-          keyPreview: v3DraftKey.substring(0, 40),
-          len: input.length
-        });
-        console.log('[V3_DRAFT][SAVE]', { keyPreview: v3DraftKey, len: input.length });
-      }
-    } catch (e) {
-      console.warn('[V3_DRAFT][SAVE_FAILED]', { error: e.message });
-    }
-  }, [input, v3ProbingActive, v3ProbingContext_S?.promptId, sessionId]);
-  
-  // FIX C: V3 UI history persistence - save to localStorage
-  React.useEffect(() => {
-    if (!v3ProbingActive || !v3ProbingContext_S) return;
-    if (v3ProbeDisplayHistory_S.length === 0) return;
-    
-    const loopKey = `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`;
-    const storageKey = `cq_v3ui_${sessionId}_${loopKey}`;
-    
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(v3ProbeDisplayHistory_S));
-      console.log('[V3_UI_HISTORY][SAVE]', { len: v3ProbeDisplayHistory_S.length });
-    } catch (e) {
-      console.warn('[V3_UI_HISTORY][SAVE_FAILED]', { error: e.message });
-    }
-  }, [v3ProbeDisplayHistory_S, v3ProbingActive, v3ProbingContext_S?.categoryId, sessionId]);
-  
-  // FIX C: V3 UI history restore - load from localStorage on mount
-  React.useEffect(() => {
-    if (!v3ProbingActive || !v3ProbingContext_S) return;
-    
-    const loopKey = `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}`;
-    const storageKey = `cq_v3ui_${sessionId}_${loopKey}`;
-    
-    try {
-      const savedHistory = window.localStorage.getItem(storageKey);
-      if (savedHistory) {
-        const parsed = JSON.parse(savedHistory);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          console.log('[V3_UI_HISTORY][LOAD]', { found: true, len: parsed.length });
-          setV3ProbeDisplayHistory(parsed);
-        }
-      } else {
-        console.log('[V3_UI_HISTORY][LOAD]', { found: false });
-      }
-    } catch (e) {
-      console.warn('[V3_UI_HISTORY][LOAD_FAILED]', { error: e.message });
-    }
-  }, [v3ProbingActive, v3ProbingContext_S?.categoryId, v3ProbingContext_S?.instanceNumber, sessionId]);
-
-  // UX: Restore draft when currentItem_S changes
-  React.useEffect(() => {
-    if (!currentItem_S || !sessionId) return;
-    
-    // FIX B: Skip normal draft restore for V3 probing (uses V3-specific draft above)
-    if (v3ProbingActive) {
-      console.log('[DRAFT][SKIP_NORMAL_RESTORE_FOR_V3]', { v3ProbingActive: true });
-      return;
-    }
-
-    const packId = currentItem_S?.packId || null;
-    const fieldKey = currentItem_S?.fieldKey || currentItem_S?.id || null;
-    const instanceNumber = currentItem_S?.instanceNumber || 0;
-    const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
-    
-    // V3 OPENER: Use dedicated openerDraft state (isolated from shared input)
-    if (currentItem_S.type === 'v3_pack_opener') {
-      try {
-        const savedDraft = window.sessionStorage.getItem(draftKey);
-        
-        // GUARD: Never seed openerDraft with prompt text
-        const openerPromptText = currentItem_S.openerText || "";
-        const draftMatchesPrompt = savedDraft && savedDraft.trim() === openerPromptText.trim() && savedDraft.length > 10;
-        
-        if (draftMatchesPrompt) {
-          console.error('[V3_UI_CONTRACT][OPENER_DRAFT_SEEDED_BLOCKED]', {
-            packId: currentItem_S.packId,
-            instanceNumber: currentItem_S.instanceNumber,
-            reason: 'Attempted to seed openerDraft with prompt text - clearing to enforce contract',
-            savedDraftLen: savedDraft?.length || 0,
-            promptLen: openerPromptText?.length || 0
-          });
-          setOpenerDraft(""); // Block prompt seeding
-          // Clear storage to prevent re-seed on next restore
-          try {
-            window.sessionStorage.removeItem(draftKey);
-          } catch {}
-        } else if (savedDraft != null && savedDraft !== "") {
-          // ABANDONMENT SAFETY: Log opener draft load
-          console.log('[DRAFT][LOAD]', {
-            found: true,
-            keyPreview: draftKey.substring(0, 40),
-            len: savedDraft?.length || 0
-          });
-          console.log("[UX][DRAFT] Restoring opener draft for", draftKey);
-          setOpenerDraft(savedDraft);
-        } else {
-          console.log('[DRAFT][LOAD]', {
-            found: false,
-            keyPreview: draftKey.substring(0, 40)
-          });
-          setOpenerDraft("");
-        }
-      } catch (e) {
-        console.log("[FORENSIC][STORAGE][READ_BLOCKED_FALLBACK]", { 
-          key: draftKey, 
-          error: e.message,
-          fallbackBehavior: 'Using in-memory draft only'
-        });
-        setOpenerDraft("");
-      }
-      setInput(""); // Clear shared input for opener (uses openerDraft instead)
-      return;
-    }
-
-    try {
-      const savedDraft = window.sessionStorage.getItem(draftKey);
-      if (savedDraft != null && savedDraft !== "") {
-        // ABANDONMENT SAFETY: Log draft load
-        console.log('[DRAFT][LOAD]', {
-          found: true,
-          keyPreview: draftKey.substring(0, 40),
-          len: savedDraft?.length || 0
-        });
-        
-        console.log("[UX][DRAFT] Restoring draft for", draftKey);
-        console.log("[FORENSIC][STORAGE][READ]", { operation: 'READ', key: draftKey, success: true, valueLength: savedDraft?.length || 0 });
-        setInput(savedDraft);
-      } else {
-        console.log('[DRAFT][LOAD]', {
-          found: false,
-          keyPreview: draftKey.substring(0, 40)
-        });
-        
-        console.log("[FORENSIC][STORAGE][READ]", { operation: 'READ', key: draftKey, success: true, found: false });
-        // UI CONTRACT: NEVER prefill with prompt - input starts empty unless real draft exists
-        setInput("");
-      }
-    } catch (e) {
-      const isTrackingPrevention = e.message?.includes('tracking') || e.name === 'SecurityError';
-      console.log("[FORENSIC][STORAGE][READ]", { 
-        operation: 'READ', 
-        key: draftKey, 
-        success: false, 
-        error: e.message,
-        isTrackingPrevention,
-        fallbackBehavior: 'Input cleared - continue without draft'
-      });
-      console.warn("[UX][DRAFT] Failed to restore draft", e);
-      setInput(""); // UI CONTRACT: NEVER use prompt as fallback
-    }
-  }, [currentItem_S, sessionId, buildDraftKey, v3ProbingActive]);
-
-  // Measure question card height dynamically
-  React.useEffect(() => {
-    if (questionCardRef.current) {
-      const resizeObserver = new ResizeObserver((entries) => {
-        for (let entry of entries) {
-          setQuestionCardHeight(entry.contentRect.height);
-        }
-      });
-      resizeObserver.observe(questionCardRef.current);
-      return () => resizeObserver.disconnect();
-    }
-  }, [currentItem_S, validationHint]);
-
-  // AUTO-GROWING INPUT: Sync cqDiagEnabled to ref for stable logging in long-lived callbacks
-  React.useEffect(() => {
-    cqDiagEnabledRef.current = cqDiagEnabled;
-  }, [cqDiagEnabled]);
-  
-  // PART A: Initialize scroll owner on mount
-  cqHookMark('HOOK_48:useEffect:initScrollOwner');
-  useEffect_TR(() => {
-    if (!bottomAnchorRef.current) return;
-    
-    requestAnimationFrame(() => {
-      const scrollOwner = getScrollOwner(bottomAnchorRef.current);
-      scrollOwnerRef.current = scrollOwner;
-      
-      if (scrollOwner) {
-        logOnce(`scroll_owner_init_${sessionId}`, () => {
-          console.log('[SCROLL_OWNER][INIT]', {
-            nodeName: scrollOwner.nodeName,
-            className: scrollOwner.className?.substring(0, 60),
-            scrollTop: Math.round(scrollOwner.scrollTop),
-            clientHeight: Math.round(scrollOwner.clientHeight),
-            scrollHeight: Math.round(scrollOwner.scrollHeight),
-            overflowY: window.getComputedStyle(scrollOwner).overflowY,
-            isHistoryRef: scrollOwner === historyRef.current
-          });
-        });
-      }
-    });
-  }, [sessionId, getScrollOwner]);
-
-  // ============================================================================
-  // FOOTER MEASUREMENT SOT - Dynamic, mode-agnostic, ref-latch (TDZ-safe)
-  // ============================================================================
-  const footerObservedRef = React.useRef(false);
-  const footerObserverAttachLoggedRef = React.useRef(false);
-  
-  cqHookMark('HOOK_49:useEffect:footerMeasurement');
-  useEffect_TR(() => {
-    let resizeObserver = null;
-    let settlingTimers = [];
-    let pollingTimers = [];
-    let windowResizeHandler = null;
-    
-    const measureFooter = () => {
-      if (!footerShellRef.current) return;
-      const rect = footerShellRef.current.getBoundingClientRect();
-      const measured = Math.round(rect.height || footerShellRef.current.offsetHeight || 0);
-      
-      setDynamicFooterHeightPx(prev => {
-        const delta = Math.abs(measured - prev);
-        if (delta < 2) return prev;
-        
-        console.log('[FOOTER][HEIGHT_MEASURED]', {
-          height: measured,
-          delta
-        });
-        
-        return measured;
-      });
-    };
-    
-    const attachObserver = () => {
-      if (!footerShellRef.current) return false;
-      if (footerObservedRef.current) return true;
-      
-      // Attach ResizeObserver
-      resizeObserver = new ResizeObserver(measureFooter);
-      resizeObserver.observe(footerShellRef.current);
-      
-      // Initial measurement
-      requestAnimationFrame(measureFooter);
-      
-      // Settling measurements
-      settlingTimers = [
-        setTimeout(() => measureFooter(), 50),
-        setTimeout(() => measureFooter(), 150),
-        setTimeout(() => measureFooter(), 300)
-      ];
-      
-      // Window resize fallback
-      windowResizeHandler = () => requestAnimationFrame(measureFooter);
-      window.addEventListener('resize', windowResizeHandler);
-      
-      footerObservedRef.current = true;
-      
-      // Log once on successful attachment
-      if (!footerObserverAttachLoggedRef.current) {
-        footerObserverAttachLoggedRef.current = true;
-        const rect = footerShellRef.current.getBoundingClientRect();
-        const measured = Math.round(rect.height || footerShellRef.current.offsetHeight || 0);
-        console.log('[UI_CONTRACT][FOOTER_OBSERVER_ATTACHED]', { 
-          footerHeightPx: measured 
-        });
-      }
-      
-      return true;
-    };
-    
-    // Try to attach immediately
-    if (!attachObserver()) {
-      // Ref not ready - use RAF retry instead of polling
-      let rafRetryCount = 0;
-      const maxRafRetries = 8;
-      
-      const retryAttach = () => {
-        rafRetryCount++;
-        if (attachObserver() || rafRetryCount >= maxRafRetries) {
-          console.log('[PERF][POLLING_DISABLED]', {
-            replacedWith: 'RAF',
-            reason: 'setInterval violation'
-          });
-          return;
-        }
-        requestAnimationFrame(retryAttach);
-      };
-      
-      requestAnimationFrame(retryAttach);
-    }
-    
-    return () => {
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-      }
-      settlingTimers.forEach(t => clearTimeout(t));
-      pollingTimers.forEach(t => clearTimeout(t));
-      if (windowResizeHandler) {
-        window.removeEventListener('resize', windowResizeHandler);
-      }
-    };
-  }, []); // TDZ-SAFE: No deps on mode variables
-
-  // PART B: Measure footer shell height from stable wrapper (all modes)
-  cqHookMark('HOOK_50:useEffect:footerShellMeasure');
-  useEffect_TR(() => {
-    if (!footerShellRef.current) return;
-    
-    let rafId = null;
-    let pendingMeasurement = false;
-    
-    const measureFooterShell = () => {
-      if (!footerShellRef.current) return;
-      const rect = footerShellRef.current.getBoundingClientRect();
-      const measured = Math.round(rect.height || footerShellRef.current.offsetHeight || 0);
-      
-      // PART A: Refresh scroll owner on footer resize (layout may have changed)
-      if (bottomAnchorRef.current) {
-        const newScrollOwner = getScrollOwner(bottomAnchorRef.current);
-        if (newScrollOwner && newScrollOwner !== scrollOwnerRef.current) {
-          scrollOwnerRef.current = newScrollOwner;
-          
-          logOnce(`scroll_owner_identified_${sessionId}`, () => {
-            console.log('[SCROLL_OWNER]', {
-              nodeName: newScrollOwner?.nodeName,
-              className: newScrollOwner?.className?.substring(0, 60),
-              scrollTop: Math.round(newScrollOwner?.scrollTop || 0),
-              clientHeight: Math.round(newScrollOwner?.clientHeight || 0),
-              scrollHeight: Math.round(newScrollOwner?.scrollHeight || 0),
-              overflowY: window.getComputedStyle(newScrollOwner).overflowY,
-              isHistoryRef: newScrollOwner === historyRef.current
-            });
-          });
-        }
-      }
-      
-      // HARDENED: Only update if delta >= 2px (prevents thrash)
-      setFooterShellHeightPx(prev => {
-        const delta = Math.abs(measured - prev);
-        if (delta < 2) return prev;
-        
-        console.log('[FOOTER_SHELL][MEASURE]', {
-          height: measured,
-          delta
-        });
-        
-        return measured;
-      });
-      
-      pendingMeasurement = false;
-    };
-    
-    const scheduleUpdate = () => {
-      if (pendingMeasurement) return;
-      pendingMeasurement = true;
-      rafId = requestAnimationFrame(measureFooterShell);
-    };
-    
-    const resizeObserver = new ResizeObserver(scheduleUpdate);
-    resizeObserver.observe(footerShellRef.current);
-    
-    // Initial measurement
-    scheduleUpdate();
-    
-    return () => {
-      resizeObserver.disconnect();
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, [sessionId]); // TDZ FIX: Removed bottomBarModeSOT dep (not available at this point)
-
-  // ============================================================================
-  // UNIFIED BOTTOM BAR MODE + FOOTER PADDING COMPUTATION (Single Source of Truth)
-  // ============================================================================
-  // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
-  // CRITICAL: DECLARED FIRST - Before all effects that use bottomBarModeSOT/effectiveItemType
-  // All variables declared EXACTLY ONCE in this block
-  
-  // Step 1: Compute currentItem_SType (MOVED to prevent TDZ)
-  
-  // Step 2: Compute footer controller (determines which UI block controls bottom bar)
-  const footerControllerLocal = activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" ? "REQUIRED_ANCHOR_FALLBACK" :
-                                activeUiItem_S_SAFE.kind === "V3_PROMPT" ? "V3_PROMPT" :
-                                activeUiItem_S_SAFE.kind === "V3_OPENER" ? "V3_OPENER" :
-                                activeUiItem_S_SAFE.kind === "MI_GATE" ? "MI_GATE" :
-                                "DEFAULT";
-  
-  // TDZ ELIMINATED: Late bottomBarMode declaration removed - bottomBarModeSOT is canonical source
-  
-  cqTdzMark('BEFORE_CURRENT_PROMPT_COMPUTATION');
- // ===============================
- // SAFE HELPERS ZONE (TDZ FIX)
- // ===============================
-
-  async function saveV2PackFieldResponse({ sessionId, packId, fieldKey, instanceNumber, answer, baseQuestionId, baseQuestionCode, sectionId, questionText }) {
-    try {
-      console.log('[V2_PACK_FIELD][SAVE][CALL]', {
-        sessionId,
-        packId,
-        fieldKey,
-        instanceNumber,
-        baseQuestionId,
-        baseQuestionCode,
-        answerLength: answer?.length || 0
-      });
-
-      // Upsert logic: find existing Response for this (sessionId, packId, fieldKey, instanceNumber)
-      const existing = await base44.entities.Response.filter({
-        session_id: sessionId,
-        pack_id: packId,
-        field_key: fieldKey,
-        instance_number: instanceNumber,
-        response_type: 'v2_pack_field'
-      });
-
-      const sectionEntity = engine_S.Sections.find(s => s.id === sectionId);
-      const sectionName = sectionEntity?.section_name || '';
-
-      if (existing.length > 0) {
-        // Update existing record
-        await base44.entities.Response.update(existing[0].id, {
-          answer: answer,
-          question_text: questionText,
-          response_timestamp: new Date().toISOString()
-        });
-        console.log('[V2_PACK_FIELD][SAVE][OK] Updated existing Response', existing[0].id);
-        return existing[0];
-      } else {
-        // Create new record
-        const created = await base44.entities.Response.create({
-          session_id: sessionId,
-          question_id: baseQuestionId,
-          question_text: questionText,
-          category: sectionName,
-          answer: answer,
-          triggered_followup: false,
-          is_flagged: false,
-          response_timestamp: new Date().toISOString(),
-          response_type: 'v2_pack_field',
-          pack_id: packId,
-          field_key: fieldKey,
-          instance_number: instanceNumber,
-          base_question_id: baseQuestionId,
-          base_question_code: baseQuestionCode
-        });
-        console.log('[V2_PACK_FIELD][SAVE][OK] Created new Response for', { packId, fieldKey, instanceNumber });
-        return created;
-      }
-    } catch (err) {
-      console.error('[V2_PACK_FIELD][SAVE][ERROR]', err);
-      // Non-blocking - log error but don't break UX
-      return null;
-    }
-  };
-
-
-  async function saveFollowUpAnswer(packId, fieldKey, answer, substanceName, instanceNumber = 1, factSource = "user") {
-    try {
-      const responses = await base44.entities.Response.filter({
-        session_id: sessionId,
-        followup_pack: packId,
-        triggered_followup: true
-      });
-
-      if (responses.length === 0) {
-        return;
-      }
-
-      const triggeringResponse = responses[responses.length - 1];
-
-      const existingFollowups = await base44.entities.FollowUpResponse.filter({
-        session_id: sessionId,
-        response_id: triggeringResponse.id,
-        followup_pack: packId,
-        instance_number: instanceNumber
-      });
-
-      let factsUpdate = null;
-      let unresolvedUpdate = null;
-      if (packId === "PACK_LE_APPS") {
-        const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-        const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
-
-        if (fieldConfig?.semanticKey) {
-          const semanticResult = validateFollowupValue({ packId, fieldKey, rawValue: answer });
-
-          const maxAiFollowups = getPackMaxAiFollowups(packId);
-          const wasProbed = factSource === "ai_probed";
-
-          const probeCount = wasProbed ? maxAiFollowups : 0;
-          const isUnresolved = wasProbed && (semanticResult.status === "invalid" || semanticResult.status === "unknown");
-
-          if (isUnresolved) {
-            const displayValue = fieldConfig.unknownDisplayLabel || `Not recalled after full probing`;
-            factsUpdate = {
-              [fieldConfig.semanticKey]: {
-                value: displayValue,
-                status: "unknown",
-                source: factSource
-              }
-            };
-            unresolvedUpdate = {
-              semanticKey: fieldConfig.semanticKey,
-              fieldKey: fieldKey,
-              probeCount: maxAiFollowups
-            };
-          } else if (semanticResult.status === "valid") {
-            factsUpdate = {
-              [fieldConfig.semanticKey]: {
-                value: semanticResult.normalizedValue,
-                status: "confirmed",
-                source: factSource
-              }
-            };
-          } else if (semanticResult.status === "unknown") {
-            factsUpdate = {
-              [fieldConfig.semanticKey]: {
-                value: semanticResult.normalizedValue,
-                status: "unknown",
-                source: factSource
-              }
-            };
-          }
-        }
-      }
-
-      if (existingFollowups.length === 0) {
-        const createData = {
-          session_id: sessionId,
-          response_id: triggeringResponse.id,
-          question_id: triggeringResponse.question_id,
-          followup_pack: packId,
-          instance_number: instanceNumber,
-          substance_name: substanceName || null,
-          incident_description: answer,
-          completed: false,
-          additional_details: { [fieldKey]: answer }
-        };
-
-        if (factsUpdate) {
-          createData.additional_details.facts = factsUpdate;
-        }
-
-        if (unresolvedUpdate) {
-          createData.additional_details.unresolvedFields = [unresolvedUpdate];
-        }
-
-        const createdRecord = await base44.entities.FollowUpResponse.create(createData);
-
-        if (packId === 'PACK_LE_APPS') {
-          await syncFactsToInterviewSession(sessionId, triggeringResponse.question_id, packId, createdRecord);
-        }
-      } else {
-        const existing = existingFollowups[0];
-
-        const updatedDetails = {
-          ...(existing.additional_details || {}),
-          [fieldKey]: answer
-        };
-
-        if (factsUpdate) {
-          updatedDetails.facts = {
-            ...(updatedDetails.facts || {}),
-            ...factsUpdate
-          };
-        }
-
-        if (unresolvedUpdate) {
-          const existingUnresolved = updatedDetails.unresolvedFields || [];
-          const filtered = existingUnresolved.filter(u => u.semanticKey !== unresolvedUpdate.semanticKey);
-          filtered.push(unresolvedUpdate);
-          updatedDetails.unresolvedFields = filtered;
-        }
-
-        await base44.entities.FollowUpResponse.update(existing.id, {
-          substance_name: substanceName || existing.substance_name,
-          additional_details: updatedDetails
-        });
-
-        const updatedRecord = { ...existing, additional_details: updatedDetails };
-        if (packId === 'PACK_LE_APPS') {
-          await syncFactsToInterviewSession(sessionId, triggeringResponse.question_id, packId, updatedRecord);
-        }
-      }
-
-    } catch (err) {
-      console.error('❌ Follow-up save error:', err);
-    }
-  };
-
-  async function saveAnswerToDatabase(questionId, answer, question) {
-    try {
-      const existing = await base44.entities.Response.filter({
-        session_id: sessionId,
-        question_id: questionId,
-        response_type: 'base_question'
-      });
-
-      if (existing.length > 0) {
-        return existing[0];
-      }
-
-      const currentDisplayOrder = displayOrderRef.current++;
-      const triggersFollowup = question.followup_pack && answer.toLowerCase() === 'yes';
-
-      const sectionEntity = engine_S.Sections.find(s => s.id === question.section_id);
-      const sectionName = sectionEntity?.section_name || question.category || '';
-
-      const created = await base44.entities.Response.create({
-        session_id: sessionId,
-        question_id: questionId,
-        question_text: question.question_text,
-        category: sectionName,
-        answer: answer,
-        answer_array: null,
-        triggered_followup: triggersFollowup,
-        followup_pack: triggersFollowup ? question.followup_pack : null,
-        is_flagged: false,
-        flag_reason: null,
-        response_timestamp: new Date().toISOString(),
-        display_order: currentDisplayOrder,
-        response_type: 'base_question'
-      });
-
-      return created;
-    } catch (err) {
-      console.error('❌ Database save error:', err);
-      return null;
-    }
-  };
-
-
-  handleCompletionConfirm = async () => {
-    setIsCompletingInterview(true);
-
-    try {
-      // V3 ACK METRICS: Log final reliability stats
-      console.log('[V3_PROBE][ACK_METRICS]', {
-        ackSet: v3AckSetCountRef.current,
-        ackCleared: v3AckClearCountRef.current,
-        ackRepaired: v3AckRepairCountRef.current,
-        sessionId
-      });
-      
-      await base44.entities.InterviewSession.update(sessionId, {
-        status: 'completed',
-        completed_date: new Date().toISOString(),
-        completion_percentage: 100,
-      });
-
-      // Trigger overall summary generation when interview completes (background)
-      base44.functions.invoke('triggerSummaries', {
-        sessionId,
-        triggerType: 'interview_complete'
-      }).catch(() => {}); // Fire and forget
-
-      navigate(createPageUrl("Home"));
-    } catch (err) {
-      console.error('❌ Error completing interview:', err);
-      setError('Failed to complete interview. Please try again.');
-      setIsCompletingInterview(false);
-    }
-  };
-
-
-
-  const getQuestionDisplayNumber = React.useCallback((questionId) => {
-    if (!engine_S) return '';
-
-    if (displayNumberMapRef.current[questionId]) {
-      return displayNumberMapRef.current[questionId];
-    }
-
-    const index = engine_S.ActiveOrdered.indexOf(questionId);
-    if (index !== -1) {
-      const displayNum = index + 1;
-      displayNumberMapRef.current[questionId] = displayNum;
-      return displayNum;
-    }
-
-    return '';
-  }, [engine_S]);
-
-
-  // ============================================================================
-  // CURRENT PROMPT COMPUTATION - Moved here after all dependencies (TDZ fix)
-  // ============================================================================
-  // CRITICAL: Must be after effectiveItemType_SAFE, bottomBarModeSOT_SAFE, activeUiItem_S
-  let __cqTdzError = null;
-  let currentPrompt = null;
-
-  try {
-    currentPrompt = getCurrentPrompt();
-    
-    cqTdzMark('AFTER_CURRENT_PROMPT_COMPUTATION_TDZ_POINT_OK');
-    
-    cqTdzMark('AFTER_CURRENT_PROMPT_COMPUTATION', { hasPrompt: !!currentPrompt });
-    
-    cqTdzMark('BEFORE_ACTIVE_PROMPT_TEXT_RESOLUTION');
-    
-    // ============================================================================
-    // ACTIVE PROMPT TEXT RESOLUTION - Consolidated render-time derivations (TDZ-safe)
-    // ============================================================================
-    // CRITICAL: All prompt-related consts consolidated here (after dependencies)
-    const activePromptText_TRY1 = computeActivePromptText({
-      requiredAnchorFallbackActive,
-      requiredAnchorCurrent,
-      v3ProbingContext_S,
-      v3ProbingActive,
-      v3ActivePromptText,
-      effectiveItemType_SAFE,
-      currentItem_S,
-      v2ClarifierState,
-      currentPrompt
-    });
-    
-    cqTdzMark('AFTER_ACTIVE_PROMPT_TEXT_RESOLUTION', { hasText: !!activePromptText_TRY1 });
-    
-    safeActivePromptText = sanitizeCandidateFacingText(activePromptText_TRY1, 'ACTIVE_PROMPT_TEXT');
-  } catch (e) {
-    __cqTdzError = e;
-    console.error('[CQ_TDZ_PROBE][ERROR]', { message: e?.message, stack: e?.stack });
-  }
-  
-  cqTdzMark('BEFORE_FOOTER_AND_PROMPT_DERIVATIONS');
-  
-  // [TDZ_FIX] Block moved to derived snapshot.
-  
-  cqTdzMark('AFTER_BOTTOM_SPACER_PX', { spacerPx: bottomSpacerPx });
-  
-  // DIAGNOSTIC LOG: Show bottom spacer computation (deduped)
-  const spacerLogKey = `${bottomBarModeSOT}:${footerShellHeightPx}:${bottomSpacerPx}`;
-  logOnce(spacerLogKey, () => {
-    console.log('[LAYOUT][BOTTOM_SPACER_APPLIED]', {
-      mode: bottomBarModeSOT_SAFE,
-      footerShellHeightPx,
-      bottomSpacerPx,
-      shouldRenderFooter_SAFE,
-      appliedTo: 'real_dom_spacer_element',
-      strategy: 'stable_shell_measurement',
-      minSpacerPx: 80
-    });
-  });
-  
-  // GUARDRAIL A: Bottom spacer assertion (verify real DOM element exists)
-  if (historyRef.current && typeof window !== 'undefined') {
-    requestAnimationFrame(() => {
-      try {
-        const scrollContainer = historyRef.current;
-        if (!scrollContainer) return;
-        
-        // Verify bottom spacer exists and has correct height
-        const spacer = bottomAnchorRef.current;
-        
-        if (!spacer) {
-          console.error('[UI_CONTRACT][BOTTOM_SPACER_MISSING]', {
-            mode: bottomBarModeSOT_SAFE,
-            expectedHeightPx: bottomSpacerPx,
-            reason: 'Bottom spacer element ref not attached'
-          });
-          return;
-        }
-        
-        const spacerRect = spacer.getBoundingClientRect();
-        const spacerHeightPx = Math.round(spacerRect.height);
-        const expectedHeightPx = bottomSpacerPx;
-        const heightTolerance = 4;
-        
-        const heightMatches = Math.abs(spacerHeightPx - expectedHeightPx) <= heightTolerance;
-        
-        if (!heightMatches) {
-          console.warn('[UI_CONTRACT][BOTTOM_SPACER_HEIGHT_MISMATCH]', {
-            mode: bottomBarModeSOT_SAFE,
-            expectedHeightPx,
-            actualHeightPx: spacerHeightPx,
-            delta: spacerHeightPx - expectedHeightPx
-          });
-        }
-        
-        // Verify scroll container has overflow
-        const computedStyle = window.getComputedStyle(scrollContainer);
-        const overflowY = computedStyle.overflowY;
-        const isScrollContainer = overflowY === 'auto' || overflowY === 'scroll';
-        
-        if (!isScrollContainer) {
-          console.error('[UI_CONTRACT][SCROLL_CONTAINER_INVALID]', {
-            mode: bottomBarModeSOT_SAFE,
-            overflowY,
-            reason: 'Container does not have overflow-y auto/scroll'
-          });
-        }
-      } catch (err) {
-        // Silent - guardrail should never crash
-      }
-    });
-  }
-  
-  // WELCOME-specific log to confirm unified path
-  if (screenMode === 'WELCOME') {
-    console.log('[WELCOME][FOOTER_PADDING_SOT]', {
-      bottomBarModeSOT_SAFE,
-      computedPaddingPx: dynamicBottomPaddingPx,
-      usesUnifiedLogic: true
-    });
-  }
-  
-  // GUARDRAIL C: Mode switch assertion - HOISTED TO BATCH 3 (line ~4455)
-  
-  // FOOTER CLEARANCE ASSERTION: DISABLED in 3-row shell mode (footer in normal flow, no overlap possible)
-  if (!IS_3ROW_SHELL && hasActiveCard && typeof window !== 'undefined') {
-    requestAnimationFrame(() => {
-      try {
-        const scrollContainer = historyRef.current;
-        const footerEl = footerRef.current;
-
-        if (!scrollContainer || !footerEl) return;
-        
-        // DIAGNOSTIC: Verify scroll container flex setup for bottom-anchoring
-        if (CQ_DEBUG_FOOTER_ANCHOR) {
-          const computed = window.getComputedStyle(scrollContainer);
-          console.log('[UI_CONTRACT][SCROLL_CONTAINER_FLEX_DIAGNOSTIC]', {
-            display: computed.display,
-            flexDirection: computed.flexDirection,
-            clientHeight: scrollContainer.clientHeight,
-            scrollHeight: scrollContainer.scrollHeight,
-            overflowY: computed.overflowY
-          });
-        }
-
-        // YES_NO ACTIVE CARD VERIFICATION: Log active question stableKey for diagnostics
-        if (screenMode === 'QUESTION' && bottomBarModeSOT === 'YES_NO' && effectiveItemType_SAFE === 'question') {
-          const activeQuestionStableKey = currentItem_S?.id ? `question-shown:${currentItem_S.id}` : null;
-          
-          if (activeQuestionStableKey) {
-            const foundInDom = scrollContainer.querySelectorAll(
-              `[data-stablekey="${activeQuestionStableKey}"][data-cq-active-card="true"]`
-            ).length;
-            
-            console.log('[UI_CONTRACT][YESNO_ACTIVE_CARD_SOT]', {
-              activeQuestionStableKey,
-              foundInDomCount: foundInDom,
-              screenMode,
-              bottomBarModeSOT_SAFE,
-              currentItem_SId: currentItem_S?.id
-            });
-            
-            // RUNTIME ASSERTION: Verify exactly 1 active card in QUESTION+YES_NO mode
-            const totalActiveCards = scrollContainer.querySelectorAll('[data-cq-active-card="true"]').length;
-            if (totalActiveCards !== 1) {
-              console.warn('[UI_CONTRACT][YESNO_ACTIVE_CARD_COUNT_ANOMALY]', {
-                count: totalActiveCards,
-                screenMode,
-                bottomBarModeSOT_SAFE,
-                expected: 1,
-                reason: totalActiveCards === 0 ? 'no_active_card_markers' : 'multiple_active_card_markers'
-              });
-            }
-          } else {
-            console.warn('[UI_CONTRACT][ACTIVE_CARD_KEY_MISSING]', {
-              screenMode,
-              bottomBarModeSOT_SAFE,
-              effectiveItemType_SAFE,
-              currentItem_SId: currentItem_S?.id,
-              action: 'NO_ACTIVE_CARD_THIS_FRAME'
-            });
-          }
-        }
-
-        // WELCOME/CTA BYPASS: Skip active card validation for welcome screen
-        // WELCOME mode has no active interview cards in scroll history (only welcome message)
-        const isWelcomeCta = screenMode === 'WELCOME' && 
-                            bottomBarModeSOT === 'CTA' && 
-                            activeUiItem_S_SAFE?.kind === 'DEFAULT';
-        
-        if (isWelcomeCta) {
-          console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SKIP]', {
-            mode: bottomBarModeSOT_SAFE,
-            screenMode,
-            activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
-            reason: 'WELCOME_CTA_NO_SCROLL_ACTIVE_CARD - welcome screen has no active interview cards to protect',
-            action: 'SKIP'
-          });
-          
-          footerClearanceStatusRef.current = 'SKIP';
-          
-          console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', {
-            status: 'SKIP',
-            mode: bottomBarModeSOT_SAFE,
-            screenMode,
-            reason: 'WELCOME_CTA_MODE'
-          });
-          
-          return; // Exit early - no validation needed
-        }
-
-        // 3-ROW SHELL: Skip spacer check (footer in normal flow, no spacer needed)
-        if (!IS_3ROW_SHELL) {
-          const spacer = scrollContainer.querySelector('[data-cq-footer-spacer="true"]');
-          if (!spacer) {
-            console.error('[UI_CONTRACT][FOOTER_SPACER_MISSING]', {
-              mode: bottomBarModeSOT_SAFE,
-              expectedHeightPx: dynamicBottomPaddingPx,
-              reason: 'Footer spacer element not found - clearance may fail'
-            });
-            return;
-          }
-        }
-
-        const scrollRect = scrollContainer.getBoundingClientRect();
-        const footerRect = footerEl.getBoundingClientRect();
-
-        // REAL ACTIVE CARD GATE: Verify hasActiveCard matches DOM reality
-        const hasRealActiveCardInDom = scrollContainer.querySelectorAll('[data-cq-active-card="true"]').length > 0;
-        
-        // SAFETY: Skip validation if hasActiveCard=true but no real cards in DOM (non-QUESTION modes)
-        if (hasActiveCard && !hasRealActiveCardInDom) {
-          // GUARD: Only SKIP for non-interview modes (WELCOME, etc.)
-          // For QUESTION modes, enforce strict FAIL behavior
-          const isQuestionMode = screenMode === 'QUESTION';
-          
-          if (!isQuestionMode) {
-            console.log('[UI_CONTRACT][FOOTER_CLEARANCE_SKIP]', {
-              mode: bottomBarModeSOT_SAFE,
-              screenMode,
-              activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
-              hasActiveCard,
-              hasRealActiveCardInDom,
-              reason: 'HAS_ACTIVE_CARD_TRUE_BUT_NONE_IN_DOM - non-question mode',
-              action: 'SKIP'
-            });
-            
-            footerClearanceStatusRef.current = 'SKIP';
-            
-            console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', {
-              status: 'SKIP',
-              mode: bottomBarModeSOT_SAFE,
-              screenMode,
-              reason: 'DERIVED_FLAG_DOM_MISMATCH_NON_QUESTION_MODE'
-            });
-            
-            return; // Exit early - skip validation
-          }
-        }
-        
-        // STRUCTURAL ASSERTION: Verify active card is in scroll container
-        if (hasActiveCard) {
-          const activeCard_SsInContainer = scrollContainer.querySelectorAll('[data-cq-active-card="true"]');
-          
-          if (activeCard_SsInContainer.length === 0) {
-            // Dedupe: Only log once per unique mode+kind combo
-            const errorKey = `${bottomBarModeSOT}:${activeUiItem_S_SAFE?.kind}`;
-            if (lastClearanceErrorKeyRef.current !== errorKey) {
-              lastClearanceErrorKeyRef.current = errorKey;
-              console.warn('[UI_CONTRACT][ACTIVE_CARD_NOT_IN_SCROLL_CONTAINER]', {
-                mode: bottomBarModeSOT_SAFE,
-                activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
-                hasActiveCard,
-                screenMode,
-                reason: 'Active card not found in DOM yet (timing) or mounted outside scroll container',
-                action: 'SKIP_MEASUREMENT'
-              });
-            }
-            
-            footerClearanceStatusRef.current = 'SKIP';
-            
-            return; // Exit early - cannot measure
-          }
-        }
-
-        // Get last REAL item (before footer spacer) in scroll container
-        // DETERMINISTIC PRIORITY: Prefer active cards when present (most likely to be obscured)
-        let lastItem = null;
-
-        if (hasActiveCard) {
-          // Priority 1: Measure active card (most likely to be clipped)
-          const activeCard_Ss = scrollContainer.querySelectorAll('[data-cq-active-card="true"][data-ui-contract-card="true"]');
-          const activeCard_SsArray = Array.from(activeCard_Ss).filter(el => !isUiContractNonCard(el));
-          
-          if (activeCard_SsArray.length > 0) {
-            lastItem = activeCard_SsArray[activeCard_SsArray.length - 1];
-            console.log('[UI_CONTRACT][FOOTER_MEASURE_TARGET_PRIORITY]', {
-              strategy: 'ACTIVE_CARD_FIRST',
-              hasActiveCard,
-              activeCard_SCount: activeCard_SsArray.length,
-              selectedTag: lastItem.tagName,
-              hasStablekey: lastItem.hasAttribute('data-stablekey'),
-              hasCardMarker: lastItem.hasAttribute('data-ui-contract-card'),
-              className: lastItem.className?.substring(0, 60),
-              reason: 'Active card prioritized for measurement'
-            });
-          }
-        }
-
-        // Fallback: Measure last transcript item if no active card found
-        if (!lastItem) {
-          const allItems = scrollContainer.querySelectorAll('[data-stablekey]');
-          for (let i = allItems.length - 1; i >= 0; i--) {
-            const item = allItems[i];
-            
-            // HARDENED: Exclude all non-card structural elements
-            if (isUiContractNonCard(item)) {
-              continue; // Skip structural elements (spacers, anchors, wrappers)
-            }
-            
-            // REQUIRE: Must be a card-like element (has rounded-xl or card structure)
-            const hasCardStructure = item.querySelector('.rounded-xl') || 
-                                    item.classList.contains('rounded-xl') ||
-                                    item.querySelector('[role]') ||
-                                    item.querySelector('p');
-            
-            if (hasCardStructure) {
-              lastItem = item;
-              console.log('[UI_CONTRACT][FOOTER_MEASURE_TARGET_PRIORITY]', {
-                strategy: 'TRANSCRIPT_FALLBACK',
-                hasActiveCard,
-                selectedTag: lastItem.tagName,
-                chosenTargetStableKey: lastItem.getAttribute('data-stablekey'),
-                hasCardStructure: true,
-                reason: 'No active card found - using last real card in transcript'
-              });
-              break;
-            }
-          }
-        }
-
-        if (!lastItem) {
-          console.error('[UI_CONTRACT][FOOTER_CLEARANCE_UNMEASURABLE]', {
-            mode: bottomBarModeSOT_SAFE,
-            reason: 'no_last_item_before_spacer',
-            allItemsCount: allItems.length
-          });
-          return;
-        }
-
-        // MEASUREMENT TARGET VALIDATION: Ensure lastItem is a real card container
-        const isStructuralElement = isUiContractNonCard(lastItem);
-        
-        const hasCardStructure = !isStructuralElement &&
-                                lastItem.hasAttribute('data-stablekey') &&
-                                (lastItem.querySelector('.rounded-xl') || 
-                                 lastItem.classList.contains('rounded-xl') ||
-                                 lastItem.querySelector('[role]') ||
-                                 lastItem.querySelector('p'));
-
-        let finalLastItem = lastItem;
-        let measurementCorrected = false;
-        let originalOverlapPx = 0;
-
-        if (!hasCardStructure) {
-          // THROTTLED DIAGNOSTIC: Log suspect element details once per 2s
-          logSuspectElement(lastItem, {
-            hasActiveCard,
-            activeCard_SCount: hasActiveCard ? scrollContainer.querySelectorAll('[data-cq-active-card="true"]').length : 0,
-            selectorUsed: hasActiveCard ? 'ACTIVE_CARD_FIRST' : 'TRANSCRIPT_FALLBACK'
-          });
-          
-          console.warn('[UI_CONTRACT][FOOTER_MEASURE_TARGET_SUSPECT]', {
-            reason: isStructuralElement ? 'lastItem_is_structural' : 'lastItem_not_card',
-            selectorUsed: hasActiveCard ? '[data-cq-active-card] (filtered)' : '[data-stablekey] (filtered)',
-            lastItemTagName: lastItem.tagName,
-            lastItemClassesSample: lastItem.className?.substring(0, 60),
-            hasDataStablekey: lastItem.hasAttribute('data-stablekey'),
-            isStructuralElement
-          });
-
-          // Original measurement before correction
-          const suspectRect = lastItem.getBoundingClientRect();
-          originalOverlapPx = Math.max(0, suspectRect.bottom - footerRect.top);
-
-          // STRICTER SELECTOR: Find last actual card element
-          // Strategy 1: Last element with both data-stablekey AND card structure
-          const cardCandidates = Array.from(allItems).filter(el => {
-            // HARDENED: Exclude all non-card structural elements
-            if (isUiContractNonCard(el)) return false;
-            
-            // REQUIRE: Must have card structure
-            return el.querySelector('.rounded-xl') || el.classList.contains('rounded-xl');
-          });
-
-          if (cardCandidates.length > 0) {
-            finalLastItem = cardCandidates[cardCandidates.length - 1];
-            measurementCorrected = true;
-
-            console.log('[UI_CONTRACT][FOOTER_MEASURE_TARGET_CORRECTED]', {
-              oldSelector: '[data-stablekey] (excluding spacer)',
-              newSelector: '[data-stablekey] with .rounded-xl card structure',
-              oldTagName: lastItem.tagName,
-              newTagName: finalLastItem.tagName,
-              correctedElement: true
-            });
-          }
-        }
-
-        const lastItemRect = finalLastItem.getBoundingClientRect();
-        const lastItemBottomOverlapPx = Math.max(0, lastItemRect.bottom - footerRect.top);
-
-        // Log correction if measurement changed
-        if (measurementCorrected) {
-          console.log('[UI_CONTRACT][FOOTER_MEASURE_TARGET_CORRECTED]', {
-            oldOverlapPx: Math.round(originalOverlapPx),
-            newOverlapPx: Math.round(lastItemBottomOverlapPx),
-            delta: Math.round(originalOverlapPx - lastItemBottomOverlapPx),
-            improved: lastItemBottomOverlapPx < originalOverlapPx
-          });
-        }
-
-        console.log('[UI_CONTRACT][FOOTER_CLEARANCE_ASSERT]', {
-          mode: bottomBarModeSOT_SAFE,
-          footerMeasuredHeightPx,
-          safeFooterClearancePx: SAFE_FOOTER_CLEARANCE_PX,
-          spacerHeightPx: dynamicBottomPaddingPx,
-          spacerExists: !!spacer,
-          clientHeight: Math.round(scrollRect.height),
-          scrollHeight: Math.round(scrollContainer.scrollHeight),
-          lastItemBottomOverlapPx: Math.round(lastItemBottomOverlapPx),
-          hasOverlap: lastItemBottomOverlapPx > 0,
-          measurementCorrected
-        });
-
-        // Status log: Deterministic PASS/FAIL (use corrected overlap)
-        const status = lastItemBottomOverlapPx <= 2 ? 'PASS' : 'FAIL';
-        const statusPayload = {
-          status,
-          mode: bottomBarModeSOT_SAFE,
-          overlapPx: Math.round(lastItemBottomOverlapPx),
-          spacerHeightPx: dynamicBottomPaddingPx,
-          measurementCorrected
-        };
-
-        console.log('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS]', statusPayload);
-
-        // Store footer status for SOT log (component-level ref)
-        footerClearanceStatusRef.current = status;
-
-        // Dedupe failure logs: only log once per unique failure key
-        if (status === 'FAIL') {
-          const failKey = `${bottomBarModeSOT}:${Math.round(lastItemBottomOverlapPx)}`;
-          if (lastClearanceErrorKeyRef.current !== failKey) {
-            lastClearanceErrorKeyRef.current = failKey;
-            
-            if (measurementCorrected) {
-              console.warn('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS_FAIL_CORRECTED]', {
-                correctedOverlapPx: Math.round(lastItemBottomOverlapPx),
-                mode: bottomBarModeSOT_SAFE,
-                reason: 'overlap_detected_after_target_correction',
-                originalOverlapPx: Math.round(originalOverlapPx),
-                correctionImproved: lastItemBottomOverlapPx < originalOverlapPx
-              });
-            } else {
-              console.warn('[UI_CONTRACT][FOOTER_CLEARANCE_STATUS_FAIL]', {
-                ...statusPayload,
-                footerMeasuredHeightPx,
-                lastItemBottom: Math.round(lastItemRect.bottom),
-                footerTop: Math.round(footerRect.top),
-                reason: 'Content obscured by footer despite spacer'
-              });
-            }
-          }
-        }
-        
-        if (lastItemBottomOverlapPx > 0) {
-          console.error('[UI_CONTRACT][FOOTER_OVERLAP_DETECTED]', {
-            mode: bottomBarModeSOT_SAFE,
-            overlapPx: Math.round(lastItemBottomOverlapPx),
-            footerMeasuredHeightPx,
-            spacerHeightPx: dynamicBottomPaddingPx,
-            lastItemBottom: Math.round(lastItemRect.bottom),
-            footerTop: Math.round(footerRect.top),
-            reason: 'Content obscured by footer - spacer insufficient'
-          });
-        }
-        
-        // GUARDRAIL B: Track worst-case overlap for regression detection
-        const roundedOverlap = Math.round(lastItemBottomOverlapPx);
-        if (roundedOverlap > maxOverlapSeenRef.current.maxOverlapPx) {
-          console.error('[UI_CONTRACT][FOOTER_OVERLAP_REGRESSION]', {
-            mode: bottomBarModeSOT_SAFE,
-            overlapPx: roundedOverlap,
-            previousMaxOverlapPx: maxOverlapSeenRef.current.maxOverlapPx,
-            maxOverlapPx: roundedOverlap,
-            footerMeasuredHeightPx,
-            spacerHeightPx: dynamicBottomPaddingPx,
-            lastModeSeen: maxOverlapSeenRef.current.lastModeSeen,
-            reason: 'Overlap increased - potential regression'
-          });
-          
-          maxOverlapSeenRef.current.maxOverlapPx = roundedOverlap;
-          maxOverlapSeenRef.current.lastModeSeen = bottomBarModeSOT;
-        }
-      } catch (err) {
-        // Silent - assertion should never crash
-      }
-    });
-  }
-  
-  // CTA SOT diagnostic (single consolidated log)
-  if (bottomBarModeSOT === 'CTA') {
-    console.log('[CTA][SOT_PADDING]', {
-      footerMeasuredHeightPx,
-      dynamicBottomPaddingPx,
-      shouldRenderFooter_SAFE,
-      effectiveItemType_SAFE,
-      bottomBarModeSOT
-    });
-  }
-  
-  // Step 7: Semantic helper flags
-  const isV3Gate = effectiveItemType === "v3_gate";
-  const isMultiInstanceGate = effectiveItemType === "multi_instance_gate";
-  const isQuestion = false; // Set to true during refinement if needed
-
-  // AUTO-GROWING INPUT: Re-measure footer on mode changes - HOISTED TO BATCH 3 (line ~4485)
-
-  // Re-anchor bottom on footer height changes when auto-scroll is enabled
-  // NO DYNAMIC IMPORTS: prevents duplicate React context in Base44 preview
-  cqHookMark('HOOK_51:useEffect:reAnchorOnFooterHeight');
-  useEffect_TR("H51_REANCHOR_FOOTER", () => {
-    // SCROLL LOCK GATE: Block footer height re-anchor during any scroll lock
-    if (isScrollWriteLocked()) {
-      return;
-    }
-    
-    if (!historyRef.current) return;
-    if (!autoScrollEnabledRef.current) return;
-    if (isUserTyping) return;
-    
-    requestAnimationFrame(() => {
-      scrollToBottom('FOOTER_HEIGHT_CHANGED');
-    });
-  }, [bottomSpacerPx, isUserTyping, scrollToBottom]);
-
-  // SMOOTH GLIDE AUTOSCROLL - HOISTED TO BATCH 3 (line ~4510)
-
-  // ANCHOR LAST V3 ANSWER - HOISTED TO BATCH 3 (line ~4615)
-  
-  // ANCHOR V3 PROBE QUESTION: Keep just-appended question visible (ChatGPT-style)
-  cqHookMark('HOOK_52:useLayoutEffect:anchorV3ProbeQ');
-  ReactUseLayoutEffect_TR("H52_ANCHOR_V3_PROBE", () => {
-    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars (may be undefined on some renders)
-    const _bottomBarModeSOT_SAFE = (typeof bottomBarModeSOT_SAFE !== 'undefined') ? bottomBarModeSOT_SAFE : null;
-    const _dynamicBottomPaddingPx = (typeof dynamicBottomPaddingPx !== 'undefined') ? dynamicBottomPaddingPx : 0;
-    
-    // If TRY1-derived layout vars are not ready, skip this effect safely
-    if (_bottomBarModeSOT_SAFE == null) return;
-    
-    // SCROLL LOCK GATE: Block anchor during any scroll lock
-    if (isScrollWriteLocked()) {
-      return;
-    }
-    
-    if (v3ScrollAnchorRef.current.kind !== 'V3_PROBE_QUESTION') return;
-    
-    const anchorAge = Date.now() - v3ScrollAnchorRef.current.ts;
-    if (anchorAge > 1500) {
-      v3ScrollAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
-      return;
-    }
-    
-    const scrollContainer = historyRef.current;
-    if (!scrollContainer) return;
-    
-    // PART C: Bypass typing lock for V3 probe question anchor
-    if (isUserTyping && !forceAutoScrollOnceRef.current) return;
-    
-    const targetStableKey = v3ScrollAnchorRef.current.stableKey;
-    const targetEl = scrollContainer.querySelector(`[data-stablekey="${targetStableKey}"]`);
-    
-    if (!targetEl) {
-      if (cqDiagEnabled) {
-        console.warn('[SCROLL][ANCHOR_V3_PROBE_Q][NOT_FOUND]', {
-          stableKey: targetStableKey,
-          reason: 'Element not found in DOM - may not have rendered yet'
-        });
-      }
-      v3ScrollAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
-      return;
-    }
-    
-    requestAnimationFrame(() => {
-      if (!scrollContainer || !targetEl) return;
-      
-      const scrollTopBefore = scrollContainer.scrollTop;
-      const scrollHeight = scrollContainer.scrollHeight;
-      const clientHeight = scrollContainer.clientHeight;
-      const overflowPx = scrollHeight - clientHeight;
-      
-      // Compute target position (question visible above footer)
-      const elTop = targetEl.offsetTop;
-      const elHeight = targetEl.offsetHeight;
-      const footerSafePx = _dynamicBottomPaddingPx + 16;
-      
-      // Target: place question at bottom of visible area (above footer)
-      const targetScrollTop = Math.max(0, (elTop + elHeight) - clientHeight + footerSafePx);
-      
-      // Always scroll (even if overflowPx=0) to ensure visibility
-      scrollContainer.scrollTop = targetScrollTop;
-      
-      const scrollTopAfter = scrollContainer.scrollTop;
-      const didScroll = Math.abs(scrollTopAfter - scrollTopBefore) > 1;
-      
-      if (cqDiagEnabled) {
-        console.log('[SCROLL][ANCHOR_V3_PROBE_Q]', {
-          stableKey: targetStableKey,
-          didFind: true,
-          didScroll,
-          overflowPx,
-          bottomBarModeSOT_SAFE: _bottomBarModeSOT_SAFE,
-          scrollTopBefore: Math.round(scrollTopBefore),
-          scrollTopAfter: Math.round(scrollTopAfter),
-          footerSafePx
-        });
-      }
-      
-      v3ScrollAnchorRef.current = { kind: null, stableKey: null, ts: 0 };
-    });
-  }, [transcriptSOT_S.length, bottomBarModeSOT_SAFE, dynamicBottomPaddingPx, cqDiagEnabled]);
-  
-  // TDZ GUARD: Track previous render list length for append detection (using ref, not direct variable)
-  const prevFinalListLenForScrollRef = React.useRef(0);
-  
-  // GOLDEN CONTRACT CHECK - HOISTED TO BATCH 3 (line ~4465)
-  
-  // CONSOLIDATED UI CONTRACT STATUS LOG - HOISTED TO BATCH 3 (line ~4640)
-  
-  // UI CONTRACT STATUS RESET - HOISTED TO BATCH 3 (line ~4660)
-  
-  // PART B: ACTIVE ITEM CHANGED - HOISTED TO BATCH 3 (line ~4670)
-  
-  // PART B: RENDER LIST APPENDED - HOISTED TO BATCH 3 (line ~4690)
-  
-  // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
-  cqHookMark('HOOK_53:useLayoutEffect:forceScrollQuestionShown');
-  ReactUseLayoutEffect_TR("H53_FORCE_SCROLL_Q_SHOWN", () => {
-    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
-    const _effectiveItemType = (typeof effectiveItemType !== 'undefined') ? effectiveItemType : null;
-    const _shouldRenderFooter_SAFE = (typeof shouldRenderFooter_SAFE !== 'undefined') ? shouldRenderFooter_SAFE : false;
-    const _footerMeasuredHeightPx = (typeof footerMeasuredHeightPx !== 'undefined') ? footerMeasuredHeightPx : 0;
-    const _dynamicBottomPaddingPx = (typeof dynamicBottomPaddingPx !== 'undefined') ? dynamicBottomPaddingPx : 0;
-    const _activeUiItem_S_SAFE = (typeof activeUiItem_S_SAFE !== 'undefined') ? activeUiItem_S_SAFE : null;
-    
-    // If TRY1-derived vars are not ready, skip safely
-    if (_effectiveItemType == null) return;
-    
-    // SCROLL LOCK GATE: Block force-scroll during any scroll lock
-    if (isScrollWriteLocked()) {
-      return;
-    }
-    
-    // Only run for base questions with footer visible
-    if (_effectiveItemType !== 'question' || !_shouldRenderFooter_SAFE) return;
-    if (!currentItem_S?.id || currentItem_S.type !== 'question') return;
-    
-    // Dedupe: Only run once per question
-    if (lastQuestionShownIdRef.current === currentItem_S.id) return;
-    lastQuestionShownIdRef.current = currentItem_S.id;
-    
-    const scrollContainer = historyRef.current;
-    if (!scrollContainer || !bottomAnchorRef.current) return;
-    
-    // Force scroll to bottom after question renders
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (!scrollContainer || !bottomAnchorRef.current) return;
-        
-        const scrollTopBefore = scrollContainer.scrollTop;
-        const scrollHeight = scrollContainer.scrollHeight;
-        const clientHeight = scrollContainer.clientHeight;
-        const targetScrollTop = Math.max(0, scrollHeight - clientHeight);
-        
-        scrollContainer.scrollTop = targetScrollTop;
-        
-        const scrollTopAfter = scrollContainer.scrollTop;
-        
-        console.log('[SCROLL][FORCE_ANCHOR_ON_QUESTION_SHOWN]', {
-          questionId: currentItem_S.id,
-          scrollTopBefore: Math.round(scrollTopBefore),
-          scrollTopAfter: Math.round(scrollTopAfter),
-          footerHeight: _footerMeasuredHeightPx,
-          paddingApplied: _dynamicBottomPaddingPx,
-          scrollHeight: Math.round(scrollHeight),
-          clientHeight: Math.round(clientHeight)
-        });
-        
-        // GUARDRAIL: Detect if question still below footer after scroll
-        requestAnimationFrame(() => {
-          if (!scrollContainer || !footerRootRef.current) return;
-          
-          // PART B: MI gate uses bottom anchor strategy (skip card measurement)
-          const isMiGateActive = currentItem_S?.type === 'multi_instance_gate' || 
-                                _activeUiItem_S_SAFE?.kind === 'MI_GATE';
-          
-          if (isMiGateActive) {
-            // Bottom-anchor strategy: use shared helper
-            if (!isUserTyping || forceAutoScrollOnceRef.current) {
-              requestAnimationFrame(() => {
-                scrollToBottomForMiGate('FORCE_ANCHOR_ON_QUESTION_SHOWN');
-                
-                if (forceAutoScrollOnceRef.current) {
-                  forceAutoScrollOnceRef.current = false;
-                  console.log('[SCROLL][FORCE_ONCE_CLEARED]', { reason: 'mi_gate_bottom_anchor' });
-                }
-              });
-            }
-            return; // Skip card-based measurement for MI gate
-          }
-          
-          const activeQuestionEl = scrollContainer.querySelector('[data-cq-active-card="true"]');
-          if (!activeQuestionEl) return;
-          
-          const questionRect = activeQuestionEl.getBoundingClientRect();
-          const footerRect = footerRootRef.current.getBoundingClientRect();
-          const overlapPx = Math.max(0, questionRect.bottom - footerRect.top);
-          
-          if (overlapPx > 4) {
-            // PART A: Capture violation snapshot
-            captureViolationSnapshot({
-              reason: 'QUESTION_BEHIND_FOOTER',
-              list: finalListRef.current,
-              packId: null,
-              instanceNumber: null,
-              activeItemId: currentItem_S?.id
-            });
-            
-            // PART C: Apply corrective scroll (bypass typing lock)
-            if (!isUserTyping || forceAutoScrollOnceRef.current) {
-              scrollContainer.scrollTop += overlapPx + 16;
-              console.log('[SCROLL][CORRECTIVE_NUDGE_QUESTION]', {
-                overlapPx: Math.round(overlapPx),
-                bypassedTypingLock: isUserTyping && forceAutoScrollOnceRef.current,
-                applied: true
-              });
-              
-              if (forceAutoScrollOnceRef.current) {
-                forceAutoScrollOnceRef.current = false;
-                console.log('[SCROLL][FORCE_ONCE_CLEARED]', { reason: 'corrective_nudge_question' });
-              }
-            }
-          }
-        });
-      });
-    });
-  }, [_effectiveItemType, _shouldRenderFooter_SAFE, currentItem_S?.id, currentItem_S?.type, _footerMeasuredHeightPx, _dynamicBottomPaddingPx]);
-  
-  // FOOTER PADDING COMPENSATION: Prevent jump when footer height changes
-  cqHookMark('HOOK_54:useLayoutEffect:footerPaddingCompensate');
-  ReactUseLayoutEffect_TR("H54_FOOTER_PADDING_COMP", () => {
-    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
-    const _dynamicBottomPaddingPx = (typeof dynamicBottomPaddingPx !== 'undefined') ? dynamicBottomPaddingPx : 0;
-    const _bottomBarModeSOT = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
-    const _effectiveItemType = (typeof effectiveItemType !== 'undefined') ? effectiveItemType : null;
-    
-    // If TRY1-derived vars are not ready, skip safely
-    if (_bottomBarModeSOT == null || _effectiveItemType == null) return;
-    
-    // SCROLL LOCK GATE: Block padding compensation during any scroll lock
-    if (isScrollWriteLocked()) {
-      return;
-    }
-    
-    const prev = prevPaddingRef.current;
-    let next = _dynamicBottomPaddingPx;
-    
-    // CTA CLAMP: Never allow compensation to reduce CTA padding below minimum
-    if (_bottomBarModeSOT === 'CTA' || _effectiveItemType === 'section_transition') {
-      next = Math.max(next, CTA_MIN_PADDING_PX);
-      if (next !== _dynamicBottomPaddingPx) {
-        console.log('[CTA][PADDING_COMPENSATE_CLAMP]', {
-          raw: _dynamicBottomPaddingPx,
-          clamped: next,
-          CTA_MIN_PADDING_PX
-        });
-      }
-    }
-    
-    const delta = next - prev;
-    
-    // Update ref
-    prevPaddingRef.current = next;
-    
-    // Skip if no change
-    if (delta === 0) return;
-    
-    // GUARD: Only compensate on INCREASES (delta > 0) - prevent upward snap
-    if (delta <= 0) {
-      console.log('[SCROLL][PADDING_COMPENSATE_SKIP]', {
-        reason: 'delta_not_positive',
-        delta,
-        prev,
-        next,
-        bottomBarModeSOT
-      });
-      return;
-    }
-    
-    const scrollContainer = historyRef.current;
-    if (!scrollContainer) return;
-    
-    // Skip during V3_WAITING (no scroll adjustments during engine_S decide)
-    if (_bottomBarModeSOT === 'V3_WAITING') {
-      console.log('[SCROLL][PADDING_COMPENSATE_SKIP]', {
-        reason: 'v3_waiting_mode',
-        bottomBarModeSOT: _bottomBarModeSOT
-      });
-      return;
-    }
-    
-    // Only compensate when user is near bottom or in QUESTION mode
-    const scrollHeight = scrollContainer.scrollHeight;
-    const clientHeight = scrollContainer.clientHeight;
-    const scrollTop = scrollContainer.scrollTop;
-    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
-    const nearBottom = distanceFromBottom <= 120;
-    
-    const shouldCompensate = (nearBottom || screenMode === 'QUESTION') && !isUserTyping;
-    
-    if (!shouldCompensate) return;
-    
-    // Apply compensation: adjust scrollTop to keep content anchored
-    scrollContainer.scrollTop = scrollTop + delta;
-    
-    console.log('[SCROLL][PADDING_COMPENSATE]', {
-      prev,
-      next,
-      delta,
-      nearBottom,
-      scrollTopBefore: scrollTop,
-      scrollTopAfter: scrollTop + delta
-    });
-  }, [dynamicBottomPaddingPx, screenMode, isUserTyping, bottomBarModeSOT]);
-  
-  // TDZ GUARD: Do not reference finalTranscriptList_S in hook deps before it is initialized.
-  // DETERMINISTIC BOTTOM ANCHOR ENFORCEMENT - HOISTED TO BATCH 3 (line ~4710)
-  
-  // GRAVITY FOLLOW - HOISTED TO BATCH 3 (line ~4740)
-  
-  // FOOTER OVERLAP CLAMP: Ensure active card never behind footer (unconditional)
-  cqHookMark('HOOK_55:useLayoutEffect:footerOverlapClamp');
-  ReactUseLayoutEffect_TR("H55_OVERLAP_CLAMP", () => {
-    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
-    const _shouldRenderFooter_SAFE = (typeof shouldRenderFooter_SAFE !== 'undefined') ? shouldRenderFooter_SAFE : false;
-    const _hasActiveCardSOT = (typeof hasActiveCardSOT !== 'undefined') ? hasActiveCardSOT : false;
-    const _activeCard_SKeySOT = (typeof activeCard_SKeySOT !== 'undefined') ? activeCard_SKeySOT : null;
-    const _dynamicFooterHeightPx = (typeof dynamicFooterHeightPx !== 'undefined') ? dynamicFooterHeightPx : 0;
-    
-    // If TRY1-derived vars are not ready, skip safely
-    if (_activeCard_SKeySOT == null) return;
-    
-    if (!_shouldRenderFooter_SAFE || !_hasActiveCardSOT) return;
-    
-    requestAnimationFrame(() => {
-      const scroller = scrollOwnerRef.current || historyRef.current;
-      const activeCard_SEl = scroller?.querySelector('[data-cq-active-card="true"][data-ui-contract-card="true"]');
-      const composerEl = footerShellRef.current;
-      
-      if (!activeCard_SEl || !composerEl) return;
-      
-      const activeRect = activeCard_SEl.getBoundingClientRect();
-      const composerRect = composerEl.getBoundingClientRect();
-      const overlapPx = Math.max(0, activeRect.bottom - (composerRect.top - 8));
-      
-      if (overlapPx > 4) {
-        const scrollTopBefore = scroller.scrollTop;
-        scroller.scrollTop += overlapPx + 8;
-        const scrollTopAfter = scroller.scrollTop;
-        
-        console.log('[SCROLL][FOOTER_OVERLAP_CLAMP]', {
-          overlapPx: Math.round(overlapPx),
-          scrollTopBefore: Math.round(scrollTopBefore),
-          scrollTopAfter: Math.round(scrollTopAfter),
-          reason: 'Active card behind footer - unconditional clamp applied'
-        });
-      }
-    });
-  }, [_shouldRenderFooter_SAFE, _hasActiveCardSOT, _activeCard_SKeySOT, _dynamicFooterHeightPx]);
-  
-  // ACTIVE CARD OVERLAP NUDGE - HOISTED TO BATCH 3 (line ~4850)
-
-  // AUTO-GROWING INPUT: Auto-resize textarea based on content (ChatGPT-style)
-  cqHookMark('HOOK_57:useEffect:autoGrowInput');
-  useEffect_TR(() => {
-    // PHASE 2 STABILIZATION: Safe defaults for TRY1-derived vars
-    const _bottomBarModeSOT = (typeof bottomBarModeSOT !== 'undefined') ? bottomBarModeSOT : null;
-    
-    // If TRY1-derived var is not ready, skip safely
-    if (_bottomBarModeSOT == null) return;
-    
-    const textarea = footerTextareaRef.current || inputRef.current;
-    if (!textarea) return;
-
-    // DIAGNOSTIC: Verify ref connection (cqdiag only)
-    if (cqDiagEnabledRef.current) {
-      console.log('[FOOTER][REF_CHECK]', {
-        hasTextareaRef: !!footerTextareaRef.current,
-        tagName: footerTextareaRef.current?.tagName,
-        bottomBarModeSOT_SAFE: _bottomBarModeSOT,
-        effectiveItemType: (typeof effectiveItemType !== 'undefined') ? effectiveItemType : null
-      });
-    }
-
-    // Reset to auto to measure natural height
-    textarea.style.height = 'auto';
-
-    const MAX_HEIGHT_PX = 200; // ~8 lines max
-    const scrollHeight = textarea.scrollHeight;
-    const newHeight = Math.min(scrollHeight, MAX_HEIGHT_PX);
-    
-    // Always apply new height (visual feedback)
-    textarea.style.height = `${newHeight}px`;
-    textarea.style.overflowY = scrollHeight > MAX_HEIGHT_PX ? 'auto' : 'hidden';
-    
-    // ROW-CHANGE GATE: Only trigger layout updates when rows actually change
-    const lastScrollHeight = lastTextareaScrollHeightRef.current;
-    const heightDelta = Math.abs(scrollHeight - lastScrollHeight);
-    
-    // If height change < 16px (≈ one line), treat as same row - skip layout-affecting logs
-    if (heightDelta < 16 && lastScrollHeight !== 0) {
-      // Same row - textarea height updated but no layout state changes needed
-      return;
-    }
-    
-    // Row changed - update ref to track new baseline
-    lastTextareaScrollHeightRef.current = scrollHeight;
-    
-    // HARDENED: Throttle logs using ref (no dataset mutation)
-    const delta = Math.abs(newHeight - lastAutoGrowHeightRef.current);
-    if (delta >= 4) {
-      console.log('[FOOTER][AUTO_GROW]', {
-        heightPx: newHeight,
-        scrollHeight,
-        overflowY: scrollHeight > MAX_HEIGHT_PX ? 'auto' : 'hidden',
-        maxReached: scrollHeight > MAX_HEIGHT_PX,
-        delta,
-        rowChanged: true
-      });
-      lastAutoGrowHeightRef.current = newHeight;
-    }
-  }, [input, openerDraft, _bottomBarModeSOT]);
-
-  // DEFENSIVE GUARD: Force exit WELCOME mode when interview has progressed
-  cqHookMark('HOOK_58:useEffect:forceExitWelcome');
-  useEffect_TR(() => {
-    if (screenMode !== "WELCOME") return; // Only act if we're in WELCOME
-    
-    // Check if we should exit WELCOME based on state
-    const hasCurrentItem = currentItem_S && currentItem_S.type;
-    const hasV3Probing = v3ProbingActive;
-    const hasProgressMarkers = transcriptSOT_S?.some(t => 
-      t.messageType === 'QUESTION_SHOWN' || 
-      t.messageType === 'ANSWER' ||
-      t.messageType === 'v3_probe_question' ||
-      t.messageType === 'v3_opener_answer' ||
-      t.type === 'PACK_ENTERED'
-    );
-    
-    if (hasCurrentItem || hasV3Probing || hasProgressMarkers) {
-      console.log('[WELCOME][GUARD_EXIT]', {
-        reason: hasCurrentItem ? 'currentItem_S exists' : hasV3Probing ? 'V3 probing active' : 'progress markers in transcript',
-        screenModeBefore: screenMode,
-        currentItem_SType: currentItem_S?.type,
-        transcriptLen: transcriptSOT_S?.length || 0,
-        action: 'forcing QUESTION mode'
-      });
-      
-      setScreenMode("QUESTION");
-    }
-  }, [screenMode, currentItem_S, v3ProbingActive, transcriptSOT_S]);
-  
-  // HOOK CENSUS: Mark after TRUE final hook (end of ALL hooks including layout/scroll)
-  cqHookMark('TRUE_POST_HOOKS');
   
   // DEV-ONLY CENSUS SIGNATURE (after TRUE_POST_HOOKS marker)
   try {
