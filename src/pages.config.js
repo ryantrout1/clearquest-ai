@@ -79,19 +79,6 @@ import SystemAdminDashboard from './pages/SystemAdminDashboard';
 import SystemConfiguration from './pages/SystemConfiguration';
 import TrialSignup from './pages/TrialSignup';
 import startinterviewSentinel from './pages/_STARTINTERVIEW_SENTINEL';
-import constants from './pages/constants';
-import deriveTranscriptPipeline from './pages/deriveTranscriptPipeline';
-import handleAnswerImpl from './pages/handleAnswerImpl';
-import promptHelpers from './pages/promptHelpers';
-import sectionHelpers from './pages/sectionHelpers';
-import stableKeyBuilders from './pages/stableKeyBuilders';
-import transcriptHelpers from './pages/transcriptHelpers';
-import utils from './pages/utils';
-import InterviewHeader from './pages/InterviewHeader';
-import InterviewModals from './pages/InterviewModals';
-import ScrollbarStyles from './pages/ScrollbarStyles';
-import TranscriptCards from './pages/TranscriptCards';
-import index from './pages/index';
 import __Layout from './Layout.jsx';
 
 
@@ -128,19 +115,6 @@ export const PAGES = {
     "SystemConfiguration": SystemConfiguration,
     "TrialSignup": TrialSignup,
     "_STARTINTERVIEW_SENTINEL": startinterviewSentinel,
-    "constants": constants,
-    "deriveTranscriptPipeline": deriveTranscriptPipeline,
-    "handleAnswerImpl": handleAnswerImpl,
-    "promptHelpers": promptHelpers,
-    "sectionHelpers": sectionHelpers,
-    "stableKeyBuilders": stableKeyBuilders,
-    "transcriptHelpers": transcriptHelpers,
-    "utils": utils,
-    "InterviewHeader": InterviewHeader,
-    "InterviewModals": InterviewModals,
-    "ScrollbarStyles": ScrollbarStyles,
-    "TranscriptCards": TranscriptCards,
-    "index": index,
 }
 
 export const pagesConfig = {
