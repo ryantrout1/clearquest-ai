@@ -1779,14 +1779,7 @@ function CandidateInterviewInner() {
   cqLog('DEBUG', '[BUILD_OK][CandidateInterview]');
   cqLog('DEBUG', '[V3_ONLY][SOT_FLAG][CANDIDATE]', { V3_ONLY_MODE });
   
-  // User instruction for verbose logging (visible at WARN level)
-  if (cqLogEnabled('INFO')) {
-    const instructionShownRef = { current: false };
-    if (!instructionShownRef.current) {
-      instructionShownRef.current = true;
-      cqLog('INFO', '[CQ_LOGGING] To enable verbose logs: localStorage.setItem("cq_log_level","DEBUG") then hard refresh.');
-    }
-  }
+  // User instruction for verbose logging — moved to useEffect (React #310 fix)
   
   // TDZ FIX: Missing function declaration (used at lines ~13435, ~17381, ~20422)
   const sanitizeCandidateFacingText = (text, _label) => (text == null ? '' : String(text));
@@ -2103,6 +2096,15 @@ function CandidateInterviewInner() {
   // FORENSIC: Mount-only log showing what session params we received
   __cqLastHookCall_MEM = 'H04_useRef_sessionParamLoggedRef';
   const sessionParamLoggedRef = React.useRef(false);
+
+  // FIX #310: CQ_LOGGING instruction — log once via effect, not render-time mutation
+  const instructionShownRef = React.useRef(false);
+  React.useEffect(() => {
+    if (cqLogEnabled('INFO') && !instructionShownRef.current) {
+      instructionShownRef.current = true;
+      cqLog('INFO', '[CQ_LOGGING] To enable verbose logs: localStorage.setItem("cq_log_level","DEBUG") then hard refresh.');
+    }
+  }, []);
 
   // FIX #310: Move render-time ref mutations into a single effect
   React.useEffect(() => {
