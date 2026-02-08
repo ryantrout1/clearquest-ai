@@ -97,9 +97,9 @@ import V3DebugPanel from "../components/interview/V3DebugPanel";
 import BottomBarAutoFocusGuard from "../components/interview/BottomBarAutoFocusGuard";
 import YesNoControls from "../components/interview/YesNoControls";
 import ContentContainer from "../components/interview/ContentContainer";
-import { InterviewHeader } from "./candidateInterview/components/InterviewHeader";
-import { InterviewModals } from "./candidateInterview/components/InterviewModals";
-import { ScrollbarStyles } from "./candidateInterview/components/ScrollbarStyles";
+import { InterviewHeader } from "../components/candidateInterview/components/InterviewHeader";
+import { InterviewModals } from "../components/candidateInterview/components/InterviewModals";
+import { ScrollbarStyles } from "../components/candidateInterview/components/ScrollbarStyles";
 import {
   V3OpenerHistoryCard,
   V3ProbeQuestionCard,
@@ -111,7 +111,7 @@ import {
   ActiveV3OpenerCard,
   MiGateCard,
   RequiredAnchorFallbackCard,
-} from "./candidateInterview/components/TranscriptCards";
+} from "../components/candidateInterview/components/TranscriptCards";
 import { appendQuestionEntry, appendAnswerEntry } from "../components/utils/transcriptLogger";
 import { applySectionGateIfNeeded } from "../components/interview/sectionGateHandler";
 import {
@@ -140,12 +140,12 @@ import {
   isRenderableTranscriptEntry,
   dedupeByStableKey,
   shouldRenderTranscriptEntry
-} from "./candidateInterview/transcriptHelpers";
+} from "../components/candidateInterview/transcriptHelpers";
 import {
   buildSectionsFromEngine,
   getNextQuestionInSectionFlow,
   determineInitialSectionIndex
-} from "./candidateInterview/sectionHelpers";
+} from "../components/candidateInterview/sectionHelpers";
 import {
   buildV3ProbeQStableKey,
   buildV3ProbeAStableKey,
@@ -153,7 +153,7 @@ import {
   buildMiGateAStableKey,
   buildMiGateItemId,
   buildV3OpenerStableKey
-} from "./candidateInterview/stableKeyBuilders";
+} from "../components/candidateInterview/stableKeyBuilders";
 import {
   DEBUG_MODE,
   CQ_DEBUG_FOOTER_ANCHOR,
@@ -165,20 +165,20 @@ import {
   WHAT_TO_EXPECT,
   ENABLE_LIVE_AI_FOLLOWUPS,
   DEBUG_AI_PROBES
-} from "./candidateInterview/constants";
+} from "../components/candidateInterview/constants";
 import {
   isMiGateItem,
   getFieldProbeKey,
   getBackendQuestionText
-} from "./candidateInterview/utils";
+} from "../components/candidateInterview/utils";
 import {
   resolveAnchorToHumanQuestion,
   computeActivePromptText
-} from "./candidateInterview/promptHelpers";
+} from "../components/candidateInterview/promptHelpers";
 import {
   deriveTranscriptPipeline
-} from "./candidateInterview/deriveTranscriptPipeline";
-import { handleAnswerImpl } from "./candidateInterview/handleAnswerImpl.jsx";
+} from "../components/candidateInterview/deriveTranscriptPipeline";
+import { handleAnswerImpl } from "../components/candidateInterview/handleAnswerImpl.jsx";
 
 // ============================================================================
 // MODULE LOAD PROOF - Diagnostic marker for module evaluation

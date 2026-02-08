@@ -80,6 +80,8 @@ import SystemConfiguration from './pages/SystemConfiguration';
 import TrialSignup from './pages/TrialSignup';
 import startinterviewSentinel from './pages/_STARTINTERVIEW_SENTINEL';
 import constants from './pages/constants';
+import handleAnswerImpl from './pages/handleAnswerImpl';
+import constants from './pages/constants';
 import deriveTranscriptPipeline from './pages/deriveTranscriptPipeline';
 import handleAnswerImpl from './pages/handleAnswerImpl';
 import promptHelpers from './pages/promptHelpers';
@@ -92,8 +94,6 @@ import InterviewModals from './pages/InterviewModals';
 import ScrollbarStyles from './pages/ScrollbarStyles';
 import TranscriptCards from './pages/TranscriptCards';
 import index from './pages/index';
-import constants from './pages/constants';
-import handleAnswerImpl from './pages/handleAnswerImpl';
 import __Layout from './Layout.jsx';
 
 
@@ -131,6 +131,8 @@ export const PAGES = {
     "TrialSignup": TrialSignup,
     "_STARTINTERVIEW_SENTINEL": startinterviewSentinel,
     "constants": constants,
+    "handleAnswerImpl": handleAnswerImpl,
+    "constants": constants,
     "deriveTranscriptPipeline": deriveTranscriptPipeline,
     "handleAnswerImpl": handleAnswerImpl,
     "promptHelpers": promptHelpers,
@@ -143,8 +145,6 @@ export const PAGES = {
     "ScrollbarStyles": ScrollbarStyles,
     "TranscriptCards": TranscriptCards,
     "index": index,
-    "constants": constants,
-    "handleAnswerImpl": handleAnswerImpl,
 }
 
 export const pagesConfig = {
