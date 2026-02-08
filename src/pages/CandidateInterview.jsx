@@ -11805,6 +11805,7 @@ function CandidateInterviewInner() {
   // PART B: RENDER LIST APPENDED - HOISTED TO BATCH 3 (line ~4690)
   
   const _effectiveItemType = currentItem_S?.type ?? null;
+  const _shouldRenderFooter_SAFE = Boolean(shouldRenderFooter_SAFE);
 
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   cqHookMark('HOOK_53:useLayoutEffect:forceScrollQuestionShown');
