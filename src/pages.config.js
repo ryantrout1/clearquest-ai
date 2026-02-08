@@ -92,6 +92,7 @@ import InterviewModals from './pages/InterviewModals';
 import ScrollbarStyles from './pages/ScrollbarStyles';
 import TranscriptCards from './pages/TranscriptCards';
 import index from './pages/index';
+import deriveTranscriptPipeline from './pages/deriveTranscriptPipeline';
 import __Layout from './Layout.jsx';
 
 
@@ -141,6 +142,7 @@ export const PAGES = {
     "ScrollbarStyles": ScrollbarStyles,
     "TranscriptCards": TranscriptCards,
     "index": index,
+    "deriveTranscriptPipeline": deriveTranscriptPipeline,
 }
 
 export const pagesConfig = {
