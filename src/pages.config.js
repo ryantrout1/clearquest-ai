@@ -80,8 +80,6 @@ import SystemConfiguration from './pages/SystemConfiguration';
 import TrialSignup from './pages/TrialSignup';
 import startinterviewSentinel from './pages/_STARTINTERVIEW_SENTINEL';
 import constants from './pages/constants';
-import handleAnswerImpl from './pages/handleAnswerImpl';
-import constants from './pages/constants';
 import deriveTranscriptPipeline from './pages/deriveTranscriptPipeline';
 import handleAnswerImpl from './pages/handleAnswerImpl';
 import promptHelpers from './pages/promptHelpers';
@@ -130,8 +128,6 @@ export const PAGES = {
     "SystemConfiguration": SystemConfiguration,
     "TrialSignup": TrialSignup,
     "_STARTINTERVIEW_SENTINEL": startinterviewSentinel,
-    "constants": constants,
-    "handleAnswerImpl": handleAnswerImpl,
     "constants": constants,
     "deriveTranscriptPipeline": deriveTranscriptPipeline,
     "handleAnswerImpl": handleAnswerImpl,
