@@ -3945,7 +3945,9 @@ function CandidateInterviewInner() {
   // These variables are referenced in hoisted hook dependency arrays
   // Declared early using only pre-hook state to prevent TDZ crashes
   const activeUiItem_S_SAFE = null; // Computed in TRY1 - null during boot is safe
+  let hasActiveV3Prompt = false;
   const hasActiveV3Prompt_SAFE = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
+  hasActiveV3Prompt = hasActiveV3Prompt_SAFE;
   const hasV3PromptText_SAFE = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
   const bottomBarModeSOT_SAFE = null; // Computed in TRY1 - null during boot is safe
   let shouldRenderFooter_SAFE = false; // TDZ FIX: placeholder for hook deps (boot-safe)
@@ -11260,6 +11262,8 @@ function CandidateInterviewInner() {
     });
   }
   
+  const dynamicBottomPaddingPx = 80;
+
   // WELCOME-specific log to confirm unified path
   if (screenMode === 'WELCOME') {
     console.log('[WELCOME][FOOTER_PADDING_SOT]', {
@@ -13101,7 +13105,7 @@ function CandidateInterviewInner() {
   const hasV3PromptText = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
   const hasV3ProbeQuestion = Boolean(v3ActiveProbeQuestionRef.current && v3ActiveProbeQuestionRef.current.trim().length > 0);
   const hasV3LoopKey = Boolean(v3ActiveProbeQuestionLoopKeyRef.current);
-  const hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) && 
+  hasActiveV3Prompt = (hasV3PromptText || hasV3ProbeQuestion || hasV3LoopKey) &&
                             v3PromptPhase === "ANSWER_NEEDED";
   
   cqSetRenderStep('TRY1:TOP:06E_AFTER_V3_PROMPT_FLAGS');
