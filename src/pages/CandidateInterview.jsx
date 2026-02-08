@@ -11806,6 +11806,7 @@ function CandidateInterviewInner() {
   
   const _effectiveItemType = currentItem_S?.type ?? null;
   const _shouldRenderFooter_SAFE = Boolean(shouldRenderFooter_SAFE);
+  const _footerMeasuredHeightPx = Number(footerMeasuredHeightPx) || 0;
 
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   cqHookMark('HOOK_53:useLayoutEffect:forceScrollQuestionShown');
