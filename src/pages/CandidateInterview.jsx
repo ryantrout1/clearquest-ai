@@ -11164,26 +11164,31 @@ function CandidateInterviewInner() {
     cqTdzMark('AFTER_CURRENT_PROMPT_COMPUTATION', { hasPrompt: !!currentPrompt });
     
     cqTdzMark('BEFORE_ACTIVE_PROMPT_TEXT_RESOLUTION');
-    
+
     // ============================================================================
     // ACTIVE PROMPT TEXT RESOLUTION - Consolidated render-time derivations (TDZ-safe)
     // ============================================================================
     // CRITICAL: All prompt-related consts consolidated here (after dependencies)
-    const activePromptText_TRY1 = computeActivePromptText({
-      requiredAnchorFallbackActive,
-      requiredAnchorCurrent,
-      v3ProbingContext_S,
-      v3ProbingActive,
-      v3ActivePromptText,
-      effectiveItemType_SAFE,
-      currentItem_S,
-      v2ClarifierState,
-      currentPrompt
-    });
-    
-    cqTdzMark('AFTER_ACTIVE_PROMPT_TEXT_RESOLUTION', { hasText: !!activePromptText_TRY1 });
-    
-    safeActivePromptText = sanitizeCandidateFacingText(activePromptText_TRY1, 'ACTIVE_PROMPT_TEXT');
+    try {
+      const activePromptText_TRY1 = computeActivePromptText({
+        requiredAnchorFallbackActive,
+        requiredAnchorCurrent,
+        v3ProbingContext_S,
+        v3ProbingActive,
+        v3ActivePromptText,
+        effectiveItemType_SAFE,
+        currentItem_S,
+        v2ClarifierState,
+        currentPrompt
+      });
+
+      cqTdzMark('AFTER_ACTIVE_PROMPT_TEXT_RESOLUTION', { hasText: !!activePromptText_TRY1 });
+
+      safeActivePromptText = sanitizeCandidateFacingText(activePromptText_TRY1, 'ACTIVE_PROMPT_TEXT');
+    } catch (e) {
+      console.warn("[CQ_TDZ_GUARD][ACTIVE_PROMPT_TEXT_RESOLUTION_FAILED]", e);
+      safeActivePromptText = '';
+    }
   } catch (e) {
     __cqTdzError = e;
     console.error('[CQ_TDZ_PROBE][ERROR]', { message: e?.message, stack: e?.stack });
@@ -11799,6 +11804,8 @@ function CandidateInterviewInner() {
   
   // PART B: RENDER LIST APPENDED - HOISTED TO BATCH 3 (line ~4690)
   
+  const _effectiveItemType = currentItem_S?.type ?? null;
+
   // FORCE SCROLL ON QUESTION_SHOWN: Ensure base questions never render behind footer
   cqHookMark('HOOK_53:useLayoutEffect:forceScrollQuestionShown');
   ReactUseLayoutEffect_TR("H53_FORCE_SCROLL_Q_SHOWN", () => {
