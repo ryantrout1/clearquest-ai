@@ -12017,6 +12017,7 @@ function CandidateInterviewInner() {
   // GRAVITY FOLLOW - HOISTED TO BATCH 3 (line ~4740)
   
   const _hasActiveCardSOT = false;
+  const _activeCard_SKeySOT = null;
 
   // FOOTER OVERLAP CLAMP: Ensure active card never behind footer (unconditional)
   cqHookMark('HOOK_55:useLayoutEffect:footerOverlapClamp');
