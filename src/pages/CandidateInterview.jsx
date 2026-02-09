@@ -16450,6 +16450,22 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       message: e?.message,
     });
     
+    // TRY1 CATCH SAFE FALLBACKS: Reset all TRY1-computed variables to safe defaults
+    // Prevents partial TRY1 execution from leaving broken state (TDZ / ReferenceError)
+    console.warn("[CQ_TRY1_CATCH][NONFATAL]", { message: e?.message, name: e?.name, lastStep: (__cqLastRenderStep_MEM || null) });
+    safeActivePromptText = '';
+    activePromptText = '';
+    transcriptRenderable = [];
+    finalTranscriptList_S = [];
+    activeUiItem_S = null;
+    activeCard_S = null;
+    bottomBarModeSOT = 'DISABLED';
+    bottomBarRenderTypeSOT = 'default';
+    effectiveItemType = null;
+    shouldRenderFooter = false;
+    hasPrompt = false;
+    isBottomBarSubmitDisabled = true;
+
     // PHASE 1 FIX: Do NOT throw during render (causes hook-order mismatch)
     // Set guard flag to render fallback UI instead of throwing
     __cqBootGuardBlockRender = true;
