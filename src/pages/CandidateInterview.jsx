@@ -3947,7 +3947,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // These variables are referenced in hoisted hook dependency arrays
   // Declared early using only pre-hook state to prevent TDZ crashes
-  const activeUiItem_S_SAFE = null; // Computed in TRY1 - null during boot is safe
+  const activeUiItem_S_SAFE = {}; // Safe default: prevents .kind null crashes during boot/early TRY1
   let hasActiveV3Prompt = false;
   const hasActiveV3Prompt_SAFE = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
   hasActiveV3Prompt = hasActiveV3Prompt_SAFE;
