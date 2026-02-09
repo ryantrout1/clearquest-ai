@@ -12950,7 +12950,7 @@ function CandidateInterviewInner() {
   try {
     cqSetRenderStep('TRY1:TOP:06A_ENTER_POST05Z_EXEC');
   
-  const currentItem_SType = v3GateActive ? 'v3_gate' :
+  currentItem_SType = v3GateActive ? 'v3_gate' :
                           v3ProbingActive ? 'v3_probing' :
                           pendingSectionTransition ? 'section_transition' :
                           currentItem_S?.type || null;
@@ -13615,6 +13615,9 @@ function CandidateInterviewInner() {
   
   // TDZ FIX: Hoist effectiveItemType_SAFE declaration before first use
   let effectiveItemType_SAFE = null;
+  
+  // TDZ FIX: Hoist currentItem_SType declaration before first use
+  let currentItem_SType = null;
   
   // ============================================================================
   // BOTTOM BAR DERIVED STATE BLOCK - All derived variables in strict order
