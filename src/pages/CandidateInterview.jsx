@@ -12064,6 +12064,7 @@ function CandidateInterviewInner() {
   // ACTIVE CARD OVERLAP NUDGE - HOISTED TO BATCH 3 (line ~4850)
 
   // AUTO-GROWING INPUT: Auto-resize textarea based on content (ChatGPT-style)
+  const _bottomBarModeSOT = bottomBarModeSOT_SAFE;
   cqHookMark('HOOK_57:useEffect:autoGrowInput');
   useEffect_TR(() => {
     if (__cqBootNotReady) return;
