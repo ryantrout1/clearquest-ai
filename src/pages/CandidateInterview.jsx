@@ -12180,6 +12180,10 @@ function CandidateInterviewInner() {
   if (!__cqBootNotReady) {
     cqSetRenderStep('TRY1:ENTER_BLOCK_TOP');
     
+    // TDZ FIX: Hoist critical bindings at TRY1 top (before Segment E0)
+    let effectiveItemType_SAFE = null;
+    let currentItem_SType = null;
+    
     // EDIT 1: Micro-step marker 01
     try {
       __cqLastRenderStep_MEM = 'TRY1:TOP:01_AFTER_ENTER';
@@ -13612,12 +13616,6 @@ function CandidateInterviewInner() {
   });
   
   cqTdzMark('BEFORE_BOTTOM_BAR_DERIVED_BLOCK');
-  
-  // TDZ FIX: Hoist effectiveItemType_SAFE declaration before first use
-  let effectiveItemType_SAFE = null;
-  
-  // TDZ FIX: Hoist currentItem_SType declaration before first use
-  let currentItem_SType = null;
   
   // ============================================================================
   // BOTTOM BAR DERIVED STATE BLOCK - All derived variables in strict order
