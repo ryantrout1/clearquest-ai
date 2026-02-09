@@ -1902,7 +1902,9 @@ function CandidateInterviewInner() {
   let shouldApplyFooterClearance = false;
   let footerClearancePx = 96;
   let bottomSpacerPx = 80;
-  
+  let activeUiItem_S = null;
+  let transcriptRenderable = [];
+
   // TDZ FIX: Missing planner utility (used at lines ~19899, ~20171, ~20251, ~20286, ~20604, ~20673)
   const cqRead = (_label, fn) => (typeof fn === 'function' ? fn() : fn);
   
@@ -12518,7 +12520,7 @@ function CandidateInterviewInner() {
     } catch (_) {}
 
     // FIX: Hoist activeUiItem_S declaration outside Segment C (block scope fix)
-    let activeUiItem_S = null;
+    activeUiItem_S = null;
 
     // EDIT 2: Segment C - try/catch wrap
     try {
@@ -15446,7 +15448,7 @@ function CandidateInterviewInner() {
   
   const hasActiveCardSOT = Boolean(activeCard_SKeySOT);
   activeCard_S = null;
-  const transcriptRenderable = renderedTranscriptSnapshotRef_SAFE.current || dbTranscript || [];
+  transcriptRenderable = renderedTranscriptSnapshotRef_SAFE.current || dbTranscript || [];
   const currentPromptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
   if (activeUiItem_S_SAFE.kind === "V3_PROMPT") {
     const v3PromptText = v3ActivePromptText || v3ActiveProbeQuestionRef.current || "";
