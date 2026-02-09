@@ -13534,20 +13534,20 @@ function CandidateInterviewInner() {
   }
   
   // PART E: Assert-style log - V3_PROMPT and MI_GATE mutual exclusion at tail
-  if (activeUiItem_S_SAFE.kind === "V3_PROMPT" && activeCard_S_SAFE?.kind === "multi_instance_gate") {
+  if (activeUiItem_S_SAFE?.kind === "V3_PROMPT" && activeCard_S_SAFE?.kind === "multi_instance_gate") {
     console.error("[STREAM][VIOLATION]", {
       reason: "activeKind=V3_PROMPT but activeCard_S is MI_GATE",
-      activeUiItem_SKind: activeUiItem_S_SAFE.kind,
-      activeCard_SKind: activeCard_S_SAFE.kind,
+      activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
+      activeCard_SKind: activeCard_S_SAFE?.kind,
       tail: finalRenderStream.slice(-3).map(x => ({ kind: x.kind, key: x.stableKey }))
     });
   }
-  
-  if (activeUiItem_S_SAFE.kind === "MI_GATE" && activeCard_S_SAFE?.kind === "v3_probe_q") {
+
+  if (activeUiItem_S_SAFE?.kind === "MI_GATE" && activeCard_S_SAFE?.kind === "v3_probe_q") {
     console.error("[STREAM][VIOLATION]", {
       reason: "activeKind=MI_GATE but activeCard_S is V3_PROBE",
-      activeUiItem_SKind: activeUiItem_S_SAFE.kind,
-      activeCard_SKind: activeCard_S_SAFE.kind,
+      activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
+      activeCard_SKind: activeCard_S_SAFE?.kind,
       tail: finalRenderStream.slice(-3).map(x => ({ kind: x.kind, key: x.stableKey }))
     });
   }
