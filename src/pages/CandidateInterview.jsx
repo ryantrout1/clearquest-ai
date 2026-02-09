@@ -16061,6 +16061,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     const renderedV3OpenerKeysSOT = new Set();
 
     const transcriptRenderableList = isV3DebugEnabled_SAFE ? cqRead('TRANSCRIPT_IIFE:finalTranscriptList_S_SAFE.filter', () => finalTranscriptList_S_SAFE.filter(shouldRenderInTranscript)) : finalTranscriptList_S_SAFE.filter(shouldRenderInTranscript);
+    
+    // CRASH FIX: NULL-SAFE activeCard_S access (prevents "Cannot read properties of null (reading 'kind')")
+    const activeCard_S_SAFE_INNER = activeCard_S ?? null;
 
     const filteredCount = (isV3DebugEnabled_SAFE ? cqRead('TRANSCRIPT_IIFE:finalTranscriptList_S_SAFE.length', () => finalTranscriptList_S_SAFE.length) : finalTranscriptList_S_SAFE.length) - (isV3DebugEnabled_SAFE ? cqRead('TRANSCRIPT_IIFE:transcriptRenderableList.length', () => transcriptRenderableList.length) : transcriptRenderableList.length);
     const forceTranscriptFilterDebug = isV3DebugEnabled_SAFE || false;
@@ -16135,7 +16138,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
         sessionId
     } = args;
 
-    if (!activeCard_S || !(activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" || activeUiItem_S_SAFE.kind === "V3_OPENER" || activeUiItem_S_SAFE.kind === "V3_PROMPT" || activeUiItem_S_SAFE.kind === "MI_GATE" || activeCard_S_SAFE.kind === "base_question_yesno")) {
+    if (!activeCard_S || !(activeUiItem_S_SAFE?.kind === "REQUIRED_ANCHOR_FALLBACK" || activeUiItem_S_SAFE?.kind === "V3_OPENER" || activeUiItem_S_SAFE?.kind === "V3_PROMPT" || activeUiItem_S_SAFE?.kind === "MI_GATE" || activeCard_S_SAFE?.kind === "base_question_yesno")) {
         return { shouldRender: false };
     }
 
