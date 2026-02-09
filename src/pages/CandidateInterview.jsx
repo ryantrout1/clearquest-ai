@@ -12018,6 +12018,7 @@ function CandidateInterviewInner() {
   
   const _hasActiveCardSOT = false;
   const _activeCard_SKeySOT = null;
+  const _dynamicFooterHeightPx = Number(_footerMeasuredHeightPx) || 0;
 
   // FOOTER OVERLAP CLAMP: Ensure active card never behind footer (unconditional)
   cqHookMark('HOOK_55:useLayoutEffect:footerOverlapClamp');
