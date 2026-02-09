@@ -12183,6 +12183,7 @@ function CandidateInterviewInner() {
     // TDZ FIX: Hoist critical bindings at TRY1 top (before Segment E0)
     let effectiveItemType_SAFE = null;
     let currentItem_SType = null;
+    activeCard_S_SAFE = null;
     
     // EDIT 1: Micro-step marker 01
     try {
@@ -16504,6 +16505,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   const questionCompletionPct = 0;
   // activeUiItem_S_SAFE declared earlier (line 3193)
   // bottomBarModeSOT_SAFE declared earlier (line 3196)
+  // activeCard_S_SAFE hoisted to TRY1 top (line ~12186)
+  // Assignment moved from here to prevent late-initialization TDZ
   activeCard_S_SAFE = activeCard_S ?? null;
   
   // TDZ FIX: shouldRenderFooter_SAFE declared early (before hooks); assign computed value here
