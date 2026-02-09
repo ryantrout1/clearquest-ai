@@ -51,7 +51,6 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminLogin from './pages/AdminLogin';
 import AiSettings from './pages/AiSettings';
 import BackfillSummaries from './pages/BackfillSummaries';
-import CandidateInterview from './pages/CandidateInterview';
 import CandidateInterviewSession from './pages/CandidateInterviewSession';
 import CreateDepartment from './pages/CreateDepartment';
 import DepartmentDashboard from './pages/DepartmentDashboard';
@@ -79,6 +78,7 @@ import SystemAdminDashboard from './pages/SystemAdminDashboard';
 import SystemConfiguration from './pages/SystemConfiguration';
 import TrialSignup from './pages/TrialSignup';
 import startinterviewSentinel from './pages/_STARTINTERVIEW_SENTINEL';
+import CandidateInterview from './pages/CandidateInterview';
 import __Layout from './Layout.jsx';
 
 
@@ -87,7 +87,6 @@ export const PAGES = {
     "AdminLogin": AdminLogin,
     "AiSettings": AiSettings,
     "BackfillSummaries": BackfillSummaries,
-    "CandidateInterview": CandidateInterview,
     "CandidateInterviewSession": CandidateInterviewSession,
     "CreateDepartment": CreateDepartment,
     "DepartmentDashboard": DepartmentDashboard,
@@ -115,6 +114,7 @@ export const PAGES = {
     "SystemConfiguration": SystemConfiguration,
     "TrialSignup": TrialSignup,
     "_STARTINTERVIEW_SENTINEL": startinterviewSentinel,
+    "CandidateInterview": CandidateInterview,
 }
 
 export const pagesConfig = {

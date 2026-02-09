@@ -1904,7 +1904,7 @@ function CandidateInterviewInner() {
   let bottomSpacerPx = 80;
   let activeUiItem_S = null;
   let transcriptRenderable = [];
-  let activeCard_S_SAFE = null; // TDZ FIX: early safe default (assigned real value at ~16502)
+  let activeCard_S_SAFE = {}; // TDZ FIX: Non-null default prevents .kind crashes (assigned real value at ~16507)
 
   // TDZ FIX: Missing planner utility (used at lines ~19899, ~20171, ~20251, ~20286, ~20604, ~20673)
   const cqRead = (_label, fn) => (typeof fn === 'function' ? fn() : fn);
@@ -16533,6 +16533,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   const getQuestionDisplayNumber_SAFE = (typeof getQuestionDisplayNumber !== 'undefined')
     ? getQuestionDisplayNumber
     : (() => '');
+  
+  // TDZ FIX: Reassign activeCard_S_SAFE with non-null fallback (prevents .kind crashes)
+  activeCard_S_SAFE = activeCard_S ?? {};
   
   cqSetRenderStep('RENDER:BEFORE_RETURN');
   console.log("[TDZ_TRACE][RENDER_ENTER]");
