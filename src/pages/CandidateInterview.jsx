@@ -1904,6 +1904,7 @@ function CandidateInterviewInner() {
   let bottomSpacerPx = 80;
   let activeUiItem_S = null;
   let transcriptRenderable = [];
+  let activeCard_S_SAFE = null; // TDZ FIX: early safe default (assigned real value at ~16502)
 
   // TDZ FIX: Missing planner utility (used at lines ~19899, ~20171, ~20251, ~20286, ~20604, ~20673)
   const cqRead = (_label, fn) => (typeof fn === 'function' ? fn() : fn);
@@ -16499,7 +16500,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   const questionCompletionPct = 0;
   // activeUiItem_S_SAFE declared earlier (line 3193)
   // bottomBarModeSOT_SAFE declared earlier (line 3196)
-  const activeCard_S_SAFE = activeCard_S ?? null;
+  activeCard_S_SAFE = activeCard_S ?? null;
   
   // TDZ FIX: shouldRenderFooter_SAFE declared early (before hooks); assign computed value here
   shouldRenderFooter_SAFE = shouldRenderFooter ?? false;
