@@ -13613,6 +13613,9 @@ function CandidateInterviewInner() {
   
   cqTdzMark('BEFORE_BOTTOM_BAR_DERIVED_BLOCK');
   
+  // TDZ FIX: Hoist effectiveItemType_SAFE declaration before first use
+  let effectiveItemType_SAFE = null;
+  
   // ============================================================================
   // BOTTOM BAR DERIVED STATE BLOCK - All derived variables in strict order
   // ============================================================================
@@ -15994,7 +15997,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
   // UI CONTRACT: 3-row shell enforced - do not reintroduce footer spacers/padding hacks; footer must stay in layout flow.
   
-  const effectiveItemType_SAFE = effectiveItemType ?? null;
+  effectiveItemType_SAFE = effectiveItemType ?? null;
   cqTdzMark('BEFORE_MAIN_RETURN_EXPR', { screenModeNow: screenMode, shouldShowFullScreenLoader, currentItem_SType: currentItem_S?.type, effectiveItemType: effectiveItemType_SAFE });
   
   // LIKELY_OFFENDER_SNAPSHOT: Safe typeof checks for identifiers declared ABOVE this point
