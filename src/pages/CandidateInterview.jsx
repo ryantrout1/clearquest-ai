@@ -1904,7 +1904,7 @@ function CandidateInterviewInner() {
   let bottomSpacerPx = 80;
   let activeUiItem_S = null;
   let transcriptRenderable = [];
-  let activeCard_S_SAFE = {}; // TDZ FIX: Non-null default prevents .kind crashes (assigned real value at ~16507)
+  let activeCard_S_SAFE = {}; // TDZ FIX: early safe default (assigned real value at ~16502)
 
   // TDZ FIX: Missing planner utility (used at lines ~19899, ~20171, ~20251, ~20286, ~20604, ~20673)
   const cqRead = (_label, fn) => (typeof fn === 'function' ? fn() : fn);
@@ -3321,7 +3321,7 @@ function CandidateInterviewInner() {
     
     // GUARD: Don't flip auto-scroll state during system transitions OR force-once window
     const recentAnchorAge = Date.now() - recentAnchorRef.current.ts;
-    const hasRecentAnchor = recentAnchorRef.current.kind === 'V3_PROBE_ANSWER' && recentAnchorAge < 1500;
+    const hasRecentAnchor = recentAnchorRef.current?.kind === 'V3_PROBE_ANSWER' && recentAnchorAge < 1500;
     const hasForceScrollPending = forceAutoScrollOnceRef.current;
     
     if (hasRecentAnchor || hasForceScrollPending) {
@@ -3947,7 +3947,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // These variables are referenced in hoisted hook dependency arrays
   // Declared early using only pre-hook state to prevent TDZ crashes
-  const activeUiItem_S_SAFE = null; // Computed in TRY1 - null during boot is safe
+  const activeUiItem_S_SAFE = {}; // Safe default: prevents .kind null crashes during boot/early TRY1
   let hasActiveV3Prompt = false;
   const hasActiveV3Prompt_SAFE = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
   hasActiveV3Prompt = hasActiveV3Prompt_SAFE;
@@ -11727,7 +11727,7 @@ function CandidateInterviewInner() {
       return;
     }
     
-    if (v3ScrollAnchorRef.current.kind !== 'V3_PROBE_QUESTION') return;
+    if (v3ScrollAnchorRef.current?.kind !== 'V3_PROBE_QUESTION') return;
     
     const anchorAge = Date.now() - v3ScrollAnchorRef.current.ts;
     if (anchorAge > 1500) {
@@ -12179,10 +12179,6 @@ function CandidateInterviewInner() {
   
   if (!__cqBootNotReady) {
     cqSetRenderStep('TRY1:ENTER_BLOCK_TOP');
-    
-    // TDZ FIX: Hoist critical bindings at TRY1 top (before Segment E0)
-    let effectiveItemType_SAFE = null;
-    let currentItem_SType = null;
     
     // EDIT 1: Micro-step marker 01
     try {
@@ -12954,7 +12950,7 @@ function CandidateInterviewInner() {
   try {
     cqSetRenderStep('TRY1:TOP:06A_ENTER_POST05Z_EXEC');
   
-  currentItem_SType = v3GateActive ? 'v3_gate' :
+  const currentItem_SType = v3GateActive ? 'v3_gate' :
                           v3ProbingActive ? 'v3_probing' :
                           pendingSectionTransition ? 'section_transition' :
                           currentItem_S?.type || null;
@@ -15998,7 +15994,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
   // UI CONTRACT: 3-row shell enforced - do not reintroduce footer spacers/padding hacks; footer must stay in layout flow.
   
-  effectiveItemType_SAFE = effectiveItemType ?? null;
+  const effectiveItemType_SAFE = effectiveItemType ?? null;
   cqTdzMark('BEFORE_MAIN_RETURN_EXPR', { screenModeNow: screenMode, shouldShowFullScreenLoader, currentItem_SType: currentItem_S?.type, effectiveItemType: effectiveItemType_SAFE });
   
   // LIKELY_OFFENDER_SNAPSHOT: Safe typeof checks for identifiers declared ABOVE this point
@@ -16504,7 +16500,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   const questionCompletionPct = 0;
   // activeUiItem_S_SAFE declared earlier (line 3193)
   // bottomBarModeSOT_SAFE declared earlier (line 3196)
-  activeCard_S_SAFE = activeCard_S ?? null;
+  activeCard_S_SAFE = activeCard_S ?? {};
   
   // TDZ FIX: shouldRenderFooter_SAFE declared early (before hooks); assign computed value here
   shouldRenderFooter_SAFE = shouldRenderFooter ?? false;
@@ -16533,9 +16529,6 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   const getQuestionDisplayNumber_SAFE = (typeof getQuestionDisplayNumber !== 'undefined')
     ? getQuestionDisplayNumber
     : (() => '');
-  
-  // TDZ FIX: Reassign activeCard_S_SAFE with non-null fallback (prevents .kind crashes)
-  activeCard_S_SAFE = activeCard_S ?? {};
   
   cqSetRenderStep('RENDER:BEFORE_RETURN');
   console.log("[TDZ_TRACE][RENDER_ENTER]");
