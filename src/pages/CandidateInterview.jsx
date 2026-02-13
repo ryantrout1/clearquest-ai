@@ -4051,15 +4051,16 @@ function CandidateInterviewInner() {
       }
 
       // 12s WATCHDOG: The ONLY failopen prompt injection path.
-      // Guarded: do NOT arm when deferred transition pending or auth blocked.
-      if (v3PendingProbingTransitionRef.current || v3AuthBlockedRef.current) {
+      // Guarded: do NOT arm when auth blocked. hasDeferred alone must NOT block
+      // arming — the deferred ref can go stale and cause a permanent deadlock.
+      if (v3AuthBlockedRef.current) {
         if (v3WaitingWatchdogRef.current) {
           clearTimeout(v3WaitingWatchdogRef.current);
           v3WaitingWatchdogRef.current = null;
         }
         console.warn('[V3_WAITING][WATCHDOG_SKIPPED_GUARDED]', {
           loopKey: armKey,
-          authBlocked: !!v3AuthBlockedRef.current,
+          authBlocked: true,
           hasDeferred: !!v3PendingProbingTransitionRef.current
         });
       } else if (v3WaitingLastArmKeyRef.current !== armKey) {
@@ -4068,22 +4069,37 @@ function CandidateInterviewInner() {
         }
         v3WaitingLastArmKeyRef.current = armKey;
 
-        console.warn('[V3_WAITING][WATCHDOG_ARMED]', { loopKey: armKey, ms: 12000 });
+        console.warn('[V3_WAITING][WATCHDOG_ARMED]', { loopKey: armKey, ms: 12000, hasDeferred: !!v3PendingProbingTransitionRef.current });
 
         v3WaitingWatchdogRef.current = setTimeout(() => {
-          // Re-check guards at fire time (auth may have been blocked during 12s wait)
-          if (v3AuthBlockedRef.current || v3PendingProbingTransitionRef.current) {
+          const promptNow = v3ActivePromptTextRef.current;
+          const hasPrompt = !!(promptNow && promptNow.trim().length > 0);
+          // Diagnostic: log every fire-time check
+          console.warn('[V3_WAITING][WATCHDOG_FIRE_CHECK]', {
+            loopKey,
+            authBlocked: !!v3AuthBlockedRef.current,
+            hasDeferred: !!v3PendingProbingTransitionRef.current,
+            hasPrompt
+          });
+          // Only auth-blocked prevents firing; hasDeferred alone must not block.
+          if (v3AuthBlockedRef.current) {
             console.warn('[V3_WAITING][WATCHDOG_SKIPPED_GUARDED]', {
               loopKey,
-              authBlocked: !!v3AuthBlockedRef.current,
+              authBlocked: true,
               hasDeferred: !!v3PendingProbingTransitionRef.current,
-              reason: 'guard_at_fire_time'
+              reason: 'auth_blocked_at_fire_time'
             });
+            return;
+          }
+          // If prompt arrived during the 12s window, no injection needed.
+          if (hasPrompt) {
+            console.log('[V3_WAITING][WATCHDOG_FIRE_SKIPPED_PROMPT_ARRIVED]', { loopKey });
             return;
           }
           console.warn('[V3_WAITING][WATCHDOG_FIRED_FAILOPEN]', {
             loopKey,
-            reason: 'timeout',
+            reason: 'no_prompt_after_12s',
+            hasDeferred: !!v3PendingProbingTransitionRef.current,
             sessionId
           });
 
@@ -4117,7 +4133,31 @@ function CandidateInterviewInner() {
       }
     };
   }, [__cqBootNotReady, v3ProbingActive, bottomBarModeSOT_SAFE, hasActiveV3Prompt_SAFE, screenMode, v3ProbingContext_S, sessionId]);
-  
+
+  // HOOK 2b/7: Clear stale deferred ref when it's no longer valid
+  // Prevents v3PendingProbingTransitionRef from lingering and blocking downstream logic.
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    const pending = v3PendingProbingTransitionRef.current;
+    if (!pending) return; // nothing to clear
+
+    const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
+
+    let reason = null;
+    if (!v3ProbingActive) {
+      reason = 'v3ProbingActive_false';
+    } else if (v3ActivePromptText && v3ActivePromptText.trim().length > 0) {
+      reason = 'prompt_text_arrived';
+    } else if (currentItem_S?.type === 'v3_probing') {
+      reason = 'already_in_v3_probing';
+    }
+
+    if (reason) {
+      console.warn('[V3_PROBING][DEFERRED_CLEARED]', { reason, loopKey });
+      v3PendingProbingTransitionRef.current = null;
+    }
+  }, [__cqBootNotReady, v3ProbingActive, v3ActivePromptText, currentItem_S, v3ProbingContext_S, sessionId]);
+
   // HOOK 3/7: V3 gate prompt handler
   React.useEffect(() => {
     if (__cqBootNotReady) return;
