@@ -1905,6 +1905,8 @@ function CandidateInterviewInner() {
   let activeUiItem_S = null;
   let transcriptRenderable = [];
   let activeCard_S_SAFE = {}; // TDZ FIX: Non-null default prevents .kind crashes (assigned real value at ~16507)
+  let v3HasVisiblePromptCard = false; // TDZ FIX: safe default; computed inside Segment B, referenced in derived snapshot + pipeline
+  let activeKindSOT = 'UNKNOWN'; // TDZ FIX: hoisted to function scope; assigned in Segment E try block (~15385)
 
   // TDZ FIX: Missing planner utility (used at lines ~19899, ~20171, ~20251, ~20286, ~20604, ~20673)
   const cqRead = (_label, fn) => (typeof fn === 'function' ? fn() : fn);
@@ -1916,6 +1918,14 @@ function CandidateInterviewInner() {
     } catch (_) {}
   }
   
+  // TDZ FIX: handleYesNoClick hoisted to function scope (assigned in POST_TRY1 zone ~16233)
+  // Declared here so it is in scope for both the [BOTTOM_BAR_RENDER] block and footer JSX.
+  let handleYesNoClick;
+
+  // TDZ FIX: persistStateToDatabase hoisted for cross-block usage (assigned at ~L7242 useCallback)
+  // Referenced by deferred transition useEffect (~L4550) which registers before the const declaration.
+  let persistStateToDatabase;
+
   // TRY2 FALLBACK: handleCompletionConfirm no-op (prevents modal crash during boot-not-ready)
   let handleCompletionConfirm = () => {
     console.log('[COMPLETION][BLOCKED_BOOT_NOT_READY]', { 
@@ -3947,14 +3957,24 @@ function CandidateInterviewInner() {
   // ============================================================================
   // These variables are referenced in hoisted hook dependency arrays
   // Declared early using only pre-hook state to prevent TDZ crashes
-  const activeUiItem_S_SAFE = null; // Computed in TRY1 - null during boot is safe
+  const activeUiItem_S_SAFE = {}; // Safe default: prevents .kind null crashes during boot/early TRY1
   let hasActiveV3Prompt = false;
   const hasActiveV3Prompt_SAFE = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
   hasActiveV3Prompt = hasActiveV3Prompt_SAFE;
   const hasV3PromptText_SAFE = Boolean(v3ActivePromptText && v3ActivePromptText.trim().length > 0);
-  const bottomBarModeSOT_SAFE = null; // Computed in TRY1 - null during boot is safe
+  let bottomBarModeSOT_SAFE = null; // Computed in TRY1 - null during boot is safe
   let shouldRenderFooter_SAFE = false; // TDZ FIX: placeholder for hook deps (boot-safe)
-  
+  let bottomBarRenderTypeSOT_SAFE = 'default'; // TDZ FIX: safe default before POST_TRY1 assignment
+  let effectiveItemType_SAFE = null; // TDZ FIX: safe default before POST_TRY1 assignment (shadows inner let in TRY1)
+  let needsPrompt = false; // TDZ FIX: safe default before TRY1 derived snapshot assignment
+  let renderedTranscriptSnapshotRef_SAFE = { current: null }; // TDZ FIX: safe default before POST_TRY1 assignment
+  let getMessageTypeSOT_SAFE = () => "default"; // TDZ FIX: safe callable default before POST_TRY1 assignment
+  let derived = {}; // TDZ FIX: safe default before Segment E derived snapshot assignment
+  let dynamicBottomPaddingPx_SAFE = 80; // TDZ FIX: safe default before else-block scoped declaration
+  let finalTranscriptList_S_SAFE = []; // TDZ FIX: safe default before POST_TRY1 assignment (closure ref in computeTranscriptRenderPlan)
+  let activePromptText_SAFE = ''; // TDZ FIX: safe default before POST_TRY1 assignment
+  let safeActivePromptText_SAFE = ''; // TDZ FIX: safe default before POST_TRY1 assignment
+
   // ============================================================================
   // BOOT GUARD FLAG - Hoisted above hooks to prevent TDZ in dep arrays
   // ============================================================================
@@ -4013,47 +4033,57 @@ function CandidateInterviewInner() {
     const armKey = loopKey || 'none';
     
     if (isStuck && armKey !== 'none') {
-      // IMMEDIATE FAILOPEN: Don't wait 12s - force prompt immediately
+      // IMMEDIATE FAILOPEN: DISABLED — prompt injection must only happen via 12s watchdog timeout.
+      // Immediate injection was causing deferred-transition race (fake prompt triggered v3_probing entry).
       if (!v3WaitingFailopenFiredRef.current.has(armKey)) {
         v3WaitingFailopenFiredRef.current.add(armKey);
-        
-        console.warn('[V3_WAITING][FAILOPEN_PROMPT_FORCED]', { 
+        console.warn('[V3_WAITING][FAILOPEN_IMMEDIATE_DISABLED]', {
           loopKey: armKey,
-          reason: 'V3_WAITING with no prompt - forcing failopen immediately'
+          reason: 'Immediate failopen removed — watchdog-only',
+          v3ProbingActive,
+          hasActiveV3Prompt: hasActiveV3Prompt_SAFE,
+          deferredPending: !!v3PendingProbingTransitionRef.current,
+          authBlocked: !!v3AuthBlockedRef.current
         });
-        
-        const fallbackPromptId = `${armKey}:failopen`;
-        setV3PromptPhase('ANSWER_NEEDED');
-        setV3ActivePromptText("What additional details can you provide to make this complete?");
-        setV3ProbingContext(prev => ({
-          ...prev,
-          promptId: fallbackPromptId
-        }));
-        
-        // Create parent snapshot marker
-        lastV3PromptSnapshotRef.current = {
-          loopKey: armKey,
-          decideSeq: Date.now(),
-          promptPreview: "What additional details can you provide",
-          promptLen: 61,
-          ts: Date.now()
-        };
       }
-      
-      if (v3WaitingLastArmKeyRef.current !== armKey) {
+
+      // 12s WATCHDOG: The ONLY failopen prompt injection path.
+      // Guarded: do NOT arm when deferred transition pending or auth blocked.
+      if (v3PendingProbingTransitionRef.current || v3AuthBlockedRef.current) {
+        if (v3WaitingWatchdogRef.current) {
+          clearTimeout(v3WaitingWatchdogRef.current);
+          v3WaitingWatchdogRef.current = null;
+        }
+        console.warn('[V3_WAITING][WATCHDOG_SKIPPED_GUARDED]', {
+          loopKey: armKey,
+          authBlocked: !!v3AuthBlockedRef.current,
+          hasDeferred: !!v3PendingProbingTransitionRef.current
+        });
+      } else if (v3WaitingLastArmKeyRef.current !== armKey) {
         if (v3WaitingWatchdogRef.current) {
           clearTimeout(v3WaitingWatchdogRef.current);
         }
-        
         v3WaitingLastArmKeyRef.current = armKey;
-        
+
+        console.warn('[V3_WAITING][WATCHDOG_ARMED]', { loopKey: armKey, ms: 12000 });
+
         v3WaitingWatchdogRef.current = setTimeout(() => {
-          console.warn('[V3_WAITING][WATCHDOG_FIRE]', { 
-            sessionId, 
-            loopKey, 
-            reason: 'no_prompt_after_12s' 
+          // Re-check guards at fire time (auth may have been blocked during 12s wait)
+          if (v3AuthBlockedRef.current || v3PendingProbingTransitionRef.current) {
+            console.warn('[V3_WAITING][WATCHDOG_SKIPPED_GUARDED]', {
+              loopKey,
+              authBlocked: !!v3AuthBlockedRef.current,
+              hasDeferred: !!v3PendingProbingTransitionRef.current,
+              reason: 'guard_at_fire_time'
+            });
+            return;
+          }
+          console.warn('[V3_WAITING][WATCHDOG_FIRED_FAILOPEN]', {
+            loopKey,
+            reason: 'timeout',
+            sessionId
           });
-          
+
           const fallbackPromptId = `${loopKey}:fallback`;
           setV3PromptPhase('ANSWER_NEEDED');
           setV3ActivePromptText("Please restate the missing detail you want to add, including the agency name.");
@@ -4509,7 +4539,56 @@ function CandidateInterviewInner() {
       }
     }
   }, [__cqBootNotReady, renderedTranscript, currentItem_S, v3ProbingActive]);
-  
+
+  // DEFERRED V3 PROBING TRANSITION: Only enter v3_probing after first prompt arrives
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    const pending = v3PendingProbingTransitionRef.current;
+    if (!pending) return;
+    if (!v3ActivePromptText || v3ActivePromptText.trim().length === 0) return;
+
+    // GUARD: Auth-blocked — cancel deferred transition, do NOT enter v3_probing
+    if (v3AuthBlockedRef.current) {
+      console.warn("[V3_GUARD][SKIP_V3_PROBING_TRANSITION]", {
+        reason: 'auth_blocked',
+        authBlocked: true,
+        hasPromptLen: v3ActivePromptText.trim().length,
+        packId: pending.packId,
+        instanceNumber: pending.instanceNumber
+      });
+      v3PendingProbingTransitionRef.current = null;
+      return;
+    }
+
+    // Prompt arrived — fire deferred transition
+    const { packId, categoryId, instanceNumber, baseQuestionId } = pending;
+    const probingItem = {
+      id: `v3-probing-${packId}-${instanceNumber}`,
+      type: 'v3_probing',
+      packId,
+      categoryId,
+      instanceNumber,
+      baseQuestionId
+    };
+
+    console.warn("[V3_PROBING][DEFERRED_TRANSITION_FIRE]", { packId, instanceNumber, promptLen: v3ActivePromptText.trim().length });
+    v3PendingProbingTransitionRef.current = null;
+    setCurrentItem(probingItem);
+    if (typeof persistStateToDatabase !== "function") {
+      console.error("[TDZ_GUARD][persistStateToDatabase_NOT_READY]", { typeof: typeof persistStateToDatabase });
+    } else {
+      persistStateToDatabase(null, [], probingItem);
+    }
+  }, [__cqBootNotReady, v3ActivePromptText, persistStateToDatabase]);
+
+  // INVARIANT: v3_probing without prompt
+  React.useEffect(() => {
+    if (__cqBootNotReady) return;
+    if (currentItem_S?.type === 'v3_probing' && (!v3ActivePromptText || v3ActivePromptText.trim().length === 0)) {
+      console.error("[V3_INVARIANT][PROBING_WITHOUT_PROMPT]", { packId: currentItem_S?.packId, instanceNumber: currentItem_S?.instanceNumber });
+    }
+  }, [__cqBootNotReady, currentItem_S, v3ActivePromptText]);
+
   // ============================================================================
   // BATCH 2: ADDITIONAL HOISTED HOOKS - Moved from inside TRY1 (Phase 2)
   // ============================================================================
@@ -6052,7 +6131,10 @@ function CandidateInterviewInner() {
   const v3BaseQuestionIdRef = React.useRef(null);
   const exitV3HandledRef = React.useRef(false);
   const exitV3InProgressRef = React.useRef(false);
-  
+  const v3AuthBlockedRef = React.useRef(false);
+  const v3AuthBlockedAtRef = React.useRef(null);
+  const v3PendingProbingTransitionRef = React.useRef(null); // Deferred v3_probing transition: { packId, categoryId, instanceNumber, baseQuestionId }
+
   // V3 ENGINE DECISION CACHE: Store last engine_S result per loopKey (for MI_GATE payload)
   const lastV3DecisionByLoopKeyRef = React.useRef({}); // Map<loopKey, { missingFields, miGateBlocked, stopReason, packId, instanceNumber, ts }>
   
@@ -7188,7 +7270,7 @@ function CandidateInterviewInner() {
 
   __cqHookSite('H12P_7:useCallback@L7474');
   __cqHookSite('H12P2_N6:useCallback@L7484');
-  const persistStateToDatabase = React.useCallback(async (ignoredTranscript, newQueue, newCurrentItem) => {
+  persistStateToDatabase = React.useCallback(async (ignoredTranscript, newQueue, newCurrentItem) => {
     if (__cqBootNotReady) return;
     // TRANSCRIPT GUARD: Warn if transcript argument is passed (should always be null)
     if (ignoredTranscript !== null && ignoredTranscript !== undefined) {
@@ -7751,6 +7833,7 @@ function CandidateInterviewInner() {
   __cqHookSite('H12P2_N10:useCallback@L8037');
   const handleAnswer = React.useCallback(async (value) => {
     if (__cqBootNotReady) return;
+    console.warn("[V3_FALLBACK][AUTH_EXIT][CTX_EMIT]", { v3AuthBlocked: v3AuthBlockedRef.current, v3AuthBlockedAt: v3AuthBlockedAtRef.current });
     return handleAnswerImpl({
       // State values
       activeUiItem_S_SAFE,
@@ -7799,7 +7882,11 @@ function CandidateInterviewInner() {
       v3PackEntryFailsafeTimerRef,
       v3PackEntryFailsafeTokenRef,
       v3ProbingActiveRef,
-      
+      v3AuthBlockedRef,
+      v3AuthBlocked: v3AuthBlockedRef.current,
+      v3AuthBlockedAt: v3AuthBlockedAtRef.current,
+      v3PendingProbingTransitionRef,
+
       // State setters
       setActiveV2Pack,
       setAiFollowupCounts,
@@ -7848,6 +7935,52 @@ function CandidateInterviewInner() {
       hasQuestionBeenLogged,
       AlertCircle,
       Button,
+      saveAnswerToDatabase,
+      appendUserMessageImport,
+      ENFORCE_TRANSCRIPT_CONTRACT,
+      // Telemetry & logging
+      logAnswerSubmitted,
+      logPackEntered,
+      logPackExited,
+      logSectionComplete,
+      getStabilitySnapshotSOT,
+      createChatEvent,
+      validateSchemaSource,
+      setDbTranscript,
+      // Flow-critical functions
+      applySectionGateIfNeeded,
+      commitBaseQAIfMissing,
+      getBackendQuestionText,
+      getV3DeterministicOpener,
+      buildV3OpenerStableKey,
+      mapPackIdToCategory,
+      getSystemConfig,
+      getFactModelForCategory,
+      injectSubstanceIntoPackSteps,
+      shouldSkipFollowUpStep,
+      validateFollowUpAnswer,
+      shouldSkipProbingForHired,
+      handleMiGateYesNo,
+      exitV3Once,
+      transitionToAnotherInstanceGate,
+      maybeAutoSkipV2Field,
+      resolvePackSchema,
+      upsertTranscriptMonotonic,
+      upsertTranscriptState,
+      appendAssistantMessageImport,
+      unstable_batchedUpdates,
+      // State values & flags
+      backendQuestionTextMap,
+      interviewMode,
+      ideEnabled,
+      __cqUsesPerFieldProbing,
+      ENABLE_V3_PROBING,
+      ENABLE_LIVE_AI_FOLLOWUPS,
+      WHAT_TO_EXPECT,
+      fieldSuggestions,
+      // Refs
+      v3ProbingContext_SRef,
+      v3ProbingStartedRef,
       cqIsItemCommitting,
     }, value);
   }, [currentItem_S, engine_S, queue, dbTranscript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, sectionCompletionMessage, activeV2Pack, v2PackMode, aiFollowupCounts, aiProbingEnabled, aiProbingDisabledForSession, refreshTranscriptFromDB]);
@@ -8629,6 +8762,7 @@ function CandidateInterviewInner() {
 
   // V3 EXIT: Idempotent exit function (only runs once)
   const exitV3Once = React.useCallback((reason, payload) => {
+    console.warn("[V3_AUDIT][EXITV3][ENTER]", { reason, exitV3HandledRef: exitV3HandledRef.current, exitV3InProgressRef: exitV3InProgressRef.current, baseQuestionId: v3BaseQuestionIdRef.current, __cqBootNotReady });
     if (__cqBootNotReady) return;
     if (exitV3HandledRef.current) {
       console.log('[EXIT_V3][SKIP] Already handled');
@@ -8637,7 +8771,7 @@ function CandidateInterviewInner() {
 
     exitV3HandledRef.current = true;
     console.log('[EXIT_V3][ONCE]', { reason, baseQuestionId: v3BaseQuestionIdRef.current });
-    
+
     // FAILSAFE CANCEL: Exiting probing - cancel opener failsafe
     if (v3OpenerFailsafeTimerRef.current) {
       clearTimeout(v3OpenerFailsafeTimerRef.current);
@@ -8649,10 +8783,12 @@ function CandidateInterviewInner() {
     }
 
     // Queue transition (executed in useEffect)
+    console.warn("[V3_AUDIT][EXITV3][SET_PENDING]", { reason, transitionType: "EXIT_V3", payloadReason: payload?.reason, payloadCompletionReason: payload?.completionReason });
     setPendingTransition({
       type: 'EXIT_V3',
       payload: { ...payload, reason }
     });
+    console.warn("[V3_AUDIT][EXITV3][PENDING_SET_OK]", { reason });
   }, [sessionId]);
 
   // V3 OPENER PERSISTENCE: DISABLED - Append on submit only (prevents duplicate during active state)
@@ -8676,30 +8812,121 @@ function CandidateInterviewInner() {
 
   // V3 probing completion handler - ENFORCES required fields completion before MI_GATE
   const handleV3ProbingComplete = React.useCallback(async (result) => {
-    if (__cqBootNotReady) return;
-    const { packId, categoryId, instanceNumber, nextAction, stopReason, missingFields } = result || {};
-    
-    // REQUIRED FIELDS GATE: Block MI_GATE if any required fields missing
-    const hasMissingRequired = Array.isArray(missingFields) && missingFields.length > 0;
-    
-    if (hasMissingRequired) {
-      console.error('[UI_CONTRACT][MI_GATE_SUPPRESSED_REQUIRED_FIELDS]', {
-        packId,
-        instanceNumber,
-        reason: 'missing_required_fields',
-        nextAction,
-        stopReason,
-        missingCount: missingFields.length,
-        missingFieldIds: missingFields.map(f => f.field_id || f).join(',')
+    console.warn("[V3_AUDIT][PARENT][ONCOMPLETE_ENTER]", {
+      completionReason: result?.completionReason,
+      packId: result?.packId,
+      instanceNumber: result?.instanceNumber,
+      missingFieldsLen: Array.isArray(result?.missingFields) ? result.missingFields.length : null,
+      currentItem_SType: currentItem_S?.type,
+    });
+    try {
+      if (__cqBootNotReady) return;
+      const { packId, categoryId, instanceNumber, nextAction, stopReason, missingFields } = result || {};
+
+      // AUTH_EXIT: Hard-clear V3 state and force baseline advance directly
+      if (result?.completionReason === 'AUTH_EXIT') {
+        // Cancel deferred transition — prevent v3_probing from ever firing
+        v3PendingProbingTransitionRef.current = null;
+        console.warn("[V3_FALLBACK][AUTH_EXIT][CANCEL_DEFERRED_TRANSITION]", { packId, instanceNumber });
+
+        v3AuthBlockedRef.current = true;
+        v3AuthBlockedAtRef.current = Date.now();
+        console.warn("[V3_FALLBACK][AUTH_EXIT][LATCH_SET]", { packId, instanceNumber, at: v3AuthBlockedAtRef.current });
+
+        const baseQuestionId = v3BaseQuestionIdRef.current;
+        console.warn('[V3_FALLBACK][PARENT_CLEAR_AND_ADVANCE]', {
+          completionReason: 'AUTH_EXIT',
+          fromItemType: currentItem_S?.type || 'unknown',
+          packId,
+          instanceNumber,
+          baseQuestionId
+        });
+
+        // Hard-clear V3 prompt state so hasActiveV3Prompt becomes false
+        setV3ActivePromptText(null);
+        setV3PendingAnswer(null);
+        setUiBlocker(null);
+        v3ActivePromptTextRef.current = null;
+        lastRenderedV3PromptKeyRef.current = null;
+        lastV3PromptSnapshotRef.current = null;
+
+        // Clear V3 mode flags immediately (don't wait for transition handler)
+        setV3ProbingActive(false);
+        setV3ProbingContext(null);
+        setV3PromptPhase("IDLE");
+        setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
+
+        // Cancel opener failsafe if active
+        if (v3OpenerFailsafeTimerRef.current) {
+          clearTimeout(v3OpenerFailsafeTimerRef.current);
+          v3OpenerFailsafeTimerRef.current = null;
+          v3OpenerSubmitTokenRef.current = null;
+          v3OpenerSubmitLoopKeyRef.current = null;
+        }
+
+        // Cancel V3_WAITING watchdog timer + failopen state
+        if (v3WaitingWatchdogRef.current) {
+          clearTimeout(v3WaitingWatchdogRef.current);
+          v3WaitingWatchdogRef.current = null;
+        }
+        v3WaitingFailopenFiredRef.current.clear();
+        v3WaitingLastArmKeyRef.current = null;
+
+        // Set idempotency guards to prevent duplicate exits
+        exitV3HandledRef.current = true;
+
+        console.warn("[V3_FALLBACK][AUTH_EXIT][CLEANUP_OK]", { packId, instanceNumber, baseQuestionId });
+        console.warn("[V3_FALLBACK][AUTH_EXIT_FORCE_ADVANCE][BASEQ]", { baseQuestionId });
+
+        if (baseQuestionId) {
+          // Bypass exitV3Once — queue EXIT_V3 transition directly
+          setPendingTransition({
+            type: 'EXIT_V3',
+            payload: { ...result, reason: 'AUTH_EXIT' }
+          });
+          console.warn("[V3_FALLBACK][AUTH_EXIT_FORCE_ADVANCE][PENDING_SET]", { pendingTransitionType: 'EXIT_V3', reason: 'AUTH_EXIT' });
+        } else {
+          console.error("[V3_FALLBACK][AUTH_EXIT_FORCE_ADVANCE][NO_BASEQ]", { reason: 'AUTH_EXIT' });
+        }
+
+        console.warn("[V3_AUDIT][PARENT][ONCOMPLETE_EXIT]", { completionReason: result?.completionReason });
+        return;
+      }
+
+      // REQUIRED FIELDS GATE: Block MI_GATE if any required fields missing
+      const hasMissingRequired = Array.isArray(missingFields) && missingFields.length > 0;
+
+      if (hasMissingRequired) {
+        console.error('[UI_CONTRACT][MI_GATE_SUPPRESSED_REQUIRED_FIELDS]', {
+          packId,
+          instanceNumber,
+          reason: 'missing_required_fields',
+          nextAction,
+          stopReason,
+          missingCount: missingFields.length,
+          missingFieldIds: missingFields.map(f => f.field_id || f).join(',')
+        });
+
+        // DO NOT call exitV3Once - keep probing active
+        // Frontend should re-enter TEXT_INPUT mode and wait for next probe question
+        console.warn("[V3_AUDIT][PARENT][ONCOMPLETE_EXIT]", { completionReason: result?.completionReason });
+        return;
+      }
+
+      // All required fields complete - allow exit
+      exitV3Once('PROBING_COMPLETE', result);
+      console.warn("[V3_AUDIT][PARENT][ONCOMPLETE_EXIT]", { completionReason: result?.completionReason });
+    } catch (e) {
+      console.error("[V3_AUDIT][PARENT][ONCOMPLETE_THROW]", e);
+      throw e; // keep behavior
+    } finally {
+      console.warn("[V3_AUDIT][PARENT][ONCOMPLETE_FINALLY]", {
+        completionReason: result?.completionReason,
+        packId: result?.packId,
+        instanceNumber: result?.instanceNumber,
       });
-      
-      // DO NOT call exitV3Once - keep probing active
-      // Frontend should re-enter TEXT_INPUT mode and wait for next probe question
-      return;
+      console.warn("[V3_AUDIT][LOCKS]", { uiBlocker, v3ProbingActive, v3PromptPhase, exitV3HandledRef: exitV3HandledRef.current, exitV3InProgressRef: exitV3InProgressRef.current, pendingTransition: !!pendingTransition, v3BaseQuestionIdRef: v3BaseQuestionIdRef.current });
     }
-    
-    // All required fields complete - allow exit
-    exitV3Once('PROBING_COMPLETE', result);
   }, [exitV3Once]);
 
   // V3 transcript update handler - BLOCK V3 probe prompts from appending
@@ -10191,6 +10418,7 @@ function CandidateInterviewInner() {
     if (!pendingTransition) return;
 
     const executePendingTransition = async () => {
+      console.warn("[V3_AUDIT][TRANSITION][APPLY_ENTER]", { type: pendingTransition.type, reason: pendingTransition.payload?.reason, completionReason: pendingTransition.payload?.completionReason, shouldOfferAnotherInstance: pendingTransition.payload?.shouldOfferAnotherInstance, baseQuestionId: v3BaseQuestionIdRef.current, exitV3InProgressRef: exitV3InProgressRef.current });
       console.log('[PENDING_TRANSITION][EXECUTING]', pendingTransition.type, pendingTransition.payload);
 
       if (pendingTransition.type === 'EXIT_V3') {
@@ -10346,6 +10574,14 @@ function CandidateInterviewInner() {
         v3ActiveProbeQuestionRef.current = null;
         v3ActiveProbeQuestionLoopKeyRef.current = null;
 
+        // Clear V3 prompt state (prevents hasActiveV3Prompt lingering after exit)
+        setV3ActivePromptText(null);
+        setV3PendingAnswer(null);
+        setUiBlocker(null);
+        v3ActivePromptTextRef.current = null;
+        lastRenderedV3PromptKeyRef.current = null;
+        lastV3PromptSnapshotRef.current = null;
+
         // Log pack exited (audit only)
         if (v3ProbingContext_S?.packId) {
           await logPackExited(sessionId, {
@@ -10362,6 +10598,9 @@ function CandidateInterviewInner() {
           console.log('[EXIT_V3][ADVANCE]', { baseQuestionId });
           const freshForAdvance = await refreshTranscriptFromDB('before_advance_after_v3');
           await advanceToNextBaseQuestion(baseQuestionId, freshForAdvance);
+          console.warn("[V3_AUDIT][TRANSITION][ADVANCE_DONE]", { baseQuestionId, reason: transitionPayload?.reason });
+        } else {
+          console.warn("[V3_AUDIT][TRANSITION][NO_BASE_QUESTION_ID]", { baseQuestionId, reason: transitionPayload?.reason, v3BaseQuestionIdRef: v3BaseQuestionIdRef.current });
         }
 
           // Reset idempotency guard for next V3 pack
@@ -10369,6 +10608,7 @@ function CandidateInterviewInner() {
         } finally {
           // ALWAYS reset in-progress flag
           exitV3InProgressRef.current = false;
+          console.warn("[V3_AUDIT][TRANSITION][APPLY_FINALLY]", { reason: transitionPayload?.reason, exitV3HandledRef: exitV3HandledRef.current, exitV3InProgressRef: exitV3InProgressRef.current, v3ProbingActive: !!v3ProbingContext_S, v3AuthBlocked: v3AuthBlockedRef.current });
         }
       }
     };
@@ -11158,6 +11398,10 @@ function CandidateInterviewInner() {
   // CRITICAL: Must be after effectiveItemType_SAFE, bottomBarModeSOT_SAFE, activeUiItem_S
   let __cqTdzError = null;
   let currentPrompt = null;
+  let handleInputKeyDown; // TDZ FIX: Hoisted before TRY1 so JSX try block can access it
+  let handleBottomBarSubmit; // TDZ FIX: Hoisted before TRY1 so JSX try block can access it
+  let v3OpenerTextareaDisabled = false; // TDZ FIX: Hoisted before TRY1 (was block-scoped inside TRY1)
+  let v3OpenerSubmitDisabled = false;   // TDZ FIX: Hoisted before TRY1 (was block-scoped inside TRY1)
 
   try {
     currentPrompt = getCurrentPrompt();
@@ -12181,7 +12425,7 @@ function CandidateInterviewInner() {
     cqSetRenderStep('TRY1:ENTER_BLOCK_TOP');
     
     // TDZ FIX: Hoist critical bindings at TRY1 top (before Segment E0)
-    let effectiveItemType_SAFE = null;
+    // effectiveItemType_SAFE: outer let (line 3959) — do NOT redeclare here (was shadowing outer)
     let currentItem_SType = null;
     
     // EDIT 1: Micro-step marker 01
@@ -12433,7 +12677,7 @@ function CandidateInterviewInner() {
   
   // TASK A: V3 VISIBLE PROMPT CARD SIGNAL - Prevents MI_GATE from jumping ahead during transitions
   // Check if v3ProbeDisplayHistory_S has an unanswered question (Q exists but no matching A)
-  const v3HasVisiblePromptCard = (() => {
+  v3HasVisiblePromptCard = (() => {
     try {
       if (!v3ProbeDisplayHistory_S || v3ProbeDisplayHistory_S.length === 0) return false;
       
@@ -14047,18 +14291,18 @@ function CandidateInterviewInner() {
   // ============================================================================
   // V3 OPENER SINGLE SOURCE OF TRUTH - Compute disabled states ONCE (used by footer render)
   // ============================================================================
-  let v3OpenerTextareaDisabled = false;
-  let v3OpenerSubmitDisabled = false;
-  
+  v3OpenerTextareaDisabled = false;
+  v3OpenerSubmitDisabled = false;
+
   if (currentItem_S?.type === 'v3_pack_opener') {
-    const openerInputValue = openerDraft || "";
-    const openerTextTrimmed = openerInputValue.trim();
-    const openerTextTrimmedLen = openerTextTrimmed.length;
+    // DRAFT VALUE: The user's typed answer (openerDraft state)
+    const typedDraftValue = openerDraft || "";
+    const draftValueTrimmedLen = typedDraftValue.trim().length;
     const isV3OpenerCommitGuard = cqIsItemCommitting(currentItem_S?.id); // [CQ_ANCHOR_V3_OPENER_COMMITTING_LINE]
-    
+
     // TASK B: Single source of truth for textarea disabled
     const textareaDisabledRaw = Boolean(isV3OpenerCommitGuard) || Boolean(v3ProbingActive);
-    
+
     // TASK C: Hard unhang override
     let textareaDisabledFinal = textareaDisabledRaw;
     if (textareaDisabledRaw && !isCurrentItemCommitting && !v3ProbingActive) {
@@ -14071,31 +14315,33 @@ function CandidateInterviewInner() {
       });
       textareaDisabledFinal = false;
     }
-    
-    // Submit disabled if no input or committing/probing
-    const submitDisabledRaw = openerTextTrimmedLen === 0 || isV3OpenerCommitGuard || v3ProbingActive;
-    
+
+    // Submit disabled: gated by DRAFT length (user's typed answer), not opener prompt text
+    const submitDisabledRaw = draftValueTrimmedLen === 0 || isV3OpenerCommitGuard || v3ProbingActive;
+
     // Hard unhang override for submit
     let submitDisabledFinal = submitDisabledRaw;
-    if (submitDisabledRaw && openerTextTrimmedLen > 0 && !isCurrentItemCommitting && !v3ProbingActive) {
+    if (submitDisabledRaw && draftValueTrimmedLen > 0 && !isCurrentItemCommitting && !v3ProbingActive) {
       console.warn('[V3_OPENER][UNHANG_OVERRIDE_SUBMIT]', {
         currentItem_SId: currentItem_S?.id,
         packId: currentItem_S?.packId,
         instanceNumber: currentItem_S?.instanceNumber,
-        inputLen: openerTextTrimmedLen,
+        inputLen: draftValueTrimmedLen,
         reason: 'submit_disabled_despite_having_input_and_not_committing',
         action: 'forcing enabled'
       });
       submitDisabledFinal = false;
     }
-    
+
     // Store in module variables for footer render
     v3OpenerTextareaDisabled = textareaDisabledFinal;
     v3OpenerSubmitDisabled = submitDisabledFinal;
-    
-    // TASK D: Forensic log - outputs FINAL values used by render
+
+    // Forensic log - outputs FINAL values used by render
     console.log('[V3_OPENER][ENABLEMENT_SOT]', {
-      openerTextTrimmedLen,
+      draftValueTrimmedLen,
+      openerDraftLen: typedDraftValue.length,
+      openerPromptLen: (currentItem_S?.openerText || "").length,
       isCurrentItemCommitting,
       v3ProbingActive,
       textareaDisabledRaw,
@@ -14107,12 +14353,11 @@ function CandidateInterviewInner() {
       packId: currentItem_S.packId,
       instanceNumber: currentItem_S.instanceNumber
     });
-    
-    // TASK D: Updated logs - output FINAL values that match actual render
+
     console.log('[V3_OPENER][VALUE_STATE]', {
       packId: currentItem_S.packId,
       instanceNumber: currentItem_S.instanceNumber,
-      valueLen: openerTextTrimmedLen,
+      valueLen: draftValueTrimmedLen,
       disabledRaw: textareaDisabledRaw,
       disabled: textareaDisabledFinal
     });
@@ -14205,57 +14450,7 @@ function CandidateInterviewInner() {
     screenMode,
     inputSnapshot: input
   });
-
-  // Unified YES/NO click handler - routes to handleAnswer with trace logging (plain function, no hooks)
-  const handleYesNoClick = (answer) => {
-    // GUARD: Block YES/NO during V3 prompt answering
-    if (activeUiItem_S_SAFE?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
-      console.log('[YESNO_BLOCKED_DURING_V3_PROMPT]', {
-        clicked: answer,
-        activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
-        v3PromptPhase,
-        bottomBarModeSOT_SAFE,
-        currentItem_SType: currentItem_S?.type,
-        reason: 'V3 prompt active - YES/NO blocked'
-      });
-      return; // Hard block - do not append stray "Yes"/"No"
-    }
-    
-    // PART C: Force one-time scroll bypass on explicit navigation
-    forceAutoScrollOnceRef.current = true;
-    setIsUserTyping(false); // Clear typing lock immediately
-    console.log('[SCROLL][FORCE_ONCE_ARMED]', { 
-      trigger: 'YESNO_CLICK', 
-      answer,
-      packId: currentItem_S?.packId,
-      instanceNumber: currentItem_S?.instanceNumber
-    });
-    
-    // PART B: Call ensureActiveVisibleAfterRender after state update
-    // TDZ-SAFE: Compute fresh flags using available values
-    const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
-    const isMiGateFresh = currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
-    
-    requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender(`MI_GATE_YESNO_CLICK_${answer}`, activeKindSOT, isYesNoModeFresh, isMiGateFresh);
-    });
-    
-    // MI_GATE TRACE A: YES/NO button click entry
-    console.log('[MI_GATE][TRACE][YESNO_CLICK]', {
-      clicked: answer,
-      effectiveItemType_SAFE,
-      currentItem_SType: currentItem_S?.type,
-      currentItem_SId: currentItem_S?.id,
-      packId: currentItem_S?.packId,
-      instanceNumber: currentItem_S?.instanceNumber,
-      bottomBarModeSOT
-    });
-    
-    // Route to handleAnswer (same path as all other answer types)
-    if (!isCommitting) {
-      handleAnswer(answer);
-    }
-  };
+  // handleYesNoClick: moved to hoisted function declaration (near computeFooterRenderPlan) to fix ReferenceError scope issue
   
   // CANONICAL ITEM FIELD EXTRACTORS - Pure helpers (no hooks, no state writes)
   const getItemId = (item) => {
@@ -14368,7 +14563,7 @@ function CandidateInterviewInner() {
   };
   
   // Unified bottom bar submit handler for question, v2_pack_field, followup, and V3 probing
-  const handleBottomBarSubmit = async () => {
+  handleBottomBarSubmit = async () => {
     // ============================================================================
     // PHASE GATE - Block illegal submits
     // ============================================================================
@@ -15083,7 +15278,7 @@ function CandidateInterviewInner() {
     const isMiGateFresh = effectiveItemType_SAFE === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
     
     requestAnimationFrame(() => {
-      ensureActiveVisibleAfterRender("BOTTOM_BAR_SUBMIT", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
+      ensureActiveVisibleAfterRender("BOTTOM_BAR_SUBMIT", (activeUiItem_S_SAFE?.kind || currentItem_S?.type || 'UNKNOWN'), isYesNoModeFresh, isMiGateFresh);
     });
     
     // CQ_GUARD: submitIntent must be declared exactly once (do not duplicate)
@@ -15171,6 +15366,7 @@ function CandidateInterviewInner() {
         return;
       }
       
+      console.log('[V3_OPENER][SEND_ROUTE]', { packId: currentItem_S.packId, instanceNumber: currentItem_S.instanceNumber, valueLen: trimmed.length });
       console.log('[V3_OPENER][SUBMIT_INTENT]', {
         packId: currentItem_S.packId,
         instanceNumber: currentItem_S.instanceNumber,
@@ -15312,7 +15508,7 @@ function CandidateInterviewInner() {
     };
 
   // Keydown handler for Enter key on bottom bar input
-  const handleInputKeyDown = (e) => {
+  handleInputKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       console.log("[BOTTOM_BAR_INPUT][ENTER_KEY]", {
         currentItem_SType: currentItem_S?.type,
@@ -15380,7 +15576,7 @@ function CandidateInterviewInner() {
   // ============================================================================
   // [SAFE_SURFACE_ZONE] TDZ-proof defaults for derived snapshot + planners
   // ============================================================================
-  const dynamicBottomPaddingPx_SAFE = 80;
+  dynamicBottomPaddingPx_SAFE = 80;
   
   // finalListRef already hoisted to BATCH 3 (line ~4458)
   
@@ -15416,7 +15612,7 @@ function CandidateInterviewInner() {
   // NOTE: hasV3PromptText, hasActiveV3Prompt, activeUiItem_S, bottomBarRenderTypeSOT, bottomBarModeSOT hoisted to line ~4561 (before useEffect deps)
   // TDZ FIX: effectiveItemType declared earlier (see near computeActivePromptText)
   console.log('[CQ_DERIVED][ENTER]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), activeKind: (typeof activeUiItem_S !== 'undefined' && activeUiItem_S?.kind) || null });
-  const activeKindSOT = activeUiItem_S_SAFE?.kind || currentItem_S?.type || 'UNKNOWN';
+  activeKindSOT = activeUiItem_S_SAFE?.kind || currentItem_S?.type || 'UNKNOWN';
   
   cqSetRenderStep('TRY1:TOP:06B_AFTER_ACTIVE_KIND');
   
@@ -15426,7 +15622,10 @@ function CandidateInterviewInner() {
                            activeUiItem_S_SAFE.kind === "MI_GATE" ? 'multi_instance_gate' :
                            v3ProbingActive ? 'v3_probing' : 
                            currentItem_SType;
-  
+  // FIX: Propagate to outer SAFE alias immediately (prevents stale null in TRY1 code)
+  effectiveItemType_SAFE = effectiveItemType;
+  console.log('[EFFECTIVE_ITEM_TYPE_SAFE][ASSIGNED_IN_TRY1]', { effectiveItemType_SAFE, currentItem_SType, screenMode });
+
   cqSetRenderStep('TRY1:TOP:06C_AFTER_EFFECTIVE_ITEM_TYPE');
   const activeCard_SKeySOT = (() => {
     if (activeUiItem_S_SAFE.kind === "V3_PROMPT") {
@@ -15603,7 +15802,7 @@ function CandidateInterviewInner() {
   
   cqSetRenderStep('TRY1:TOP:06F_AFTER_ACTIVE_PROMPT_TEXT');
   
-  const needsPrompt = bottomBarModeSOT === 'TEXT_INPUT' || 
+  needsPrompt = bottomBarModeSOT === 'TEXT_INPUT' ||
                       ['v2_pack_field', 'v3_pack_opener', 'v3_probing'].includes(effectiveItemType);
   hasPrompt = Boolean(activePromptText && activePromptText.trim().length > 0);
   shouldRenderFooter = (screenMode === 'QUESTION' && 
@@ -15636,7 +15835,7 @@ function CandidateInterviewInner() {
   
   cqSetRenderStep('TRY1:TOP:06G_AFTER_FINAL_FLAGS');
 
-  const derived = {
+  derived = {
     hasActiveV3Prompt,
     activeUiItem_S,
     activeKindSOT,
@@ -15727,6 +15926,34 @@ finalTranscriptList_S_computed = deriveTranscriptPipeline({
   }
 
   finalTranscriptList_S = finalTranscriptList_S_computed;
+
+  // SYNTHETIC QUESTION CARD: When QUESTION mode has empty pipeline output, inject current question
+  if (screenMode === 'QUESTION' && finalTranscriptList_S.length === 0 && currentItem_S?.type === 'question' && currentItem_S?.id && engine_S?.QById) {
+    const _synQ = engine_S.QById[currentItem_S.id];
+    const _synText = _synQ?.question_text;
+    if (_synText) {
+      finalTranscriptList_S = [{
+        id: `synthetic-q-${currentItem_S.id}`,
+        stableKey: `question-shown:${currentItem_S.id}`,
+        role: 'assistant',
+        text: _synText,
+        messageType: 'QUESTION_SHOWN',
+        type: 'QUESTION_SHOWN',
+        meta: {
+          questionDbId: currentItem_S.id,
+          questionNumber: _synQ.question_number,
+          sectionName: engine_S?.Sections?.find(s => s.id === _synQ?.section_id)?.section_name,
+          source: 'synthetic_welcome_transition'
+        },
+        visibleToCandidate: true,
+        __syntheticCard: true
+      }];
+      console.log('[WELCOME_TO_QUESTION][SYNTHETIC_CARD_INJECTED]', {
+        questionId: currentItem_S.id,
+        promptPreview: _synText.substring(0, 80)
+      });
+    }
+  }
 
   // ============================================================================
   // BOOT GUARD FLAG - Prevents early returns that cause hook divergence (React #310 fix)
@@ -16115,7 +16342,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     };
   }
 
-  const computeActiveCardRenderPlan = (args) => {
+  function computeActiveCardRenderPlan(args) {
     // Logic extracted from the active card IIFE
     const {
         activeCard_S,
@@ -16168,9 +16395,9 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
         safeCardPrompt,
         cardData: activeCard_S
     };
-  };
+  }
 
-  const computeFooterRenderPlan = (args) => {
+  function computeFooterRenderPlan(args) {
     // Logic extracted from the footer IIFE
     const {
         isV3DebugEnabled,
@@ -16234,6 +16461,57 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
         shouldRender: shouldRenderFooter_SAFE,
         promptTextUsed
     };
+  }
+
+  // Unified YES/NO click handler - assigned to hoisted let (declared at function top ~1920)
+  handleYesNoClick = function handleYesNoClick(answer) {
+    // GUARD: Block YES/NO during V3 prompt answering
+    if (activeUiItem_S_SAFE?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
+      console.log('[YESNO_BLOCKED_DURING_V3_PROMPT]', {
+        clicked: answer,
+        activeUiItem_SKind: activeUiItem_S_SAFE?.kind,
+        v3PromptPhase,
+        bottomBarModeSOT_SAFE,
+        currentItem_SType: currentItem_S?.type,
+        reason: 'V3 prompt active - YES/NO blocked'
+      });
+      return; // Hard block - do not append stray "Yes"/"No"
+    }
+
+    // PART C: Force one-time scroll bypass on explicit navigation
+    forceAutoScrollOnceRef.current = true;
+    setIsUserTyping(false); // Clear typing lock immediately
+    console.log('[SCROLL][FORCE_ONCE_ARMED]', {
+      trigger: 'YESNO_CLICK',
+      answer,
+      packId: currentItem_S?.packId,
+      instanceNumber: currentItem_S?.instanceNumber
+    });
+
+    // PART B: Call ensureActiveVisibleAfterRender after state update
+    // TDZ-SAFE: Compute fresh flags using available values
+    const isYesNoModeFresh = bottomBarModeSOT === 'YES_NO';
+    const isMiGateFresh = currentItem_S?.type === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
+
+    requestAnimationFrame(() => {
+      ensureActiveVisibleAfterRender(`MI_GATE_YESNO_CLICK_${answer}`, (activeUiItem_S_SAFE?.kind || currentItem_S?.type || 'UNKNOWN'), isYesNoModeFresh, isMiGateFresh);
+    });
+
+    // MI_GATE TRACE A: YES/NO button click entry
+    console.log('[MI_GATE][TRACE][YESNO_CLICK]', {
+      clicked: answer,
+      effectiveItemType_SAFE,
+      currentItem_SType: currentItem_S?.type,
+      currentItem_SId: currentItem_S?.id,
+      packId: currentItem_S?.packId,
+      instanceNumber: currentItem_S?.instanceNumber,
+      bottomBarModeSOT
+    });
+
+    // Route to handleAnswer (same path as all other answer types)
+    if (!isCommitting) {
+      handleAnswer(answer);
+    }
   };
 
     // EDIT 1: Micro-step marker 10
@@ -16498,21 +16776,22 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       if (typeof window !== 'undefined' && window.__CQ_HOOK_CENSUS_ENABLED__) console.log('[CQ_HOOK_CENSUS_END]', { rid: (typeof __cqRid !== 'undefined' ? __cqRid : 'no_rid'), hookCount: window.CQ_HOOK_INDEX, ts: Date.now() });
     }
   } catch (_) {}
-  const effectiveItemType_SAFE = effectiveItemType;
-  const renderedTranscriptSnapshotRef_SAFE = renderedTranscriptSnapshotRef;
-  const finalTranscriptList_S_SAFE = finalTranscriptList_S ?? [];
+  effectiveItemType_SAFE = effectiveItemType;
+  renderedTranscriptSnapshotRef_SAFE = renderedTranscriptSnapshotRef;
+  finalTranscriptList_S_SAFE = finalTranscriptList_S ?? [];
   const questionCompletionPct = 0;
   // activeUiItem_S_SAFE declared earlier (line 3193)
-  // bottomBarModeSOT_SAFE declared earlier (line 3196)
+  bottomBarModeSOT_SAFE = bottomBarModeSOT ?? 'DEFAULT';
+  console.log('[WELCOME][CTA_RENDER]', { screenMode, shouldRenderFooter_SAFE: shouldRenderFooter ?? false, footerController: typeof footerControllerLocal !== 'undefined' ? footerControllerLocal : null, hasCurrentItem: !!currentItem_S, isLoading });
   activeCard_S_SAFE = activeCard_S ?? null;
   
   // TDZ FIX: shouldRenderFooter_SAFE declared early (before hooks); assign computed value here
   shouldRenderFooter_SAFE = shouldRenderFooter ?? false;
   const hasPrompt_SAFE = hasPrompt ?? false;
-  const activePromptText_SAFE = activePromptText ?? '';
-  const safeActivePromptText_SAFE = safeActivePromptText ?? '';
+  activePromptText_SAFE = activePromptText ?? '';
+  safeActivePromptText_SAFE = safeActivePromptText ?? '';
   const isBottomBarSubmitDisabled_SAFE = isBottomBarSubmitDisabled ?? true;
-  const bottomBarRenderTypeSOT_SAFE = bottomBarRenderTypeSOT ?? 'default';
+  bottomBarRenderTypeSOT_SAFE = bottomBarRenderTypeSOT ?? 'default';
   
   const showMissingSession_SAFE = (typeof showMissingSession !== 'undefined') ? showMissingSession : false;
   const showError_SAFE = (typeof showError !== 'undefined') ? showError : false;
@@ -16528,7 +16807,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
     ? sanitizeCandidateFacingText
     : ((text) => text);
   
-  const getMessageTypeSOT_SAFE = getMessageTypeSOT;
+  getMessageTypeSOT_SAFE = getMessageTypeSOT;
   
   const getQuestionDisplayNumber_SAFE = (typeof getQuestionDisplayNumber !== 'undefined')
     ? getQuestionDisplayNumber
@@ -16619,7 +16898,26 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                     hasEngine: true,
                     transcriptLen: 0,
                   })}
-
+                  <div className="w-full bg-slate-800/50 border border-slate-700/60 rounded-xl p-5 ring-2 ring-blue-400/40 shadow-lg shadow-blue-500/20">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Shield className="w-5 h-5 text-blue-400" />
+                      <span className="text-base font-semibold text-blue-400">Welcome to Your Interview</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <p className="text-slate-200 text-sm leading-relaxed">Take your time and answer honestly</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <p className="text-slate-200 text-sm leading-relaxed">Your responses are confidential</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <p className="text-slate-200 text-sm leading-relaxed">Press the button below when you're ready to begin</p>
+                      </div>
+                    </div>
+                  </div>
                 </ContentContainer>
               )}
 
@@ -17420,7 +17718,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 </div>
               )}
 
-              {/* User message - "Got it — Let's Begin" or any other user text */}
+              {/* User message - "Got it — Let's go" or any other user text */}
               {entry.role === 'user' && !entry.messageType?.includes('ANSWER') && !entry.messageType?.includes('v3_') && !entry.messageType?.includes('GATE') && entry.messageType !== 'CTA_ACK' && (
                 <UserAnswerCard
                   entryKey={entry.stableKey || entry.id}
@@ -18537,11 +18835,11 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                     hasSections: sections.length > 0
                   });
                   
-                  // UI CONTRACT: Append "Got it — Let's Begin" as normal user message
+                  // UI CONTRACT: Append "Got it — Let's go" as normal user message
                   // STATIC IMPORT: Use top-level import
                   const sessionForWelcome = await base44.entities.InterviewSession.get(sessionId);
                   const currentTranscriptForWelcome = sessionForWelcome.transcript_snapshot || [];
-                  await appendUserMessageImport(sessionId, currentTranscriptForWelcome, "Got it — Let's Begin", {
+                  await appendUserMessageImport(sessionId, currentTranscriptForWelcome, "Got it — Let's go", {
                     messageType: 'USER_MESSAGE',
                     visibleToCandidate: true
                   });
@@ -18604,14 +18902,14 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                     const isMiGateFresh = effectiveItemType_SAFE === 'multi_instance_gate' || activeUiItem_S_SAFE?.kind === 'MI_GATE';
                     
                     requestAnimationFrame(() => {
-                      ensureActiveVisibleAfterRender("WELCOME_DISMISSED", activeKindSOT, isYesNoModeFresh, isMiGateFresh);
+                      ensureActiveVisibleAfterRender("WELCOME_DISMISSED", (activeUiItem_S_SAFE?.kind || currentItem_S?.type || 'UNKNOWN'), isYesNoModeFresh, isMiGateFresh);
                     });
                   }, 150);
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-4 text-lg font-semibold"
                 size="lg"
               >
-                Got it — Let's Begin
+                Got it — Let's go
               </Button>
             </div>
           ) : bottomBarModeSOT_SAFE === "CTA" && (activeBlocker?.type === 'SECTION_MESSAGE' || pendingSectionTransition) ? (
@@ -19035,7 +19333,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             aria-label="Answer input"
             className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
             style={{ maxHeight: '120px', overflowY: 'auto' }}
-            disabled={effectiveItemType_SAFE === 'v3_pack_opener' ? v3OpenerTextareaDisabled : isCommitting}
+            disabled={(effectiveItemType_SAFE === 'v3_pack_opener' || currentItem_S?.type === 'v3_pack_opener') ? v3OpenerTextareaDisabled : isCommitting}
             autoFocus={hasPrompt_SAFE || currentItem_S?.type === 'v3_pack_opener'}
             rows={1}
             />
@@ -19083,10 +19381,10 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                handleBottomBarSubmit();
              }}
              disabled={
-               effectiveItemType_SAFE === 'required_anchor_fallback' 
+               effectiveItemType_SAFE === 'required_anchor_fallback'
                  ? !(input ?? "").trim()
-                 : effectiveItemType_SAFE === 'v3_pack_opener' 
-                   ? v3OpenerSubmitDisabled 
+                 : (effectiveItemType_SAFE === 'v3_pack_opener' || currentItem_S?.type === 'v3_pack_opener')
+                   ? v3OpenerSubmitDisabled
                    : (isBottomBarSubmitDisabled_SAFE || !hasPrompt_SAFE)
              }
              className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5 disabled:opacity-50"
