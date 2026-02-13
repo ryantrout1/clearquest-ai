@@ -159,6 +159,9 @@ export default function V3ProbingLoop({
   // STALE IN-FLIGHT FAILSAFE: Track when in-flight was set to detect stuck states
   const lastInFlightAtRef = useRef(null);
 
+  // AUTH EXIT ONE-SHOT GUARD: Prevent duplicate auth-exit processing on rerender
+  const authExitFiredRef = useRef(false);
+
   // RENDER TRUTH: Diagnostic logging for prompt card visibility
   const shouldShowPromptCard = !!activePromptText && !isComplete;
   
@@ -1329,7 +1332,91 @@ export default function V3ProbingLoop({
       }
     } catch (err) {
       const engineCallMs = Date.now() - engineCallStart;
-      
+
+      // ================================================================
+      // AUTH EXIT (must be FIRST — before any fail-open logic executes)
+      // ================================================================
+      const status =
+        err?.response?.status ??
+        err?.status ??
+        err?.originalError?.response?.status ??
+        (typeof err?.message === "string" && err.message.includes("status code 403") ? 403 :
+         typeof err?.message === "string" && err.message.includes("status code 401") ? 401 : undefined);
+
+      console.warn("[V3_FALLBACK][AUTH_STATUS_PROBE]", {
+        status,
+        hasResponse: !!err?.response,
+        errName: err?.name,
+        message: err?.message
+      });
+
+      if (status === 401 || status === 403) {
+        // ONE-SHOT GUARD: Prevent duplicate auth-exit on rerender
+        if (authExitFiredRef.current) {
+          console.log('[V3_FALLBACK][AUTH_EXIT_ALREADY_FIRED]', { loopKey, status });
+          return;
+        }
+        authExitFiredRef.current = true;
+
+        const safePackId = packData?.followup_pack_id || categoryId || null;
+
+        console.error('[V3_FALLBACK][AUTH_BLOCKED_EXITING]', {
+          status,
+          packId: safePackId,
+          instanceNumber: instanceNumber || 1,
+          loopKey,
+          traceId,
+          message: err?.message || String(err),
+          elapsedMs: engineCallMs
+        });
+
+        // Clean exit: mark complete, do NOT set any fallback prompt
+        setIsComplete(true);
+        setCompletionReason('AUTH_EXIT');
+        setActivePromptText(null);
+        setActivePromptId(null);
+        setIsDeciding(false);
+        setIsLoading(false);
+        engineInFlightRef.current = false;
+
+        // Trigger "continue baseline" via onComplete (bypasses MI gate logic)
+        // onComplete → handleV3ProbingComplete → exitV3Once → advance current item
+        console.warn("[V3_AUDIT][AUTH_EXIT][BEFORE_ONCOMPLETE]", {
+          hasOnComplete: typeof onComplete === "function",
+          packId: safePackId,
+          instanceNumber: instanceNumber || 1,
+          loopKey,
+          status,
+        });
+        if (onComplete) {
+          try {
+            onComplete({
+              incidentId,
+              categoryId,
+              completionReason: 'AUTH_EXIT',
+              messages: [],
+              reason: 'AUTH_EXIT',
+              shouldOfferAnotherInstance: false,
+              packId: safePackId,
+              categoryLabel,
+              instanceNumber,
+              packData,
+              missingFields: [],
+              stopReason: `AUTH_${status}`
+            });
+            console.warn("[V3_AUDIT][AUTH_EXIT][AFTER_ONCOMPLETE]", { loopKey, packId: safePackId, instanceNumber: instanceNumber || 1 });
+          } catch (e) {
+            console.error("[V3_AUDIT][AUTH_EXIT][ONCOMPLETE_THROW]", e);
+          }
+        }
+
+        return;
+      }
+
+      // ================================================================
+      // NON-AUTH ERRORS (existing behavior unchanged below)
+      // ================================================================
+
       // DECIDE DIAGNOSTICS: Log error
       console.error('[V3_DECIDE][ERR]', {
         loopKey,
@@ -1337,21 +1424,21 @@ export default function V3ProbingLoop({
         message: err?.message || String(err),
         stackPreview: err?.stack?.substring(0, 200) || 'N/A'
       });
-      
+
       // EDIT 2A: Engine call failed - log and force failopen prompt
-      console.error('[V3_LOOP][ENGINE_CALL_FAILED]', { 
-        loopKey, 
-        err: String(err), 
-        ts: Date.now() 
+      console.error('[V3_LOOP][ENGINE_CALL_FAILED]', {
+        loopKey,
+        err: String(err),
+        ts: Date.now()
       });
-      
-      console.error("[V3_PROBING][ENGINE_CALL_ERROR]", { 
-        error: String(err), 
+
+      console.error("[V3_PROBING][ENGINE_CALL_ERROR]", {
+        error: String(err),
         stack: err?.stack,
         traceId,
         elapsedMs: engineCallMs
       });
-      
+
       // FAIL-OPEN: Backend timeout detected - show fallback probe instead of completing
       if (err.message === 'BACKEND_TIMEOUT') {
         console.error("[V3_PROBE][TIMEOUT_FAIL_OPEN]", {

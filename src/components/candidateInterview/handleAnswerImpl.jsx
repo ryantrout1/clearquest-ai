@@ -67,7 +67,11 @@ export async function handleAnswerImpl(deps, value) {
     v3PackEntryFailsafeTimerRef,
     v3PackEntryFailsafeTokenRef,
     v3ProbingActiveRef,
-    
+    v3AuthBlockedRef,
+    v3AuthBlocked,
+    v3AuthBlockedAt,
+    v3PendingProbingTransitionRef,
+
     // State setters
     setActiveV2Pack,
     setAiFollowupCounts,
@@ -116,7 +120,66 @@ export async function handleAnswerImpl(deps, value) {
     hasQuestionBeenLogged,
     AlertCircle,
     Button,
+    saveAnswerToDatabase,
+    appendUserMessageImport,
+    ENFORCE_TRANSCRIPT_CONTRACT,
+    // Telemetry & logging
+    logAnswerSubmitted,
+    logPackEntered,
+    logPackExited,
+    logSectionComplete,
+    getStabilitySnapshotSOT,
+    createChatEvent,
+    validateSchemaSource,
+    setDbTranscript,
+    // Flow-critical functions
+    applySectionGateIfNeeded,
+    commitBaseQAIfMissing,
+    getBackendQuestionText,
+    getV3DeterministicOpener,
+    buildV3OpenerStableKey,
+    mapPackIdToCategory,
+    getSystemConfig,
+    getFactModelForCategory,
+    injectSubstanceIntoPackSteps,
+    shouldSkipFollowUpStep,
+    validateFollowUpAnswer,
+    shouldSkipProbingForHired,
+    handleMiGateYesNo,
+    exitV3Once,
+    transitionToAnotherInstanceGate,
+    maybeAutoSkipV2Field,
+    resolvePackSchema,
+    upsertTranscriptMonotonic,
+    upsertTranscriptState,
+    appendAssistantMessageImport,
+    unstable_batchedUpdates,
+    // State values & flags
+    backendQuestionTextMap,
+    interviewMode,
+    ideEnabled,
+    __cqUsesPerFieldProbing,
+    ENABLE_V3_PROBING,
+    ENABLE_LIVE_AI_FOLLOWUPS,
+    WHAT_TO_EXPECT,
+    fieldSuggestions,
+    // Refs
+    v3ProbingContext_SRef,
+    v3ProbingStartedRef,
   } = deps;
+
+  const ENFORCE_TRANSCRIPT_CONTRACT_SAFE = Boolean(ENFORCE_TRANSCRIPT_CONTRACT);
+
+  // Telemetry-safe wrappers: warn-and-continue if dep missing (must NOT block flow)
+  const _safeTelemetry = (fn, name) => typeof fn === 'function' ? fn : (...args) => { console.warn(`[HANDLE_ANSWER][MISSING_TELEMETRY] ${name}`, args?.[0]); };
+  const logAnswerSubmitted_SAFE = _safeTelemetry(logAnswerSubmitted, 'logAnswerSubmitted');
+  const logPackEntered_SAFE = _safeTelemetry(logPackEntered, 'logPackEntered');
+  const logPackExited_SAFE = _safeTelemetry(logPackExited, 'logPackExited');
+  const logSectionComplete_SAFE = _safeTelemetry(logSectionComplete, 'logSectionComplete');
+  const getStabilitySnapshotSOT_SAFE = _safeTelemetry(getStabilitySnapshotSOT, 'getStabilitySnapshotSOT');
+  const validateSchemaSource_SAFE = _safeTelemetry(validateSchemaSource, 'validateSchemaSource');
+  const createChatEvent_SAFE = _safeTelemetry(createChatEvent, 'createChatEvent');
+  const setDbTranscript_SAFE = _safeTelemetry(setDbTranscript, 'setDbTranscript');
 
   // GUARD: Block YES/NO during V3 prompt answering (prevents stray "Yes" bubble)
   if (activeUiItem_S_SAFE?.kind === 'V3_PROMPT' || (v3PromptPhase === 'ANSWER_NEEDED' && bottomBarModeSOT === 'TEXT_INPUT')) {
@@ -823,7 +886,7 @@ export async function handleAnswerImpl(deps, value) {
       });
 
       // Log pack exited (audit only)
-      await logPackExited(sessionId, { packId, instanceNumber });
+      await logPackExited_SAFE(sessionId, { packId, instanceNumber });
 
       // Trigger summary generation for completed question (background)
       base44.functions.invoke('triggerSummaries', {
@@ -858,8 +921,9 @@ export async function handleAnswerImpl(deps, value) {
     // V3 PACK OPENER HANDLER - Deterministic opener answered, now enter AI probing
     // ========================================================================
     if (currentItem_S.type === 'v3_pack_opener') {
+      console.warn("[V3_FALLBACK][AUTH_EXIT][CTX_SEEN]", { v3AuthBlocked: !!v3AuthBlocked, v3AuthBlockedRefCurrent: !!v3AuthBlockedRef?.current, v3AuthBlockedAt: v3AuthBlockedAt || null });
       // INSTRUMENTATION: Log IMMEDIATELY before any async work
-      
+
       const { packId, categoryId, categoryLabel, openerText, baseQuestionId, questionCode, sectionId, instanceNumber, packData } = currentItem_S;
       
       // DEFENSIVE: Log if openerText was missing (fallback used)
@@ -884,6 +948,10 @@ export async function handleAnswerImpl(deps, value) {
       // FIX A: Do NOT append duplicate v3_opener_question - FOLLOWUP_CARD_SHOWN already logged it
       // Only append the user's answer
       // STATIC IMPORT: Use top-level imports (prevents React context duplication)
+      if (typeof appendUserMessageImport !== 'function') {
+        console.error('[HANDLE_ANSWER][MISSING_DEP]', { dep: 'appendUserMessageImport', keys: Object.keys(deps || {}) });
+        throw new Error('Missing dependency: appendUserMessageImport');
+      }
       const appendUserMessage = appendUserMessageImport;
       const freshSession = await base44.entities.InterviewSession.get(sessionId);
       const currentTranscript = freshSession.transcript_snapshot || [];
@@ -931,7 +999,7 @@ export async function handleAnswerImpl(deps, value) {
       
       
       // STABILITY SNAPSHOT: Opener answer submitted
-      getStabilitySnapshotSOT("SUBMIT_END_V3_OPENER");
+      getStabilitySnapshotSOT_SAFE("SUBMIT_END_V3_OPENER");
 
       // Append opener to UI history AFTER answer submitted (prevents duplicate during active state)
       const stableKey = buildV3OpenerStableKey(packId, instanceNumber);
@@ -979,7 +1047,7 @@ export async function handleAnswerImpl(deps, value) {
       await refreshTranscriptFromDB('v3_opener_answered');
       
       // REGRESSION GUARD: Verify opener answer survived refresh
-      setDbTranscript(prev => {
+      setDbTranscript_SAFE(prev => {
         const foundAfterRefresh = prev.some(e => e.stableKey === openerAnswerStableKey);
         console.log('[V3_OPENER][REFRESH_AFTER]', {
           transcriptLenAfter: prev.length,
@@ -1131,47 +1199,12 @@ export async function handleAnswerImpl(deps, value) {
       // Track probing start
       v3ProbingStartedRef.current.set(loopKey, true);
 
-      // CRITICAL: Set currentItem_S to v3_probing type (enables correct bottom bar binding)
-      // REGRESSION GUARD: This state change does NOT modify transcript
-      const probingItem = {
-        id: `v3-probing-${packId}-${instanceNumber}`,
-        type: 'v3_probing',
-        packId,
-        categoryId,
-        instanceNumber,
-        baseQuestionId
-      };
-      
-      console.log('[V3_PROBING][ITEM_TRANSITION]', {
-        from: currentItem_S?.type,
-        to: 'v3_probing',
-        packId,
-        instanceNumber,
-        transcriptLenBeforeTransition: dbTranscript.length,
-        action: 'Setting currentItem_S only - transcript preserved'
-      });
-      
-      setCurrentItem(probingItem);
-
-      // REGRESSION GUARD: Refresh uses functional merge - preserves all existing entries
-      await refreshTranscriptFromDB('v3_probing_enter');
-      
-      // Verify opener answer still present after transition
-      setDbTranscript(prev => {
-        const foundAfterTransition = prev.some(e => e.stableKey === openerAnswerStableKey);
-        console.log('[V3_PROBING][ITEM_TRANSITION_AFTER]', {
-          transcriptLen: prev.length,
-          foundOpenerAnswer: foundAfterTransition,
-          openerAnswerStableKey
-        });
-        
-        if (!foundAfterTransition) {
-        }
-        
-        return prev; // No mutation - just logging
-      });
-      
-      await persistStateToDatabase(null, [], probingItem);
+      // DEFERRED TRANSITION: Do NOT immediately transition to v3_probing.
+      // Arm a pending ref — the useEffect in CandidateInterview will fire the actual
+      // setCurrentItem once v3ActivePromptText becomes non-empty (i.e., a real prompt arrived).
+      // If a 403/401 arrives before any prompt, AUTH_EXIT clears this ref and no transition occurs.
+      v3PendingProbingTransitionRef.current = { packId, categoryId, instanceNumber, baseQuestionId };
+      console.warn("[V3_PROBING][DEFERRED_TRANSITION_ARMED]", { packId, categoryId, instanceNumber, baseQuestionId, submitToken });
       
       // FAILSAFE: Detect if probing doesn't start within 3s (token-gated)
       // Capture local copies for closure safety
@@ -1327,9 +1360,15 @@ export async function handleAnswerImpl(deps, value) {
 
       const sectionEntity = engine_S.Sections.find(s => s.id === question.section_id);
       const sectionName = sectionEntity?.section_name || question.category || '';
-      const questionNumber = getQuestionDisplayNumber(currentItem_S.id);
+      // TDZ FIX: getQuestionDisplayNumber is not passed via deps (unused var - inline fallback prevents crash)
+      const idx = engine_S.ActiveOrdered?.indexOf(currentItem_S.id);
+      const questionNumber = idx != null && idx >= 0 ? idx + 1 : '';
 
       // Save answer first to get Response ID
+      if (typeof saveAnswerToDatabase !== 'function') {
+        console.error('[HANDLE_ANSWER][MISSING_DEP]', { dep: 'saveAnswerToDatabase', keys: Object.keys(deps || {}) });
+        throw new Error('Missing dependency: saveAnswerToDatabase');
+      }
       const savedResponse = await saveAnswerToDatabase(currentItem_S.id, value, question);
 
       // Normalize answer display text (Yes/No for boolean, raw text otherwise)
@@ -1375,7 +1414,7 @@ export async function handleAnswerImpl(deps, value) {
       });
       
       // CQ_TRANSCRIPT_CONTRACT: Invariant check after base answer append
-      if (ENFORCE_TRANSCRIPT_CONTRACT) {
+      if (ENFORCE_TRANSCRIPT_CONTRACT_SAFE) {
         const freshCheck = await base44.entities.InterviewSession.get(sessionId);
         const expectedAKey = `answer:${sessionId}:${currentItem_S.id}`;
         const found = (freshCheck.transcript_snapshot || []).some(e => 
@@ -1395,14 +1434,14 @@ export async function handleAnswerImpl(deps, value) {
       }
 
       // Log answer submitted (audit only)
-      await logAnswerSubmitted(sessionId, {
+      await logAnswerSubmitted_SAFE(sessionId, {
         questionDbId: currentItem_S.id,
         responseId: savedResponse?.id,
         packId: null
       });
       
       // STABILITY SNAPSHOT: Base answer submitted
-      getStabilitySnapshotSOT("SUBMIT_END_BASE");
+      getStabilitySnapshotSOT_SAFE("SUBMIT_END_BASE");
       
       // Reload session transcript into local state (single source of truth)
       const newTranscript = await refreshTranscriptFromDB('base_question_answered');
@@ -1486,7 +1525,7 @@ export async function handleAnswerImpl(deps, value) {
           completedSectionKeysRef.current.add(gateSectionCompleteKey);
           
           // Log section complete to transcript (only once)
-          await logSectionComplete(sessionId, {
+          await logSectionComplete_SAFE(sessionId, {
             completedSectionId: currentSection?.id,
             completedSectionName: currentSection?.displayName,
             nextSectionId: nextSection?.id,
@@ -1663,7 +1702,7 @@ export async function handleAnswerImpl(deps, value) {
             }
 
             // Log pack entered (audit only)
-            await logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: true });
+            await logPackEntered_SAFE(sessionId, { packId, instanceNumber: 1, isV3: true });
 
             // Save base question answer
             saveAnswerToDatabase(currentItem_S.id, value, question);
@@ -1884,7 +1923,7 @@ export async function handleAnswerImpl(deps, value) {
             
             // VALIDATION: Warn if schema source doesn't match intent
             if (dbPackMeta && staticConfig) {
-              validateSchemaSource(packId, schemaSource, dbPackMeta, staticConfig);
+              validateSchemaSource_SAFE(packId, schemaSource, dbPackMeta, staticConfig);
             }
 
             if (!packConfig || !Array.isArray(fields) || fields.length === 0) {
@@ -1947,7 +1986,7 @@ export async function handleAnswerImpl(deps, value) {
             console.log(`[V2_PACK][ENTER] AI-driven mode - backend will control progression`);
 
             // Log pack entered (audit only)
-            await logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: false });
+            await logPackEntered_SAFE(sessionId, { packId, instanceNumber: 1, isV3: false });
             await refreshTranscriptFromDB('v2_pack_logged');
 
             // Special log for PACK_PRIOR_LE_APPS_STANDARD
@@ -2490,7 +2529,7 @@ export async function handleAnswerImpl(deps, value) {
           }));
 
           // Add current answer to transcript
-          const followupQuestionEvent = createChatEvent('followup_question', {
+          const followupQuestionEvent = createChatEvent_SAFE('followup_question', {
             questionId: currentItem_S.id,
             questionText: step.Prompt,
             packId: packId,
@@ -2535,7 +2574,7 @@ export async function handleAnswerImpl(deps, value) {
       }
 
       // === STANDARD FOLLOWUP FLOW (Both V2 and non-V2) ===
-      const followupQuestionEvent = createChatEvent('followup_question', {
+      const followupQuestionEvent = createChatEvent_SAFE('followup_question', {
         questionId: currentItem_S.id,
         questionText: step.Prompt,
         packId: packId,
@@ -2572,6 +2611,8 @@ export async function handleAnswerImpl(deps, value) {
         }
       }
 
+      // Scoping fix: newTranscript is block-scoped to the question branch; use dbTranscript here
+      const newTranscript = dbTranscript || [];
       const isLastFollowUp = !nextItem || nextItem.type !== 'followup' || nextItem.packId !== packId;
 
       if (isLastFollowUp) {
@@ -2766,7 +2807,13 @@ export async function handleAnswerImpl(deps, value) {
     }
   } catch (err) {
     console.error('❌ Error processing answer:', err);
-    
+
+    // IDEMPOTENCY RELEASE: Unlock on error so retry is possible
+    if (submitKey && submittedKeysRef?.current) {
+      submittedKeysRef.current.delete(submitKey);
+      console.warn('[IDEMPOTENCY][RELEASE_ON_ERROR]', { submitKey, error: err.message });
+    }
+
     // V3 OPENER SPECIFIC ERROR LOGGING
     if (currentItem_S?.type === 'v3_pack_opener') {
       console.error('[V3_OPENER][SUBMIT_ERROR]', {

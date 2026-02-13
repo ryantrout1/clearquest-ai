@@ -28,3 +28,6 @@ dist-ssr
 *.sw?
 
 .envnul
+
+# Claude Code
+.claude/
