@@ -3477,6 +3477,9 @@ function CandidateInterviewInner() {
   const [requiredAnchorQueue, setRequiredAnchorQueue] = React.useState([]);
   const [requiredAnchorCurrent, setRequiredAnchorCurrent] = React.useState(null);
   
+  // V3 CONTEXT FLAG: When true, fallback is DISPLAY-ONLY and must NOT suppress V3 machinery
+  const isV3Context = (currentItem_S?.type === 'v3_pack_opener' || currentItem_S?.type === 'v3_probing' || v3ProbingActive === true);
+
   // REQUIRED ANCHOR FALLBACK CONTEXT: Persist routing context for submit
   const requiredAnchorFallbackContextRef = React.useRef({ packId: null, categoryId: null, instanceNumber: null, incidentId: null });
   
@@ -5545,7 +5548,8 @@ function CandidateInterviewInner() {
     }
     
     // 5. REQUIRED_ANCHOR_FALLBACK - Deterministic fallback (highest priority active state)
-    if (requiredAnchorFallbackActive && requiredAnchorCurrent !== null) {
+    // BYPASS: V3 context - fallback is display-only, let V3 phases handle state
+    if (requiredAnchorFallbackActive && requiredAnchorCurrent !== null && !isV3Context) {
       return {
         phase: "REQUIRED_ANCHOR_FALLBACK",
         allowedActions: new Set(["SUBMIT", "TEXT"]),
@@ -11418,7 +11422,7 @@ function CandidateInterviewInner() {
     // CRITICAL: All prompt-related consts consolidated here (after dependencies)
     try {
       const activePromptText_TRY1 = computeActivePromptText({
-        requiredAnchorFallbackActive,
+        requiredAnchorFallbackActive: requiredAnchorFallbackActive && !isV3Context,
         requiredAnchorCurrent,
         v3ProbingContext_S,
         v3ProbingActive,
@@ -12909,7 +12913,7 @@ function CandidateInterviewInner() {
       // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3B:BEFORE_PRIORITY0';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3B:BEFORE_PRIORITY0' });
       lastTry1StepRef.current = '3B:BEFORE_PRIORITY0';
-    if (requiredAnchorFallbackActive && requiredAnchorCurrent && currentItem_S?.type !== 'v3_pack_opener') {
+    if (requiredAnchorFallbackActive && requiredAnchorCurrent && !isV3Context) {
       return {
         kind: "REQUIRED_ANCHOR_FALLBACK",
         packId: v3ProbingContext_S?.packId || currentItem_S?.packId,
@@ -12921,10 +12925,14 @@ function CandidateInterviewInner() {
         currentItem_SId: currentItem_S?.id
       };
     }
-    
-    // GUARD LOG: If opener suppressed fallback, log once
-    if (requiredAnchorFallbackActive && requiredAnchorCurrent && currentItem_S?.type === 'v3_pack_opener') {
 
+    // GUARD LOG: If V3 context suppressed fallback routing, log once
+    if (requiredAnchorFallbackActive && requiredAnchorCurrent && isV3Context) {
+      console.log('[RENDER_FALLBACK][V3_CONTEXT_BYPASS_P0]', {
+        currentItem_SType: currentItem_S?.type,
+        v3ProbingActive,
+        reason: 'V3 context - fallback is display-only, not routing'
+      });
     }
     
       // Priority 1: V3 prompt active (multi-signal detection)
@@ -12954,14 +12962,15 @@ function CandidateInterviewInner() {
       // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3D:BEFORE_PRIORITY1_5';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3D:BEFORE_PRIORITY1_5' });
       lastTry1StepRef.current = '3D:BEFORE_PRIORITY1_5';
-    if (v3ProbingActive && !hasActiveV3Prompt_SAFE && !requiredAnchorFallbackActive) {
+    if (v3ProbingActive && !hasActiveV3Prompt_SAFE && (!requiredAnchorFallbackActive || isV3Context)) {
       const forcedKind = "V3_WAITING";
       console.log('[V3_CONTROLLER][FORCE_ACTIVE_KIND]', {
         effectiveItemType: currentItem_S?.type === 'v3_probing' ? 'v3_probing' : currentItem_S?.type,
         v3ProbingActive,
         v3PromptPhase,
         forcedKind,
-        reason: 'V3 active but no prompt - forcing V3_WAITING controller'
+        reason: 'V3 active but no prompt - forcing V3_WAITING controller',
+        fallbackBypassed: requiredAnchorFallbackActive && isV3Context
       });
       
       return {
@@ -12976,8 +12985,8 @@ function CandidateInterviewInner() {
       };
     }
     
-    // GUARD: Block V3_WAITING if fallback active
-    if (v3ProbingActive && !hasActiveV3Prompt_SAFE && requiredAnchorFallbackActive) {
+    // GUARD: Block V3_WAITING if fallback active (but NOT in V3 context)
+    if (v3ProbingActive && !hasActiveV3Prompt_SAFE && requiredAnchorFallbackActive && !isV3Context) {
       console.log('[REQUIRED_ANCHOR_FALLBACK][BLOCK_V3_WAITING_BRANCH]', {
         reason: 'fallback_active'
       });
@@ -13228,17 +13237,17 @@ function CandidateInterviewInner() {
     const bottomBarRenderTypeSOT__LOCAL = (() => {
       const currentType = currentItem_S?.type;
       
-      // Priority 0: Required anchor fallback
-      if (requiredAnchorFallbackActive && requiredAnchorCurrent) return "required_anchor_fallback";
-      
+      // Priority 0: Required anchor fallback (NOT in V3 context - fallback is display-only there)
+      if (requiredAnchorFallbackActive && requiredAnchorCurrent && !isV3Context) return "required_anchor_fallback";
+
       // Priority 1: Multi-instance gate
       if (currentType === "multi_instance_gate") return "multi_instance_gate";
-      
+
       // Priority 2: Base yes/no question
       if (currentType === "question" && engine_S?.QById?.[currentItem_S?.id]?.response_type === "yes_no") {
         return "yes_no";
       }
-      
+
       // Priority 3: V3 pack opener
       if (currentType === "v3_pack_opener") return "v3_pack_opener";
       
@@ -14627,9 +14636,10 @@ function CandidateInterviewInner() {
     // ROUTE A0: Required anchor answer submission (HIGHEST PRIORITY - triple-gate routing)
     // Routes by: effectiveItemType OR activeUiItem_SKind OR requiredAnchorFallbackActive flag
     // CRITICAL: Does NOT depend on currentItem_SType, v3ProbingActive, or currentItem_S.packId
-    if (effectiveItemType_SAFE === 'required_anchor_fallback' || 
-        activeUiItem_S_SAFE?.kind === 'REQUIRED_ANCHOR_FALLBACK' || 
-        requiredAnchorFallbackActive === true) {
+    // BYPASS: V3 context means fallback is display-only, submit must route to V3 handler
+    if (!isV3Context && (effectiveItemType_SAFE === 'required_anchor_fallback' ||
+        activeUiItem_S_SAFE?.kind === 'REQUIRED_ANCHOR_FALLBACK' ||
+        requiredAnchorFallbackActive === true)) {
       
       // GUARD: Validate requiredAnchorCurrent exists
       if (!requiredAnchorCurrent) {
@@ -15788,7 +15798,7 @@ function CandidateInterviewInner() {
   }
   console.log('[CQ_DERIVED][MID]', { ts: Date.now(), sessionId: (typeof sessionId !== 'undefined' ? sessionId : null), activeCard_SKind: (typeof activeCard_S !== 'undefined' && activeCard_S?.kind) || null });
   activePromptText = computeActivePromptText({
-    requiredAnchorFallbackActive,
+    requiredAnchorFallbackActive: requiredAnchorFallbackActive && !isV3Context,
     requiredAnchorCurrent,
       v3ProbingContext_S,
       v3ProbingActive,
@@ -15829,7 +15839,7 @@ function CandidateInterviewInner() {
   bottomSpacerPx = (isYesNoModeDerived || isMiGateDerived)
     ? Math.max(yesNoModeClearance, normalModeClearance)
     : normalModeClearance;
-  isBottomBarSubmitDisabled = requiredAnchorFallbackActive 
+  isBottomBarSubmitDisabled = (requiredAnchorFallbackActive && !isV3Context)
     ? (!(input ?? "").trim())
     : (!currentItem_S || isCommitting || !(input ?? "").trim());
   
@@ -18699,14 +18709,21 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
             {/* V3 Probing Loop - HEADLESS (no visible cards in main transcript area) */}
             {(() => {
-            // SUPPRESS: Do not mount V3ProbingLoop when fallback is active
-            if (requiredAnchorFallbackActive) {
+            // SUPPRESS: Do not mount V3ProbingLoop when fallback is active (UNLESS V3 context)
+            if (requiredAnchorFallbackActive && !isV3Context) {
               const loopKey = v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null;
               console.log('[REQUIRED_ANCHOR_FALLBACK][SUPPRESS_V3_MOUNT]', {
                 loopKey,
                 reason: 'fallback_active'
               });
               return null;
+            }
+            if (requiredAnchorFallbackActive && isV3Context) {
+              console.log('[RENDER_FALLBACK][V3_CONTEXT_ALLOW_V3]', {
+                currentItem_SType: currentItem_S?.type,
+                v3ProbingActive,
+                hasPrompt: !!v3ActivePromptText
+              });
             }
             
             const shouldRenderV3Loop = v3ProbingActive && v3ProbingContext_S && 
@@ -19306,7 +19323,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
           {/* UI CONTRACT: Footer shows input + send only (no prompt text) */}
           {(() => {
             // NEUTRALIZED: Footer must not show question text (prompt renders in main pane)
-            if (requiredAnchorFallbackActive) {
+            // BYPASS: V3 context allows footer to remain active
+            if (requiredAnchorFallbackActive && !isV3Context) {
               console.log('[UI_CONTRACT][FOOTER_NEUTRALIZED_FOR_FALLBACK]', {
                 note: 'No question text in footer per contract'
               });
@@ -19468,7 +19486,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                handleBottomBarSubmit();
              }}
              disabled={
-               effectiveItemType_SAFE === 'required_anchor_fallback'
+               (effectiveItemType_SAFE === 'required_anchor_fallback' && !isV3Context)
                  ? !(input ?? "").trim()
                  : (effectiveItemType_SAFE === 'v3_pack_opener' || currentItem_S?.type === 'v3_pack_opener')
                    ? v3OpenerSubmitDisabled
@@ -19487,8 +19505,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
           </div>
           ) : null}
 
-          {/* V3 UI Contract Enforcement - Self-Check */}
-          {v3ProbingActive && !requiredAnchorFallbackActive && (() => {
+          {/* V3 UI Contract Enforcement - Self-Check (runs in V3 context even if fallback active) */}
+          {v3ProbingActive && (!requiredAnchorFallbackActive || isV3Context) && (() => {
             const transcriptPromptCards = renderedTranscript.filter(e => 
               e.messageType === 'v3_probe_question' || e.type === 'v3_probe_question'
             ).length;
@@ -19521,8 +19539,8 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             return null;
           })()}
           
-          {/* Fallback skips V3 enforcement */}
-          {requiredAnchorFallbackActive && (() => {
+          {/* Fallback skips V3 enforcement (but NOT in V3 context) */}
+          {requiredAnchorFallbackActive && !isV3Context && (() => {
             console.log('[REQUIRED_ANCHOR_FALLBACK][SKIP_V3_ENFORCED]', {
               reason: 'fallback_active'
             });
