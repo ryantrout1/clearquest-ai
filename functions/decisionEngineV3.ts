@@ -2525,6 +2525,8 @@ async function decisionEngineV3Probe(base44, {
   if (nextAction === 'ASK' && (!nextPrompt || nextPrompt.trim() === '')) {
     const fallbackField = missingFieldsAfter?.[0];
     if (fallbackField) {
+      // Set selectedFieldIdForLogging when hard gate skipped field selection
+      selectedFieldIdForLogging = selectedFieldIdForLogging || fallbackField.field_id;
       try {
         nextPrompt = generateV3ProbeQuestion(fallbackField, incident.facts);
       } catch (genErr) {
@@ -2587,22 +2589,43 @@ async function decisionEngineV3Probe(base44, {
           reason: 'Deterministic month/year detected - date question suppressed by hard gate'
         });
       } else {
-        // No non-date fields remain - force RECAP
-        nextAction = 'RECAP';
-        nextPrompt = getCompletionMessage('RECAP', null);
-        stopReason = 'REQUIRED_FIELDS_COMPLETE';
-        legacyFactState.completion_status = 'complete';
-        gateStatus = 'FAILSAFE';
-        
-        console.warn(`[V3_DATE_GATE][FAILSAFE]`, {
-          categoryId,
-          instanceNumber: instanceNumber || 1,
-          detectedMonthYearNormalized,
-          blockedFieldId: blockedFieldIdFailsafe,
-          blockedPromptPreview: nextPrompt.substring(0, 60),
-          overrideAction: 'RECAP',
-          reason: 'Deterministic month/year detected - no non-date fields remain - forcing RECAP'
-        });
+        // No non-date fields remain
+        if (missingFieldsAfter.length > 0) {
+          // HARD GATE OVERRIDE: Required fields still missing - CANNOT force RECAP
+          // Keep ASK with current prompt (redundant date question > incomplete RECAP)
+          nextAction = 'ASK';
+          // nextPrompt already set by repair logic above - keep it
+          gateStatus = 'FAILSAFE_HARD_GATE_OVERRIDE';
+          legacyFactState.completion_status = 'incomplete';
+
+          console.warn(`[V3_DATE_GATE][FAILSAFE_BLOCKED_BY_HARD_GATE]`, {
+            categoryId,
+            instanceNumber: instanceNumber || 1,
+            detectedMonthYearNormalized,
+            blockedFieldId: blockedFieldIdFailsafe,
+            missingCount: missingFieldsAfter.length,
+            missingFieldIds: missingFieldsAfter.map(f => f.field_id).join(','),
+            promptPreview: nextPrompt?.substring(0, 60) || null,
+            reason: 'Date gate tried to force RECAP but required fields still missing - keeping ASK'
+          });
+        } else {
+          // No required fields missing - safe to RECAP
+          nextAction = 'RECAP';
+          nextPrompt = getCompletionMessage('RECAP', null);
+          stopReason = 'REQUIRED_FIELDS_COMPLETE';
+          legacyFactState.completion_status = 'complete';
+          gateStatus = 'FAILSAFE';
+
+          console.warn(`[V3_DATE_GATE][FAILSAFE]`, {
+            categoryId,
+            instanceNumber: instanceNumber || 1,
+            detectedMonthYearNormalized,
+            blockedFieldId: blockedFieldIdFailsafe,
+            blockedPromptPreview: nextPrompt.substring(0, 60),
+            overrideAction: 'RECAP',
+            reason: 'Deterministic month/year detected - no non-date fields remain - forcing RECAP'
+          });
+        }
       }
     }
   }
@@ -2643,19 +2666,36 @@ async function decisionEngineV3Probe(base44, {
           reason: 'Legacy pattern gate - deterministic extraction failed but pattern detected'
         });
       } else {
-        nextAction = 'RECAP';
-        nextPrompt = getCompletionMessage('RECAP', null);
-        stopReason = 'REQUIRED_FIELDS_COMPLETE';
-        legacyFactState.completion_status = 'complete';
-        gateStatus = 'FAILSAFE_LEGACY';
-        
-        console.warn(`[V3_DATE_GATE][FAILSAFE_LEGACY]`, {
-          categoryId,
-          instanceNumber: instanceNumber || 1,
-          openerHasMonthYear: true,
-          overrideAction: 'RECAP',
-          reason: 'Legacy pattern gate - no non-date fields remain'
-        });
+        // No non-date fields remain
+        if (missingFieldsAfter.length > 0) {
+          // HARD GATE OVERRIDE: Required fields still missing - CANNOT force RECAP
+          nextAction = 'ASK';
+          gateStatus = 'FAILSAFE_LEGACY_HARD_GATE_OVERRIDE';
+          legacyFactState.completion_status = 'incomplete';
+
+          console.warn(`[V3_DATE_GATE][FAILSAFE_LEGACY_BLOCKED_BY_HARD_GATE]`, {
+            categoryId,
+            instanceNumber: instanceNumber || 1,
+            openerHasMonthYear: true,
+            missingCount: missingFieldsAfter.length,
+            missingFieldIds: missingFieldsAfter.map(f => f.field_id).join(','),
+            reason: 'Legacy date gate tried to force RECAP but required fields still missing - keeping ASK'
+          });
+        } else {
+          nextAction = 'RECAP';
+          nextPrompt = getCompletionMessage('RECAP', null);
+          stopReason = 'REQUIRED_FIELDS_COMPLETE';
+          legacyFactState.completion_status = 'complete';
+          gateStatus = 'FAILSAFE_LEGACY';
+
+          console.warn(`[V3_DATE_GATE][FAILSAFE_LEGACY]`, {
+            categoryId,
+            instanceNumber: instanceNumber || 1,
+            openerHasMonthYear: true,
+            overrideAction: 'RECAP',
+            reason: 'Legacy pattern gate - no non-date fields remain'
+          });
+        }
       }
     }
   }
