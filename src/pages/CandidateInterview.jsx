@@ -15925,7 +15925,12 @@ finalTranscriptList_S_computed = deriveTranscriptPipeline({
     finalTranscriptMemoCacheRef.current = { key: _ft_key, value: finalTranscriptList_S_computed };
   }
 
-  finalTranscriptList_S = finalTranscriptList_S_computed;
+  // TRY1_GUARD: Ensure pipeline output is always an array (prevents Base44 preview crash
+  // when deriveTranscriptPipeline returns undefined renderedItems due to uninitialized deps)
+  if (!Array.isArray(finalTranscriptList_S_computed)) {
+    console.warn('[TRY1_GUARD][FINAL_LIST_INPUT_NOT_ARRAY]', { key: 'finalTranscriptList_S_computed', typeof: typeof finalTranscriptList_S_computed, isArray: Array.isArray(finalTranscriptList_S_computed) });
+  }
+  finalTranscriptList_S = Array.isArray(finalTranscriptList_S_computed) ? finalTranscriptList_S_computed : [];
 
   // SYNTHETIC QUESTION CARD: When QUESTION mode has empty pipeline output, inject current question
   if (screenMode === 'QUESTION' && finalTranscriptList_S.length === 0 && currentItem_S?.type === 'question' && currentItem_S?.id && engine_S?.QById) {
