@@ -15333,20 +15333,28 @@ function CandidateInterviewInner() {
     
     // CQ_GUARD: submitIntent must be declared exactly once (do not duplicate)
     // V3 SUBMIT INTENT: Capture routing decision BEFORE state updates (prevents mis-route)
+    // FIX: isV3Submit_SAFE bypasses activeUiItem_S_SAFE.kind (never populated, always undefined)
+    const isV3Submit_SAFE = !!v3ProbingActive && (hasActiveV3Prompt || currentItem_SType === 'v3_probing');
     const v3PromptIdSOT = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef?.current?.promptId || null;
+    // FIX: Derive categoryId/instanceNumber with currentItem_S fallback (v3ProbingContext_S may lack these)
+    const categoryId_SAFE = v3ProbingContext_S?.categoryId || lastV3PromptSnapshotRef.current?.categoryId || currentItem_S?.categoryId;
+    const instanceNumber_SAFE = v3ProbingContext_S?.instanceNumber || lastV3PromptSnapshotRef.current?.instanceNumber || currentItem_S?.instanceNumber || 1;
+    const packId_SAFE = v3ProbingContext_S?.packId || lastV3PromptSnapshotRef.current?.packId || currentItem_S?.packId;
+    // FIX: promptId fallback uses existing ${loopKey}:fallback pattern (see line ~9298, ~15710)
+    const loopKey_SAFE = `${sessionId}:${categoryId_SAFE}:${instanceNumber_SAFE}`;
+    const promptId_SAFE = v3PromptIdSOT || (isV3Submit_SAFE ? `${loopKey_SAFE}:fallback` : null);
     const submitIntent = {
-      isV3Submit: v3PromptPhase === 'ANSWER_NEEDED' || 
-                  activeUiItem_S_SAFE.kind === 'V3_PROMPT' ||
+      isV3Submit: isV3Submit_SAFE || v3PromptPhase === 'ANSWER_NEEDED' ||
                   (v3PromptIdSOT && v3PromptIdSOT.trim() !== ''),
-      promptId: v3PromptIdSOT,
-      loopKey: v3ProbingContext_S ? `${sessionId}:${v3ProbingContext_S.categoryId}:${v3ProbingContext_S.instanceNumber || 1}` : null,
-      categoryId: v3ProbingContext_S?.categoryId || lastV3PromptSnapshotRef.current?.categoryId,
-      instanceNumber: v3ProbingContext_S?.instanceNumber || lastV3PromptSnapshotRef.current?.instanceNumber || 1,
-      packId: v3ProbingContext_S?.packId || lastV3PromptSnapshotRef.current?.packId,
+      promptId: promptId_SAFE,
+      loopKey: categoryId_SAFE ? loopKey_SAFE : null,
+      categoryId: categoryId_SAFE,
+      instanceNumber: instanceNumber_SAFE,
+      packId: packId_SAFE,
       promptText: v3ActivePromptText || lastV3PromptSnapshotRef.current?.promptText,
       capturedAt: Date.now()
     };
-    
+
     console.log("[BOTTOM_BAR_SUBMIT][CLICK]", {
       hasCurrentItem: !!currentItem_S,
       currentItem_SType: currentItem_S?.type,
@@ -15358,7 +15366,7 @@ function CandidateInterviewInner() {
       inputSnapshot: input?.substring?.(0, 50) || input,
       effectiveItemType
     });
-    
+
     console.log('[V3_PROBE][SUBMIT_INTENT]', {
       isV3Submit: submitIntent.isV3Submit,
       promptId: submitIntent.promptId,
@@ -15366,6 +15374,15 @@ function CandidateInterviewInner() {
       instanceNumber: submitIntent.instanceNumber,
       activeUiItem_SKindAtClick: activeUiItem_S_SAFE.kind
     });
+
+    if (submitIntent.isV3Submit) {
+      console.log('[V3_SUBMIT][ROUTED]', {
+        isV3Submit_SAFE,
+        categoryId: submitIntent.categoryId,
+        instanceNumber: submitIntent.instanceNumber,
+        promptIdPreview: submitIntent.promptId?.substring?.(0, 40) || null
+      });
+    }
 
     // V3 SUBMIT PAYLOAD: Store answer before any state changes (survives transitions)
     if (submitIntent.isV3Submit) {
@@ -16853,6 +16870,21 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   const hasPrompt_SAFE = hasPrompt ?? false;
   activePromptText_SAFE = activePromptText ?? '';
   safeActivePromptText_SAFE = safeActivePromptText ?? '';
+
+  // FIX: Force footer visible for V3 prompt lane when activeUiItem_S_SAFE.kind is stale/undefined
+  if (v3ProbingActive && hasActiveV3Prompt) {
+    if (bottomBarModeSOT_SAFE !== 'TEXT_INPUT') bottomBarModeSOT_SAFE = 'TEXT_INPUT';
+    if (!shouldRenderFooter_SAFE) shouldRenderFooter_SAFE = true;
+    if (!activePromptText_SAFE && v3ActivePromptText) {
+      activePromptText_SAFE = v3ActivePromptText;
+      safeActivePromptText_SAFE = v3ActivePromptText;
+    }
+    console.log('[V3_FOOTER][FORCED]', {
+      v3ProbingActive,
+      hasActiveV3Prompt,
+      bottomBarModeSOT_SAFE
+    });
+  }
   const isBottomBarSubmitDisabled_SAFE = isBottomBarSubmitDisabled ?? true;
   bottomBarRenderTypeSOT_SAFE = bottomBarRenderTypeSOT ?? 'default';
   
