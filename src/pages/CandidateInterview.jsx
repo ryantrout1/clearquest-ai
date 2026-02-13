@@ -16997,7 +16997,78 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 });
               }
 
-              return transcriptRenderableList.map((entry, index) => {
+              // ================================================================
+              // RENDER_FALLBACK: Never show blank body in QUESTION mode.
+              // If transcriptRenderableList is empty, inject a UI-only fallback
+              // card so the user always sees the active question/opener prompt.
+              // This does NOT touch transcript persistence — pure render safety.
+              // ================================================================
+              let safeCardsToRender = transcriptRenderableList;
+              if (screenMode === 'QUESTION' && transcriptRenderableList.length === 0) {
+                let _fbText = '';
+                let _fbKind = '';
+                let _fbMeta = { source: 'render_fallback' };
+                const _fbItemType = currentItem_S?.type || null;
+
+                if (_fbItemType === 'question' && currentItem_S?.id && engine_S?.QById) {
+                  // (a) Base question prompt
+                  const _fbQ = engine_S.QById[currentItem_S.id];
+                  _fbText = _fbQ?.question_text || '';
+                  _fbKind = 'QUESTION_SHOWN';
+                  _fbMeta.questionDbId = currentItem_S.id;
+                  _fbMeta.questionNumber = _fbQ?.question_number;
+                } else if (_fbItemType === 'v3_pack_opener') {
+                  // (b) V3 opener prompt
+                  _fbText = currentItem_S?.openerText || activePromptText_SAFE || '';
+                  _fbKind = 'v3_pack_opener';
+                  _fbMeta.packId = currentItem_S?.packId;
+                  _fbMeta.instanceNumber = currentItem_S?.instanceNumber || 1;
+                } else if (v3ProbingActive && v3ActivePromptText) {
+                  // (c) V3 probing prompt
+                  _fbText = v3ActivePromptText;
+                  _fbKind = 'v3_probe_q';
+                  _fbMeta.packId = v3ProbingContext_S?.packId || null;
+                  _fbMeta.instanceNumber = v3ProbingContext_S?.instanceNumber || 1;
+                }
+
+                if (_fbText) {
+                  const _isOpenerFb = _fbKind === 'v3_pack_opener';
+                  const _isProbeFb = _fbKind === 'v3_probe_q';
+                  const _fallbackCard = {
+                    __activeCard_S: _isOpenerFb || _isProbeFb,
+                    __renderFallback: true,
+                    id: `render-fallback-${_fbKind}-${currentItem_S?.id || currentItem_S?.packId || 'none'}`,
+                    stableKey: `render-fallback:${_fbKind}:${currentItem_S?.id || currentItem_S?.packId || 'none'}`,
+                    kind: _isOpenerFb || _isProbeFb ? _fbKind : undefined,
+                    role: 'assistant',
+                    text: _fbText,
+                    messageType: (!_isOpenerFb && !_isProbeFb) ? _fbKind : undefined,
+                    type: (!_isOpenerFb && !_isProbeFb) ? _fbKind : undefined,
+                    visibleToCandidate: true,
+                    meta: _fbMeta,
+                    ...(_isOpenerFb ? {
+                      packId: currentItem_S?.packId,
+                      categoryLabel: currentItem_S?.categoryLabel,
+                      instanceNumber: currentItem_S?.instanceNumber || 1,
+                      exampleNarrative: currentItem_S?.exampleNarrative,
+                    } : {}),
+                    ...(_isProbeFb ? {
+                      instanceNumber: v3ProbingContext_S?.instanceNumber || 1,
+                    } : {}),
+                  };
+                  safeCardsToRender = [_fallbackCard];
+                  console.log('[RENDER_FALLBACK][INJECTED]', {
+                    screenMode,
+                    currentItemType: _fbItemType,
+                    promptPreview: _fbText.substring(0, 80),
+                    baseQuestionId: currentItem_S?.id || null,
+                    packId: currentItem_S?.packId || null,
+                    instanceNumber: currentItem_S?.instanceNumber || null
+                  });
+                }
+              }
+
+              return safeCardsToRender.map((entry, index) => {
                   // CHANGE 3: Hard-dedupe V3 opener prompts
                   const mt_dedupe = entry.messageType || entry.type || entry.kind;
                   const isOpener_dedupe = (mt_dedupe && mt_dedupe.toLowerCase().includes('opener')) || entry.meta?.isV3Opener;
