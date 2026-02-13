@@ -15878,7 +15878,8 @@ function CandidateInterviewInner() {
     
   cqSetRenderStep('TRY1:FINAL_LIST_COMPUTE_START');
   // HOOK ORDER FIX: Ref-cached computation (memoization restored)
-finalTranscriptList_S_computed = deriveTranscriptPipeline({
+  // FIX: Capture pipeline result, then coerce .renderedItems to Array (prevents undefined cache)
+const _pipelineResult = deriveTranscriptPipeline({
     // Closure variables
     activePromptText,
     cqTdzIsolate,
@@ -15919,7 +15920,8 @@ finalTranscriptList_S_computed = deriveTranscriptPipeline({
     captureViolationSnapshot,
     // Module-level vars
     CQ_DEBUG_FOOTER_ANCHOR,
-  }).renderedItems;
+  });
+finalTranscriptList_S_computed = Array.isArray(_pipelineResult?.renderedItems) ? _pipelineResult.renderedItems : [];
     
     // Store in cache for next render
     finalTranscriptMemoCacheRef.current = { key: _ft_key, value: finalTranscriptList_S_computed };
@@ -15927,7 +15929,8 @@ finalTranscriptList_S_computed = deriveTranscriptPipeline({
 
   // TRY1_GUARD: Ensure pipeline output is always an array (prevents Base44 preview crash
   // when deriveTranscriptPipeline returns undefined renderedItems due to uninitialized deps)
-  if (!Array.isArray(finalTranscriptList_S_computed)) {
+  const _hadToCoerce = !Array.isArray(finalTranscriptList_S_computed);
+  if (_hadToCoerce) {
     console.warn('[TRY1_GUARD][FINAL_LIST_INPUT_NOT_ARRAY]', { key: 'finalTranscriptList_S_computed', typeof: typeof finalTranscriptList_S_computed, isArray: Array.isArray(finalTranscriptList_S_computed) });
   }
   finalTranscriptList_S = Array.isArray(finalTranscriptList_S_computed) ? finalTranscriptList_S_computed : [];
@@ -15959,6 +15962,11 @@ finalTranscriptList_S_computed = deriveTranscriptPipeline({
       });
     }
   }
+
+  // FIX: Update memo cache with final list (includes guard coercion + synthetic injection)
+  // This ensures cache hits return the corrected array, not the raw pipeline output (which may be undefined)
+  finalTranscriptMemoCacheRef.current = { key: _ft_key, value: finalTranscriptList_S };
+  console.log('[FINAL_LIST][SAFE_LEN]', { len: finalTranscriptList_S.length, bypassEnabled: cqTdzIsolate, hadToCoerce: _hadToCoerce });
 
   // ============================================================================
   // BOOT GUARD FLAG - Prevents early returns that cause hook divergence (React #310 fix)
@@ -16936,13 +16944,16 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
               const renderedV3OpenerKeysSOT = new Set();
 
-              const transcriptRenderableList = isV3DebugEnabled ? cqRead('finalTranscriptList_S_SAFE.filter', () => finalTranscriptList_S_SAFE.filter(shouldRenderInTranscript)) : finalTranscriptList_S_SAFE.filter(shouldRenderInTranscript);
-      
-              const filteredCount = (isV3DebugEnabled ? cqRead('finalTranscriptList_S_SAFE.length', () => finalTranscriptList_S_SAFE.length) : finalTranscriptList_S_SAFE.length) - (isV3DebugEnabled ? cqRead('transcriptRenderableList.length', () => transcriptRenderableList.length) : transcriptRenderableList.length);
+              // DEFENSIVE GUARD: Ensure list is always an array before .filter / .map render use
+              const safeList = Array.isArray(finalTranscriptList_S_SAFE) ? finalTranscriptList_S_SAFE : [];
+
+              const transcriptRenderableList = isV3DebugEnabled ? cqRead('finalTranscriptList_S_SAFE.filter', () => safeList.filter(shouldRenderInTranscript)) : safeList.filter(shouldRenderInTranscript);
+
+              const filteredCount = (isV3DebugEnabled ? cqRead('finalTranscriptList_S_SAFE.length', () => safeList.length) : safeList.length) - (isV3DebugEnabled ? cqRead('transcriptRenderableList.length', () => transcriptRenderableList.length) : transcriptRenderableList.length);
               const forceTranscriptFilterDebug = isV3DebugEnabled || false;
 
               if (filteredCount > 0 || forceTranscriptFilterDebug) {
-                const sampleFiltered = finalTranscriptList_S_SAFE
+                const sampleFiltered = safeList
                   .filter(entry => !shouldRenderInTranscript(entry));
 
                 const sampleFilteredShapes = sampleFiltered.slice(0, 10).map(entry => ({
@@ -16975,7 +16986,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                   
                 logOnce(`transcript_filter_v2_${sessionId}`, () => {
                   console.log('[UI_CONTRACT][TRANSCRIPT_FILTER]', {
-                    originalCount: finalTranscriptList_S_SAFE.length,
+                    originalCount: safeList.length,
                     renderableCount: transcriptRenderableList.length,
                     filteredCount,
                     forceDebug: forceTranscriptFilterDebug,
