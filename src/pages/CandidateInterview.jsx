@@ -14709,8 +14709,11 @@ function CandidateInterviewInner() {
     // ROUTE A0: Required anchor answer submission (HIGHEST PRIORITY - triple-gate routing)
     // Routes by: effectiveItemType OR activeUiItem_SKind OR requiredAnchorFallbackActive flag
     // CRITICAL: Does NOT depend on currentItem_SType, v3ProbingActive, or currentItem_S.packId
-    // BYPASS: V3 context means fallback is display-only, submit must route to V3 handler
-    if (!isV3Context && (effectiveItemType_SAFE === 'required_anchor_fallback' ||
+    // FIX: When requiredAnchorFallbackActive is true, MI_GATE has already taken ownership
+    // (disabled V3 at activation, line ~8454). currentItem_S.type may still be 'v3_probing'
+    // (stale state), so isV3Context must yield to the explicit fallback flag.
+    if ((!isV3Context || requiredAnchorFallbackActive === true) && (
+        effectiveItemType_SAFE === 'required_anchor_fallback' ||
         activeUiItem_S_SAFE?.kind === 'REQUIRED_ANCHOR_FALLBACK' ||
         requiredAnchorFallbackActive === true)) {
       
@@ -15077,6 +15080,13 @@ function CandidateInterviewInner() {
           factsKeys: Object.keys(updatedFacts),
           agencyExtracted,
           dateExtracted
+        });
+
+        console.log('[REQUIRED_ANCHOR_FALLBACK][ANSWER_SAVED]', {
+          anchor: requiredAnchorCurrent,
+          incidentId: incident.incident_id,
+          valueLen: trimmed.length,
+          factsKeysPreview: Object.keys(updatedFacts).join(',')
         });
         
         // Track answered anchor in memory (fast check for re-ask prevention)
