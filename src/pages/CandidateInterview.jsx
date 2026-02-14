@@ -1908,6 +1908,10 @@ function CandidateInterviewInner() {
   let v3HasVisiblePromptCard = false; // TDZ FIX: safe default; computed inside Segment B, referenced in derived snapshot + pipeline
   let activeKindSOT = 'UNKNOWN'; // TDZ FIX: hoisted to function scope; assigned in Segment E try block (~15385)
 
+  // TDZ FIX — hoisted for JSX access outside TRY1 block
+  let activeCard_SKeySOT = null;
+  let activeCard_SScrollMarginBottomPx = 96;
+
   // TDZ FIX: Missing planner utility (used at lines ~19899, ~20171, ~20251, ~20286, ~20604, ~20673)
   const cqRead = (_label, fn) => (typeof fn === 'function' ? fn() : fn);
   
@@ -5588,8 +5592,13 @@ function CandidateInterviewInner() {
     }
     
     // 5. REQUIRED_ANCHOR_FALLBACK - Deterministic fallback (highest priority active state)
+    // V3 GUARD: NEVER choose REQUIRED_ANCHOR_FALLBACK during V3 probing (defense-in-depth)
+    if (requiredAnchorFallbackActive && (v3ProbingActive || currentItem_S?.type === 'v3_probing' || currentItem_S?.type === 'v3_pack_opener')) {
+      console.log('[V3_GUARD][SKIP_REQUIRED_ANCHOR_FALLBACK]', { currentItem_SType: currentItem_S?.type, v3ProbingActive, hasActiveV3Prompt: hasActiveV3Prompt_SAFE });
+      // fall through — V3 phases below handle this state
+    }
     // BYPASS: V3 context - fallback is display-only, let V3 phases handle state
-    if (requiredAnchorFallbackActive && requiredAnchorCurrent !== null && !isV3Context) {
+    else if (requiredAnchorFallbackActive && requiredAnchorCurrent !== null && !isV3Context) {
       return {
         phase: "REQUIRED_ANCHOR_FALLBACK",
         allowedActions: new Set(["SUBMIT", "TEXT"]),
@@ -12874,6 +12883,15 @@ function CandidateInterviewInner() {
     }
   }
 
+    // TASK C: Propagate resolver kind to activeUiItem_S_SAFE (const obj, properties mutable)
+    // CRITICAL: Must happen BEFORE bottomBarRenderTypeSOT and effectiveItemType computation
+    if (activeUiItem_S && activeUiItem_S.kind) {
+      Object.assign(activeUiItem_S_SAFE, activeUiItem_S);
+      if (v3ProbingActive && hasActiveV3Prompt_SAFE) {
+        console.log('[V3_ACTIVE_KIND][FORCED]', { activeUiItem_SKind: activeUiItem_S_SAFE.kind });
+      }
+    }
+
       } catch (segmentError) {
           // EDIT 2: Segment C catch
           console.error('[CQ_TRY1_SEGMENT_FAIL]', {
@@ -12953,7 +12971,11 @@ function CandidateInterviewInner() {
       // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3B:BEFORE_PRIORITY0';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3B:BEFORE_PRIORITY0' });
       lastTry1StepRef.current = '3B:BEFORE_PRIORITY0';
-    if (requiredAnchorFallbackActive && requiredAnchorCurrent && !isV3Context) {
+    // V3 GUARD: NEVER choose REQUIRED_ANCHOR_FALLBACK during V3 probing (defense-in-depth)
+    if (requiredAnchorFallbackActive && requiredAnchorCurrent && (v3ProbingActive || currentItem_SType === 'v3_probing' || currentItem_SType === 'v3_pack_opener')) {
+      console.log('[V3_GUARD][SKIP_REQUIRED_ANCHOR_FALLBACK]', { currentItem_SType, v3ProbingActive, hasActiveV3Prompt: hasActiveV3Prompt_SAFE });
+      // fall through — V3 priorities below handle this state
+    } else if (requiredAnchorFallbackActive && requiredAnchorCurrent && !isV3Context) {
       return {
         kind: "REQUIRED_ANCHOR_FALLBACK",
         packId: v3ProbingContext_S?.packId || currentItem_S?.packId,
@@ -15694,7 +15716,7 @@ function CandidateInterviewInner() {
   console.log('[EFFECTIVE_ITEM_TYPE_SAFE][ASSIGNED_IN_TRY1]', { effectiveItemType_SAFE, currentItem_SType, screenMode });
 
   cqSetRenderStep('TRY1:TOP:06C_AFTER_EFFECTIVE_ITEM_TYPE');
-  const activeCard_SKeySOT = (() => {
+  activeCard_SKeySOT = (() => {
     if (activeUiItem_S_SAFE.kind === "V3_PROMPT") {
       const promptId = v3ProbingContext_S?.promptId || lastV3PromptSnapshotRef.current?.promptId;
       return promptId ? `v3-prompt:${promptId}` : null;
@@ -15762,11 +15784,13 @@ function CandidateInterviewInner() {
       source: 'prompt_lane_temporary'
     };
   } else if (activeUiItem_S_SAFE.kind === "V3_OPENER") {
-    const openerText = currentItem_S?.openerText || "";
+    const openerTextRaw = currentItem_S?.openerText || "";
+    // FIX: Resolve opener text with safe fallback so activeCard_S is always created during V3_OPENER
+    const openerText = openerTextRaw || 'Please describe the details for this section in your own words.';
     const stableKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
     const expectedKey = buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1);
     const alreadyInHistory = v3ProbeDisplayHistory_S.some(e => e.stableKey === expectedKey);
-    if (screenMode === "QUESTION" && openerText) {
+    if (screenMode === "QUESTION") {
       if (alreadyInHistory) {}
       activeCard_S = {
         __activeCard_S: true,
@@ -15780,7 +15804,7 @@ function CandidateInterviewInner() {
         exampleNarrative: currentItem_S.exampleNarrative,
         source: 'prompt_lane_temporary'
       };
-    } else if (!openerText) {}
+    } else if (!openerTextRaw) {}
   } else if (
     activeUiItem_S_SAFE.kind === "DEFAULT" && 
     currentItem_S?.type === "question" && 
@@ -16107,7 +16131,8 @@ finalTranscriptList_S_computed = Array.isArray(_pipelineResult?.renderedItems) ?
   // ============================================================================
   cqSetRenderStep('TRY1:PLANNER_CALLS_START');
   // TDZ FIX: Missing scroll margin computation (used in planner args and JSX)
-  const activeCard_SScrollMarginBottomPx = ((typeof dynamicFooterHeightPx !== 'undefined' ? dynamicFooterHeightPx : 80) + 16);
+  activeCard_SScrollMarginBottomPx =
+    ((typeof dynamicFooterHeightPx !== 'undefined' ? dynamicFooterHeightPx : 80) + 16);
 
 const transcriptPlan = isV3DebugEnabled
     ? cqComputeGuard('computeTranscriptRenderPlan', () => computeTranscriptRenderPlan({
@@ -16885,9 +16910,33 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
       bottomBarModeSOT_SAFE
     });
   }
+
+  // FIX: Force footer visible for V3_OPENER when opener text exists
+  if (activeUiItem_S_SAFE?.kind === 'V3_OPENER') {
+    const _openerPrompt = activePromptText_SAFE || currentItem_S?.openerText || '';
+    if (_openerPrompt) {
+      if (bottomBarModeSOT_SAFE !== 'TEXT_INPUT') bottomBarModeSOT_SAFE = 'TEXT_INPUT';
+      if (!shouldRenderFooter_SAFE) shouldRenderFooter_SAFE = true;
+      if (!activePromptText_SAFE && _openerPrompt) {
+        activePromptText_SAFE = _openerPrompt;
+        safeActivePromptText_SAFE = _openerPrompt;
+      }
+      console.log('[V3_OPENER][FOOTER_FORCE_OK]', {
+        bottomBarMode: bottomBarModeSOT_SAFE,
+        promptPreviewLen: _openerPrompt.length
+      });
+    }
+  }
+
   const isBottomBarSubmitDisabled_SAFE = isBottomBarSubmitDisabled ?? true;
   bottomBarRenderTypeSOT_SAFE = bottomBarRenderTypeSOT ?? 'default';
-  
+  // V3 GUARD: Force bottomBarRenderTypeSOT_SAFE to 'v3_probing' when V3 prompt is active
+  // Belt-and-suspenders: even if resolver/derived chain failed, ensure correct render type
+  if (v3ProbingActive && hasActiveV3Prompt && bottomBarRenderTypeSOT_SAFE !== 'v3_probing') {
+    bottomBarRenderTypeSOT_SAFE = 'v3_probing';
+    console.log('[V3_ACTIVE_KIND][FORCED]', { activeUiItem_SKind: activeUiItem_S_SAFE?.kind });
+  }
+
   const showMissingSession_SAFE = (typeof showMissingSession !== 'undefined') ? showMissingSession : false;
   const showError_SAFE = (typeof showError !== 'undefined') ? showError : false;
   const shouldShowFullScreenLoader_SAFE = (typeof shouldShowFullScreenLoader !== 'undefined') ? shouldShowFullScreenLoader : false;
@@ -16910,10 +16959,79 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
   
   // TDZ FIX: Reassign activeCard_S_SAFE with non-null fallback (prevents .kind crashes)
   activeCard_S_SAFE = activeCard_S ?? {};
-  
+
+  // V3 TYPING RESILIENCE: Reconstruct activeCard_S when TRY1 failure nullified it during typing.
+  // Root cause: When user types during V3_OPENER/V3_PROMPT, the re-render may fail inside TRY1,
+  // causing the catch block to set activeCard_S = null. The active lane then disappears because
+  // its JSX gate checks activeCard_S directly. This reconstruction uses component-level state
+  // (which survives TRY1 catch) to rebuild the card so the active lane keeps rendering.
+  if (!activeCard_S && isUserTyping && screenMode === 'QUESTION') {
+    const _resilKind = activeUiItem_S_SAFE?.kind;
+    if ((_resilKind === 'V3_OPENER' || currentItem_S?.type === 'v3_pack_opener') && currentItem_S?.packId) {
+      const _resilText = currentItem_S.openerText || 'Please describe the details for this section in your own words.';
+      activeCard_S = {
+        __activeCard_S: true,
+        isEphemeralPromptLaneCard: true,
+        kind: "v3_pack_opener",
+        stableKey: buildV3OpenerStableKey(currentItem_S.packId, currentItem_S.instanceNumber || 1),
+        text: _resilText,
+        packId: currentItem_S.packId,
+        categoryLabel: currentItem_S.categoryLabel,
+        instanceNumber: currentItem_S.instanceNumber || 1,
+        exampleNarrative: currentItem_S.exampleNarrative,
+        source: 'typing_resilience_fallback'
+      };
+      activeCard_S_SAFE = activeCard_S;
+      // Ensure activeUiItem_S_SAFE.kind matches so active lane JSX gate passes
+      if (activeUiItem_S_SAFE.kind !== 'V3_OPENER') {
+        activeUiItem_S_SAFE.kind = 'V3_OPENER';
+        activeUiItem_S_SAFE.reason = 'typing_resilience_sync';
+      }
+      // Force footer visible for reconstructed opener (belt-and-suspenders)
+      if (!shouldRenderFooter_SAFE) {
+        shouldRenderFooter_SAFE = true;
+        if (bottomBarModeSOT_SAFE !== 'TEXT_INPUT') bottomBarModeSOT_SAFE = 'TEXT_INPUT';
+      }
+      console.log('[V3_TYPING_RESILIENCE][OPENER_RECONSTRUCTED]', {
+        packId: currentItem_S.packId,
+        instanceNumber: currentItem_S.instanceNumber,
+        resilKindWas: _resilKind,
+        reason: 'activeCard_S null during typing - reconstructed from state'
+      });
+    } else if (_resilKind === 'V3_PROMPT') {
+      const _resilPromptText = (typeof v3ActivePromptText !== 'undefined' ? v3ActivePromptText : '') ||
+                                (typeof v3ActiveProbeQuestionRef !== 'undefined' && v3ActiveProbeQuestionRef?.current ? v3ActiveProbeQuestionRef.current : '');
+      if (_resilPromptText) {
+        const _loopKey = (typeof v3ProbingContext_S !== 'undefined' && v3ProbingContext_S)
+          ? `${sessionId}:${v3ProbingContext_S.categoryId}:${(v3ProbingContext_S.instanceNumber || 1)}`
+          : null;
+        const _promptId = (typeof v3ProbingContext_S !== 'undefined' ? v3ProbingContext_S?.promptId : null) ||
+                          (typeof lastV3PromptSnapshotRef !== 'undefined' ? lastV3PromptSnapshotRef?.current?.promptId : null) ||
+                          'typing-resil';
+        activeCard_S = {
+          __activeCard_S: true,
+          isEphemeralPromptLaneCard: true,
+          kind: "v3_probe_q",
+          stableKey: _loopKey ? `v3-active:${_loopKey}:${_promptId}:typing-resil` : `v3-active:typing-resil:${_promptId}`,
+          text: _resilPromptText,
+          packId: (typeof v3ProbingContext_S !== 'undefined' ? v3ProbingContext_S?.packId : null),
+          instanceNumber: (typeof v3ProbingContext_S !== 'undefined' ? v3ProbingContext_S?.instanceNumber : null),
+          source: 'typing_resilience_fallback'
+        };
+        activeCard_S_SAFE = activeCard_S;
+        console.log('[V3_TYPING_RESILIENCE][PROMPT_RECONSTRUCTED]', {
+          packId: v3ProbingContext_S?.packId,
+          instanceNumber: v3ProbingContext_S?.instanceNumber,
+          reason: 'activeCard_S null during typing - reconstructed from v3 context'
+        });
+      }
+    }
+  }
+
   cqSetRenderStep('RENDER:BEFORE_RETURN');
   console.log("[TDZ_TRACE][RENDER_ENTER]");
   let __tdzTraceJsx = null;
+  let __v3OpenerRenderedByStableBlock = false;
   try {
     try { console.log('[CQ_RENDER_END_REACHED][ALWAYS_ON]', { rid: (typeof __cqRid !== 'undefined' ? __cqRid : 'no_rid'), ts: Date.now() }); } catch (_) {}
 
@@ -17086,7 +17204,12 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
               // This does NOT touch transcript persistence — pure render safety.
               // ================================================================
               let safeCardsToRender = transcriptRenderableList;
-              if (screenMode === 'QUESTION' && transcriptRenderableList.length === 0) {
+              // V3 GUARD: NEVER inject render fallback during ANY V3-owned UI state — active card lane handles display
+              const _v3GuardKind = activeUiItem_S_SAFE?.kind;
+              const _v3GuardOwned = _v3GuardKind === 'V3_OPENER' || _v3GuardKind === 'V3_PROMPT' || _v3GuardKind === 'V3_WAITING';
+              if (screenMode === 'QUESTION' && transcriptRenderableList.length === 0 && (_v3GuardOwned || v3ProbingActive || hasActiveV3Prompt || currentItem_S?.type === 'v3_probing')) {
+                console.log('[V3_GUARD][SKIP_RENDER_FALLBACK_INJECT]', { activeUiItemKind: _v3GuardKind, currentItem_SType: currentItem_S?.type, v3ProbingActive, hasActiveV3Prompt });
+              } else if (screenMode === 'QUESTION' && transcriptRenderableList.length === 0) {
                 let _fbText = '';
                 let _fbKind = '';
                 let _fbMeta = { source: 'render_fallback' };
@@ -17504,6 +17627,7 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
 
               // FIX #2: Suppress ACTIVE base questions from transcript (prevent duplicate rendering)
               // Active YES/NO questions render ONLY via activeCard_S (prevents duplicate)
+              const hasVisibleActivePromptForSuppression = !!activeCard_S && activeUiItem_S_SAFE?.kind === 'DEFAULT';
               if (isActiveBaseQuestion) {
                 // Apply failsafe guard
                 if (hasVisibleActivePromptForSuppression) {
@@ -18350,6 +18474,62 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
           });
           })()}
 
+          {/* ALWAYS-ON V3_OPENER: Independent render path — does NOT depend on activeCard_S, transcript list, or transcript freeze */}
+          {activeUiItem_S_SAFE.kind === 'V3_OPENER' && screenMode === 'QUESTION' && currentItem_S?.packId && (() => {
+            __v3OpenerRenderedByStableBlock = true;
+            const _stableOpenerText = currentItem_S.openerText || 'Please describe the details for this section in your own words.';
+            const _stableSafePrompt = sanitizeCandidateFacingText_SAFE(_stableOpenerText, 'ACTIVE_LANE_V3_OPENER_STABLE');
+            const _stableInstanceNumber = currentItem_S.instanceNumber || 1;
+            const _stablePackId = currentItem_S.packId;
+            const _stableKey = buildV3OpenerStableKey(_stablePackId, _stableInstanceNumber);
+            const _stableInstanceTitle = currentItem_S.categoryLabel && _stableInstanceNumber > 1
+              ? `${currentItem_S.categoryLabel} — Instance ${_stableInstanceNumber}`
+              : currentItem_S.categoryLabel;
+
+            console.log('[V3_OPENER][ACTIVE_LANE_RENDERED_STABLE]', {
+              sessionId,
+              packId: _stablePackId,
+              instanceNumber: _stableInstanceNumber,
+              typingLockActive: isUserTyping || false,
+              transcriptLen: finalTranscriptList_S_SAFE?.length || 0
+            });
+
+            return (
+              <div
+                key={`active-stable-${_stableKey}`}
+                ref={activeLaneCardRef}
+                data-stablekey={_stableKey}
+                data-cq-active-card="true"
+                data-cq-card-id={_stableKey}
+                data-cq-card-kind="v3_pack_opener"
+                data-ui-contract-card="true"
+                data-v3-stable-block="true"
+                style={{
+                  scrollMarginBottom: `${activeCard_SScrollMarginBottomPx}px`
+                }}
+              >
+                <ContentContainer>
+                  <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ring-2 ring-purple-400/40 shadow-lg shadow-purple-500/20 transition-all duration-150">
+                    {currentItem_S.categoryLabel && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-medium text-purple-400">
+                          {_stableInstanceTitle}
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-white text-sm leading-relaxed">{_stableSafePrompt}</p>
+                    {currentItem_S.exampleNarrative && (
+                      <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
+                        <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
+                        <p className="text-slate-300 text-xs italic">{currentItem_S.exampleNarrative}</p>
+                      </div>
+                    )}
+                  </div>
+                </ContentContainer>
+              </div>
+            );
+          })()}
+
           {/* ACTIVE CARD LANE: Render active prompt card at bottom (after transcript) */}
           {activeCard_S && (activeUiItem_S_SAFE.kind === "REQUIRED_ANCHOR_FALLBACK" || activeUiItem_S_SAFE.kind === "V3_OPENER" || activeUiItem_S_SAFE.kind === "V3_PROMPT" || activeUiItem_S_SAFE.kind === "MI_GATE" || activeCard_S_SAFE.kind === "base_question_yesno") && (() => {
             console.log('[UI_CONTRACT][ACTIVE_LANE_POSITION_SOT]', {
@@ -18441,8 +18621,14 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
             }
 
             if (cardKind === "v3_pack_opener") {
+              // DEDUP: Skip if always-on stable block already rendered V3_OPENER
+              if (__v3OpenerRenderedByStableBlock) {
+                console.log('[V3_OPENER][ACTIVE_LANE_DEDUP_SKIP]', { reason: 'stable_block_already_rendered' });
+                return null;
+              }
+
               const cardStableKey = activeCard_S_SAFE.stableKey || `followup-card:${activeCard_S.packId}:opener:${activeCard_S.instanceNumber}`;
-              
+
               // FORCED RENDERING: Active opener MUST render in main pane (owner swap suppression removed)
               if (activeUiItem_S_SAFE?.kind === "V3_OPENER") {
                 console.log('[V3_OPENER][FORCE_MAIN_PANE_RENDER]', {
@@ -18470,7 +18656,15 @@ try { sessionId_SAFE = sessionId; } catch (_) { sessionId_SAFE = null; }
                 activeKeySOT: activeCard_SKeySOT,
                 match: cardStableKey === activeCard_SKeySOT
               });
-              
+
+              console.log('[V3_OPENER][ACTIVE_LANE_RENDERED]', {
+                packId: activeCard_S.packId,
+                instanceNumber: activeCard_S.instanceNumber,
+                hasOpenerText: !!(activeCard_S_SAFE.text),
+                activeUiItemKind: activeUiItem_S_SAFE?.kind,
+                currentItem_SType: currentItem_S?.type
+              });
+
               const safeOpenerPrompt = sanitizeCandidateFacingText_SAFE(activeCard_S_SAFE.text, 'ACTIVE_LANE_V3_OPENER');
               
               const instanceTitle = activeCard_S.categoryLabel && activeCard_S.instanceNumber > 1 

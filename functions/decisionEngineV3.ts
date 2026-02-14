@@ -1035,7 +1035,7 @@ async function loadRequiredFieldsForPack(base44, packId, factModel) {
             description: f.helperText || null,
             required: Boolean(f.required),
             order: f.order || 0,
-            semantic_type: f.semanticType || null,
+            semantic_type: f.semanticType || f.semanticKey || null,
             ai_probe_hint: f.aiProbeHint || null
           });
         }
@@ -1575,7 +1575,36 @@ async function decisionEngineV3Probe(base44, {
         }
       }
     }
-    
+
+    // SEMANTIC ALIAS TABLE: Bridge FactModel extraction keys → pack semantic types
+    // Handles cases where extractOpenerFacts writes to FactModel field IDs
+    // (e.g., "agency_name") but pack requires PACK_PRLE_Q06 (semantic: "prior_le_agency")
+    const SEMANTIC_ALIASES = {
+      'agency_name': ['prior_le_agency', 'agency'],
+      'agency': ['prior_le_agency'],
+      'position': ['prior_le_position', 'position_title'],
+      'position_title': ['prior_le_position'],
+      'job_title': ['prior_le_position'],
+      'application_date': ['prior_le_approx_date', 'approx_date'],
+      'month_year': ['prior_le_approx_date'],
+      'approx_date': ['prior_le_approx_date'],
+      'application_outcome': ['application_outcome', 'outcome'],
+      'outcome': ['application_outcome'],
+    };
+
+    for (const [alias, semanticTargets] of Object.entries(SEMANTIC_ALIASES)) {
+      const aliasCanon = canon(alias);
+      if (!requiredFieldMapping.has(aliasCanon)) {
+        for (const sem of semanticTargets) {
+          const semCanon = canon(sem);
+          if (requiredFieldMapping.has(semCanon)) {
+            requiredFieldMapping.set(aliasCanon, requiredFieldMapping.get(semCanon));
+            break;
+          }
+        }
+      }
+    }
+
     // Map extracted facts to required field_ids
     for (const [extractedKey, extractedValue] of Object.entries(extractedFacts)) {
       const extractedCanon = canon(extractedKey);
@@ -1597,7 +1626,7 @@ async function decisionEngineV3Probe(base44, {
       } else {
         // Unknown field - write as-is (may be optional or legacy)
         incident.facts[extractedKey] = extractedValue;
-        
+
         console.log('[V3_FIELD_KEY_ALIGNMENT][UNMAPPED]', {
           extractedKey,
           value: typeof extractedValue === 'string' ? extractedValue.substring(0, 40) : extractedValue,
@@ -1606,7 +1635,24 @@ async function decisionEngineV3Probe(base44, {
       }
     }
   }
-  
+
+  // OPENER NARRATIVE SATISFACTION: Non-empty opener text satisfies narrative field (e.g., PACK_PRLE_Q01)
+  if (isOpenerNarrative && latestAnswerText && latestAnswerText.trim().length >= 20) {
+    const narrativeField = requiredFieldsList.find(f => {
+      const sem = canon(f.semantic_type || '');
+      return sem === 'narrative';
+    });
+
+    if (narrativeField && !incident.facts[narrativeField.field_id]) {
+      incident.facts[narrativeField.field_id] = latestAnswerText.trim().substring(0, 500);
+      fieldIdsSatisfiedExact.push(narrativeField.field_id);
+      console.log('[V3_FIELD_KEY_ALIGNMENT][OPENER_NARRATIVE_SATISFIED]', {
+        narrativeFieldId: narrativeField.field_id,
+        answerLength: latestAnswerText.length
+      });
+    }
+  }
+
   // PART 3: If month/year detected on initial call, write to ALL month/year required keys
   const detectedMonthYearNormalized = isInitialCall ? extractMonthYear(latestAnswerText || '') : null;
   
@@ -1625,7 +1671,18 @@ async function decisionEngineV3Probe(base44, {
       incident.facts[field.field_id] = detectedMonthYearNormalized;
       requiredKeysWritten.push(field.field_id);
     }
-    
+
+    // Also write to pack required fields by semantic_type (bridges FactModel → pack field IDs)
+    for (const pf of requiredFieldsList || []) {
+      const sem = canon(pf.semantic_type || '');
+      if (sem && ['date', 'month', 'year', 'approx'].some(kw => sem.includes(kw))) {
+        if (!incident.facts[pf.field_id]) {
+          incident.facts[pf.field_id] = detectedMonthYearNormalized;
+          requiredKeysWritten.push(pf.field_id);
+        }
+      }
+    }
+
     if (requiredKeysWritten.length > 0) {
       console.log('[V3_MONTH_YEAR_KEYS][APPLIED]', {
         requiredKeysWritten,
@@ -1634,7 +1691,109 @@ async function decisionEngineV3Probe(base44, {
       });
     }
   }
-  
+
+  // =========================================================================
+  // PRIOR_LE_APPS CANONICAL FACT RECONCILIATION
+  // Fallback bridge when SEMANTIC_ALIASES mapping fails (e.g., semantic_type
+  // not set on pack field_config). Merges incident.facts + incident.fact_state
+  // .facts, then maps normalized extraction keys (agency_name, position,
+  // application_date) to their pack field_ids even when semantic_type is null.
+  // =========================================================================
+  if (categoryId === 'PRIOR_LE_APPS') {
+    // TASK 1: Canonical merged facts (incident.facts wins on collision)
+    const mergedFacts = {
+      ...(incident.fact_state?.facts || {}),
+      ...incident.facts
+    };
+
+    // Helper: find required field by semantic patterns or hardcoded fallback
+    const findRequiredField = (semanticPatterns, fallbackFieldId) => {
+      const matched = requiredFieldsList.find(f => {
+        const fid = canon(f.field_id || '');
+        const sem = canon(f.semantic_type || '');
+        const lbl = canon(f.label || '');
+        return semanticPatterns.some(p => {
+          const cp = canon(p);
+          return fid.includes(cp) || sem.includes(cp) || lbl.includes(cp);
+        });
+      });
+      if (matched) return matched.field_id;
+      if (fallbackFieldId && requiredFieldsList.some(f => f.field_id === fallbackFieldId)) {
+        return fallbackFieldId;
+      }
+      return null;
+    };
+
+    // Helper: find non-empty value from mergedFacts by any of the given keys
+    const findFactValue = (keys) => {
+      for (const key of keys) {
+        if (mergedFacts[key] && String(mergedFacts[key]).trim() !== '') return mergedFacts[key];
+        const cKey = canon(key);
+        const match = Object.keys(mergedFacts).find(k => canon(k) === cKey);
+        if (match && mergedFacts[match] && String(mergedFacts[match]).trim() !== '') return mergedFacts[match];
+      }
+      return null;
+    };
+
+    // TASK 2: Map normalized extraction keys → pack required field_ids
+    const RECONCILIATION_MAP = [
+      {
+        factKeys: ['agency_name', 'agency', 'prior_le_agency', 'department'],
+        semanticPatterns: ['agency', 'department', 'organization'],
+        fallbackFieldId: 'PACK_PRLE_Q06'
+      },
+      {
+        factKeys: ['position', 'position_title', 'job_title', 'prior_le_position', 'role'],
+        semanticPatterns: ['position', 'role', 'jobtitle'],
+        fallbackFieldId: 'PACK_PRLE_Q05'
+      },
+      {
+        factKeys: ['application_date', 'month_year', 'approx_date', 'prior_le_approx_date'],
+        semanticPatterns: ['date', 'month', 'year', 'approx'],
+        fallbackFieldId: 'PACK_PRLE_Q04'
+      },
+      {
+        factKeys: ['application_outcome', 'outcome', 'result'],
+        semanticPatterns: ['outcome', 'result', 'decision'],
+        fallbackFieldId: null
+      },
+    ];
+
+    let reconciledCount = 0;
+    for (const mapping of RECONCILIATION_MAP) {
+      const targetFieldId = findRequiredField(mapping.semanticPatterns, mapping.fallbackFieldId);
+      if (!targetFieldId) continue;
+      // Skip if already satisfied in incident.facts
+      if (incident.facts[targetFieldId] && String(incident.facts[targetFieldId]).trim() !== '') continue;
+
+      const value = findFactValue(mapping.factKeys);
+      if (value) {
+        incident.facts[targetFieldId] = value;
+        reconciledCount++;
+      }
+    }
+
+    // TASK 3: Opener narrative → PACK_PRLE_Q01 (or whatever narrative field_id is)
+    if (isOpenerNarrative && latestAnswerText && latestAnswerText.trim().length >= 20) {
+      const narrativeFieldId = findRequiredField(
+        ['narrative', 'opener', 'describe', 'initial', 'freetext'],
+        'PACK_PRLE_Q01'
+      );
+      if (narrativeFieldId && (!incident.facts[narrativeFieldId] || String(incident.facts[narrativeFieldId]).trim() === '')) {
+        incident.facts[narrativeFieldId] = latestAnswerText.trim().substring(0, 500);
+        reconciledCount++;
+      }
+    }
+
+    if (reconciledCount > 0) {
+      console.log('[V3_FACT_RECONCILIATION][PRIOR_LE_APPS]', {
+        incidentId,
+        reconciledCount,
+        factsKeysAfter: Object.keys(incident.facts).slice(0, 15),
+      });
+    }
+  }
+
   console.log('[V3_FACT_GATE][INPUT_SOT]', {
     incidentId,
     categoryId,
@@ -1643,7 +1802,7 @@ async function decisionEngineV3Probe(base44, {
     requiredFieldsCount: requiredFieldsList?.length || 0,
     factsKeysCount: incident?.facts ? Object.keys(incident.facts).length : 0,
   });
-  
+
   // Update fact_state to reflect newly written facts (use actual required fields list)
   factState = updateV3FactStateFromFields(factState, incidentId, requiredFieldsList, incident.facts);
   
@@ -1662,7 +1821,18 @@ async function decisionEngineV3Probe(base44, {
     missingCount: missingFieldsAfter?.length || 0,
     missingFieldIds: (missingFieldsAfter || []).map(f => f.field_id).slice(0, 12),
   });
-  
+
+  // DIAGNOSTIC: Satisfaction map — required vs satisfied vs missing
+  console.log('[V3_ENGINE][SATISFACTION_MAP]', {
+    incidentId,
+    packId: packId || 'none',
+    source: requiredFieldsSource,
+    required: requiredFieldsList.map(f => f.field_id),
+    satisfied: fieldIdsSatisfiedExact,
+    missing: missingFieldsAfter.map(f => f.field_id),
+    factsSnapshot: Object.keys(incident.facts).slice(0, 15)
+  });
+
   // LOAD-BEARING DIAGNOSTIC: Initial call truth log
   const extractedMonthYearKey = Object.keys(extractedFacts).find(k => 
     ['date', 'month', 'year', 'when', 'time', 'approx'].some(kw => canon(k).includes(kw))
@@ -2742,8 +2912,18 @@ async function decisionEngineV3Probe(base44, {
       nextItemType: nextAction === 'ASK' ? 'v3_probe_question' : nextAction.toLowerCase(),
       gateStatus
     });
+
+    // FACT SATISFACTION DEBUG: Canonical reconciliation audit
+    console.log('[V3_FACT_SAT_CHECK]', {
+      mergedKeysPresent: Object.keys(incident.facts).filter(k =>
+        incident.facts[k] && String(incident.facts[k]).trim() !== ''
+      ),
+      requiredMissingIds: missingFieldsAfter.map(f => f.field_id),
+      chosenMissingFieldId,
+      nextAction
+    });
   }
-  
+
   // Add prompt source metadata to return value
   const returnMeta = {
     promptSource: promptSource || 'TEMPLATE',
