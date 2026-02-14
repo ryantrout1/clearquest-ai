@@ -5592,13 +5592,14 @@ function CandidateInterviewInner() {
     }
     
     // 5. REQUIRED_ANCHOR_FALLBACK - Deterministic fallback (highest priority active state)
-    // V3 GUARD: NEVER choose REQUIRED_ANCHOR_FALLBACK during V3 probing (defense-in-depth)
-    if (requiredAnchorFallbackActive && (v3ProbingActive || currentItem_S?.type === 'v3_probing' || currentItem_S?.type === 'v3_pack_opener')) {
+    // V3 GUARD: NEVER choose REQUIRED_ANCHOR_FALLBACK during ACTIVE V3 probing (defense-in-depth)
+    // STALE OPENER FIX: When v3ProbingActive=false, stale currentItem_S type must not block fallback
+    if (requiredAnchorFallbackActive && v3ProbingActive) {
       console.log('[V3_GUARD][SKIP_REQUIRED_ANCHOR_FALLBACK]', { currentItem_SType: currentItem_S?.type, v3ProbingActive, hasActiveV3Prompt: hasActiveV3Prompt_SAFE });
       // fall through — V3 phases below handle this state
     }
-    // BYPASS: V3 context - fallback is display-only, let V3 phases handle state
-    else if (requiredAnchorFallbackActive && requiredAnchorCurrent !== null && !isV3Context) {
+    // Route to fallback phase when V3 probing is not active
+    else if (requiredAnchorFallbackActive && requiredAnchorCurrent !== null && !v3ProbingActive) {
       return {
         phase: "REQUIRED_ANCHOR_FALLBACK",
         allowedActions: new Set(["SUBMIT", "TEXT"]),
@@ -10829,6 +10830,13 @@ function CandidateInterviewInner() {
     
     // V3 OPENER: Use dedicated openerDraft state (isolated from shared input)
     if (currentItem_S.type === 'v3_pack_opener') {
+      // STALE OPENER GUARD: Don't restore opener draft when fallback has taken ownership
+      if (requiredAnchorFallbackActive) {
+        console.log('[DRAFT][SKIP_OPENER_RESTORE_FOR_FALLBACK]', { requiredAnchorFallbackActive });
+        setOpenerDraft("");
+        setInput("");
+        return;
+      }
       try {
         const savedDraft = window.sessionStorage.getItem(draftKey);
         
@@ -10913,7 +10921,7 @@ function CandidateInterviewInner() {
       console.warn("[UX][DRAFT] Failed to restore draft", e);
       setInput(""); // UI CONTRACT: NEVER use prompt as fallback
     }
-  }, [currentItem_S, sessionId, buildDraftKey, v3ProbingActive]);
+  }, [currentItem_S, sessionId, buildDraftKey, v3ProbingActive, requiredAnchorFallbackActive]);
 
   // Measure question card height dynamically
   React.useEffect(() => {
@@ -12971,11 +12979,13 @@ function CandidateInterviewInner() {
       // window.__CQ_LAST_RENDER_STEP__ = 'TRY1_STEP_3B:BEFORE_PRIORITY0';
       console.log('[CQ_DIAG][TRY1_STEP]', { step: '3B:BEFORE_PRIORITY0' });
       lastTry1StepRef.current = '3B:BEFORE_PRIORITY0';
-    // V3 GUARD: NEVER choose REQUIRED_ANCHOR_FALLBACK during V3 probing (defense-in-depth)
-    if (requiredAnchorFallbackActive && requiredAnchorCurrent && (v3ProbingActive || currentItem_SType === 'v3_probing' || currentItem_SType === 'v3_pack_opener')) {
+    // V3 GUARD: NEVER choose REQUIRED_ANCHOR_FALLBACK during ACTIVE V3 probing (defense-in-depth)
+    // STALE OPENER FIX: When v3ProbingActive=false, currentItem_SType='v3_pack_opener' is stale
+    // (TAKE_OWNERSHIP cleared V3 state) — allow fallback routing
+    if (requiredAnchorFallbackActive && requiredAnchorCurrent && v3ProbingActive) {
       console.log('[V3_GUARD][SKIP_REQUIRED_ANCHOR_FALLBACK]', { currentItem_SType, v3ProbingActive, hasActiveV3Prompt: hasActiveV3Prompt_SAFE });
       // fall through — V3 priorities below handle this state
-    } else if (requiredAnchorFallbackActive && requiredAnchorCurrent && !isV3Context) {
+    } else if (requiredAnchorFallbackActive && requiredAnchorCurrent && !v3ProbingActive) {
       return {
         kind: "REQUIRED_ANCHOR_FALLBACK",
         packId: v3ProbingContext_S?.packId || currentItem_S?.packId,
@@ -13094,7 +13104,7 @@ function CandidateInterviewInner() {
         const currentItemType__SAFE = (typeof currentItem_S !== 'undefined' && currentItem_S) ? currentItem_S.type : null;
         console.log('[CQ_RESOLVER_BC][BEFORE_P2]', { ts: Date.now(), currentItemType: currentItem_S?.type || null, sessionId: (typeof sessionId !== 'undefined' ? sessionId : null) });
 
-        if (currentItemType__SAFE === 'v3_pack_opener') {
+        if (currentItemType__SAFE === 'v3_pack_opener' && !(requiredAnchorFallbackActive && !v3ProbingActive)) {
           console.log('[CQ_RESOLVER_BC][P2_SHAPES]', {
             typeofCurrentItem_S: typeof currentItem_S,
             hasCurrentItem_S: !!currentItem_S,
@@ -13299,8 +13309,9 @@ function CandidateInterviewInner() {
     const bottomBarRenderTypeSOT__LOCAL = (() => {
       const currentType = currentItem_S?.type;
       
-      // Priority 0: Required anchor fallback (NOT in V3 context - fallback is display-only there)
-      if (requiredAnchorFallbackActive && requiredAnchorCurrent && !isV3Context) return "required_anchor_fallback";
+      // Priority 0: Required anchor fallback (NOT during active V3 probing)
+      // STALE OPENER FIX: Use v3ProbingActive (authoritative) not isV3Context (includes stale opener type)
+      if (requiredAnchorFallbackActive && requiredAnchorCurrent && !v3ProbingActive) return "required_anchor_fallback";
 
       // Priority 1: Multi-instance gate
       if (currentType === "multi_instance_gate") return "multi_instance_gate";
